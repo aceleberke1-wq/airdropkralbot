@@ -170,16 +170,22 @@ try {
   } else {
     Write-Host "Repo zaten var: $fullRepo"
     $remoteUrl = "https://github.com/$fullRepo.git"
-    $remoteGet = Invoke-Tool -Exe $git -Args @("remote", "get-url", "origin")
-    if ($remoteGet.Code -ne 0) {
-      $addRemote = Invoke-Tool -Exe $git -Args @("remote", "add", "origin", $remoteUrl)
-      Ensure-Success -Name "git remote add origin" -Result $addRemote
+    $originUrl = & $git remote get-url origin 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $originUrl) {
+      & $git remote add origin $remoteUrl
+      if ($LASTEXITCODE -ne 0) {
+        throw "git remote add origin basarisiz."
+      }
     } else {
-      $setRemote = Invoke-Tool -Exe $git -Args @("remote", "set-url", "origin", $remoteUrl)
-      Ensure-Success -Name "git remote set-url origin" -Result $setRemote
+      & $git remote set-url origin $remoteUrl
+      if ($LASTEXITCODE -ne 0) {
+        throw "git remote set-url origin basarisiz."
+      }
     }
-    $pushRes = Invoke-Tool -Exe $git -Args @("push", "-u", "origin", "main")
-    Ensure-Success -Name "git push origin main" -Result $pushRes
+    & $git push -u origin main
+    if ($LASTEXITCODE -ne 0) {
+      throw "git push origin main basarisiz."
+    }
   }
 
   Write-Host ""
