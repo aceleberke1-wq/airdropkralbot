@@ -61,9 +61,10 @@ function Resolve-GitHubOwner {
     return $ExplicitOwner
   }
 
-  $res = Invoke-Tool -Exe $GhExe -CommandArgs @("api", "user", "-q", ".login")
-  Ensure-Success -Name "gh api user" -Result $res
-  $candidate = ($res.Out | Select-Object -First 1).ToString().Trim()
+  $candidate = (& $GhExe api user -q .login 2>$null | Select-Object -First 1).ToString().Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw "gh api user basarisiz. gh auth login -w ile tekrar giris yap."
+  }
 
   if ($candidate -notmatch "^[A-Za-z0-9-]+$") {
     throw "GitHub owner gecersiz/alinemedi: '$candidate'. -Owner parametresi ver."
@@ -140,8 +141,8 @@ try {
     exit 0
   }
 
-  $authCheck = Invoke-Tool -Exe $gh -CommandArgs @("auth", "status")
-  if ($authCheck.Code -ne 0) {
+  & $gh auth status 1>$null 2>$null
+  if ($LASTEXITCODE -ne 0) {
     Write-Host "GitHub oturumu yok. Sunu calistir:" -ForegroundColor Yellow
     Write-Host "  gh auth login -w"
     throw "GitHub auth gerekli."
@@ -162,11 +163,14 @@ try {
   }
 
   $visibilityFlag = if ($Visibility -eq "private") { "--private" } else { "--public" }
-  $repoView = Invoke-Tool -Exe $gh -CommandArgs @("repo", "view", $fullRepo)
-  if ($repoView.Code -ne 0) {
+  & $gh repo view $fullRepo --json nameWithOwner 1>$null 2>$null
+  $repoExists = ($LASTEXITCODE -eq 0)
+  if (-not $repoExists) {
     Write-Host "Repo olusturuluyor: $fullRepo ($Visibility)"
-    $createRes = Invoke-Tool -Exe $gh -CommandArgs @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
-    Ensure-Success -Name "gh repo create --push" -Result $createRes
+    & $gh repo create $fullRepo $visibilityFlag --source . --remote origin --push
+    if ($LASTEXITCODE -ne 0) {
+      throw "gh repo create --push basarisiz."
+    }
   } else {
     Write-Host "Repo zaten var: $fullRepo"
     $remoteUrl = "https://github.com/$fullRepo.git"
