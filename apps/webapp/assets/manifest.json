@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "models": {
+    "arena_core": "/webapp/assets/arena-core.glb"
+  },
+  "notes": "Place licensed .glb files under apps/webapp/assets and keep paths updated."
+}

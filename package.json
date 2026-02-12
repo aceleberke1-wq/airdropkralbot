@@ -1,0 +1,13 @@
+{
+  "name": "airdropkralbot",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:bot": "node apps/bot/src/index.js",
+    "dev:admin": "node apps/admin-api/src/index.js",
+    "test:bot": "node --test apps/bot/test/*.test.js"
+  }
+}

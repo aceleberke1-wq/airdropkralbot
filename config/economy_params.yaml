@@ -1,0 +1,64 @@
+version: 1
+loops:
+  micro:
+    reward_base_sc: 1.0
+    reward_variance: 0.15
+    reveal_pace_ms: [300, 600, 900]
+  meso:
+    streak_grace_hours: 6
+    streak_decay_per_day: 1
+    daily_cap_base: 120
+  macro:
+    season_length_days: 56
+    prestige_min_rank: 5000
+
+economy:
+  sc:
+    base: 1.0
+    diff_coeff: 0.8
+    streak_coeff: 0.12
+    kingdom_coeff: 0.05
+    fatigue_coeff: 0.18
+    risk_dampen: 0.25
+  hc:
+    p0: 0.002
+    p_min: 0.001
+    p_max: 0.02
+    streak_coeff: 0.0015
+    pity_cap: 40
+
+kingdom:
+  thresholds: [0, 1500, 5000, 15000, 40000]
+  demotion_grace_days: 3
+
+tasks:
+  target_success_micro: 0.78
+  target_success_risk: 0.52
+  near_miss_rate: 0.18
+  task_rotation_hours: 8
+
+anti_abuse:
+  ewma_alpha: 0.20
+  short_complete_sec: 10
+  very_short_complete_sec: 4
+  hourly_task_soft: 20
+  hourly_task_hard: 40
+  duplicate_ratio_soft: 0.10
+  duplicate_ratio_hard: 0.20
+  max_daily_tasks: 240
+  risk_soft_dampen: 0.20
+  risk_hard_dampen: 0.50
+  shadow_threshold: 0.85
+
+arena:
+  ticket_cost_rc: 1
+  cooldown_sec: 20
+  base_rating: 1000
+  rewards:
+    base_sc: 3
+    base_rc: 1
+    hc_win_chance: 0.02
+  rank_delta:
+    win: 22
+    near: 6
+    loss: -14

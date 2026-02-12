@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AirdropKral Arena Nexus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/webapp/styles.css" />
+  </head>
+  <body>
+    <canvas id="bg3d"></canvas>
+    <div class="noise"></div>
+    <div class="scanlines"></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <p class="kicker">AirdropKralBot</p>
+          <h1>Nexus Arena</h1>
+          <p id="seasonLine" class="micro">S0 - 0 gun</p>
+        </div>
+        <div class="headerActions">
+          <button id="refreshBtn" class="btn ghost">Yenile</button>
+          <button id="rerollBtn" class="btn accent">Panel Yenile (1 RC)</button>
+        </div>
+      </header>
+
+      <section class="hero card">
+        <div class="heroMain">
+          <h2 id="kingName">Kral</h2>
+          <p id="kingMeta" class="muted">Tier - | Streak -</p>
+          <div class="chipRow">
+            <span class="chip">SC <b id="balSC">0</b></span>
+            <span class="chip">HC <b id="balHC">0</b></span>
+            <span class="chip">RC <b id="balRC">0</b></span>
+          </div>
+        </div>
+        <div class="heroStats">
+          <div class="statBlock">
+            <p class="label">Gunluk Verim</p>
+            <p id="dailyLine" class="value">0 / 0 gorev</p>
+            <div class="meter"><span id="dailyMeter"></span></div>
+            <p id="dailyEarned" class="micro">Bugun: 0 SC | 0 RC</p>
+          </div>
+          <div class="statBlock">
+            <p class="label">Savas Basinci</p>
+            <p id="warLine" class="value">War Tier Seed</p>
+            <p id="riskLine" class="micro">Risk 0%</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="layout">
+        <article class="panel tasks">
+          <div class="panelHead">
+            <h3>Canli Gorev Agi</h3>
+            <span id="offerBadge" class="badge">0 aktif</span>
+          </div>
+          <div id="offersList" class="offerList"></div>
+        </article>
+
+        <article class="panel operation">
+          <div class="panelHead">
+            <h3>Operasyon Konsolu</h3>
+            <span id="arenaStatus" class="badge warn">Beklemede</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Aktif Deneme</p>
+              <p id="activeAttempt" class="value">Yok</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Reveal Hazir</p>
+              <p id="revealAttempt" class="value">Yok</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Arena Rating</p>
+              <p id="arenaRating" class="value">1000</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Arena Rank</p>
+              <p id="arenaRank" class="value">#-</p>
+            </div>
+          </div>
+          <div class="modeGrid">
+            <button id="finishSafeBtn" class="mode safe">Temkinli Bitir</button>
+            <button id="finishBalancedBtn" class="mode balanced">Dengeli Bitir</button>
+            <button id="finishAggressiveBtn" class="mode aggressive">Saldirgan Bitir</button>
+            <button id="revealBtn" class="mode reveal">Reveal Ac</button>
+          </div>
+          <div class="modeGrid raidGrid">
+            <button id="raidSafeBtn" class="mode safe">Raid Temkinli</button>
+            <button id="raidBalancedBtn" class="mode balanced">Raid Dengeli</button>
+            <button id="raidAggressiveBtn" class="mode aggressive">Raid Saldirgan</button>
+            <button id="arenaBoardBtn" class="mode reveal">Arena Top</button>
+          </div>
+          <div class="simBox">
+            <div class="simHead">
+              <p class="label">Combat Simulator</p>
+              <p id="simTimer" class="micro">Hazir</p>
+            </div>
+            <p id="simPrompt" class="simPrompt">Session baslat, pattern yakala, skorla otomatik resolve et.</p>
+            <p id="simStats" class="micro">Skor 0 | Combo 0 | Hit 0 | Miss 0</p>
+            <div class="simActions">
+              <button id="simStartBtn" class="mode reveal">Session Baslat</button>
+              <button id="simStrikeBtn" class="mode aggressive">Strike</button>
+              <button id="simGuardBtn" class="mode safe">Guard</button>
+              <button id="simChargeBtn" class="mode balanced">Charge</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel missions">
+          <div class="panelHead">
+            <h3>Misyon Radar</h3>
+            <span id="missionBadge" class="badge">0 hazir</span>
+          </div>
+          <div id="missionsList" class="missionList"></div>
+        </article>
+
+        <article class="panel commands">
+          <div class="panelHead">
+            <h3>Komut Matrix</h3>
+            <span class="badge info">Bot Kisa Yollar</span>
+          </div>
+          <div class="commandGrid">
+            <button class="cmd" data-action="open_tasks">Gorevler</button>
+            <button class="cmd" data-action="open_daily">Gunluk</button>
+            <button class="cmd" data-action="open_kingdom">Kingdom</button>
+            <button class="cmd" data-action="open_wallet">Cuzdan</button>
+            <button class="cmd" data-action="open_war">War Room</button>
+            <button class="cmd" data-action="open_missions">Misyon</button>
+            <button class="cmd" data-action="open_status">Durum</button>
+            <button class="cmd" data-action="open_payout">Cekim</button>
+          </div>
+        </article>
+
+        <article class="panel feed">
+          <div class="panelHead">
+            <h3>Signal Feed</h3>
+            <span class="badge info">Son 15 event</span>
+          </div>
+          <ul id="eventFeed" class="eventFeed"></ul>
+        </article>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/webapp/app.js"></script>
+  </body>
+</html>
