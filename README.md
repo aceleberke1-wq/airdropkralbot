@@ -99,6 +99,7 @@ if NS is Vercel -> add CNAME in Vercel DNS (`webapp -> <render-service>.onrender
 if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 7. Start command should be `npm run start:all`.
 8. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
+9. `DATABASE_URL` must be cloud DB URL (Neon/Render DB). Do not use `localhost`.
 
 ## GitHub Push (required for Render)
 1. Publish this local folder to GitHub:
@@ -151,3 +152,5 @@ SQL migrations are in `db/migrations`. Apply them with your preferred migration 
 3. `db/migrations` Postgres schema
 4. `config` Economy parameters
 5. `docs` Architecture and security notes
+If `psql` is not installed, use Node migration runner:
+`npm run migrate:node`

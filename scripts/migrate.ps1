@@ -43,6 +43,12 @@ if (-not $DatabaseUrl) {
   exit 1
 }
 
+$dbUrlTrimmed = $DatabaseUrl.Trim()
+if ($dbUrlTrimmed -match "^\s*psql(\s|$)") {
+  Write-Error "DATABASE_URL must be a raw postgres URL only (postgres://... or postgresql://...). Do not prefix with 'psql'."
+  exit 1
+}
+
 $psqlCmd = Get-Command psql -ErrorAction SilentlyContinue
 $psqlPath = $null
 
