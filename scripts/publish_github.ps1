@@ -1,5 +1,6 @@
 param(
   [string]$RepoName = "airdropkralbot",
+  [string]$Owner = "",
   [ValidateSet("private", "public")]
   [string]$Visibility = "private",
   [switch]$InitOnly
@@ -37,6 +38,39 @@ function Invoke-Tool {
   }
 }
 
+function Ensure-Success {
+  param(
+    [string]$Name,
+    [hashtable]$Result
+  )
+  if ($Result.Code -ne 0) {
+    $outText = ""
+    if ($Result.Out) {
+      $outText = ($Result.Out | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    }
+    throw "$Name basarisiz (exit=$($Result.Code)).`n$outText"
+  }
+}
+
+function Resolve-GitHubOwner {
+  param(
+    [string]$GhExe,
+    [string]$ExplicitOwner
+  )
+  if ($ExplicitOwner) {
+    return $ExplicitOwner
+  }
+
+  $res = Invoke-Tool -Exe $GhExe -Args @("api", "user", "-q", ".login")
+  Ensure-Success -Name "gh api user" -Result $res
+  $candidate = ($res.Out | Select-Object -First 1).ToString().Trim()
+
+  if ($candidate -notmatch "^[A-Za-z0-9-]+$") {
+    throw "GitHub owner gecersiz/alinemedi: '$candidate'. -Owner parametresi ver."
+  }
+  return $candidate
+}
+
 $repoPath = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoPath
 try {
@@ -46,6 +80,10 @@ try {
   )
   if (-not $git) {
     throw "git bulunamadi. Once kur: winget install --id Git.Git -e"
+  }
+  $gitDir = Split-Path $git -Parent
+  if ($env:PATH -notlike "*$gitDir*") {
+    $env:PATH = "$gitDir;$env:PATH"
   }
 
   $gh = Resolve-ToolPath -Name "gh" -Fallbacks @(
@@ -109,14 +147,18 @@ try {
     throw "GitHub auth gerekli."
   }
 
+  $repoNameOnly = $RepoName
+  if ($repoNameOnly -match "/") {
+    $repoNameOnly = $repoNameOnly.Split("/")[-1]
+  }
+  if ($repoNameOnly -notmatch "^[A-Za-z0-9._-]+$") {
+    throw "RepoName gecersiz: $RepoName"
+  }
+
   $fullRepo = $RepoName
   if ($RepoName -notmatch "/") {
-    $userRes = Invoke-Tool -Exe $gh -Args @("api", "user", "--jq", ".login")
-    if ($userRes.Code -ne 0 -or -not $userRes.Out) {
-      throw "GitHub kullanici adi alinamadi."
-    }
-    $owner = ($userRes.Out | Select-Object -First 1).ToString().Trim()
-    $fullRepo = "$owner/$RepoName"
+    $ownerResolved = Resolve-GitHubOwner -GhExe $gh -ExplicitOwner $Owner
+    $fullRepo = "$ownerResolved/$repoNameOnly"
   }
 
   $visibilityFlag = if ($Visibility -eq "private") { "--private" } else { "--public" }
@@ -124,19 +166,20 @@ try {
   if ($repoView.Code -ne 0) {
     Write-Host "Repo olusturuluyor: $fullRepo ($Visibility)"
     $createRes = Invoke-Tool -Exe $gh -Args @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
-    if ($createRes.Code -ne 0) {
-      throw "Repo olusturma/push basarisiz: $($createRes.Out -join [Environment]::NewLine)"
-    }
+    Ensure-Success -Name "gh repo create --push" -Result $createRes
   } else {
     Write-Host "Repo zaten var: $fullRepo"
     $remoteUrl = "https://github.com/$fullRepo.git"
     $remoteGet = Invoke-Tool -Exe $git -Args @("remote", "get-url", "origin")
     if ($remoteGet.Code -ne 0) {
-      & $git remote add origin $remoteUrl
+      $addRemote = Invoke-Tool -Exe $git -Args @("remote", "add", "origin", $remoteUrl)
+      Ensure-Success -Name "git remote add origin" -Result $addRemote
     } else {
-      & $git remote set-url origin $remoteUrl
+      $setRemote = Invoke-Tool -Exe $git -Args @("remote", "set-url", "origin", $remoteUrl)
+      Ensure-Success -Name "git remote set-url origin" -Result $setRemote
     }
-    & $git push -u origin main
+    $pushRes = Invoke-Tool -Exe $git -Args @("push", "-u", "origin", "main")
+    Ensure-Success -Name "git push origin main" -Result $pushRes
   }
 
   Write-Host ""

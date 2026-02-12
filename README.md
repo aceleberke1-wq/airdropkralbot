@@ -101,6 +101,8 @@ if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 ## GitHub Push (required for Render)
 1. Publish this local folder to GitHub:
 `powershell -ExecutionPolicy Bypass -File scripts/publish_github.ps1 -RepoName "airdropkralbot" -Private`
+or explicitly:
+`powershell -ExecutionPolicy Bypass -File scripts/publish_github.ps1 -Owner "YOUR_GITHUB_USER" -RepoName "airdropkralbot"`
 2. Script will:
 - initialize git repo
 - commit files (without `.env`)
