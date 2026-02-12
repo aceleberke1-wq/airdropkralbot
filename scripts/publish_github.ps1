@@ -192,30 +192,31 @@ try {
   $repoExists = ($repoView.Code -eq 0)
   if (-not $repoExists) {
     Write-Host "Repo olusturuluyor: $fullRepo ($Visibility)"
-    $createRes = Invoke-GhSafe -GhExe $gh -CommandArgs @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
+    $createRes = Invoke-GhSafe -GhExe $gh -CommandArgs @("repo", "create", $fullRepo, $visibilityFlag)
     if ($createRes.Code -ne 0) {
       $detail = ($createRes.Out | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-      throw "gh repo create --push basarisiz.`n$detail"
+      throw "gh repo create basarisiz.`n$detail"
     }
   } else {
     Write-Host "Repo zaten var: $fullRepo"
-    $remoteUrl = "https://github.com/$fullRepo.git"
-    $originUrl = & $git remote get-url origin 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $originUrl) {
-      & $git remote add origin $remoteUrl
-      if ($LASTEXITCODE -ne 0) {
-        throw "git remote add origin basarisiz."
-      }
-    } else {
-      & $git remote set-url origin $remoteUrl
-      if ($LASTEXITCODE -ne 0) {
-        throw "git remote set-url origin basarisiz."
-      }
-    }
-    & $git push -u origin main
+  }
+
+  $remoteUrl = "https://github.com/$fullRepo.git"
+  $originUrl = & $git remote get-url origin 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $originUrl) {
+    & $git remote add origin $remoteUrl
     if ($LASTEXITCODE -ne 0) {
-      throw "git push origin main basarisiz."
+      throw "git remote add origin basarisiz."
     }
+  } else {
+    & $git remote set-url origin $remoteUrl
+    if ($LASTEXITCODE -ne 0) {
+      throw "git remote set-url origin basarisiz."
+    }
+  }
+  & $git push -u origin main
+  if ($LASTEXITCODE -ne 0) {
+    throw "git push origin main basarisiz."
   }
 
   Write-Host ""
