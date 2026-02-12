@@ -38,6 +38,30 @@ function Invoke-Tool {
   }
 }
 
+function Invoke-GhSafe {
+  param(
+    [string]$GhExe,
+    [string[]]$CommandArgs,
+    [switch]$Silent
+  )
+  $prevPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    if ($Silent) {
+      $output = & $GhExe @CommandArgs 2>$null
+    } else {
+      $output = & $GhExe @CommandArgs 2>&1
+    }
+    return @{
+      Code = $LASTEXITCODE
+      Out = $output
+    }
+  }
+  finally {
+    $ErrorActionPreference = $prevPreference
+  }
+}
+
 function Ensure-Success {
   param(
     [string]$Name,
@@ -61,10 +85,11 @@ function Resolve-GitHubOwner {
     return $ExplicitOwner
   }
 
-  $candidate = (& $GhExe api user -q .login 2>$null | Select-Object -First 1).ToString().Trim()
-  if ($LASTEXITCODE -ne 0) {
+  $res = Invoke-GhSafe -GhExe $GhExe -CommandArgs @("api", "user", "-q", ".login") -Silent
+  if ($res.Code -ne 0 -or -not $res.Out) {
     throw "gh api user basarisiz. gh auth login -w ile tekrar giris yap."
   }
+  $candidate = ($res.Out | Select-Object -First 1).ToString().Trim()
 
   if ($candidate -notmatch "^[A-Za-z0-9-]+$") {
     throw "GitHub owner gecersiz/alinemedi: '$candidate'. -Owner parametresi ver."
@@ -141,8 +166,8 @@ try {
     exit 0
   }
 
-  & $gh auth status 1>$null 2>$null
-  if ($LASTEXITCODE -ne 0) {
+  $authCheck = Invoke-GhSafe -GhExe $gh -CommandArgs @("auth", "status") -Silent
+  if ($authCheck.Code -ne 0) {
     Write-Host "GitHub oturumu yok. Sunu calistir:" -ForegroundColor Yellow
     Write-Host "  gh auth login -w"
     throw "GitHub auth gerekli."
@@ -163,13 +188,14 @@ try {
   }
 
   $visibilityFlag = if ($Visibility -eq "private") { "--private" } else { "--public" }
-  & $gh repo view $fullRepo --json nameWithOwner 1>$null 2>$null
-  $repoExists = ($LASTEXITCODE -eq 0)
+  $repoView = Invoke-GhSafe -GhExe $gh -CommandArgs @("repo", "view", $fullRepo, "--json", "nameWithOwner") -Silent
+  $repoExists = ($repoView.Code -eq 0)
   if (-not $repoExists) {
     Write-Host "Repo olusturuluyor: $fullRepo ($Visibility)"
-    & $gh repo create $fullRepo $visibilityFlag --source . --remote origin --push
-    if ($LASTEXITCODE -ne 0) {
-      throw "gh repo create --push basarisiz."
+    $createRes = Invoke-GhSafe -GhExe $gh -CommandArgs @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
+    if ($createRes.Code -ne 0) {
+      $detail = ($createRes.Out | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+      throw "gh repo create --push basarisiz.`n$detail"
     }
   } else {
     Write-Host "Repo zaten var: $fullRepo"
