@@ -88,15 +88,17 @@ The script now tries `ngrok` first, then automatically falls back to `cloudflare
 Note: free tunnel URL changes on each restart. Re-run script when it changes.
 
 ## Render Deploy (for domain-backed WebApp)
-1. Repo includes `render.yaml` (admin web service + bot worker).
+1. Repo includes `render.yaml` with **single free web service** (admin API + bot in one process).
 2. Create Blueprint in Render from this repo.
-3. Set required secrets in both services:
+3. Set required secrets:
 `BOT_TOKEN`, `BOT_USERNAME`, `ADMIN_TELEGRAM_ID`, payout addresses, `DATABASE_URL`, `ADMIN_API_TOKEN`, `WEBAPP_HMAC_SECRET`, `WEBAPP_PUBLIC_URL`.
 4. Keep `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp`.
 5. Add custom domain `webapp.k99-exchange.xyz` to the admin web service.
 6. DNS:
 if NS is Vercel -> add CNAME in Vercel DNS (`webapp -> <render-service>.onrender.com`).
 if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
+7. Start command should be `npm run start:all`.
+8. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
 
 ## GitHub Push (required for Render)
 1. Publish this local folder to GitHub:

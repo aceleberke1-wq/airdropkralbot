@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: node apps/admin-api/src/index.js
+    startCommand: npm run start:all
     autoDeploy: true
     envVars:
       - key: NODE_ENV
@@ -17,22 +17,5 @@ services:
         value: "10000"
       - key: PORT
         value: "10000"
-      - key: DATABASE_SSL
-        value: "1"
-
-  - type: worker
-    name: airdropkral-bot
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: node apps/bot/src/index.js
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: LOOP_V2_ENABLED
-        value: "1"
-      - key: BOT_DRY_RUN
-        value: "0"
       - key: DATABASE_SSL
         value: "1"
