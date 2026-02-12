@@ -63,6 +63,14 @@ function loadConfig() {
   const webappHmacSecret = requireEnv("WEBAPP_HMAC_SECRET", { optional: true }) || "";
   const botUsername = requireEnv("BOT_USERNAME", { optional: true }) || "airdropkral_2026_bot";
 
+  const isProd = (process.env.NODE_ENV || "").toLowerCase() === "production";
+  if (isProd && /(localhost|127\.0\.0\.1|::1)/i.test(databaseUrl)) {
+    throw new Error(
+      "Invalid DATABASE_URL for production: localhost detected. " +
+        "Set Render/Neon/Supabase Postgres URL in env (DATABASE_URL) and redeploy."
+    );
+  }
+
   return {
     dryRun,
     botToken,
