@@ -6,6 +6,9 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "node apps/admin-api/src/index.js",
+    "start:admin": "node apps/admin-api/src/index.js",
+    "start:bot": "node apps/bot/src/index.js",
     "dev:bot": "node apps/bot/src/index.js",
     "dev:admin": "node apps/admin-api/src/index.js",
     "test:bot": "node --test apps/bot/test/*.test.js"
