@@ -462,9 +462,24 @@ async function buildActionSnapshot(db, profile, runtimeConfig) {
   };
 }
 
+function dbPingWithTimeout(ms) {
+  return Promise.race([
+    pool.query("SELECT 1 AS ok;"),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("db_timeout")), ms);
+    })
+  ]);
+}
+
+fastify.get("/healthz", async () => ({ ok: true, service: "up" }));
+
 fastify.get("/health", async () => {
-  const db = await pool.query("SELECT 1 AS ok;");
-  return { ok: true, db: db.rows[0]?.ok === 1 };
+  try {
+    const db = await dbPingWithTimeout(5000);
+    return { ok: true, db: db.rows[0]?.ok === 1 };
+  } catch (err) {
+    return { ok: true, db: false, reason: err?.message || "db_unavailable" };
+  }
 });
 
 fastify.get("/webapp", async (request, reply) => {
