@@ -28,9 +28,9 @@ function Resolve-ToolPath {
 function Invoke-Tool {
   param(
     [string]$Exe,
-    [string[]]$Args
+    [string[]]$CommandArgs
   )
-  $output = & $Exe @Args 2>&1
+  $output = & $Exe @CommandArgs 2>&1
   $code = $LASTEXITCODE
   return @{
     Code = $code
@@ -61,7 +61,7 @@ function Resolve-GitHubOwner {
     return $ExplicitOwner
   }
 
-  $res = Invoke-Tool -Exe $GhExe -Args @("api", "user", "-q", ".login")
+  $res = Invoke-Tool -Exe $GhExe -CommandArgs @("api", "user", "-q", ".login")
   Ensure-Success -Name "gh api user" -Result $res
   $candidate = ($res.Out | Select-Object -First 1).ToString().Trim()
 
@@ -140,7 +140,7 @@ try {
     exit 0
   }
 
-  $authCheck = Invoke-Tool -Exe $gh -Args @("auth", "status")
+  $authCheck = Invoke-Tool -Exe $gh -CommandArgs @("auth", "status")
   if ($authCheck.Code -ne 0) {
     Write-Host "GitHub oturumu yok. Sunu calistir:" -ForegroundColor Yellow
     Write-Host "  gh auth login -w"
@@ -162,10 +162,10 @@ try {
   }
 
   $visibilityFlag = if ($Visibility -eq "private") { "--private" } else { "--public" }
-  $repoView = Invoke-Tool -Exe $gh -Args @("repo", "view", $fullRepo)
+  $repoView = Invoke-Tool -Exe $gh -CommandArgs @("repo", "view", $fullRepo)
   if ($repoView.Code -ne 0) {
     Write-Host "Repo olusturuluyor: $fullRepo ($Visibility)"
-    $createRes = Invoke-Tool -Exe $gh -Args @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
+    $createRes = Invoke-Tool -Exe $gh -CommandArgs @("repo", "create", $fullRepo, $visibilityFlag, "--source", ".", "--remote", "origin", "--push")
     Ensure-Success -Name "gh repo create --push" -Result $createRes
   } else {
     Write-Host "Repo zaten var: $fullRepo"
