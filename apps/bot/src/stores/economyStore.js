@@ -1,11 +1,9 @@
 function normalizeBalances(rows) {
   const balances = { SC: 0, HC: 0, RC: 0 };
   for (const row of rows) {
-    const key = row.currency;
+    const key = String(row.currency || "").toUpperCase();
     const value = Number(row.balance || 0);
-    if (Object.prototype.hasOwnProperty.call(balances, key)) {
-      balances[key] = Number.isFinite(value) ? value : 0;
-    }
+    balances[key] = Number.isFinite(value) ? value : 0;
   }
   return balances;
 }
@@ -215,11 +213,32 @@ async function creditReward(db, { userId, reward, reason, meta, refEventIds }) {
   return results;
 }
 
+async function getCurrencySupply(db, currency) {
+  const key = String(currency || "").toUpperCase();
+  if (!key) {
+    return { total: 0, holders: 0 };
+  }
+  const result = await db.query(
+    `SELECT
+       COALESCE(SUM(balance), 0) AS total,
+       COUNT(*) FILTER (WHERE balance > 0) AS holders
+     FROM currency_balances
+     WHERE currency = $1;`,
+    [key]
+  );
+  const row = result.rows[0] || {};
+  return {
+    total: Number(row.total || 0),
+    holders: Number(row.holders || 0)
+  };
+}
+
 module.exports = {
   getBalances,
   getTodayCounter,
   incrementDailyTasks,
   debitCurrency,
   creditCurrency,
-  creditReward
+  creditReward,
+  getCurrencySupply
 };

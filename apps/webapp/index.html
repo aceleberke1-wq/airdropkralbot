@@ -38,6 +38,7 @@
             <span class="chip">SC <b id="balSC">0</b></span>
             <span class="chip">HC <b id="balHC">0</b></span>
             <span class="chip">RC <b id="balRC">0</b></span>
+            <span class="chip">NXT <b id="balToken">0</b></span>
           </div>
         </div>
         <div class="heroStats">
@@ -115,6 +116,95 @@
           </div>
         </article>
 
+        <article class="panel tokenPanel">
+          <div class="panelHead">
+            <h3>Token Treasury</h3>
+            <span id="tokenBadge" class="badge info">NXT</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Token Durumu</p>
+              <p id="tokenSummary" class="value">0 NXT</p>
+              <p id="tokenRate" class="micro">$0.000000 / token</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Mint Potansiyeli</p>
+              <p id="tokenMintable" class="value">0 NXT</p>
+              <p id="tokenUnits" class="micro">Unify Units: 0</p>
+            </div>
+          </div>
+          <div class="tokenActions">
+            <div class="tokenRow">
+              <label for="tokenUsdInput" class="label">USD Alim Talebi</label>
+              <input id="tokenUsdInput" type="number" min="1" step="0.5" value="5" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenChainSelect" class="label">Zincir</label>
+              <select id="tokenChainSelect"></select>
+            </div>
+            <div class="modeGrid">
+              <button id="tokenMintBtn" class="mode balanced">Max Mint</button>
+              <button id="tokenBuyBtn" class="mode reveal">Alim Talebi</button>
+            </div>
+            <div class="tokenRow">
+              <label for="tokenReqInput" class="label">Talep ID</label>
+              <input id="tokenReqInput" type="number" min="1" placeholder="Orn: 12" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenTxInput" class="label">TX Hash</label>
+              <input id="tokenTxInput" type="text" placeholder="0x... veya hash..." />
+            </div>
+            <button id="tokenTxBtn" class="mode aggressive">TX Gonder</button>
+            <p id="tokenHint" class="micro">Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.</p>
+          </div>
+        </article>
+
+        <article id="adminPanel" class="panel adminPanel hidden">
+          <div class="panelHead">
+            <h3>Admin Merkezi</h3>
+            <span id="adminBadge" class="badge warn">USER</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Sistem Durumu</p>
+              <p id="adminMeta" class="value">-</p>
+              <p id="adminTokenCap" class="micro">Market cap -</p>
+            </div>
+          </div>
+          <div class="tokenActions">
+            <div class="tokenRow">
+              <label for="adminFreezeReason" class="label">Freeze Sebep</label>
+              <input id="adminFreezeReason" type="text" placeholder="Bakim, guvenlik vb" />
+            </div>
+            <div class="modeGrid">
+              <button id="adminFreezeOnBtn" class="mode aggressive">Freeze Ac</button>
+              <button id="adminFreezeOffBtn" class="mode safe">Freeze Kapat</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminTokenRequestId" class="label">Token Talep ID</label>
+              <input id="adminTokenRequestId" type="number" min="1" placeholder="Orn: 24" />
+            </div>
+            <div class="modeGrid">
+              <button id="adminTokenApproveBtn" class="mode balanced">Token Onayla</button>
+              <button id="adminTokenRejectBtn" class="mode aggressive">Token Reddet</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminPayoutRequestId" class="label">Payout Talep ID</label>
+              <input id="adminPayoutRequestId" type="number" min="1" placeholder="Orn: 7" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminPayoutTxHash" class="label">Payout TX Hash</label>
+              <input id="adminPayoutTxHash" type="text" placeholder="btc tx hash..." />
+            </div>
+            <div class="modeGrid">
+              <button id="adminPayoutPayBtn" class="mode reveal">Payout Paid</button>
+              <button id="adminPayoutRejectBtn" class="mode aggressive">Payout Reddet</button>
+            </div>
+            <button id="adminRefreshBtn" class="mode balanced">Admin Yenile</button>
+            <p id="adminQueue" class="micro">Queue: -</p>
+          </div>
+        </article>
+
         <article class="panel missions">
           <div class="panelHead">
             <h3>Misyon Radar</h3>
@@ -133,6 +223,7 @@
             <button class="cmd" data-action="open_daily">Gunluk</button>
             <button class="cmd" data-action="open_kingdom">Kingdom</button>
             <button class="cmd" data-action="open_wallet">Cuzdan</button>
+            <button class="cmd" data-action="open_token">Token</button>
             <button class="cmd" data-action="open_war">War Room</button>
             <button class="cmd" data-action="open_missions">Misyon</button>
             <button class="cmd" data-action="open_status">Durum</button>

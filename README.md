@@ -38,10 +38,26 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 12. `/play` rich Arena UI (3D + animated dashboard)
 13. `/finish [safe|balanced|aggressive]` command fallback to complete latest pending attempt
 14. `/reveal` command fallback to reveal latest completed attempt
-15. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`
-15. `/ops` risk/event operation console
-16. `/raid [safe|balanced|aggressive]` arena raid loop (RC ticket sink + rating)
-17. `/arena_rank` arena rating + leaderboard
+15. `/token` virtual token wallet + payment requests
+16. `/mint [amount]` convert SC/HC/RC into in-bot token
+17. `/buytoken <usd> <chain>` create payment intent to payout addresses
+18. `/tx <requestId> <txHash>` submit payment proof tx hash
+19. `/ops` risk/event operation console
+20. `/raid [safe|balanced|aggressive]` arena raid loop (RC ticket sink + rating)
+21. `/arena_rank` arena rating + leaderboard
+22. `/whoami` current telegram id + admin match check
+23. `/admin` admin panel
+24. `/admin_payouts` payout queue quick view
+25. `/admin_tokens` token queue quick view
+26. `/admin_freeze on|off [reason]` freeze control
+27. `/admin_config` active economy/token config summary
+28. `/admin_token_price <usd>` token spot update
+29. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
+30. `/pay <requestId> <txHash>` mark payout paid
+31. `/reject_payout <requestId> <reason>` reject payout
+32. `/approve_token <requestId> [note]` approve token buy request
+33. `/reject_token <requestId> <reason>` reject token buy request
+34. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`
 
 ## Micro Loop Extras
 1. Task panel includes `Panel Yenile (1 RC)` sink for fresh lineup.
@@ -56,7 +72,9 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 `GET /webapp/api/bootstrap`, `POST /webapp/api/tasks/reroll`,
 `POST /webapp/api/actions/accept`, `POST /webapp/api/actions/complete`, `POST /webapp/api/actions/reveal`,
 `POST /webapp/api/actions/claim_mission`,
-`POST /webapp/api/arena/raid`, `GET /webapp/api/arena/leaderboard`.
+`POST /webapp/api/arena/raid`, `GET /webapp/api/arena/leaderboard`,
+`GET /webapp/api/token/summary`, `POST /webapp/api/token/mint`,
+`POST /webapp/api/token/buy_intent`, `POST /webapp/api/token/submit_tx`.
 5. Arena flow in WebApp can now run end-to-end (accept, complete, reveal) without leaving the WebApp.
 6. Telegram `web_app` button requires `https://`. If `WEBAPP_PUBLIC_URL` is `http://localhost...`, bot now falls back to normal URL button (local test mode).
 7. Real 3D asset pipeline is enabled:
@@ -88,7 +106,7 @@ The script now tries `ngrok` first, then automatically falls back to `cloudflare
 Note: free tunnel URL changes on each restart. Re-run script when it changes.
 
 ## Render Deploy (for domain-backed WebApp)
-1. Repo includes `render.yaml` with **single free web service** (admin API + bot in one process).
+1. Repo includes `render.yaml` with **single free web service**.
 2. Create Blueprint in Render from this repo.
 3. Set required secrets:
 `BOT_TOKEN`, `BOT_USERNAME`, `ADMIN_TELEGRAM_ID`, payout addresses, `DATABASE_URL`, `ADMIN_API_TOKEN`, `WEBAPP_HMAC_SECRET`, `WEBAPP_PUBLIC_URL`.
@@ -100,6 +118,19 @@ if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 7. Start command should be `npm run start:all`.
 8. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
 9. `DATABASE_URL` must be cloud DB URL (Neon/Render DB). Do not use `localhost`.
+10. Free plan recommended flags:
+`BOT_ENABLED=1`, `BOT_AUTO_RESTART=1`, `KEEP_ADMIN_ON_BOT_EXIT=1`, `BOT_INSTANCE_LOCK_KEY=7262026`
+Run only one polling instance per token. If local and Render use same DB lock key, duplicate instance auto-stops.
+11. Validate local `.env` before copying to Render:
+`powershell -ExecutionPolicy Bypass -File scripts/check_render_env.ps1`
+12. Optional chain verification flags:
+`TOKEN_TX_VERIFY=1` enables explorer/RPC lookup on tx submission.
+`TOKEN_TX_VERIFY_STRICT=1` rejects tx hashes not found on-chain.
+
+### Why this matters
+- Telegram allows only one polling consumer for the same bot token.
+- If local bot and Render bot poll together, bot exits with `409`.
+- Instance lock (`BOT_INSTANCE_LOCK_KEY`) prevents double-start when both point to same Postgres.
 
 ## GitHub Push (required for Render)
 1. Publish this local folder to GitHub:
@@ -129,6 +160,16 @@ signed query/body fields (`uid`, `ts`, `sig`) with `WEBAPP_HMAC_SECRET`.
 3. On admin reject, locked HC is refunded exactly-once.
 4. On admin pay, TX hash is stored and visible in payout panel.
 
+## Virtual Token Semantics
+1. In-bot token is ledger-based (`currency_balances`) and non-custodial.
+2. Users can mint by burning SC/HC/RC with deterministic conversion rules from `config/economy_params.yaml`.
+3. Users can open buy intents by chain; payment addresses come from env payout addresses.
+4. Users submit tx hash as proof; admin approves/rejects in admin API.
+5. Approval credits token exactly once using idempotent `ref_event_id`.
+6. TX hash format is chain-validated (BTC/ETH/TRX/SOL/TON).
+7. If `TOKEN_TX_VERIFY=1`, on-chain check runs against public explorer/RPC APIs before saving tx proof.
+8. Payout panel is market-cap gated via `token.payout_gate` (e.g. min `$10,000,000`).
+
 ## Tests
 Run bot tests with:
 1. `npm run test:bot`
@@ -142,6 +183,9 @@ Run bot tests with:
 6. `GET /admin/payouts/:id` payout detail
 7. `POST /admin/payouts/:id/pay` mark paid + tx hash
 8. `POST /admin/payouts/:id/reject` reject request
+9. `GET /admin/token/requests` token buy request queue
+10. `POST /admin/token/requests/:id/approve` approve + credit token
+11. `POST /admin/token/requests/:id/reject` reject token request
 
 ## Migrations
 SQL migrations are in `db/migrations`. Apply them with your preferred migration tool.

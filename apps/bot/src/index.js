@@ -15,6 +15,7 @@ const missionStore = require("./stores/missionStore");
 const globalStore = require("./stores/globalStore");
 const payoutStore = require("./stores/payoutStore");
 const arenaStore = require("./stores/arenaStore");
+const tokenStore = require("./stores/tokenStore");
 const taskCatalog = require("./taskCatalog");
 const messages = require("./messages");
 const configService = require("./services/configService");
@@ -22,6 +23,8 @@ const economyEngine = require("./services/economyEngine");
 const antiAbuseEngine = require("./services/antiAbuseEngine");
 const arenaEngine = require("./services/arenaEngine");
 const arenaService = require("./services/arenaService");
+const tokenEngine = require("./services/tokenEngine");
+const txVerifier = require("./services/txVerifier");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -62,6 +65,9 @@ function loadConfig() {
   const webappPublicUrl = requireEnv("WEBAPP_PUBLIC_URL", { optional: true }) || "";
   const webappHmacSecret = requireEnv("WEBAPP_HMAC_SECRET", { optional: true }) || "";
   const botUsername = requireEnv("BOT_USERNAME", { optional: true }) || "airdropkral_2026_bot";
+  const tokenTxVerifyEnabled = process.env.TOKEN_TX_VERIFY === "1";
+  const tokenTxVerifyStrict = process.env.TOKEN_TX_VERIFY_STRICT === "1";
+  const botInstanceLockKey = Number(process.env.BOT_INSTANCE_LOCK_KEY || 7262026);
 
   const isProd = (process.env.NODE_ENV || "").toLowerCase() === "production";
   if (isProd && /(localhost|127\.0\.0\.1|::1)/i.test(databaseUrl)) {
@@ -85,7 +91,10 @@ function loadConfig() {
     payoutCooldownHours,
     webappPublicUrl,
     webappHmacSecret,
-    botUsername
+    botUsername,
+    tokenTxVerifyEnabled,
+    tokenTxVerifyStrict,
+    botInstanceLockKey
   };
 }
 
@@ -134,6 +143,91 @@ function buildSignedWebAppUrl(appConfig, telegramId) {
   }
 }
 
+function normalizeTxHash(input) {
+  return String(input || "").trim();
+}
+
+function parseFloatArg(raw) {
+  const normalized = String(raw || "").replace(",", ".").trim();
+  if (!normalized) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseTokenBuyArgs(text) {
+  const parts = String(text || "")
+    .split(" ")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return {
+    usdAmount: parseFloatArg(parts[0]),
+    chain: String(parts[1] || "").toUpperCase()
+  };
+}
+
+function parseWords(text) {
+  return String(text || "")
+    .split(" ")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value || {}));
+}
+
+function isAdminCtx(ctx, appConfig) {
+  return Number(ctx.from?.id || 0) === Number(appConfig.adminTelegramId || 0);
+}
+
+async function ensureAdminCtx(ctx, appConfig) {
+  if (isAdminCtx(ctx, appConfig)) {
+    return true;
+  }
+  await ctx.replyWithMarkdown("*Admin Yetkisi Gerekli*\nBu komut sadece admin hesap icin aciktir.");
+  return false;
+}
+
+async function writeConfigVersion(db, appConfig, configKey, configJson) {
+  const versionRes = await db.query(
+    `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+     FROM config_versions
+     WHERE config_key = $1;`,
+    [configKey]
+  );
+  const nextVersion = Number(versionRes.rows?.[0]?.next_version || 1);
+  await db.query(
+    `INSERT INTO config_versions (config_key, version, config_json, created_by)
+     VALUES ($1, $2, $3::jsonb, $4);`,
+    [configKey, nextVersion, JSON.stringify(configJson), Number(appConfig.adminTelegramId || 0)]
+  );
+  return nextVersion;
+}
+
+async function updateEconomyConfigByAdmin(db, appConfig, patchFn, auditAction, auditMeta) {
+  const current = await configService.getEconomyConfig(db, { forceRefresh: true });
+  const next = cloneJson(current);
+  patchFn(next);
+  const version = await writeConfigVersion(db, appConfig, configService.ECONOMY_CONFIG_KEY, next);
+  await db.query(
+    `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+     VALUES ($1, $2, $3, $4::jsonb);`,
+    [
+      Number(appConfig.adminTelegramId || 0),
+      auditAction,
+      "config:economy_params",
+      JSON.stringify({ version, ...(auditMeta || {}) })
+    ]
+  );
+  const reloaded = await configService.getEconomyConfig(db, { forceRefresh: true });
+  return { version, config: reloaded };
+}
+
 function logEvent(event, payload) {
   console.log(
     JSON.stringify({
@@ -142,6 +236,41 @@ function logEvent(event, payload) {
       ...payload
     })
   );
+}
+
+async function acquireInstanceLock(pool, lockKey) {
+  const client = await pool.connect();
+  try {
+    const key = Number(lockKey || 0);
+    if (!Number.isFinite(key) || key <= 0) {
+      client.release();
+      return { acquired: false, client: null, reason: "invalid_lock_key" };
+    }
+    const lockRes = await client.query("SELECT pg_try_advisory_lock($1) AS acquired;", [key]);
+    const acquired = Boolean(lockRes.rows?.[0]?.acquired);
+    if (!acquired) {
+      client.release();
+      return { acquired: false, client: null, reason: "lock_not_acquired" };
+    }
+    return { acquired: true, client, key };
+  } catch (err) {
+    try {
+      client.release();
+    } catch {}
+    throw err;
+  }
+}
+
+async function releaseInstanceLock(lock) {
+  if (!lock?.client || !lock?.acquired || !lock?.key) {
+    return;
+  }
+  try {
+    await lock.client.query("SELECT pg_advisory_unlock($1);", [lock.key]);
+  } catch {}
+  try {
+    lock.client.release();
+  } catch {}
 }
 
 function formatReward(reward) {
@@ -346,6 +475,7 @@ function buildStartKeyboard() {
       Markup.button.callback("Kingdom", "OPEN_KINGDOM"),
       Markup.button.callback("Arena 3D", "OPEN_PLAY"),
       Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"),
+      Markup.button.callback("Token", "OPEN_TOKEN"),
       Markup.button.callback("War Room", "OPEN_WAR"),
       Markup.button.callback("Cekim", "OPEN_PAYOUT"),
       Markup.button.callback("Durum", "OPEN_STATUS")
@@ -374,6 +504,7 @@ function buildPostRevealKeyboard() {
     [
       Markup.button.callback("Yeni Gorev", "OPEN_TASKS"),
       Markup.button.callback("Cuzdan", "OPEN_WALLET"),
+      Markup.button.callback("Token", "OPEN_TOKEN"),
       Markup.button.callback("Liderlik", "OPEN_LEADERBOARD"),
       Markup.button.callback("Dukkan", "OPEN_SHOP"),
       Markup.button.callback("Misyonlar", "OPEN_MISSIONS")
@@ -409,6 +540,20 @@ function buildPayoutKeyboard(canRequest) {
   return Markup.inlineKeyboard(buttons, { columns: 1 });
 }
 
+function buildTokenKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [
+        Markup.button.callback("Token Durumu", "OPEN_TOKEN"),
+        Markup.button.callback("Token Mint (Max)", "TOKEN_MINT")
+      ],
+      [Markup.button.callback("Satinalma Talep Ornegi", "TOKEN_BUY_SAMPLE")],
+      [Markup.button.callback("Bot Paneline Don", "OPEN_TASKS")]
+    ],
+    { columns: 1 }
+  );
+}
+
 function buildPlayKeyboard(url) {
   const isHttps = /^https:\/\//i.test(String(url || ""));
   const canUseWebAppButton = isHttps && typeof Markup.button.webApp === "function";
@@ -433,6 +578,29 @@ function buildRaidKeyboard() {
       Markup.button.callback("Raid Saldirgan", "ARENA_RAID:aggressive"),
       Markup.button.callback("Arena Siralama", "OPEN_ARENA_RANK"),
       Markup.button.callback("Arena 3D", "OPEN_PLAY")
+    ],
+    { columns: 1 }
+  );
+}
+
+function buildAdminKeyboard(snapshot = {}) {
+  const payoutButtons = (snapshot.pendingPayouts || [])
+    .slice(0, 3)
+    .map((row) => [Markup.button.callback(`Payout #${row.id}`, `ADMIN_PAYOUT_PICK:${row.id}`)]);
+  const tokenButtons = (snapshot.pendingTokenRequests || [])
+    .slice(0, 3)
+    .map((row) => [Markup.button.callback(`Token #${row.id}`, `ADMIN_TOKEN_PICK:${row.id}`)]);
+
+  const freezeToggle = snapshot.freeze?.freeze
+    ? Markup.button.callback("Freeze Kapat", "ADMIN_FREEZE_OFF")
+    : Markup.button.callback("Freeze Ac", "ADMIN_FREEZE_ON");
+
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("Yenile", "ADMIN_PANEL_REFRESH"), freezeToggle],
+      [Markup.button.callback("Payout Queue", "ADMIN_OPEN_PAYOUTS"), Markup.button.callback("Token Queue", "ADMIN_OPEN_TOKENS")],
+      ...payoutButtons,
+      ...tokenButtons
     ],
     { columns: 1 }
   );
@@ -1236,15 +1404,101 @@ function hashAddress(address) {
   return crypto.createHash("sha256").update(String(address || "")).digest("hex");
 }
 
-async function buildPayoutView(db, profile, appConfig) {
+async function setFreezeState(db, { freeze, reason, updatedBy }) {
+  const stateJson = {
+    freeze: Boolean(freeze),
+    reason: String(reason || "").trim(),
+    updated_at: new Date().toISOString(),
+    updated_by: Number(updatedBy || 0)
+  };
+  await db.query(
+    `INSERT INTO system_state (state_key, state_json, updated_by)
+     VALUES ('freeze', $1::jsonb, $2)
+     ON CONFLICT (state_key)
+     DO UPDATE SET state_json = EXCLUDED.state_json,
+                   updated_at = now(),
+                   updated_by = EXCLUDED.updated_by;`,
+    [JSON.stringify(stateJson), Number(updatedBy || 0)]
+  );
+  await db.query(
+    `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+     VALUES ($1, 'system_freeze_toggle', 'system_state:freeze', $2::jsonb);`,
+    [Number(updatedBy || 0), JSON.stringify(stateJson)]
+  );
+  return stateJson;
+}
+
+function computeTokenMarketCapGate(tokenConfig, tokenSupplyTotal) {
+  const gate = tokenConfig?.payout_gate || {};
+  const enabled = Boolean(gate.enabled);
+  const minMarketCapUsd = Math.max(0, Number(gate.min_market_cap_usd || 0));
+  const marketCapUsd = Number(tokenSupplyTotal || 0) * Math.max(0, Number(tokenConfig?.usd_price || 0));
+  return {
+    enabled,
+    allowed: !enabled || marketCapUsd >= minMarketCapUsd,
+    current: Number(marketCapUsd || 0),
+    min: Number(minMarketCapUsd || 0),
+    targetMax: Math.max(0, Number(gate.target_band_max_usd || 0))
+  };
+}
+
+async function buildAdminSnapshot(db, appConfig) {
+  const runtimeConfig = await configService.getEconomyConfig(db);
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
+  const freeze = await systemStore.getFreezeState(db);
+  const usersRes = await db.query(`SELECT COUNT(*)::bigint AS c FROM users;`);
+  const activeAttemptsRes = await db.query(
+    `SELECT COUNT(*)::bigint AS c
+     FROM task_attempts
+     WHERE result = 'pending';`
+  );
+  const pendingPayouts = await payoutStore.listRequests(db, { status: "requested", limit: 10 });
+  let pendingTokenRequests = [];
+  try {
+    const tokenRows = await tokenStore.listPurchaseRequests(db, { limit: 40 });
+    pendingTokenRequests = tokenRows.filter((row) =>
+      ["pending_payment", "tx_submitted"].includes(String(row.status || "").toLowerCase())
+    );
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+  return {
+    adminTelegramId: Number(appConfig.adminTelegramId || 0),
+    freeze,
+    totalUsers: Number(usersRes.rows[0]?.c || 0),
+    activeAttempts: Number(activeAttemptsRes.rows[0]?.c || 0),
+    pendingPayoutCount: pendingPayouts.length,
+    pendingTokenCount: pendingTokenRequests.length,
+    pendingPayouts,
+    pendingTokenRequests,
+    token: {
+      symbol: tokenConfig.symbol,
+      supply: Number(tokenSupply.total || 0),
+      holders: Number(tokenSupply.holders || 0),
+      marketCapUsd: Number((Number(tokenSupply.total || 0) * Number(tokenConfig.usd_price || 0)).toFixed(8)),
+      spotUsd: Number(tokenConfig.usd_price || 0),
+      payoutGate: computeTokenMarketCapGate(tokenConfig, tokenSupply.total)
+    }
+  };
+}
+
+async function buildPayoutView(db, profile, appConfig, runtimeConfigRaw) {
   const balances = await economyStore.getBalances(db, profile.user_id);
   const hc = Number(balances.HC || 0);
   const entitledBtc = hc * Number(appConfig.hcToBtcRate || 0.00001);
+  const runtimeConfig = runtimeConfigRaw || (await configService.getEconomyConfig(db));
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
+  const marketCapGate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
   const latest = await payoutStore.getLatestRequest(db, profile.user_id, "BTC");
   const active = await payoutStore.getActiveRequest(db, profile.user_id, "BTC");
   const cooldown = await payoutStore.getCooldownRequest(db, profile.user_id, "BTC");
   const canRequest =
     entitledBtc >= Number(appConfig.payoutThresholdBtc || 0.0001) &&
+    marketCapGate.allowed &&
     !active &&
     !cooldown;
 
@@ -1258,6 +1512,7 @@ async function buildPayoutView(db, profile, appConfig) {
     thresholdBtc: Number(appConfig.payoutThresholdBtc || 0.0001),
     cooldownUntil: cooldown?.cooldown_until || null,
     canRequest,
+    marketCapGate,
     latest: latestWithTx
   };
 }
@@ -1265,10 +1520,730 @@ async function buildPayoutView(db, profile, appConfig) {
 async function sendPayout(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
-    const view = await buildPayoutView(db, profile, appConfig);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const view = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     return { view };
   });
   await ctx.replyWithMarkdown(messages.formatPayout(payload.view), buildPayoutKeyboard(payload.view.canRequest));
+}
+
+async function sendAdminPanel(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const snapshot = await withTransaction(pool, async (db) => buildAdminSnapshot(db, appConfig));
+  await ctx.replyWithMarkdown(messages.formatAdminPanel(snapshot, true), buildAdminKeyboard(snapshot));
+}
+
+async function sendAdminPayoutQueue(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const rows = await withTransaction(pool, async (db) => payoutStore.listRequests(db, { status: "requested", limit: 20 }));
+  const lines =
+    rows.length > 0
+      ? rows
+          .map(
+            (row) =>
+              `#${row.id} u${row.user_id} ${Number(row.amount || 0).toFixed(8)} BTC (${Number(row.source_hc_amount || 0).toFixed(4)} HC)`
+          )
+          .join("\n")
+      : "Bekleyen payout talebi yok.";
+  await ctx.replyWithMarkdown(`*Payout Queue*\n${lines}`);
+}
+
+async function sendAdminTokenQueue(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const rows = await withTransaction(pool, async (db) => {
+    try {
+      const all = await tokenStore.listPurchaseRequests(db, { limit: 30 });
+      return all.filter((row) => ["pending_payment", "tx_submitted"].includes(String(row.status || "").toLowerCase()));
+    } catch (err) {
+      if (err.code === "42P01") {
+        return [];
+      }
+      throw err;
+    }
+  });
+
+  const lines =
+    rows.length > 0
+      ? rows
+          .map((row) => {
+            const txHint = row.tx_hash ? ` tx:${String(row.tx_hash).slice(0, 16)}...` : " tx:yok";
+            return `#${row.id} u${row.user_id} ${Number(row.usd_amount || 0).toFixed(2)} USD -> ${Number(row.token_amount || 0).toFixed(4)} ${row.token_symbol} [${String(row.status || "").toUpperCase()}]${txHint}`;
+          })
+          .join("\n")
+      : "Bekleyen token talebi yok.";
+  await ctx.replyWithMarkdown(`*Token Queue*\n${lines}`);
+}
+
+async function sendAdminConfig(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const payload = await withTransaction(pool, async (db) => {
+    const cfg = await configService.getEconomyConfig(db, { forceRefresh: true });
+    const token = tokenEngine.normalizeTokenConfig(cfg);
+    return {
+      source: configService.getConfigCacheStatus().source,
+      token
+    };
+  });
+  const gate = payload.token.payout_gate || {};
+  await ctx.replyWithMarkdown(
+    `*Admin Config*\n` +
+      `Kaynak: *${payload.source}*\n` +
+      `Token: *${payload.token.symbol}*\n` +
+      `Fiyat: *$${Number(payload.token.usd_price || 0).toFixed(8)}*\n` +
+      `Min Buy: *$${Number(payload.token.purchase?.min_usd || 0).toFixed(2)}*\n` +
+      `Max Buy: *$${Number(payload.token.purchase?.max_usd || 0).toFixed(2)}*\n` +
+      `Payout Gate: *${gate.enabled ? "ON" : "OFF"}*\n` +
+      `Gate Min Cap: *$${Math.floor(Number(gate.min_market_cap_usd || 0))}*\n` +
+      `Gate Target Max: *$${Math.floor(Number(gate.target_band_max_usd || 0))}*`
+  );
+}
+
+async function adminSetTokenPrice(ctx, pool, appConfig, usdRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const usdPrice = parseFloatArg(usdRaw);
+  if (!usdPrice || usdPrice <= 0 || usdPrice > 10) {
+    await ctx.replyWithMarkdown("*Admin Token Price*\nKullanim: `/admin_token_price 0.0005`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+  const payload = await withTransaction(pool, async (db) =>
+    updateEconomyConfigByAdmin(
+      db,
+      appConfig,
+      (next) => {
+        if (!next.token || typeof next.token !== "object") {
+          next.token = {};
+        }
+        next.token.usd_price = Number(usdPrice);
+      },
+      "config_token_price_update",
+      { usd_price: Number(usdPrice) }
+    )
+  );
+  await ctx.replyWithMarkdown(
+    messages.formatAdminActionResult("Token Price", `Kaydedildi: $${Number(usdPrice).toFixed(8)} (v${payload.version})`)
+  );
+}
+
+async function adminSetTokenGate(ctx, pool, appConfig, minRaw, maxRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const minCap = parseFloatArg(minRaw);
+  const maxCap = parseFloatArg(maxRaw);
+  if (!minCap || minCap <= 0) {
+    await ctx.replyWithMarkdown("*Admin Token Gate*\nKullanim: `/admin_token_gate 10000000 20000000`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+  const targetMax = maxCap && maxCap >= minCap ? maxCap : minCap * 2;
+  const payload = await withTransaction(pool, async (db) =>
+    updateEconomyConfigByAdmin(
+      db,
+      appConfig,
+      (next) => {
+        if (!next.token || typeof next.token !== "object") {
+          next.token = {};
+        }
+        if (!next.token.payout_gate || typeof next.token.payout_gate !== "object") {
+          next.token.payout_gate = {};
+        }
+        next.token.payout_gate.enabled = true;
+        next.token.payout_gate.min_market_cap_usd = Number(minCap);
+        next.token.payout_gate.target_band_max_usd = Number(targetMax);
+      },
+      "config_token_gate_update",
+      {
+        min_market_cap_usd: Number(minCap),
+        target_band_max_usd: Number(targetMax)
+      }
+    )
+  );
+  await ctx.replyWithMarkdown(
+    messages.formatAdminActionResult(
+      "Token Gate",
+      `Gate guncellendi: min $${Math.floor(minCap)} / target $${Math.floor(targetMax)} (v${payload.version})`
+    )
+  );
+}
+
+async function listTokenRequestsSafe(db, userId, limit = 6) {
+  try {
+    return await tokenStore.listUserPurchaseRequests(db, userId, limit);
+  } catch (err) {
+    if (err.code === "42P01") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function buildTokenView(db, profile, appConfig) {
+  const runtimeConfig = await configService.getEconomyConfig(db);
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const balances = await economyStore.getBalances(db, profile.user_id);
+  const symbol = tokenConfig.symbol;
+  const tokenBalance = Number(balances[symbol] || 0);
+  const unifiedUnits = tokenEngine.computeUnifiedUnits(balances, tokenConfig);
+  const equivalentToken = tokenEngine.estimateTokenFromBalances(balances, tokenConfig);
+  const requests = await listTokenRequestsSafe(db, profile.user_id, 5);
+
+  const chainEntries = Object.keys(tokenConfig.purchase.chains || {}).map((chainKey) => {
+    const chainConfig = tokenEngine.getChainConfig(tokenConfig, chainKey);
+    const address = tokenEngine.resolvePaymentAddress(appConfig, chainConfig);
+    return {
+      chain: chainKey,
+      pay_currency: chainConfig?.payCurrency || chainKey,
+      address: maskAddress(address),
+      enabled: Boolean(address)
+    };
+  });
+
+  return {
+    tokenConfig,
+    symbol,
+    balance: tokenBalance,
+    unifiedUnits,
+    equivalentToken,
+    spotUsd: tokenConfig.usd_price,
+    requests,
+    chains: chainEntries
+  };
+}
+
+async function sendToken(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const view = await buildTokenView(db, profile, appConfig);
+    return { profile, view };
+  });
+  await ctx.replyWithMarkdown(messages.formatTokenWallet(payload.profile, payload.view), buildTokenKeyboard());
+}
+
+async function mintToken(ctx, pool, appConfig, requestedTokenAmountRaw) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const freeze = await systemStore.getFreezeState(db);
+    if (freeze.freeze) {
+      return { ok: false, reason: "freeze_mode", freeze };
+    }
+
+    const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+    if (!tokenConfig.enabled) {
+      return { ok: false, reason: "token_disabled" };
+    }
+
+    const balances = await economyStore.getBalances(db, profile.user_id);
+    const plan = tokenEngine.planMintFromBalances(balances, tokenConfig, requestedTokenAmountRaw);
+    if (!plan.ok) {
+      return { ok: false, reason: plan.reason, plan };
+    }
+
+    const mintRef = deterministicUuid(`token_mint:${profile.user_id}:${Date.now()}:${Math.random()}`);
+    for (const [currency, amount] of Object.entries(plan.debits || {})) {
+      const safeAmount = Number(amount || 0);
+      if (safeAmount <= 0) {
+        continue;
+      }
+      const debit = await economyStore.debitCurrency(db, {
+        userId: profile.user_id,
+        currency,
+        amount: safeAmount,
+        reason: `token_mint_debit_${tokenConfig.symbol.toLowerCase()}`,
+        refEventId: deterministicUuid(`${mintRef}:${currency}:debit`),
+        meta: {
+          token_symbol: tokenConfig.symbol,
+          token_amount: plan.tokenAmount,
+          units_spent: plan.unitsSpent
+        }
+      });
+      if (!debit.applied) {
+        return { ok: false, reason: debit.reason || "mint_debit_failed", plan };
+      }
+    }
+
+    await economyStore.creditCurrency(db, {
+      userId: profile.user_id,
+      currency: tokenConfig.symbol,
+      amount: plan.tokenAmount,
+      reason: "token_mint_from_gameplay",
+      refEventId: deterministicUuid(`${mintRef}:${tokenConfig.symbol}:credit`),
+      meta: {
+        units_spent: plan.unitsSpent,
+        debits: plan.debits
+      }
+    });
+
+    await riskStore.insertBehaviorEvent(db, profile.user_id, "token_mint", {
+      token_symbol: tokenConfig.symbol,
+      token_amount: plan.tokenAmount,
+      debits: plan.debits
+    });
+
+    const view = await buildTokenView(db, profile, appConfig);
+    return { ok: true, view, plan };
+  });
+
+  if (!payload.ok) {
+    if (payload.reason === "freeze_mode") {
+      await ctx.replyWithMarkdown(messages.formatFreezeMessage(payload.freeze.reason));
+      return;
+    }
+    await ctx.replyWithMarkdown(messages.formatTokenMintError(payload.reason, payload.plan), buildTokenKeyboard());
+    return;
+  }
+
+  await ctx.replyWithMarkdown(messages.formatTokenMintResult(payload.plan, payload.view), buildTokenKeyboard());
+}
+
+async function createTokenBuyIntent(ctx, pool, appConfig, usdAmountRaw, chainRaw) {
+  let payload;
+  try {
+    payload = await withTransaction(pool, async (db) => {
+      const profile = await ensureProfileTx(db, ctx);
+      const freeze = await systemStore.getFreezeState(db);
+      if (freeze.freeze) {
+        return { ok: false, reason: "freeze_mode", freeze };
+      }
+
+      const runtimeConfig = await configService.getEconomyConfig(db);
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      if (!tokenConfig.enabled) {
+        return { ok: false, reason: "token_disabled" };
+      }
+
+      const quote = tokenEngine.quotePurchaseByUsd(usdAmountRaw, tokenConfig);
+      if (!quote.ok) {
+        return { ok: false, reason: quote.reason, quote };
+      }
+
+      const chainConfig = tokenEngine.getChainConfig(tokenConfig, chainRaw);
+      if (!chainConfig) {
+        return { ok: false, reason: "unsupported_chain" };
+      }
+      const payAddress = tokenEngine.resolvePaymentAddress(appConfig, chainConfig);
+      if (!payAddress) {
+        return { ok: false, reason: "chain_address_missing", chain: chainConfig.chain };
+      }
+
+      const request = await tokenStore.createPurchaseRequest(db, {
+        userId: profile.user_id,
+        tokenSymbol: tokenConfig.symbol,
+        chain: chainConfig.chain,
+        payCurrency: chainConfig.payCurrency,
+        payAddress,
+        usdAmount: quote.usdAmount,
+        tokenAmount: quote.tokenAmount,
+        requestRef: deterministicUuid(`token_purchase:${profile.user_id}:${Date.now()}:${Math.random()}`),
+        meta: {
+          spot_usd: tokenConfig.usd_price,
+          token_min_receive: quote.tokenMinReceive
+        }
+      });
+
+      await riskStore.insertBehaviorEvent(db, profile.user_id, "token_buy_intent", {
+        request_id: request.id,
+        usd_amount: quote.usdAmount,
+        token_amount: quote.tokenAmount,
+        chain: chainConfig.chain,
+        pay_currency: chainConfig.payCurrency
+      });
+
+      return { ok: true, request, quote, tokenConfig };
+    });
+  } catch (err) {
+    if (err.code === "42P01") {
+      await ctx.replyWithMarkdown("*Token Modulu Hazir Degil*\nDB migration calistir: `npm run migrate:node`");
+      return;
+    }
+    if (err.code === "23505") {
+      await ctx.replyWithMarkdown(messages.formatTokenTxError("tx_hash_already_used"));
+      return;
+    }
+    throw err;
+  }
+
+  if (!payload.ok) {
+    if (payload.reason === "freeze_mode") {
+      await ctx.replyWithMarkdown(messages.formatFreezeMessage(payload.freeze.reason));
+      return;
+    }
+    await ctx.replyWithMarkdown(messages.formatTokenBuyIntentError(payload.reason, payload.quote, payload.chain));
+    return;
+  }
+
+  await ctx.replyWithMarkdown(messages.formatTokenBuyIntent(payload.request, payload.quote, payload.tokenConfig), buildTokenKeyboard());
+}
+
+async function submitTokenTx(ctx, pool, requestIdRaw, txHashRaw) {
+  const requestId = Number(requestIdRaw || 0);
+  const txHash = normalizeTxHash(txHashRaw);
+  if (!requestId || !txHash || txHash.length < 24) {
+    await ctx.replyWithMarkdown("*Token TX Hatasi*\nKullanim: `/tx <requestId> <txHash>`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+
+  let payload;
+  try {
+    payload = await withTransaction(pool, async (db) => {
+      const profile = await ensureProfileTx(db, ctx);
+      const request = await tokenStore.getPurchaseRequest(db, requestId);
+      if (!request || Number(request.user_id) !== Number(profile.user_id)) {
+        return { ok: false, reason: "request_not_found" };
+      }
+      if (String(request.status) === "approved") {
+        return { ok: false, reason: "already_approved", request };
+      }
+      if (String(request.status) === "rejected") {
+        return { ok: false, reason: "already_rejected", request };
+      }
+
+      const formatCheck = txVerifier.validateTxHash(request.chain, txHash);
+      if (!formatCheck.ok) {
+        return { ok: false, reason: formatCheck.reason, request };
+      }
+
+      const verifyResult = await txVerifier.verifyOnchain(request.chain, formatCheck.normalizedHash, {
+        enabled: Boolean(appConfig.tokenTxVerifyEnabled)
+      });
+      if (
+        appConfig.tokenTxVerifyStrict &&
+        !["confirmed", "found_unconfirmed", "unsupported", "skipped"].includes(verifyResult.status)
+      ) {
+        return { ok: false, reason: "tx_not_found_onchain", request };
+      }
+
+      const updated = await tokenStore.submitPurchaseTxHash(db, {
+        requestId,
+        userId: profile.user_id,
+        txHash: formatCheck.normalizedHash,
+        metaPatch: {
+          tx_validation: {
+            chain: formatCheck.chain,
+            status: verifyResult.status,
+            provider: verifyResult.provider || "none",
+            checked_at: new Date().toISOString()
+          }
+        }
+      });
+      if (!updated) {
+        return { ok: false, reason: "request_update_failed" };
+      }
+
+      await riskStore.insertBehaviorEvent(db, profile.user_id, "token_tx_submitted", {
+        request_id: requestId,
+        tx_hash: formatCheck.normalizedHash.slice(0, 18)
+      });
+
+      return { ok: true, request: updated };
+    });
+  } catch (err) {
+    if (err.code === "42P01") {
+      await ctx.replyWithMarkdown("*Token Modulu Hazir Degil*\nDB migration calistir: `npm run migrate:node`");
+      return;
+    }
+    throw err;
+  }
+
+  if (!payload.ok) {
+    await ctx.replyWithMarkdown(messages.formatTokenTxError(payload.reason, payload.request));
+    return;
+  }
+
+  await ctx.replyWithMarkdown(messages.formatTokenTxSubmitted(payload.request), buildTokenKeyboard());
+}
+
+async function adminMarkPayoutPaid(ctx, pool, appConfig, requestIdRaw, txHashRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const requestId = Number(requestIdRaw || 0);
+  const txHash = normalizeTxHash(txHashRaw);
+  if (!requestId || !txHash || txHash.length < 12) {
+    await ctx.replyWithMarkdown("*Admin Pay*\nKullanim: `/pay <requestId> <txHash>`", { parse_mode: "Markdown" });
+    return;
+  }
+
+  const result = await withTransaction(pool, async (db) => {
+    const paid = await payoutStore.markPaid(db, {
+      requestId,
+      txHash,
+      adminId: Number(appConfig.adminTelegramId || 0)
+    });
+    await db.query(
+      `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+       VALUES ($1, 'payout_mark_paid', $2, $3::jsonb);`,
+      [Number(appConfig.adminTelegramId || 0), `payout_request:${requestId}`, JSON.stringify({ tx_hash: txHash, status: paid.status })]
+    );
+    return paid;
+  });
+
+  if (result.status === "not_found") {
+    await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep bulunamadi."));
+    return;
+  }
+  if (result.status === "rejected") {
+    await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep reddedilmis, paid yapilamaz."));
+    return;
+  }
+  await ctx.replyWithMarkdown(
+    messages.formatAdminActionResult(
+      "Payout Paid",
+      `Talep #${requestId} paid olarak kaydedildi. TX: ${txHash.slice(0, 28)}`
+    )
+  );
+}
+
+async function adminRejectPayout(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const requestId = Number(requestIdRaw || 0);
+  const reason = String(reasonRaw || "").trim() || "rejected_by_admin";
+  if (!requestId) {
+    await ctx.replyWithMarkdown("*Admin Reject Payout*\nKullanim: `/reject_payout <requestId> <sebep>`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+  const result = await withTransaction(pool, async (db) =>
+    payoutStore.markRejected(db, {
+      requestId,
+      adminId: Number(appConfig.adminTelegramId || 0),
+      reason
+    })
+  );
+  const text =
+    result.status === "rejected"
+      ? `Payout #${requestId} reddedildi.`
+      : result.status === "not_found_or_paid"
+        ? "Talep bulunamadi veya zaten paid."
+        : "Islem tamamlanamadi.";
+  await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout Reject", text));
+}
+
+async function approveTokenRequestTx(
+  db,
+  requestId,
+  adminId,
+  note,
+  txHashOverride,
+  tokenAmountOverride,
+  verifyOptions = {}
+) {
+  const locked = await tokenStore.lockPurchaseRequest(db, requestId);
+  if (!locked) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (String(locked.status) === "rejected") {
+    return { ok: false, reason: "already_rejected" };
+  }
+  if (String(locked.status) === "approved") {
+    return { ok: false, reason: "already_approved" };
+  }
+
+  const tokenAmount = Number(tokenAmountOverride || locked.token_amount || 0);
+  if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+    return { ok: false, reason: "invalid_token_amount" };
+  }
+
+  const txHash = String(txHashOverride || locked.tx_hash || "").trim();
+  if (!txHash) {
+    return { ok: false, reason: "tx_hash_missing" };
+  }
+
+  const txCheck = txVerifier.validateTxHash(locked.chain, txHash);
+  if (!txCheck.ok) {
+    return { ok: false, reason: txCheck.reason };
+  }
+
+  const verifyResult = await txVerifier.verifyOnchain(locked.chain, txCheck.normalizedHash, {
+    enabled: Boolean(verifyOptions.enabled)
+  });
+  if (
+    verifyOptions.strict &&
+    !["confirmed", "found_unconfirmed", "unsupported", "skipped"].includes(String(verifyResult.status || ""))
+  ) {
+    return { ok: false, reason: "tx_not_found_onchain" };
+  }
+  await tokenStore.submitPurchaseTxHash(db, {
+    requestId,
+    userId: locked.user_id,
+    txHash: txCheck.normalizedHash,
+    metaPatch: {
+      tx_validation: {
+        chain: txCheck.chain,
+        status: verifyResult.status,
+        provider: verifyResult.provider || "none",
+        checked_at: new Date().toISOString()
+      }
+    }
+  });
+
+  const runtimeConfig = await configService.getEconomyConfig(db);
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const tokenSymbol = String(locked.token_symbol || tokenConfig.symbol || "NXT").toUpperCase();
+  const refEventId = deterministicUuid(`token_purchase_credit:${requestId}:${tokenSymbol}`);
+
+  await economyStore.creditCurrency(db, {
+    userId: locked.user_id,
+    currency: tokenSymbol,
+    amount: tokenAmount,
+    reason: "token_purchase_approved",
+    refEventId,
+    meta: {
+      request_id: requestId,
+      chain: locked.chain,
+      usd_amount: Number(locked.usd_amount || 0),
+      tx_hash: txCheck.normalizedHash
+    }
+  });
+
+  const updated = await tokenStore.markPurchaseApproved(db, {
+    requestId,
+    adminId,
+    adminNote: note || `approved:${tokenAmount}`
+  });
+
+  await db.query(
+    `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+     VALUES ($1, 'token_purchase_approve', $2, $3::jsonb);`,
+    [
+      adminId,
+      `token_purchase_request:${requestId}`,
+      JSON.stringify({
+        token_amount: tokenAmount,
+        token_symbol: tokenSymbol,
+        tx_hash: txCheck.normalizedHash
+      })
+    ]
+  );
+
+  return { ok: true, updated };
+}
+
+async function adminApproveToken(ctx, pool, appConfig, requestIdRaw, noteRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const requestId = Number(requestIdRaw || 0);
+  if (!requestId) {
+    await ctx.replyWithMarkdown("*Admin Approve Token*\nKullanim: `/approve_token <requestId> [note]`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+  const note = String(noteRaw || "").trim();
+  let result;
+  try {
+    result = await withTransaction(pool, async (db) =>
+      approveTokenRequestTx(db, requestId, Number(appConfig.adminTelegramId || 0), note, "", 0, {
+        enabled: Boolean(appConfig.tokenTxVerifyEnabled),
+        strict: Boolean(appConfig.tokenTxVerifyStrict)
+      })
+    );
+  } catch (err) {
+    if (err.code === "42P01") {
+      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "Token tablolari hazir degil."));
+      return;
+    }
+    if (err.code === "23505") {
+      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "TX hash zaten baska talepte kullanilmis."));
+      return;
+    }
+    throw err;
+  }
+
+  if (!result.ok) {
+    await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token Approve", `Basarisiz: ${result.reason}`));
+    return;
+  }
+
+  await ctx.replyWithMarkdown(
+    messages.formatAdminActionResult("Token Approve", `Talep #${requestId} onaylandi.`)
+  );
+}
+
+async function adminRejectToken(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const requestId = Number(requestIdRaw || 0);
+  if (!requestId) {
+    await ctx.replyWithMarkdown("*Admin Reject Token*\nKullanim: `/reject_token <requestId> <sebep>`", {
+      parse_mode: "Markdown"
+    });
+    return;
+  }
+  const reason = String(reasonRaw || "").trim() || "rejected_by_admin";
+  let result;
+  try {
+    result = await withTransaction(pool, async (db) => {
+      const locked = await tokenStore.lockPurchaseRequest(db, requestId);
+      if (!locked) {
+        return { ok: false, reason: "not_found" };
+      }
+      if (String(locked.status) === "approved") {
+        return { ok: false, reason: "already_approved" };
+      }
+      await tokenStore.markPurchaseRejected(db, {
+        requestId,
+        adminId: Number(appConfig.adminTelegramId || 0),
+        reason
+      });
+      await db.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_purchase_reject', $2, $3::jsonb);`,
+        [
+          Number(appConfig.adminTelegramId || 0),
+          `token_purchase_request:${requestId}`,
+          JSON.stringify({ reason })
+        ]
+      );
+      return { ok: true };
+    });
+  } catch (err) {
+    if (err.code === "42P01") {
+      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "Token tablolari hazir degil."));
+      return;
+    }
+    throw err;
+  }
+
+  const msg = result.ok ? `Talep #${requestId} reddedildi.` : `Basarisiz: ${result.reason}`;
+  await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token Reject", msg));
+}
+
+async function adminSetFreeze(ctx, pool, appConfig, freeze, reasonRaw) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const reason = String(reasonRaw || "").trim() || (freeze ? "manual_freeze" : "");
+  await withTransaction(pool, async (db) =>
+    setFreezeState(db, {
+      freeze: Boolean(freeze),
+      reason,
+      updatedBy: Number(appConfig.adminTelegramId || 0)
+    })
+  );
+  await ctx.replyWithMarkdown(
+    messages.formatAdminActionResult("Freeze Durumu", freeze ? `ACIK (${reason})` : "KAPALI")
+  );
 }
 
 async function handlePayoutRequest(ctx, pool, appConfig) {
@@ -1282,11 +2257,16 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
     const profile = await ensureProfileTx(db, ctx);
     const freeze = await systemStore.getFreezeState(db);
     if (freeze.freeze) {
-      const frozenView = await buildPayoutView(db, profile, appConfig);
+      const runtimeConfig = await configService.getEconomyConfig(db);
+      const frozenView = await buildPayoutView(db, profile, appConfig, runtimeConfig);
       return { ok: false, reason: "freeze_mode", view: frozenView };
     }
-    const view = await buildPayoutView(db, profile, appConfig);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const view = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     if (!view.canRequest) {
+      if (view.marketCapGate?.enabled && !view.marketCapGate.allowed) {
+        return { ok: false, reason: "market_cap_gate", view };
+      }
       return { ok: false, reason: "not_eligible", view };
     }
 
@@ -1315,7 +2295,7 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
       fxRateSnapshot: fxRate
     });
     if (!request) {
-      const freshView = await buildPayoutView(db, profile, appConfig);
+      const freshView = await buildPayoutView(db, profile, appConfig, runtimeConfig);
       return { ok: false, reason: "duplicate_or_locked", view: freshView };
     }
 
@@ -1338,7 +2318,7 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
         requestId: request.id,
         reason: burn.reason || "hc_lock_failed"
       });
-      const freshView = await buildPayoutView(db, profile, appConfig);
+      const freshView = await buildPayoutView(db, profile, appConfig, runtimeConfig);
       return { ok: false, reason: "hc_lock_failed", view: freshView };
     }
 
@@ -1349,7 +2329,7 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
       address_masked: maskAddress(address)
     });
 
-    const nextView = await buildPayoutView(db, profile, appConfig);
+    const nextView = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     return { ok: true, request, view: nextView };
   });
 
@@ -1382,15 +2362,17 @@ async function sendStatus(ctx, pool, appConfig) {
     const season = seasonStore.getSeasonInfo(runtimeConfig);
     const war = await globalStore.getWarStatus(db, season.seasonId);
     const missions = await missionStore.getMissionBoard(db, profile.user_id);
-    const payout = await buildPayoutView(db, profile, appConfig);
+    const payout = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     const openMissions = missions.filter((m) => !m.claimed).length;
     const readyMissions = missions.filter((m) => m.completed && !m.claimed).length;
     const risk = await riskStore.getRiskState(db, profile.user_id);
+    const tokenView = await buildTokenView(db, profile, appConfig);
     return {
       freeze,
       season,
       war,
       payout,
+      tokenView,
       openMissions,
       readyMissions,
       risk: risk.riskScore,
@@ -1407,7 +2389,8 @@ async function sendStatus(ctx, pool, appConfig) {
       `War Tier: *${payload.war.tier}* (${Math.floor(payload.war.value)})\n` +
       `Misyon: *${payload.readyMissions} hazir / ${payload.openMissions} aktif*\n` +
       `Risk: *${Math.round(payload.risk * 100)}%*\n` +
-      `Payout Uygunluk: *${payload.payout.canRequest ? "evet" : "hayir"}*`
+      `Payout Uygunluk: *${payload.payout.canRequest ? "evet" : "hayir"}*\n` +
+      `${payload.tokenView.symbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`
   );
 }
 
@@ -1608,6 +2591,10 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     await sendWallet(ctx, pool);
     return;
   }
+  if (action === "open_token") {
+    await sendToken(ctx, pool, appConfig);
+    return;
+  }
   if (action === "open_war") {
     await sendWar(ctx, pool);
     return;
@@ -1640,6 +2627,18 @@ async function handleWebAppAction(ctx, pool, appConfig) {
   }
   if (action === "reveal_latest") {
     await revealLatestFromCommand(ctx, pool, appConfig);
+    return;
+  }
+  if (action === "mint_token") {
+    await mintToken(ctx, pool, appConfig, payload.amount);
+    return;
+  }
+  if (action === "buy_token") {
+    await createTokenBuyIntent(ctx, pool, appConfig, payload.usd_amount, payload.chain);
+    return;
+  }
+  if (action === "submit_token_tx") {
+    await submitTokenTx(ctx, pool, payload.request_id, payload.tx_hash);
     return;
   }
   if (action === "reroll_tasks") {
@@ -1734,6 +2733,15 @@ function resolveTextIntent(input) {
   if (/^(wallet|cuzdan)\b/.test(normalized)) {
     return { action: "wallet" };
   }
+  if (/^(token|jeton)\b/.test(normalized)) {
+    return { action: "token" };
+  }
+  if (/^(mint|donustur|cevir)\b/.test(normalized)) {
+    return { action: "mint" };
+  }
+  if (/^(buytoken|tokencik|token al)\b/.test(normalized)) {
+    return { action: "buytoken" };
+  }
   if (/^(daily|gunluk)\b/.test(normalized)) {
     return { action: "daily" };
   }
@@ -1820,6 +2828,21 @@ async function handleTextIntent(ctx, pool, appConfig) {
     await sendWallet(ctx, pool);
     return true;
   }
+  if (intent.action === "token") {
+    await sendToken(ctx, pool, appConfig);
+    return true;
+  }
+  if (intent.action === "mint") {
+    await mintToken(ctx, pool, appConfig);
+    return true;
+  }
+  if (intent.action === "buytoken") {
+    await ctx.replyWithMarkdown(
+      "*Token Satin Alma*\nKullanim: `/buytoken <usd> <chain>`\nOrnek: `/buytoken 5 TON`",
+      { parse_mode: "Markdown" }
+    );
+    return true;
+  }
   if (intent.action === "daily") {
     await sendDaily(ctx, pool);
     return true;
@@ -1899,6 +2922,7 @@ async function handleBuyOffer(ctx, pool) {
 async function start() {
   const appConfig = loadConfig();
   const pool = createPool({ databaseUrl: appConfig.databaseUrl, ssl: appConfig.databaseSsl });
+  let lock = null;
 
   await ping(pool);
   console.log("Database connection OK");
@@ -1906,6 +2930,16 @@ async function start() {
 
   if (appConfig.dryRun) {
     console.log("BOT_DRY_RUN=1, Telegram baglantisi atlandi.");
+    await pool.end();
+    return;
+  }
+
+  lock = await acquireInstanceLock(pool, appConfig.botInstanceLockKey);
+  if (!lock.acquired) {
+    console.error(
+      "Bot startup skipped: another instance likely running (instance lock not acquired). " +
+        "Ayni BOT_TOKEN ile birden fazla polling instance calistirma."
+    );
     await pool.end();
     return;
   }
@@ -1949,6 +2983,35 @@ async function start() {
 
   bot.command("cuzdan", async (ctx) => {
     await sendWallet(ctx, pool);
+  });
+
+  bot.command("token", async (ctx) => {
+    await sendToken(ctx, pool, appConfig);
+  });
+
+  bot.command("mint", async (ctx) => {
+    const amount = extractCommandArgs(ctx);
+    await mintToken(ctx, pool, appConfig, amount);
+  });
+
+  bot.command("buytoken", async (ctx) => {
+    const args = parseTokenBuyArgs(extractCommandArgs(ctx));
+    if (!args.usdAmount || !args.chain) {
+      await ctx.replyWithMarkdown(
+        "*Token Satin Alma*\nKullanim: `/buytoken <usd> <chain>`\nOrnek: `/buytoken 5 TON`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+    await createTokenBuyIntent(ctx, pool, appConfig, args.usdAmount, args.chain);
+  });
+
+  bot.command("tx", async (ctx) => {
+    const parts = String(extractCommandArgs(ctx))
+      .split(" ")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    await submitTokenTx(ctx, pool, parts[0], parts.slice(1).join(" "));
   });
 
   bot.command("daily", async (ctx) => {
@@ -2053,6 +3116,77 @@ async function start() {
     await ctx.replyWithMarkdown(messages.formatHelp());
   });
 
+  bot.command("whoami", async (ctx) => {
+    await ctx.replyWithMarkdown(messages.formatAdminWhoami(ctx.from?.id, appConfig.adminTelegramId));
+  });
+
+  bot.command("admin", async (ctx) => {
+    await sendAdminPanel(ctx, pool, appConfig);
+  });
+
+  bot.command("admin_payouts", async (ctx) => {
+    await sendAdminPayoutQueue(ctx, pool, appConfig);
+  });
+
+  bot.command("admin_tokens", async (ctx) => {
+    await sendAdminTokenQueue(ctx, pool, appConfig);
+  });
+
+  bot.command("admin_config", async (ctx) => {
+    await sendAdminConfig(ctx, pool, appConfig);
+  });
+
+  bot.command("admin_token_price", async (ctx) => {
+    await adminSetTokenPrice(ctx, pool, appConfig, extractCommandArgs(ctx));
+  });
+
+  bot.command("admin_token_gate", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminSetTokenGate(ctx, pool, appConfig, parts[0], parts[1]);
+  });
+
+  bot.command("admin_freeze", async (ctx) => {
+    if (!(await ensureAdminCtx(ctx, appConfig))) {
+      return;
+    }
+    const parts = parseWords(extractCommandArgs(ctx));
+    if (parts.length === 0) {
+      await ctx.replyWithMarkdown("*Admin Freeze*\nKullanim: `/admin_freeze on <sebep>` veya `/admin_freeze off`", {
+        parse_mode: "Markdown"
+      });
+      return;
+    }
+    const mode = String(parts[0] || "").toLowerCase();
+    if (!["on", "off"].includes(mode)) {
+      await ctx.replyWithMarkdown("*Admin Freeze*\nMode sadece `on` veya `off` olabilir.", {
+        parse_mode: "Markdown"
+      });
+      return;
+    }
+    const reason = parts.slice(1).join(" ");
+    await adminSetFreeze(ctx, pool, appConfig, mode === "on", reason);
+  });
+
+  bot.command("pay", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminMarkPayoutPaid(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+
+  bot.command("reject_payout", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminRejectPayout(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+
+  bot.command("approve_token", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminApproveToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+
+  bot.command("reject_token", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminRejectToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+
   bot.on("message", async (ctx, next) => {
     if (ctx.message?.web_app_data?.data) {
       await handleWebAppAction(ctx, pool, appConfig);
@@ -2077,6 +3211,11 @@ async function start() {
   bot.action("OPEN_WALLET", async (ctx) => {
     await ctx.answerCbQuery();
     await sendWallet(ctx, pool);
+  });
+
+  bot.action("OPEN_TOKEN", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendToken(ctx, pool, appConfig);
   });
 
   bot.action("OPEN_SEASON", async (ctx) => {
@@ -2134,6 +3273,19 @@ async function start() {
     await sendArenaRank(ctx, pool);
   });
 
+  bot.action("TOKEN_MINT", async (ctx) => {
+    await ctx.answerCbQuery();
+    await mintToken(ctx, pool, appConfig);
+  });
+
+  bot.action("TOKEN_BUY_SAMPLE", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithMarkdown(
+      "*Token Satin Alma Ornegi*\n`/buytoken 5 TON`\nOdemeden sonra tx gonder:\n`/tx <requestId> <txHash>`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
   bot.action(/ARENA_RAID:([a-z_]+)/, async (ctx) => {
     await handleArenaRaid(ctx, pool);
   });
@@ -2166,6 +3318,80 @@ async function start() {
     await handlePayoutRequest(ctx, pool, appConfig);
   });
 
+  bot.action("ADMIN_PANEL_REFRESH", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendAdminPanel(ctx, pool, appConfig);
+  });
+
+  bot.action("ADMIN_OPEN_PAYOUTS", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendAdminPayoutQueue(ctx, pool, appConfig);
+  });
+
+  bot.action("ADMIN_OPEN_TOKENS", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendAdminTokenQueue(ctx, pool, appConfig);
+  });
+
+  bot.action("ADMIN_FREEZE_ON", async (ctx) => {
+    await ctx.answerCbQuery();
+    await adminSetFreeze(ctx, pool, appConfig, true, "admin_panel");
+    await sendAdminPanel(ctx, pool, appConfig);
+  });
+
+  bot.action("ADMIN_FREEZE_OFF", async (ctx) => {
+    await ctx.answerCbQuery();
+    await adminSetFreeze(ctx, pool, appConfig, false, "");
+    await sendAdminPanel(ctx, pool, appConfig);
+  });
+
+  bot.action(/ADMIN_PAYOUT_PICK:(\d+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    if (!(await ensureAdminCtx(ctx, appConfig))) {
+      return;
+    }
+    const requestId = Number(ctx.match[1] || 0);
+    const row = await withTransaction(pool, async (db) => payoutStore.getRequestWithTx(db, requestId));
+    if (!row) {
+      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep bulunamadi."));
+      return;
+    }
+    await ctx.replyWithMarkdown(
+      `*Payout Talebi #${row.id}*\n` +
+        `User: *${row.user_id}*\n` +
+        `Durum: *${row.status}*\n` +
+        `Miktar: *${Number(row.amount || 0).toFixed(8)} BTC*\n` +
+        `Kaynak HC: *${Number(row.source_hc_amount || 0).toFixed(4)}*\n` +
+        `Onay icin: \`/pay ${row.id} <txHash>\`\n` +
+        `Red icin: \`/reject_payout ${row.id} <sebep>\``,
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action(/ADMIN_TOKEN_PICK:(\d+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    if (!(await ensureAdminCtx(ctx, appConfig))) {
+      return;
+    }
+    const requestId = Number(ctx.match[1] || 0);
+    const row = await withTransaction(pool, async (db) => tokenStore.getPurchaseRequest(db, requestId));
+    if (!row) {
+      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "Talep bulunamadi."));
+      return;
+    }
+    await ctx.replyWithMarkdown(
+      `*Token Talebi #${row.id}*\n` +
+        `User: *${row.user_id}*\n` +
+        `Durum: *${String(row.status || "").toUpperCase()}*\n` +
+        `Odeme: *${Number(row.usd_amount || 0).toFixed(2)} USD* (${row.chain})\n` +
+        `Token: *${Number(row.token_amount || 0).toFixed(4)} ${row.token_symbol}*\n` +
+        `TX: ${row.tx_hash ? `\`${String(row.tx_hash)}\`` : "yok"}\n` +
+        `Onay: \`/approve_token ${row.id}\`\n` +
+        `Red: \`/reject_token ${row.id} <sebep>\``,
+      { parse_mode: "Markdown" }
+    );
+  });
+
   bot.catch((err) => {
     console.error("Bot error", err);
   });
@@ -2179,6 +3405,10 @@ async function start() {
       { command: "raid", description: "Arena raid baslat" },
       { command: "arena_rank", description: "Arena rating ve siralama" },
       { command: "wallet", description: "Bakiye durumunu goster" },
+      { command: "token", description: "Sanal token cuzdani ve talepler" },
+      { command: "mint", description: "SC/HC/RC -> token donustur" },
+      { command: "buytoken", description: "Token alim talebi olustur" },
+      { command: "tx", description: "Token alim tx hash gonder" },
       { command: "daily", description: "Gunluk panel" },
       { command: "missions", description: "Misyon paneli" },
       { command: "shop", description: "Dukkan" },
@@ -2186,6 +3416,9 @@ async function start() {
       { command: "arena3d", description: "Arena 3D web arayuzu (alias)" },
       { command: "ops", description: "Risk ve event operasyon paneli" },
       { command: "status", description: "Sistem durumu" },
+      { command: "whoami", description: "Telegram ID + admin kontrol" },
+      { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
+      { command: "admin_config", description: "Admin ekonomi/token config ozeti" },
       { command: "help", description: "Komut listesi" }
     ]);
   } catch (err) {
@@ -2195,10 +3428,29 @@ async function start() {
   bot.launch();
   console.log("Bot running...");
 
-  process.once("SIGINT", () => bot.stop("SIGINT"));
-  process.once("SIGTERM", () => bot.stop("SIGTERM"));
-  process.once("SIGINT", () => pool.end());
-  process.once("SIGTERM", () => pool.end());
+  let shuttingDown = false;
+  async function shutdown(signal) {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    try {
+      bot.stop(signal);
+    } catch {}
+    try {
+      await releaseInstanceLock(lock);
+    } catch {}
+    try {
+      await pool.end();
+    } catch {}
+  }
+
+  process.once("SIGINT", () => {
+    shutdown("SIGINT").catch(() => {});
+  });
+  process.once("SIGTERM", () => {
+    shutdown("SIGTERM").catch(() => {});
+  });
 }
 
 start().catch((err) => {

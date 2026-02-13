@@ -8,6 +8,10 @@
     },
     bot: qs.get("bot") || "airdropkral_2026_bot",
     data: null,
+    admin: {
+      isAdmin: false,
+      summary: null
+    },
     arena: null,
     sim: {
       active: false,
@@ -60,6 +64,10 @@
     return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   }
 
+  function tokenDecimals(token) {
+    return Math.max(2, Math.min(8, Number(token?.decimals || 4)));
+  }
+
   function renewAuth(payload) {
     if (!payload || !payload.session) return;
     state.auth.uid = String(payload.session.uid || state.auth.uid);
@@ -103,13 +111,20 @@
     ring.rotation.x = 1.16;
     scene.add(ring);
 
+    const ringOuter = new THREE.Mesh(
+      new THREE.TorusGeometry(7.4, 0.06, 18, 180),
+      new THREE.MeshBasicMaterial({ color: 0xff7ecb, transparent: true, opacity: 0.22 })
+    );
+    ringOuter.rotation.x = 1.27;
+    scene.add(ringOuter);
+
     const core = new THREE.Mesh(
       new THREE.IcosahedronGeometry(2.2, 3),
       new THREE.MeshStandardMaterial({
         color: 0x3df8c2,
         emissive: 0x112849,
-        metalness: 0.42,
-        roughness: 0.33,
+        metalness: 0.52,
+        roughness: 0.26,
         wireframe: false
       })
     );
@@ -125,7 +140,46 @@
     );
     scene.add(glow);
 
-    return { ring, core, glow };
+    const pulseShell = new THREE.Mesh(
+      new THREE.SphereGeometry(3.6, 42, 42),
+      new THREE.MeshBasicMaterial({
+        color: 0x7fc5ff,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.BackSide
+      })
+    );
+    scene.add(pulseShell);
+
+    const shardGeo = new THREE.TetrahedronGeometry(0.14, 0);
+    const shardMat = new THREE.MeshStandardMaterial({
+      color: 0xbfe1ff,
+      emissive: 0x142a4d,
+      roughness: 0.3,
+      metalness: 0.6
+    });
+    const shardCount = 180;
+    const shards = new THREE.InstancedMesh(shardGeo, shardMat, shardCount);
+    const shardMeta = [];
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < shardCount; i += 1) {
+      const r = 4.8 + Math.random() * 4.6;
+      const angle = Math.random() * Math.PI * 2;
+      const y = (Math.random() - 0.5) * 3.8;
+      const speed = 0.12 + Math.random() * 0.33;
+      const offset = Math.random() * Math.PI * 2;
+      shardMeta.push({ r, angle, y, speed, offset });
+      dummy.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+      dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      const s = 0.8 + Math.random() * 1.4;
+      dummy.scale.setScalar(s);
+      dummy.updateMatrix();
+      shards.setMatrixAt(i, dummy.matrix);
+    }
+    shards.instanceMatrix.needsUpdate = true;
+    scene.add(shards);
+
+    return { ring, ringOuter, core, glow, pulseShell, shards, shardMeta, shardDummy: dummy };
   }
 
   async function tryLoadArenaModel(scene, targetPath) {
@@ -374,6 +428,7 @@
     if (action === "open_daily") return "/daily";
     if (action === "open_kingdom") return "/kingdom";
     if (action === "open_wallet") return "/wallet";
+    if (action === "open_token") return "/token";
     if (action === "open_war") return "/war";
     if (action === "open_missions") return "/missions";
     if (action === "open_status") return "/status";
@@ -384,6 +439,9 @@
     if (action === "claim_mission") return "/missions";
     if (action === "arena_raid") return `/raid ${payload.mode || "balanced"}`;
     if (action === "arena_leaderboard") return "/arena_rank";
+    if (action === "mint_token") return `/mint ${payload.amount || ""}`.trim();
+    if (action === "buy_token") return `/buytoken ${payload.usd_amount || 5} ${payload.chain || "TON"}`;
+    if (action === "submit_token_tx") return `/tx ${payload.request_id || "<id>"} ${payload.tx_hash || "<tx>"}`;
     return "/help";
   }
 
@@ -423,11 +481,28 @@
       state.arena.glow.material.opacity = 0.95;
       gsap.to(state.arena.glow.material, { opacity: 0.2, duration: 0.65, ease: "power2.out" });
     }
+    if (state.arena.pulseShell && state.arena.pulseShell.material) {
+      state.arena.pulseShell.material.color.setHex(color);
+      state.arena.pulseShell.material.opacity = 0.5;
+      gsap.fromTo(
+        state.arena.pulseShell.scale,
+        { x: 1, y: 1, z: 1 },
+        { x: 1.2, y: 1.2, z: 1.2, duration: 0.45, ease: "power2.out", yoyo: true, repeat: 1 }
+      );
+      gsap.to(state.arena.pulseShell.material, { opacity: 0.08, duration: 0.8, ease: "power2.out" });
+    }
     gsap.fromTo(
       state.arena.ring.scale,
       { x: 1, y: 1, z: 1 },
       { x: 1.12, y: 1.12, z: 1.12, yoyo: true, repeat: 1, duration: 0.24, ease: "power2.out" }
     );
+    if (state.arena.ringOuter) {
+      gsap.fromTo(
+        state.arena.ringOuter.scale,
+        { x: 1, y: 1, z: 1 },
+        { x: 1.08, y: 1.08, z: 1.08, yoyo: true, repeat: 1, duration: 0.28, ease: "power2.out" }
+      );
+    }
   }
 
   async function fallbackToCommand(action, payload = {}) {
@@ -458,6 +533,9 @@
     if (action === "complete_latest") return "/webapp/api/actions/complete";
     if (action === "reveal_latest") return "/webapp/api/actions/reveal";
     if (action === "arena_raid") return "/webapp/api/arena/raid";
+    if (action === "mint_token") return "/webapp/api/token/mint";
+    if (action === "buy_token") return "/webapp/api/token/buy_intent";
+    if (action === "submit_token_tx") return "/webapp/api/token/submit_tx";
     return "";
   }
 
@@ -502,6 +580,21 @@
     if (action === "arena_raid") {
       if (data?.duplicate) return "Raid zaten islenmis.";
       return `Arena ${String(data?.run?.outcome || "win")} | Rating ${asNum(data?.rating_after)}`;
+    }
+    if (action === "mint_token") {
+      const amount = asNum(data?.plan?.tokenAmount || data?.plan?.token_amount);
+      const symbol = String(data?.snapshot?.token?.symbol || state.data?.token?.symbol || "TOKEN");
+      return `Mint tamamlandi: +${amount} ${symbol}`;
+    }
+    if (action === "buy_token") {
+      const reqId = asNum(data?.request?.id || 0);
+      const tokenAmount = asNum(data?.request?.token_amount || data?.quote?.tokenAmount || 0);
+      const symbol = String(data?.token?.symbol || state.data?.token?.symbol || "TOKEN");
+      return `Talep #${reqId} olustu: ${tokenAmount} ${symbol}`;
+    }
+    if (action === "submit_token_tx") {
+      const reqId = asNum(data?.request?.id || 0);
+      return `TX kaydedildi (#${reqId})`;
     }
     if (action === "claim_mission") {
       const status = String(data?.status || "");
@@ -654,6 +747,107 @@
       .join("");
   }
 
+  function renderToken(token) {
+    const safe = token && typeof token === "object" ? token : {};
+    const symbol = String(safe.symbol || "NXT").toUpperCase();
+    const decimals = tokenDecimals(safe);
+    const balance = asNum(safe.balance);
+    const mintable = asNum(safe.mintable_from_balances);
+    const units = asNum(safe.unified_units);
+
+    byId("tokenBadge").textContent = symbol;
+    byId("balToken").textContent = balance.toFixed(decimals);
+    byId("tokenSummary").textContent = `${balance.toFixed(decimals)} ${symbol}`;
+    const marketCap = asNum(safe.market_cap_usd);
+    const gate = safe.payout_gate || {};
+    byId("tokenRate").textContent = `$${asNum(safe.usd_price).toFixed(6)} / ${symbol} | Cap $${marketCap.toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
+    byId("tokenMintable").textContent = `${mintable.toFixed(decimals)} ${symbol}`;
+    byId("tokenUnits").textContent = `Unify Units: ${units.toFixed(2)}`;
+
+    const requests = Array.isArray(safe.requests) ? safe.requests : [];
+    if (requests.length > 0) {
+      const latest = requests[0];
+      byId("tokenHint").textContent = `Son talep #${latest.id} ${String(latest.status || "").toUpperCase()} (${asNum(latest.usd_amount).toFixed(2)} USD)`;
+    } else {
+      byId("tokenHint").textContent = "Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.";
+    }
+
+    const chainSelect = byId("tokenChainSelect");
+    const chains = Array.isArray(safe.purchase?.chains) ? safe.purchase.chains : [];
+    const current = chainSelect.value || "";
+    chainSelect.innerHTML = chains
+      .filter((x) => x.enabled)
+      .map((x) => `<option value="${x.chain}">${x.chain} (${x.pay_currency})</option>`)
+      .join("");
+
+    if (!chainSelect.value && chains.length > 0) {
+      chainSelect.value = String(chains[0].chain || "");
+    }
+    if (current && [...chainSelect.options].some((o) => o.value === current)) {
+      chainSelect.value = current;
+    }
+    byId("tokenBuyBtn").disabled = chainSelect.options.length === 0;
+  }
+
+  function renderAdmin(adminData) {
+    const panel = byId("adminPanel");
+    if (!panel) return;
+    const info = adminData && typeof adminData === "object" ? adminData : {};
+    const isAdmin = Boolean(info.is_admin);
+    state.admin.isAdmin = isAdmin;
+    state.admin.summary = info.summary || null;
+
+    if (!isAdmin) {
+      panel.classList.add("hidden");
+      return;
+    }
+
+    panel.classList.remove("hidden");
+    const summary = info.summary || {};
+    const freeze = summary.freeze || {};
+    const token = summary.token || {};
+    const gate = token.payout_gate || {};
+    byId("adminBadge").textContent = freeze.freeze ? "FREEZE ON" : "ADMIN";
+    byId("adminBadge").className = freeze.freeze ? "badge warn" : "badge info";
+    byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
+    byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
+    byId("adminQueue").textContent = `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}`;
+  }
+
+  async function fetchAdminSummary() {
+    const query = new URLSearchParams(state.auth).toString();
+    const res = await fetch(`/webapp/api/admin/summary?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_summary_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    renderAdmin({
+      is_admin: true,
+      summary: payload.data
+    });
+    return payload.data;
+  }
+
+  async function postAdmin(path, extraBody = {}) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        ...extraBody
+      })
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_action_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    return payload.data || {};
+  }
+
   function updateArenaStatus(text, style = "warn") {
     const badge = byId("arenaStatus");
     badge.textContent = text;
@@ -685,6 +879,8 @@
     const arenaReady = data.arena?.ready !== false;
     byId("arenaRating").textContent = arenaReady ? `${asNum(data.arena?.rating || 1000)}` : "N/A";
     byId("arenaRank").textContent = arenaReady ? `#${asNum(data.arena?.rank || 0) || "-"}` : "#-";
+    renderToken(data.token || {});
+    renderAdmin(data.admin || {});
 
     renderOffers(data.offers || []);
     renderMissions(missions || { list: [], ready: 0 });
@@ -781,6 +977,105 @@
     });
     byId("arenaBoardBtn").addEventListener("click", () => {
       loadArenaLeaderboard().catch(showError);
+    });
+    byId("tokenMintBtn").addEventListener("click", () => {
+      performAction("mint_token").catch(showError);
+    });
+    byId("tokenBuyBtn").addEventListener("click", () => {
+      const usdAmount = asNum(byId("tokenUsdInput").value || 0);
+      const chain = String(byId("tokenChainSelect").value || "").toUpperCase();
+      performAction("buy_token", { usd_amount: usdAmount, chain }).catch(showError);
+    });
+    byId("tokenTxBtn").addEventListener("click", () => {
+      const requestId = asNum(byId("tokenReqInput").value || 0);
+      const txHash = String(byId("tokenTxInput").value || "").trim();
+      if (!requestId || !txHash) {
+        showToast("Talep ID ve tx hash gerekli.", true);
+        return;
+      }
+      performAction("submit_token_tx", { request_id: requestId, tx_hash: txHash }).catch(showError);
+    });
+
+    byId("adminRefreshBtn").addEventListener("click", () => {
+      fetchAdminSummary()
+        .then(() => showToast("Admin panel yenilendi"))
+        .catch(showError);
+    });
+    byId("adminFreezeOnBtn").addEventListener("click", () => {
+      const reason = String(byId("adminFreezeReason").value || "").trim();
+      postAdmin("/webapp/api/admin/freeze", { freeze: true, reason })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data });
+          showToast("Freeze acildi");
+        })
+        .catch(showError);
+    });
+    byId("adminFreezeOffBtn").addEventListener("click", () => {
+      postAdmin("/webapp/api/admin/freeze", { freeze: false, reason: "" })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data });
+          showToast("Freeze kapandi");
+        })
+        .catch(showError);
+    });
+    byId("adminTokenApproveBtn").addEventListener("click", () => {
+      const requestId = asNum(byId("adminTokenRequestId").value || 0);
+      if (!requestId) {
+        showToast("Token talep ID gerekli.", true);
+        return;
+      }
+      postAdmin("/webapp/api/admin/token/approve", { request_id: requestId })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data.summary || state.admin.summary });
+          showToast(`Token #${requestId} onaylandi`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("adminTokenRejectBtn").addEventListener("click", () => {
+      const requestId = asNum(byId("adminTokenRequestId").value || 0);
+      if (!requestId) {
+        showToast("Token talep ID gerekli.", true);
+        return;
+      }
+      const reason = String(byId("adminFreezeReason").value || "").trim() || "rejected_by_admin";
+      postAdmin("/webapp/api/admin/token/reject", { request_id: requestId, reason })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data.summary || state.admin.summary });
+          showToast(`Token #${requestId} reddedildi`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("adminPayoutPayBtn").addEventListener("click", () => {
+      const requestId = asNum(byId("adminPayoutRequestId").value || 0);
+      const txHash = String(byId("adminPayoutTxHash").value || "").trim();
+      if (!requestId || !txHash) {
+        showToast("Payout ID ve TX hash gerekli.", true);
+        return;
+      }
+      postAdmin("/webapp/api/admin/payout/pay", { request_id: requestId, tx_hash: txHash })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data.summary || state.admin.summary });
+          showToast(`Payout #${requestId} paid`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("adminPayoutRejectBtn").addEventListener("click", () => {
+      const requestId = asNum(byId("adminPayoutRequestId").value || 0);
+      if (!requestId) {
+        showToast("Payout talep ID gerekli.", true);
+        return;
+      }
+      const reason = String(byId("adminFreezeReason").value || "").trim() || "rejected_by_admin";
+      postAdmin("/webapp/api/admin/payout/reject", { request_id: requestId, reason })
+        .then((data) => {
+          renderAdmin({ is_admin: true, summary: data.summary || state.admin.summary });
+          showToast(`Payout #${requestId} reddedildi`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
     });
     byId("simStartBtn").addEventListener("click", () => {
       startSimulation().catch(showError);
@@ -882,7 +1177,24 @@
       fallback.core.rotation.x = t * 0.15;
       fallback.core.rotation.y = t * 0.28;
       fallback.ring.rotation.z = t * 0.21;
+      fallback.ringOuter.rotation.z = -t * 0.16;
+      fallback.pulseShell.rotation.y = t * 0.05;
       stars.rotation.y = t * 0.02;
+
+      if (fallback.shards && fallback.shardMeta && fallback.shardDummy) {
+        const dummy = fallback.shardDummy;
+        for (let i = 0; i < fallback.shardMeta.length; i += 1) {
+          const meta = fallback.shardMeta[i];
+          const angle = meta.angle + t * meta.speed + Math.sin(t * 0.5 + meta.offset) * 0.15;
+          const radius = meta.r + Math.sin(t * 0.9 + meta.offset) * 0.2;
+          dummy.position.set(Math.cos(angle) * radius, meta.y + Math.sin(t + meta.offset) * 0.2, Math.sin(angle) * radius);
+          dummy.rotation.set(t * (0.25 + meta.speed), t * (0.38 + meta.speed), t * 0.2 + meta.offset);
+          dummy.updateMatrix();
+          fallback.shards.setMatrixAt(i, dummy.matrix);
+        }
+        fallback.shards.instanceMatrix.needsUpdate = true;
+      }
+
       if (modelRoot) {
         modelRoot.rotation.y += dt * 0.35;
       }
@@ -902,8 +1214,11 @@
       scene,
       camera,
       ring: fallback.ring,
+      ringOuter: fallback.ringOuter,
       core: fallback.core,
       glow: fallback.glow,
+      pulseShell: fallback.pulseShell,
+      shards: fallback.shards,
       modelRoot,
       mixers
     };
@@ -920,7 +1235,20 @@
       mission_key_invalid: "Misyon anahtari gecersiz.",
       insufficient_rc: "RC yetersiz, arena ticket alinmadi.",
       arena_cooldown: "Arena cooldown aktif, biraz bekle.",
-      arena_tables_missing: "Arena tablolari migration bekliyor."
+      arena_tables_missing: "Arena tablolari migration bekliyor.",
+      token_tables_missing: "Token migration eksik, DB migrate calistir.",
+      token_disabled: "Token sistemi su an kapali.",
+      purchase_below_min: "USD miktari min sinirin altinda.",
+      purchase_above_max: "USD miktari max siniri asti.",
+      unsupported_chain: "Desteklenmeyen zincir secildi.",
+      chain_address_missing: "Bu zincir icin odeme adresi tanimli degil.",
+      market_cap_gate: "Payout market-cap gate nedeniyle su an kapali.",
+      admin_required: "Bu islem admin hesabi gerektirir.",
+      request_not_found: "Token talebi bulunamadi.",
+      tx_hash_missing: "Token onayi icin tx hash zorunlu.",
+      tx_hash_already_used: "Bu tx hash baska bir talepte kullanildi.",
+      already_approved: "Talep zaten onayli.",
+      already_rejected: "Talep reddedilmis."
     };
     const message = map[raw] || raw;
     showToast(`Hata: ${message}`, true);

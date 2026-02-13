@@ -13,9 +13,21 @@ services:
         value: "1"
       - key: BOT_DRY_RUN
         value: "0"
+      - key: BOT_ENABLED
+        value: "1"
+      - key: KEEP_ADMIN_ON_BOT_EXIT
+        value: "1"
+      - key: BOT_AUTO_RESTART
+        value: "1"
+      - key: BOT_INSTANCE_LOCK_KEY
+        value: "7262026"
       - key: ADMIN_API_PORT
         value: "10000"
       - key: PORT
         value: "10000"
       - key: DATABASE_SSL
         value: "1"
+      - key: TOKEN_TX_VERIFY
+        value: "1"
+      - key: TOKEN_TX_VERIFY_STRICT
+        value: "0"

@@ -14,11 +14,15 @@ const riskStore = require("../../bot/src/stores/riskStore");
 const shopStore = require("../../bot/src/stores/shopStore");
 const userStore = require("../../bot/src/stores/userStore");
 const arenaStore = require("../../bot/src/stores/arenaStore");
+const tokenStore = require("../../bot/src/stores/tokenStore");
+const payoutStore = require("../../bot/src/stores/payoutStore");
 const configService = require("../../bot/src/services/configService");
 const economyEngine = require("../../bot/src/services/economyEngine");
 const antiAbuseEngine = require("../../bot/src/services/antiAbuseEngine");
 const arenaEngine = require("../../bot/src/services/arenaEngine");
 const arenaService = require("../../bot/src/services/arenaService");
+const tokenEngine = require("../../bot/src/services/tokenEngine");
+const txVerifier = require("../../bot/src/services/txVerifier");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -32,6 +36,8 @@ const DATABASE_SSL = process.env.DATABASE_SSL === "1";
 const PORT = Number(process.env.PORT || process.env.ADMIN_API_PORT || 4000);
 const WEBAPP_HMAC_SECRET = process.env.WEBAPP_HMAC_SECRET || "";
 const WEBAPP_AUTH_TTL_SEC = Number(process.env.WEBAPP_AUTH_TTL_SEC || 900);
+const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
+const TOKEN_TX_VERIFY_STRICT = process.env.TOKEN_TX_VERIFY_STRICT === "1";
 const WEBAPP_DIR = path.join(__dirname, "../../webapp");
 const WEBAPP_ASSETS_DIR = path.join(WEBAPP_DIR, "assets");
 
@@ -55,6 +61,10 @@ function parseAdminId(req) {
   const headerValue = req.headers["x-admin-id"];
   const parsed = Number(headerValue || ADMIN_TELEGRAM_ID || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isAdminTelegramId(telegramId) {
+  return Number(telegramId || 0) === Number(ADMIN_TELEGRAM_ID || 0);
 }
 
 async function requireTables() {
@@ -144,15 +154,44 @@ function verifyWebAppAuth(uidRaw, tsRaw, sigRaw) {
   return { ok: true, uid: Number(uid) };
 }
 
+async function requireWebAppAdmin(client, reply, authUid) {
+  if (!isAdminTelegramId(authUid)) {
+    reply.code(403).send({ success: false, error: "admin_required" });
+    return null;
+  }
+  const profile = await getProfileByTelegram(client, authUid);
+  if (!profile) {
+    reply.code(404).send({ success: false, error: "user_not_started" });
+    return null;
+  }
+  return profile;
+}
+
 function normalizeBalances(rows) {
   const balances = { SC: 0, HC: 0, RC: 0 };
   for (const row of rows) {
     const currency = String(row.currency || "").toUpperCase();
-    if (Object.prototype.hasOwnProperty.call(balances, currency)) {
-      balances[currency] = Number(row.balance || 0);
-    }
+    balances[currency] = Number(row.balance || 0);
   }
   return balances;
+}
+
+function maskAddress(address) {
+  const value = String(address || "");
+  if (value.length <= 12) {
+    return value;
+  }
+  return `${value.slice(0, 6)}...${value.slice(-6)}`;
+}
+
+function getPaymentAddressBook() {
+  return {
+    btc: String(process.env.BTC_PAYOUT_ADDRESS_PRIMARY || ""),
+    trx: String(process.env.TRX_PAYOUT_ADDRESS || ""),
+    eth: String(process.env.ETH_PAYOUT_ADDRESS || ""),
+    sol: String(process.env.SOL_PAYOUT_ADDRESS || ""),
+    ton: String(process.env.TON_PAYOUT_ADDRESS || "")
+  };
 }
 
 async function getRuntimeConfig(db) {
@@ -449,15 +488,171 @@ async function readOffersAttemptsEvents(db, userId) {
   };
 }
 
+async function listTokenRequestsSafe(db, userId, limit = 5) {
+  try {
+    return await tokenStore.listUserPurchaseRequests(db, userId, limit);
+  } catch (err) {
+    if (err.code === "42P01") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+function mapTokenRequestPreview(rows) {
+  return (rows || []).map((row) => ({
+    id: Number(row.id),
+    chain: row.chain,
+    pay_currency: row.pay_currency,
+    usd_amount: Number(row.usd_amount || 0),
+    token_amount: Number(row.token_amount || 0),
+    status: row.status,
+    tx_hash: row.tx_hash || "",
+    created_at: row.created_at
+  }));
+}
+
+function computeTokenMarketCapGate(tokenConfig, tokenSupplyTotal) {
+  const gate = tokenConfig?.payout_gate || {};
+  const enabled = Boolean(gate.enabled);
+  const minMarketCapUsd = Math.max(0, Number(gate.min_market_cap_usd || 0));
+  const marketCapUsd = Number(tokenSupplyTotal || 0) * Math.max(0, Number(tokenConfig?.usd_price || 0));
+  return {
+    enabled,
+    allowed: !enabled || marketCapUsd >= minMarketCapUsd,
+    current: Number(marketCapUsd || 0),
+    min: Number(minMarketCapUsd || 0),
+    targetMax: Math.max(0, Number(gate.target_band_max_usd || 0))
+  };
+}
+
+function isOnchainVerifiedStatus(status) {
+  return ["confirmed", "found_unconfirmed", "unsupported", "skipped"].includes(String(status || ""));
+}
+
+async function validateAndVerifyTokenTx(chain, txHashRaw) {
+  const formatCheck = txVerifier.validateTxHash(chain, txHashRaw);
+  if (!formatCheck.ok) {
+    return {
+      ok: false,
+      reason: formatCheck.reason,
+      formatCheck,
+      verify: { status: "skipped", reason: "format_invalid" }
+    };
+  }
+
+  const verify = await txVerifier.verifyOnchain(chain, formatCheck.normalizedHash, {
+    enabled: TOKEN_TX_VERIFY
+  });
+  if (TOKEN_TX_VERIFY_STRICT && !isOnchainVerifiedStatus(verify.status)) {
+    return {
+      ok: false,
+      reason: "tx_not_found_onchain",
+      formatCheck,
+      verify
+    };
+  }
+
+  return { ok: true, formatCheck, verify };
+}
+
+async function buildAdminSummary(db, runtimeConfig) {
+  const freeze = await getFreezeState(db);
+  const usersRes = await db.query(`SELECT COUNT(*)::bigint AS c FROM users;`);
+  const activeAttemptsRes = await db.query(
+    `SELECT COUNT(*)::bigint AS c
+     FROM task_attempts
+     WHERE result = 'pending';`
+  );
+  const pendingPayouts = await payoutStore.listRequests(db, { status: "requested", limit: 20 });
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  let tokenRows = [];
+  try {
+    tokenRows = await tokenStore.listPurchaseRequests(db, { limit: 50 });
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+  const pendingTokenRequests = tokenRows.filter((row) =>
+    ["pending_payment", "tx_submitted"].includes(String(row.status || "").toLowerCase())
+  );
+  const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
+  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
+
+  return {
+    freeze,
+    total_users: Number(usersRes.rows[0]?.c || 0),
+    active_attempts: Number(activeAttemptsRes.rows[0]?.c || 0),
+    pending_payout_count: pendingPayouts.length,
+    pending_token_count: pendingTokenRequests.length,
+    pending_payouts: pendingPayouts.slice(0, 10),
+    pending_token_requests: pendingTokenRequests.slice(0, 10),
+    token: {
+      symbol: tokenConfig.symbol,
+      spot_usd: Number(tokenConfig.usd_price || 0),
+      supply: Number(tokenSupply.total || 0),
+      holders: Number(tokenSupply.holders || 0),
+      market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(tokenConfig.usd_price || 0)).toFixed(8)),
+      payout_gate: gate
+    }
+  };
+}
+
+async function buildTokenSummary(db, profile, runtimeConfig, balances) {
+  const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const symbol = tokenConfig.symbol;
+  const balance = Number((balances || {})[symbol] || 0);
+  const tokenSupply = await economyStore.getCurrencySupply(db, symbol);
+  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
+  const unifiedUnits = tokenEngine.computeUnifiedUnits(balances || {}, tokenConfig);
+  const mintableFromBalances = tokenEngine.estimateTokenFromBalances(balances || {}, tokenConfig);
+  const requests = await listTokenRequestsSafe(db, profile.user_id, 5);
+  const addressBook = getPaymentAddressBook();
+  const chains = Object.keys(tokenConfig.purchase?.chains || {}).map((chainKey) => {
+    const chainConfig = tokenEngine.getChainConfig(tokenConfig, chainKey);
+    const address = tokenEngine.resolvePaymentAddress({ addresses: addressBook }, chainConfig);
+    return {
+      chain: chainKey,
+      pay_currency: chainConfig?.payCurrency || chainKey,
+      address: maskAddress(address),
+      enabled: Boolean(address)
+    };
+  });
+
+  return {
+    enabled: tokenConfig.enabled,
+    symbol,
+    decimals: tokenConfig.decimals,
+    usd_price: Number(tokenConfig.usd_price || 0),
+    market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(tokenConfig.usd_price || 0)).toFixed(8)),
+    total_supply: Number(tokenSupply.total || 0),
+    holders: Number(tokenSupply.holders || 0),
+    payout_gate: gate,
+    balance,
+    unified_units: unifiedUnits,
+    mintable_from_balances: mintableFromBalances,
+    purchase: {
+      min_usd: Number(tokenConfig.purchase.min_usd || 0),
+      max_usd: Number(tokenConfig.purchase.max_usd || 0),
+      slippage_pct: Number(tokenConfig.purchase.slippage_pct || 0),
+      chains
+    },
+    requests: mapTokenRequestPreview(requests)
+  };
+}
+
 async function buildActionSnapshot(db, profile, runtimeConfig) {
   const balances = await economyStore.getBalances(db, profile.user_id);
   const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
   const riskState = await riskStore.getRiskState(db, profile.user_id);
   const live = await readOffersAttemptsEvents(db, profile.user_id);
+  const token = await buildTokenSummary(db, profile, runtimeConfig, balances);
   return {
     balances,
     daily: buildDailyView(runtimeConfig, profile, dailyRaw),
     risk_score: Number(riskState.riskScore || 0),
+    token,
     ...live
   };
 }
@@ -595,6 +790,9 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     const arenaRank = arenaReady ? await arenaStore.getRank(client, profile.user_id) : null;
     const arenaRuns = arenaReady ? await arenaStore.getRecentRuns(client, profile.user_id, 5) : [];
     const arenaLeaders = arenaReady ? await arenaStore.getLeaderboard(client, season.seasonId, 5) : [];
+    const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+    const isAdmin = isAdminTelegramId(auth.uid);
+    const adminSummary = isAdmin ? await buildAdminSummary(client, runtimeConfig) : null;
 
     const missionReady = missions.filter((m) => m.completed && !m.claimed).length;
     const missionOpen = missions.filter((m) => !m.claimed).length;
@@ -622,6 +820,13 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         offers: live.offers,
         attempts: live.attempts,
         events: live.events,
+        token,
+        admin: {
+          is_admin: isAdmin,
+          telegram_id: Number(auth.uid || 0),
+          configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+          summary: adminSummary
+        },
         arena: {
           rating: Number(arenaState?.rating || arenaConfig.baseRating),
           games_played: Number(arenaState?.games_played || 0),
@@ -1583,6 +1788,892 @@ fastify.get("/webapp/api/arena/leaderboard", async (request, reply) => {
   }
 });
 
+fastify.get("/webapp/api/token/summary", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const balances = await economyStore.getBalances(client, profile.user_id);
+    const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: token
+    });
+  } catch (err) {
+    if (err.code === "42P01") {
+      reply.code(503).send({ success: false, error: "token_tables_missing" });
+      return;
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/token/mint",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          amount: { type: "number", minimum: 0.0001 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      if (!tokenConfig.enabled) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "token_disabled" });
+        return;
+      }
+
+      const balances = await economyStore.getBalances(client, profile.user_id);
+      const plan = tokenEngine.planMintFromBalances(balances, tokenConfig, request.body.amount);
+      if (!plan.ok) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: plan.reason, data: plan });
+        return;
+      }
+
+      const mintRef = deterministicUuid(`webapp:token_mint:${profile.user_id}:${Date.now()}:${Math.random()}`);
+      for (const [currency, amount] of Object.entries(plan.debits || {})) {
+        const safeAmount = Number(amount || 0);
+        if (safeAmount <= 0) {
+          continue;
+        }
+        const debit = await economyStore.debitCurrency(client, {
+          userId: profile.user_id,
+          currency,
+          amount: safeAmount,
+          reason: `token_mint_debit_${tokenConfig.symbol.toLowerCase()}`,
+          refEventId: deterministicUuid(`${mintRef}:${currency}:debit`),
+          meta: {
+            source: "webapp",
+            token_symbol: tokenConfig.symbol,
+            token_amount: plan.tokenAmount
+          }
+        });
+        if (!debit.applied) {
+          await client.query("ROLLBACK");
+          reply.code(409).send({ success: false, error: debit.reason || "mint_debit_failed" });
+          return;
+        }
+      }
+
+      await economyStore.creditCurrency(client, {
+        userId: profile.user_id,
+        currency: tokenConfig.symbol,
+        amount: plan.tokenAmount,
+        reason: "token_mint_from_gameplay",
+        refEventId: deterministicUuid(`${mintRef}:${tokenConfig.symbol}:credit`),
+        meta: { source: "webapp", units_spent: plan.unitsSpent, debits: plan.debits }
+      });
+
+      await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_token_mint", {
+        token_symbol: tokenConfig.symbol,
+        token_amount: plan.tokenAmount,
+        units_spent: plan.unitsSpent,
+        debits: plan.debits
+      });
+
+      const snapshot = await buildActionSnapshot(client, profile, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          plan,
+          snapshot
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      if (err.code === "23505") {
+        reply.code(409).send({ success: false, error: "tx_hash_already_used" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/token/buy_intent",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "usd_amount", "chain"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          usd_amount: { type: "number", minimum: 0.5 },
+          chain: { type: "string", minLength: 2, maxLength: 12 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      if (!tokenConfig.enabled) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "token_disabled" });
+        return;
+      }
+
+      const quote = tokenEngine.quotePurchaseByUsd(request.body.usd_amount, tokenConfig);
+      if (!quote.ok) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: quote.reason, data: quote });
+        return;
+      }
+
+      const chainConfig = tokenEngine.getChainConfig(tokenConfig, request.body.chain);
+      if (!chainConfig) {
+        await client.query("ROLLBACK");
+        reply.code(400).send({ success: false, error: "unsupported_chain" });
+        return;
+      }
+      const payAddress = tokenEngine.resolvePaymentAddress({ addresses: getPaymentAddressBook() }, chainConfig);
+      if (!payAddress) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "chain_address_missing" });
+        return;
+      }
+
+      const requestRow = await tokenStore.createPurchaseRequest(client, {
+        userId: profile.user_id,
+        tokenSymbol: tokenConfig.symbol,
+        chain: chainConfig.chain,
+        payCurrency: chainConfig.payCurrency,
+        payAddress,
+        usdAmount: quote.usdAmount,
+        tokenAmount: quote.tokenAmount,
+        requestRef: deterministicUuid(`webapp:token_buy:${profile.user_id}:${Date.now()}:${Math.random()}`),
+        meta: {
+          source: "webapp",
+          spot_usd: tokenConfig.usd_price,
+          token_min_receive: quote.tokenMinReceive
+        }
+      });
+
+      await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_token_buy_intent", {
+        request_id: requestRow.id,
+        chain: requestRow.chain,
+        usd_amount: quote.usdAmount,
+        token_amount: quote.tokenAmount
+      });
+
+      const balances = await economyStore.getBalances(client, profile.user_id);
+      const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          request: {
+            id: Number(requestRow.id),
+            chain: requestRow.chain,
+            pay_currency: requestRow.pay_currency,
+            pay_address: requestRow.pay_address,
+            usd_amount: Number(requestRow.usd_amount || 0),
+            token_amount: Number(requestRow.token_amount || 0),
+            status: requestRow.status
+          },
+          quote,
+          token
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      if (err.code === "23505") {
+        reply.code(409).send({ success: false, error: "tx_hash_already_used" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/token/submit_tx",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "request_id", "tx_hash"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "integer", minimum: 1 },
+          tx_hash: { type: "string", minLength: 24, maxLength: 256 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const requestId = Number(request.body.request_id || 0);
+      const txHash = String(request.body.tx_hash || "").trim();
+      const purchaseRequest = await tokenStore.getPurchaseRequest(client, requestId);
+      if (!purchaseRequest || Number(purchaseRequest.user_id) !== Number(profile.user_id)) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "request_not_found" });
+        return;
+      }
+      if (String(purchaseRequest.status) === "approved") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_approved" });
+        return;
+      }
+      if (String(purchaseRequest.status) === "rejected") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_rejected" });
+        return;
+      }
+
+      const txCheck = await validateAndVerifyTokenTx(purchaseRequest.chain, txHash);
+      if (!txCheck.ok) {
+        await client.query("ROLLBACK");
+        const code = txCheck.reason === "tx_not_found_onchain" ? 409 : 400;
+        reply.code(code).send({ success: false, error: txCheck.reason, data: txCheck.verify });
+        return;
+      }
+
+      const updated = await tokenStore.submitPurchaseTxHash(client, {
+        requestId,
+        userId: profile.user_id,
+        txHash: txCheck.formatCheck.normalizedHash,
+        metaPatch: {
+          tx_validation: {
+            chain: txCheck.formatCheck.chain,
+            status: txCheck.verify.status,
+            provider: txCheck.verify.provider || "none",
+            checked_at: new Date().toISOString()
+          }
+        }
+      });
+      if (!updated) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "request_update_failed" });
+        return;
+      }
+
+      await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_token_tx_submitted", {
+        request_id: requestId,
+        tx_hash: txCheck.formatCheck.normalizedHash.slice(0, 18)
+      });
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const balances = await economyStore.getBalances(client, profile.user_id);
+      const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          request: {
+            id: Number(updated.id),
+            status: updated.status,
+            tx_hash: updated.tx_hash
+          },
+          token
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      if (err.code === "23505") {
+        reply.code(409).send({ success: false, error: "tx_hash_already_used" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/admin/summary", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const summary = await buildAdminSummary(client, runtimeConfig);
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: summary
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/admin/freeze",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "freeze"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          freeze: { type: "boolean" },
+          reason: { type: "string", maxLength: 240 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const freeze = Boolean(request.body.freeze);
+      const reason = String(request.body.reason || "").trim();
+      const stateJson = {
+        freeze,
+        reason,
+        updated_by: Number(auth.uid),
+        updated_at: new Date().toISOString()
+      };
+
+      await client.query(
+        `INSERT INTO system_state (state_key, state_json, updated_by)
+         VALUES ('freeze', $1::jsonb, $2)
+         ON CONFLICT (state_key)
+         DO UPDATE SET state_json = EXCLUDED.state_json,
+                       updated_at = now(),
+                       updated_by = EXCLUDED.updated_by;`,
+        [JSON.stringify(stateJson), Number(auth.uid)]
+      );
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'system_freeze_toggle', 'system_state:freeze', $2::jsonb);`,
+        [Number(auth.uid), JSON.stringify(stateJson)]
+      );
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: summary
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/token/approve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "request_id"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "integer", minimum: 1 },
+          token_amount: { type: "number", minimum: 0.00000001 },
+          tx_hash: { type: "string", minLength: 8, maxLength: 255 },
+          note: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const requestId = Number(request.body.request_id);
+    if (!Number.isFinite(requestId) || requestId <= 0) {
+      reply.code(400).send({ success: false, error: "invalid_id" });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const locked = await tokenStore.lockPurchaseRequest(client, requestId);
+      if (!locked) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "not_found" });
+        return;
+      }
+      if (String(locked.status) === "rejected") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_rejected" });
+        return;
+      }
+      if (String(locked.status) === "approved") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_approved" });
+        return;
+      }
+      if (String(locked.status) === "approved") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_approved" });
+        return;
+      }
+
+      const tokenAmount = Number(request.body.token_amount || locked.token_amount || 0);
+      if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+        await client.query("ROLLBACK");
+        reply.code(400).send({ success: false, error: "invalid_token_amount" });
+        return;
+      }
+
+      const txHashInput = String(request.body.tx_hash || locked.tx_hash || "").trim();
+      const note = String(request.body.note || "").trim();
+
+      if (!txHashInput) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "tx_hash_missing" });
+        return;
+      }
+
+      const txCheck = await validateAndVerifyTokenTx(locked.chain, txHashInput);
+      if (!txCheck.ok) {
+        await client.query("ROLLBACK");
+        const code = txCheck.reason === "tx_not_found_onchain" ? 409 : 400;
+        reply.code(code).send({ success: false, error: txCheck.reason, data: txCheck.verify });
+        return;
+      }
+
+      await tokenStore.submitPurchaseTxHash(client, {
+        requestId,
+        userId: locked.user_id,
+        txHash: txCheck.formatCheck.normalizedHash,
+        metaPatch: {
+          tx_validation: {
+            chain: txCheck.formatCheck.chain,
+            status: txCheck.verify.status,
+            provider: txCheck.verify.provider || "none",
+            checked_at: new Date().toISOString()
+          }
+        }
+      });
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const tokenSymbol = String(locked.token_symbol || tokenConfig.symbol || "NXT").toUpperCase();
+      const refEventId = deterministicUuid(`token_purchase_credit:${requestId}:${tokenSymbol}`);
+
+      await economyStore.creditCurrency(client, {
+        userId: locked.user_id,
+        currency: tokenSymbol,
+        amount: tokenAmount,
+        reason: "token_purchase_approved",
+        refEventId,
+        meta: {
+          request_id: requestId,
+          chain: locked.chain,
+          usd_amount: Number(locked.usd_amount || 0),
+          tx_hash: txCheck.formatCheck.normalizedHash
+        }
+      });
+
+      const updated = await tokenStore.markPurchaseApproved(client, {
+        requestId,
+        adminId: Number(auth.uid),
+        adminNote: note || `approved:${tokenAmount}`
+      });
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_purchase_approve', $2, $3::jsonb);`,
+        [
+          Number(auth.uid),
+          `token_purchase_request:${requestId}`,
+          JSON.stringify({
+            token_amount: tokenAmount,
+            token_symbol: tokenSymbol,
+            tx_hash: txCheck.formatCheck.normalizedHash
+          })
+        ]
+      );
+
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: { request: updated, summary }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/token/reject",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "request_id"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "integer", minimum: 1 },
+          reason: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const requestId = Number(request.body.request_id);
+    if (!Number.isFinite(requestId) || requestId <= 0) {
+      reply.code(400).send({ success: false, error: "invalid_id" });
+      return;
+    }
+    const reason = String(request.body.reason || "").trim() || "rejected_by_admin";
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const locked = await tokenStore.lockPurchaseRequest(client, requestId);
+      if (!locked) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "not_found" });
+        return;
+      }
+      if (String(locked.status) === "approved") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_approved" });
+        return;
+      }
+
+      const updated = await tokenStore.markPurchaseRejected(client, {
+        requestId,
+        adminId: Number(auth.uid),
+        reason
+      });
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_purchase_reject', $2, $3::jsonb);`,
+        [Number(auth.uid), `token_purchase_request:${requestId}`, JSON.stringify({ reason })]
+      );
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: { request: updated, summary }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/payout/pay",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "request_id", "tx_hash"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "integer", minimum: 1 },
+          tx_hash: { type: "string", minLength: 8, maxLength: 255 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const requestId = Number(request.body.request_id || 0);
+    const txHash = String(request.body.tx_hash || "").trim();
+    if (!requestId || !txHash) {
+      reply.code(400).send({ success: false, error: "invalid_payload" });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const paid = await payoutStore.markPaid(client, {
+        requestId,
+        txHash,
+        adminId: Number(auth.uid)
+      });
+      if (paid.status === "not_found") {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "not_found" });
+        return;
+      }
+      if (paid.status === "rejected") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_rejected" });
+        return;
+      }
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'payout_mark_paid', $2, $3::jsonb);`,
+        [Number(auth.uid), `payout_request:${requestId}`, JSON.stringify({ tx_hash: txHash, status: paid.status })]
+      );
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: { payout: paid.request || null, status: paid.status, summary }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/payout/reject",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "request_id"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "integer", minimum: 1 },
+          reason: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const requestId = Number(request.body.request_id || 0);
+    if (!requestId) {
+      reply.code(400).send({ success: false, error: "invalid_id" });
+      return;
+    }
+    const reason = String(request.body.reason || "").trim() || "rejected_by_admin";
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+      const result = await payoutStore.markRejected(client, {
+        requestId,
+        adminId: Number(auth.uid),
+        reason
+      });
+      if (result.status !== "rejected") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: result.status || "reject_failed" });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: { payout: result.request, summary }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
 fastify.addHook("preHandler", async (request, reply) => {
   if (!request.url.startsWith("/admin")) {
     return;
@@ -2134,6 +3225,228 @@ fastify.post(
       reply.send({ success: true, data: out.rows[0] });
     } catch (err) {
       await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get(
+  "/admin/token/requests",
+  {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: {
+          status: { type: "string" },
+          limit: { type: "integer" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const status = String(request.query.status || "").trim().toLowerCase();
+    const limit = parseLimit(request.query.limit, 50, 200);
+    try {
+      const rows = await tokenStore.listPurchaseRequests(pool, { status, limit });
+      reply.send({ success: true, data: rows });
+    } catch (err) {
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    }
+  }
+);
+
+fastify.post(
+  "/admin/token/requests/:id/approve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          token_amount: { type: "number", minimum: 0.00000001 },
+          tx_hash: { type: "string", minLength: 8, maxLength: 255 },
+          note: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const requestId = Number(request.params.id);
+    if (!Number.isFinite(requestId) || requestId <= 0) {
+      reply.code(400).send({ success: false, error: "invalid_id" });
+      return;
+    }
+
+    const adminId = parseAdminId(request);
+    const txHash = String(request.body?.tx_hash || "").trim();
+    const note = String(request.body?.note || "").trim();
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const locked = await tokenStore.lockPurchaseRequest(client, requestId);
+      if (!locked) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "not_found" });
+        return;
+      }
+      if (String(locked.status) === "rejected") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_rejected" });
+        return;
+      }
+
+      const tokenAmount = Number(request.body?.token_amount || locked.token_amount || 0);
+      if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+        await client.query("ROLLBACK");
+        reply.code(400).send({ success: false, error: "invalid_token_amount" });
+        return;
+      }
+
+      const txHashInput = txHash || String(locked.tx_hash || "").trim();
+      if (!txHashInput) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "tx_hash_missing" });
+        return;
+      }
+
+      const txCheck = await validateAndVerifyTokenTx(locked.chain, txHashInput);
+      if (!txCheck.ok) {
+        await client.query("ROLLBACK");
+        const code = txCheck.reason === "tx_not_found_onchain" ? 409 : 400;
+        reply.code(code).send({ success: false, error: txCheck.reason, data: txCheck.verify });
+        return;
+      }
+
+      await tokenStore.submitPurchaseTxHash(client, {
+        requestId,
+        userId: locked.user_id,
+        txHash: txCheck.formatCheck.normalizedHash,
+        metaPatch: {
+          tx_validation: {
+            chain: txCheck.formatCheck.chain,
+            status: txCheck.verify.status,
+            provider: txCheck.verify.provider || "none",
+            checked_at: new Date().toISOString()
+          }
+        }
+      });
+
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const tokenSymbol = String(locked.token_symbol || tokenConfig.symbol || "NXT").toUpperCase();
+
+      const refEventId = deterministicUuid(`token_purchase_credit:${requestId}:${tokenSymbol}`);
+      await economyStore.creditCurrency(client, {
+        userId: locked.user_id,
+        currency: tokenSymbol,
+        amount: tokenAmount,
+        reason: "token_purchase_approved",
+        refEventId,
+        meta: {
+          request_id: requestId,
+          chain: locked.chain,
+          usd_amount: Number(locked.usd_amount || 0),
+          tx_hash: txCheck.formatCheck.normalizedHash
+        }
+      });
+
+      const updated = await tokenStore.markPurchaseApproved(client, {
+        requestId,
+        adminId,
+        adminNote: note || `approved:${tokenAmount}`
+      });
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_purchase_approve', $2, $3::jsonb);`,
+        [
+          adminId,
+          `token_purchase_request:${requestId}`,
+          JSON.stringify({
+            token_amount: tokenAmount,
+            token_symbol: tokenSymbol,
+            tx_hash: txCheck.formatCheck.normalizedHash
+          })
+        ]
+      );
+
+      await client.query("COMMIT");
+      reply.send({ success: true, data: updated });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/admin/token/requests/:id/reject",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          reason: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const requestId = Number(request.params.id);
+    if (!Number.isFinite(requestId) || requestId <= 0) {
+      reply.code(400).send({ success: false, error: "invalid_id" });
+      return;
+    }
+    const adminId = parseAdminId(request);
+    const reason = String(request.body?.reason || "").trim();
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const locked = await tokenStore.lockPurchaseRequest(client, requestId);
+      if (!locked) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "not_found" });
+        return;
+      }
+      if (String(locked.status) === "approved") {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "already_approved" });
+        return;
+      }
+
+      const updated = await tokenStore.markPurchaseRejected(client, {
+        requestId,
+        adminId,
+        reason: reason || "rejected_by_admin"
+      });
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_purchase_reject', $2, $3::jsonb);`,
+        [adminId, `token_purchase_request:${requestId}`, JSON.stringify({ reason: reason || "rejected_by_admin" })]
+      );
+
+      await client.query("COMMIT");
+      reply.send({ success: true, data: updated });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
       throw err;
     } finally {
       client.release();

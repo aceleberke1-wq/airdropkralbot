@@ -139,6 +139,10 @@ h3 {
   box-shadow: inset 0 0 26px rgba(120, 160, 255, 0.08), 0 14px 30px rgba(0, 0, 0, 0.28);
 }
 
+.hidden {
+  display: none !important;
+}
+
 .hero {
   padding: 16px;
   display: grid;
@@ -220,6 +224,11 @@ h3 {
   grid-row: span 2;
 }
 
+.adminPanel {
+  border-color: rgba(255, 184, 92, 0.35);
+  box-shadow: inset 0 0 26px rgba(255, 184, 92, 0.1), 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
 .feed {
   grid-column: span 2;
 }
@@ -267,6 +276,36 @@ h3 {
 .missionActions {
   display: flex;
   justify-content: flex-end;
+}
+
+.tokenActions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tokenRow {
+  display: grid;
+  gap: 6px;
+}
+
+.tokenRow input,
+.tokenRow select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.26);
+  background: rgba(4, 9, 24, 0.86);
+  color: var(--ink);
+  padding: 9px 10px;
+  font-size: 13px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.tokenRow input:focus,
+.tokenRow select:focus {
+  outline: none;
+  border-color: rgba(61, 248, 194, 0.8);
+  box-shadow: 0 0 0 2px rgba(61, 248, 194, 0.16);
 }
 
 .attemptStack {

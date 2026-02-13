@@ -62,3 +62,41 @@ arena:
     win: 22
     near: 6
     loss: -14
+
+token:
+  enabled: true
+  symbol: NXT
+  decimals: 4
+  usd_price: 0.0005
+  mint:
+    units_per_token: 100
+    min_tokens: 0.01
+    weights:
+      sc: 1
+      hc: 25
+      rc: 4
+    burn_priority: [rc, sc, hc]
+  purchase:
+    min_usd: 1
+    max_usd: 250
+    slippage_pct: 0.03
+    chains:
+      btc:
+        pay_currency: BTC
+        env_key: btc
+      eth:
+        pay_currency: ETH
+        env_key: eth
+      trx:
+        pay_currency: TRX
+        env_key: trx
+      sol:
+        pay_currency: SOL
+        env_key: sol
+      ton:
+        pay_currency: TON
+        env_key: ton
+  payout_gate:
+    enabled: true
+    min_market_cap_usd: 10000000
+    target_band_max_usd: 20000000

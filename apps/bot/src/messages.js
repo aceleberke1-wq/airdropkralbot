@@ -17,13 +17,19 @@ function formatStart(profile, balances, season) {
   const publicName = escapeMarkdown(profile.public_name);
   const sc = balances?.SC || 0;
   const hc = balances?.HC || 0;
+  const rc = balances?.RC || 0;
   const seasonLine = season ? `\nSezon: *S${season.seasonId}* - ${season.daysLeft} gun` : "";
   return (
     `*AirdropKralBot // Kingdom Console*\n` +
     `Kral: *${publicName}*\n` +
     `Kingdom: *Tier ${profile.kingdom_tier}*\n` +
     `Streak: *${profile.current_streak} gun*\n` +
-    `Bakiye: *${sc} SC / ${hc} HC*${seasonLine}\n\n` +
+    `Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}\n\n` +
+    `*Nasil ilerlersin?*\n` +
+    `1) /tasks ile gorev sec\n` +
+    `2) /finish ile denemeyi bitir\n` +
+    `3) /reveal ile odulu ac\n` +
+    `4) /wallet ve /token ile ekonomiyi yonet\n\n` +
     `Hud: ${progressBar(profile.current_streak, 14, 14)}\n` +
     `Aksiyon: /tasks -> /shop -> /leaderboard`
   );
@@ -134,6 +140,10 @@ function formatWallet(profile, balances, daily) {
   const sc = balances?.SC || 0;
   const hc = balances?.HC || 0;
   const rc = balances?.RC || 0;
+  const extraCurrencies = Object.keys(balances || {})
+    .filter((key) => !["SC", "HC", "RC"].includes(String(key).toUpperCase()))
+    .map((key) => `${key}: *${Number(balances[key] || 0)}*`)
+    .join("\n");
   const dailyCap = Number(daily?.dailyCap || 0);
   const tasksDone = Number(daily?.tasksDone || 0);
   const earnedSc = Number(daily?.scEarned || 0);
@@ -147,9 +157,136 @@ function formatWallet(profile, balances, daily) {
     `Bugun Gorev: *${tasksDone}/${dailyCap}*\n` +
     `Bugun SC: *${earnedSc}*\n` +
     `Verim: *${pct(productivity)}*\n` +
-    `${capBar}\n\n` +
+    `${capBar}` +
+    (extraCurrencies ? `\n\n${extraCurrencies}` : "") +
+    `\n\n` +
     `Streak: *${profile.current_streak} gun* | Kingdom: *Tier ${profile.kingdom_tier}*`
   );
+}
+
+function formatTokenWallet(profile, view) {
+  const lines = (view.chains || [])
+    .map((chain) => `${chain.chain}: ${chain.enabled ? chain.address : "adres_tanimli_degil"}`)
+    .join("\n");
+
+  const requests = (view.requests || [])
+    .slice(0, 4)
+    .map((req) => {
+      const status = String(req.status || "").toUpperCase();
+      const tx = req.tx_hash ? ` | tx ${escapeMarkdown(String(req.tx_hash).slice(0, 14))}...` : "";
+      return `#${req.id} ${Number(req.usd_amount || 0)} USD -> ${Number(req.token_amount || 0)} ${view.symbol} [${status}]${tx}`;
+    })
+    .join("\n");
+
+  return (
+    `*Token Treasury*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name)}*\n` +
+    `Token: *${view.symbol}*\n` +
+    `Bakiye: *${Number(view.balance || 0).toFixed(view.tokenConfig.decimals)} ${view.symbol}*\n` +
+    `Spot: *$${Number(view.spotUsd || 0).toFixed(6)}* / ${view.symbol}\n` +
+    `Unify Units: *${Number(view.unifiedUnits || 0).toFixed(2)}*\n` +
+    `Maks Mint: *${Number(view.equivalentToken || 0).toFixed(view.tokenConfig.decimals)} ${view.symbol}*\n\n` +
+    `Zincir Adresleri:\n${escapeMarkdown(lines || "yok")}\n\n` +
+    `Son Talepler:\n${escapeMarkdown(requests || "kayit yok")}\n\n` +
+    `Komut: /mint [miktar], /buytoken <usd> <chain>, /tx <id> <txHash>`
+  );
+}
+
+function formatTokenMintResult(plan, view) {
+  return (
+    `*Token Mint Basarili*\n` +
+    `Kazanc: *${Number(plan.tokenAmount || 0).toFixed(view.tokenConfig.decimals)} ${view.symbol}*\n` +
+    `Harcanan birimler: ${Number(plan.unitsSpent || 0).toFixed(2)}\n` +
+    `Debit: ${Number(plan.debits?.SC || 0).toFixed(4)} SC / ${Number(plan.debits?.HC || 0).toFixed(4)} HC / ${Number(plan.debits?.RC || 0).toFixed(4)} RC\n` +
+    `Yeni bakiye: *${Number(view.balance || 0).toFixed(view.tokenConfig.decimals)} ${view.symbol}*`
+  );
+}
+
+function formatTokenMintError(reason, plan) {
+  if (reason === "mint_below_min") {
+    return `*Token Mint*\nMin mint: *${Number(plan?.minTokens || 0).toFixed(4)}* token.`;
+  }
+  if (reason === "insufficient_balance") {
+    return `*Token Mint*\nYetersiz bakiye. Maks: *${Number(plan?.maxMintable || 0).toFixed(4)}* token.`;
+  }
+  if (reason === "token_disabled") {
+    return `*Token Mint*\nToken sistemi su an kapali.`;
+  }
+  if (reason === "freeze_mode") {
+    return `*Token Mint*\nSistem freeze modunda.`;
+  }
+  return `*Token Mint Hatasi*\n${escapeMarkdown(reason || "bilinmeyen_hata")}`;
+}
+
+function formatTokenBuyIntent(request, quote, tokenConfig) {
+  const txHelp = `/tx ${request.id} <txHash>`;
+  return (
+    `*Token Satin Alma Talebi*\n` +
+    `Talep: *#${request.id}*\n` +
+    `Zincir: *${request.chain}*\n` +
+    `Odeme: *${Number(quote.usdAmount).toFixed(2)} USD* (${request.pay_currency})\n` +
+    `Karsilik: *${Number(quote.tokenAmount).toFixed(tokenConfig.decimals)} ${tokenConfig.symbol}*\n` +
+    `Min teslim: *${Number(quote.tokenMinReceive).toFixed(tokenConfig.decimals)} ${tokenConfig.symbol}*\n\n` +
+    `Adres:\n\`${request.pay_address}\`\n\n` +
+    `Odeme sonrasi tx hash gonder:\n\`${txHelp}\``
+  );
+}
+
+function formatTokenBuyIntentError(reason, quote, chain) {
+  if (reason === "purchase_below_min") {
+    return `*Token Satin Alma*\nMin USD: *${Number(quote?.minUsd || 0).toFixed(2)}*`;
+  }
+  if (reason === "purchase_above_max") {
+    return `*Token Satin Alma*\nMaks USD: *${Number(quote?.maxUsd || 0).toFixed(2)}*`;
+  }
+  if (reason === "unsupported_chain") {
+    return `*Token Satin Alma*\nDesteklenmeyen zincir: *${escapeMarkdown(chain || "-")}*`;
+  }
+  if (reason === "chain_address_missing") {
+    return `*Token Satin Alma*\nBu zincir icin odeme adresi tanimli degil.`;
+  }
+  if (reason === "token_disabled") {
+    return `*Token Satin Alma*\nToken sistemi su an kapali.`;
+  }
+  return `*Token Satin Alma Hatasi*\n${escapeMarkdown(reason || "bilinmeyen_hata")}`;
+}
+
+function formatTokenTxSubmitted(request) {
+  return (
+    `*TX Kaydi Alindi*\n` +
+    `Talep: *#${request.id}*\n` +
+    `Durum: *${String(request.status || "tx_submitted").toUpperCase()}*\n` +
+    `TX: \`${escapeMarkdown(String(request.tx_hash || ""))}\`\n\n` +
+    `Admin dogrulama sonrasi token bakiyene yansir.`
+  );
+}
+
+function formatTokenTxError(reason, request) {
+  if (reason === "request_not_found") {
+    return `*TX Kaydi*\nTalep bulunamadi.`;
+  }
+  if (reason === "already_approved") {
+    return `*TX Kaydi*\nBu talep zaten onaylandi.`;
+  }
+  if (reason === "already_rejected") {
+    return `*TX Kaydi*\nBu talep reddedildi.`;
+  }
+  if (reason === "request_update_failed") {
+    return `*TX Kaydi*\nTalep guncellenemedi.`;
+  }
+  if (reason === "tx_hash_missing") {
+    return `*TX Kaydi*\nOnay icin once zincir tx hash girilmeli.`;
+  }
+  if (reason === "invalid_tx_hash_format") {
+    return `*TX Kaydi*\nHash formati zincir tipine uymuyor.`;
+  }
+  if (reason === "tx_not_found_onchain") {
+    return `*TX Kaydi*\nTX hash zincirde bulunamadi, tekrar kontrol et.`;
+  }
+  if (reason === "tx_hash_already_used") {
+    return `*TX Kaydi*\nBu tx hash baska bir talepte zaten kullanildi.`;
+  }
+  return `*TX Kaydi Hatasi*\n${escapeMarkdown(reason || "bilinmeyen_hata")}`;
 }
 
 function formatDaily(profile, daily, board, balances) {
@@ -343,12 +480,16 @@ function formatPayout(details) {
     ? `\nSon Talep: #${details.latest.id} ${details.latest.status} ${Number(details.latest.amount || 0).toFixed(8)} BTC (${Number(details.latest.source_hc_amount || 0).toFixed(4)} HC)`
     : "\nSon Talep: Yok";
   const txLine = details.latest?.tx_hash ? `\nTX: ${escapeMarkdown(details.latest.tx_hash)}` : "";
+  const gate = details.marketCapGate || {};
+  const gateLine = gate.enabled
+    ? `\nMarket Cap Gate: *${gate.allowed ? "acik" : "kapali"}* (${Number(gate.current || 0).toFixed(2)} / ${Number(gate.min || 0).toFixed(2)} USD)`
+    : "";
   return (
     `*Cekim Durumu*\n` +
     `Entitlement: *${entitled} BTC*\n` +
     `Esik: *${threshold} BTC*\n` +
     `Cooldown: *${cooldown}*\n\n` +
-    `Uygunluk: *${eligibility}*${latestLine}${txLine}\n` +
+    `Uygunluk: *${eligibility}*${gateLine}${latestLine}${txLine}\n` +
     `Model: entitlement-only, odeme disaridan admin tarafinda islenir.`
   );
 }
@@ -446,6 +587,10 @@ function formatHelp() {
     `/raid [safe|balanced|aggressive] - Arena raid baslat\n` +
     `/arena_rank - Arena siralama + rating\n` +
     `/wallet - Bakiye ve gunluk cap\n` +
+    `/token - Token treasury ve son talepler\n` +
+    `/mint [miktar] - SC/HC/RC birimlerini tokena cevir\n` +
+    `/buytoken <usd> <chain> - Token satin alma talebi\n` +
+    `/tx <requestId> <txHash> - Satin alma tx hash bildir\n` +
     `/daily - Gunluk operasyon paneli\n` +
     `/kingdom - Tier ve reputasyon durumu\n` +
     `/season - Sezon ilerleme\n` +
@@ -461,8 +606,66 @@ function formatHelp() {
     `/status - Sistem snapshot\n` +
     `/payout - Cekim paneli\n` +
     `/streak - Zincir durumu\n` +
-    `/profile - Kimlik karti`
+    `/profile - Kimlik karti\n\n` +
+    `Admin: /admin, /admin_config, /admin_freeze, /admin_token_price, /admin_token_gate`
   );
+}
+
+function formatAdminPanel(snapshot, isAdmin) {
+  if (!isAdmin) {
+    return `*Admin Panel*\nBu panel sadece admin hesaba aciktir.`;
+  }
+
+  const payoutLines =
+    (snapshot.pendingPayouts || []).length > 0
+      ? snapshot.pendingPayouts
+          .slice(0, 5)
+          .map((row) => `#${row.id} u${row.user_id} ${Number(row.amount || 0).toFixed(8)} BTC`)
+          .join("\n")
+      : "Bekleyen payout yok";
+
+  const tokenLines =
+    (snapshot.pendingTokenRequests || []).length > 0
+      ? snapshot.pendingTokenRequests
+          .slice(0, 5)
+          .map(
+            (row) =>
+              `#${row.id} u${row.user_id} ${Number(row.usd_amount || 0).toFixed(2)} USD -> ${Number(row.token_amount || 0).toFixed(4)} ${escapeMarkdown(
+                row.token_symbol || "NXT"
+              )} [${escapeMarkdown(String(row.status || "").toUpperCase())}]`
+          )
+          .join("\n")
+      : "Bekleyen token talebi yok";
+
+  return (
+    `*Admin Kontrol Merkezi*\n` +
+    `Admin ID: *${snapshot.adminTelegramId}*\n` +
+    `Freeze: *${snapshot.freeze?.freeze ? "ACIK" : "KAPALI"}*` +
+    (snapshot.freeze?.reason ? `\nFreeze Sebep: ${escapeMarkdown(snapshot.freeze.reason)}` : "") +
+    `\n\nToplam Kullanici: *${snapshot.totalUsers}*` +
+    `\nAktif Deneme: *${snapshot.activeAttempts}*` +
+    `\nPayout Queue: *${snapshot.pendingPayoutCount}*` +
+    `\nToken Queue: *${snapshot.pendingTokenCount}*` +
+    `\nToken Supply: *${Number(snapshot.token?.supply || 0).toFixed(4)} ${escapeMarkdown(snapshot.token?.symbol || "NXT")}*` +
+    `\nToken Market Cap: *$${Number(snapshot.token?.marketCapUsd || 0).toFixed(2)}*` +
+    `\n\n*Bekleyen Payoutlar*\n${payoutLines}` +
+    `\n\n*Bekleyen Token Talepleri*\n${tokenLines}` +
+    `\n\nKomutlar: /pay <id> <txhash>, /reject_payout <id> <sebep>, /approve_token <id>, /reject_token <id> <sebep>`
+  );
+}
+
+function formatAdminWhoami(telegramId, adminTelegramId) {
+  const isAdmin = Number(telegramId || 0) === Number(adminTelegramId || 0);
+  return (
+    `*Kimlik Kontrol*\n` +
+    `Telegram ID: *${Number(telegramId || 0)}*\n` +
+    `Config Admin ID: *${Number(adminTelegramId || 0)}*\n` +
+    `Yetki: *${isAdmin ? "ADMIN" : "USER"}*`
+  );
+}
+
+function formatAdminActionResult(title, details) {
+  return `*${escapeMarkdown(title)}*\n${escapeMarkdown(details || "islem tamamlandi")}`;
 }
 
 module.exports = {
@@ -474,6 +677,13 @@ module.exports = {
   formatLootReveal,
   formatStreak,
   formatWallet,
+  formatTokenWallet,
+  formatTokenMintResult,
+  formatTokenMintError,
+  formatTokenBuyIntent,
+  formatTokenBuyIntentError,
+  formatTokenTxSubmitted,
+  formatTokenTxError,
   formatDaily,
   formatSeason,
   formatLeaderboard,
@@ -488,6 +698,9 @@ module.exports = {
   formatOps,
   formatArenaStatus,
   formatArenaRaidResult,
-  formatHelp
+  formatHelp,
+  formatAdminPanel,
+  formatAdminWhoami,
+  formatAdminActionResult
 };
 
