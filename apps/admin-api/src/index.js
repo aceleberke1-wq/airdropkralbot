@@ -599,6 +599,54 @@ async function buildAdminSummary(db, runtimeConfig) {
   };
 }
 
+async function writeConfigVersion(db, configKey, configJson, adminId) {
+  const versionRes = await db.query(
+    `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+     FROM config_versions
+     WHERE config_key = $1;`,
+    [configKey]
+  );
+  const nextVersion = Number(versionRes.rows?.[0]?.next_version || 1);
+  await db.query(
+    `INSERT INTO config_versions (config_key, version, config_json, created_by)
+     VALUES ($1, $2, $3::jsonb, $4);`,
+    [configKey, nextVersion, JSON.stringify(configJson), Number(adminId || 0)]
+  );
+  return nextVersion;
+}
+
+async function patchTokenRuntimeConfig(db, adminId, patchInput) {
+  const current = await configService.getEconomyConfig(db, { forceRefresh: true });
+  const next = JSON.parse(JSON.stringify(current || {}));
+  if (!next.token || typeof next.token !== "object") {
+    next.token = {};
+  }
+  if (!next.token.payout_gate || typeof next.token.payout_gate !== "object") {
+    next.token.payout_gate = {};
+  }
+
+  if (patchInput && Object.prototype.hasOwnProperty.call(patchInput, "usd_price")) {
+    next.token.usd_price = Number(patchInput.usd_price);
+  }
+  if (patchInput && Object.prototype.hasOwnProperty.call(patchInput, "min_market_cap_usd")) {
+    next.token.payout_gate.enabled = true;
+    next.token.payout_gate.min_market_cap_usd = Number(patchInput.min_market_cap_usd);
+  }
+  if (patchInput && Object.prototype.hasOwnProperty.call(patchInput, "target_band_max_usd")) {
+    next.token.payout_gate.enabled = true;
+    next.token.payout_gate.target_band_max_usd = Number(patchInput.target_band_max_usd);
+  }
+
+  const version = await writeConfigVersion(db, configService.ECONOMY_CONFIG_KEY, next, adminId);
+  await db.query(
+    `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+     VALUES ($1, 'webapp_token_config_update', 'config:economy_params', $2::jsonb);`,
+    [Number(adminId || 0), JSON.stringify({ version, patch: patchInput || {} })]
+  );
+  const reloaded = await configService.getEconomyConfig(db, { forceRefresh: true });
+  return { version, config: reloaded };
+}
+
 async function buildTokenSummary(db, profile, runtimeConfig, balances) {
   const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
   const symbol = tokenConfig.symbol;
@@ -2271,6 +2319,82 @@ fastify.post(
       );
 
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: summary
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/token/config",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          usd_price: { type: "number", minimum: 0.00000001, maximum: 10 },
+          min_market_cap_usd: { type: "number", minimum: 1 },
+          target_band_max_usd: { type: "number", minimum: 1 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const patch = {};
+      if (Number.isFinite(Number(request.body.usd_price))) {
+        patch.usd_price = Number(request.body.usd_price);
+      }
+      if (Number.isFinite(Number(request.body.min_market_cap_usd))) {
+        patch.min_market_cap_usd = Number(request.body.min_market_cap_usd);
+      }
+      if (Number.isFinite(Number(request.body.target_band_max_usd))) {
+        patch.target_band_max_usd = Number(request.body.target_band_max_usd);
+      }
+      if (Object.keys(patch).length === 0) {
+        await client.query("ROLLBACK");
+        reply.code(400).send({ success: false, error: "no_patch_fields" });
+        return;
+      }
+      if (
+        patch.min_market_cap_usd &&
+        patch.target_band_max_usd &&
+        patch.target_band_max_usd < patch.min_market_cap_usd
+      ) {
+        await client.query("ROLLBACK");
+        reply.code(400).send({ success: false, error: "invalid_gate_band" });
+        return;
+      }
+
+      await patchTokenRuntimeConfig(client, auth.uid, patch);
+      const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
       const summary = await buildAdminSummary(client, runtimeConfig);
       await client.query("COMMIT");
       reply.send({

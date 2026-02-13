@@ -775,18 +775,21 @@
     const chainSelect = byId("tokenChainSelect");
     const chains = Array.isArray(safe.purchase?.chains) ? safe.purchase.chains : [];
     const current = chainSelect.value || "";
-    chainSelect.innerHTML = chains
-      .filter((x) => x.enabled)
+    const enabledChains = chains.filter((x) => x.enabled);
+    chainSelect.innerHTML = enabledChains
       .map((x) => `<option value="${x.chain}">${x.chain} (${x.pay_currency})</option>`)
       .join("");
 
-    if (!chainSelect.value && chains.length > 0) {
-      chainSelect.value = String(chains[0].chain || "");
+    if (!chainSelect.value && enabledChains.length > 0) {
+      chainSelect.value = String(enabledChains[0].chain || "");
     }
     if (current && [...chainSelect.options].some((o) => o.value === current)) {
       chainSelect.value = current;
     }
     byId("tokenBuyBtn").disabled = chainSelect.options.length === 0;
+    if (enabledChains.length === 0) {
+      byId("tokenHint").textContent = "Zincir odeme adresleri tanimli degil. Admin env kontrol etmeli.";
+    }
   }
 
   function renderAdmin(adminData) {
@@ -812,6 +815,12 @@
     byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
     byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
     byId("adminQueue").textContent = `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}`;
+    const spot = asNum(token.spot_usd || token.usd_price || 0);
+    const minCap = asNum(gate.min);
+    const targetMax = asNum(gate.targetMax);
+    byId("adminTokenPriceInput").value = spot > 0 ? spot.toFixed(8) : "";
+    byId("adminTokenGateMinInput").value = minCap > 0 ? String(Math.floor(minCap)) : "";
+    byId("adminTokenGateMaxInput").value = targetMax > 0 ? String(Math.floor(targetMax)) : "";
   }
 
   async function fetchAdminSummary() {
@@ -1032,6 +1041,42 @@
         })
         .catch(showError);
     });
+    byId("adminTokenPriceSaveBtn").addEventListener("click", () => {
+      const usdPrice = asNum(byId("adminTokenPriceInput").value || 0);
+      if (!usdPrice) {
+        showToast("Token fiyat gir.", true);
+        return;
+      }
+      postAdmin("/webapp/api/admin/token/config", { usd_price: usdPrice })
+        .then((summary) => {
+          renderAdmin({ is_admin: true, summary });
+          showToast("Token fiyat guncellendi");
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("adminTokenGateSaveBtn").addEventListener("click", () => {
+      const minCap = asNum(byId("adminTokenGateMinInput").value || 0);
+      const targetMax = asNum(byId("adminTokenGateMaxInput").value || 0);
+      if (!minCap) {
+        showToast("Gate min cap gerekli.", true);
+        return;
+      }
+      if (targetMax && targetMax < minCap) {
+        showToast("Target max, min capten buyuk olmali.", true);
+        return;
+      }
+      postAdmin("/webapp/api/admin/token/config", {
+        min_market_cap_usd: minCap,
+        target_band_max_usd: targetMax || minCap * 2
+      })
+        .then((summary) => {
+          renderAdmin({ is_admin: true, summary });
+          showToast("Token gate guncellendi");
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
     byId("adminTokenRejectBtn").addEventListener("click", () => {
       const requestId = asNum(byId("adminTokenRequestId").value || 0);
       if (!requestId) {
@@ -1244,6 +1289,8 @@
       chain_address_missing: "Bu zincir icin odeme adresi tanimli degil.",
       market_cap_gate: "Payout market-cap gate nedeniyle su an kapali.",
       admin_required: "Bu islem admin hesabi gerektirir.",
+      no_patch_fields: "Guncelleme icin en az bir alan gir.",
+      invalid_gate_band: "Gate max degeri min degerden kucuk olamaz.",
       request_not_found: "Token talebi bulunamadi.",
       tx_hash_missing: "Token onayi icin tx hash zorunlu.",
       tx_hash_already_used: "Bu tx hash baska bir talepte kullanildi.",
