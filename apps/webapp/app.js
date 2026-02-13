@@ -12,6 +12,7 @@
       isAdmin: false,
       summary: null
     },
+    suggestion: null,
     arena: null,
     sim: {
       active: false,
@@ -24,6 +25,10 @@
       hits: 0,
       misses: 0,
       secondsLeft: 0
+    },
+    intro: {
+      seenKey: "airdropkral_intro_seen_v2",
+      visible: false
     }
   };
 
@@ -430,7 +435,11 @@
     if (action === "open_wallet") return "/wallet";
     if (action === "open_token") return "/token";
     if (action === "open_war") return "/war";
+    if (action === "open_nexus") return "/nexus";
+    if (action === "open_contract") return "/contract";
     if (action === "open_missions") return "/missions";
+    if (action === "open_leaderboard") return "/leaderboard";
+    if (action === "open_play") return "/play";
     if (action === "open_status") return "/status";
     if (action === "open_payout") return "/payout";
     if (action === "complete_latest") return `/finish ${payload.mode || "balanced"}`;
@@ -881,6 +890,195 @@
     badge.className = `badge ${style}`;
   }
 
+  function chooseModeByRisk(riskScore) {
+    const risk = asNum(riskScore);
+    if (risk >= 0.35) return "safe";
+    if (risk >= 0.18) return "balanced";
+    return "aggressive";
+  }
+
+  function pickBestOffer(offers) {
+    const list = Array.isArray(offers) ? offers : [];
+    if (list.length === 0) return null;
+    return list
+      .slice()
+      .sort((a, b) => {
+        const rewardA = asNum(String(a.reward_preview || "0").match(/(\d+)\s*-\s*(\d+)/)?.[2] || 0);
+        const rewardB = asNum(String(b.reward_preview || "0").match(/(\d+)\s*-\s*(\d+)/)?.[2] || 0);
+        if (rewardB !== rewardA) return rewardB - rewardA;
+        return asNum(a.difficulty) - asNum(b.difficulty);
+      })[0];
+  }
+
+  function computeMacroProgress(season) {
+    const points = asNum(season?.points);
+    const momentum = clamp(Math.round(Math.log10(points + 1) * 36), 0, 100);
+    const timePressure = clamp(100 - asNum(season?.days_left) * 2, 0, 40);
+    return clamp(momentum + timePressure, 0, 100);
+  }
+
+  function computeSuggestion(data) {
+    const attempts = data.attempts || {};
+    const offers = data.offers || [];
+    const missions = data.missions || { list: [] };
+    const balances = data.balances || {};
+    const riskScore = asNum(data.risk_score || 0);
+    const nexus = data.nexus || {};
+    const contract = data.contract || {};
+    const freeze = Boolean(data.admin?.summary?.freeze?.freeze);
+
+    if (freeze) {
+      return {
+        action: "open_status",
+        payload: {},
+        label: "Bakim Durumunu Ac",
+        stateLabel: "Freeze",
+        style: "warn",
+        summary: "Sistem freeze modunda. Gorev dagitimi gecici durur."
+      };
+    }
+
+    if (attempts.revealable) {
+      const attempt = attempts.revealable;
+      return {
+        action: "reveal_latest",
+        payload: {},
+        label: "Reveal Ac",
+        stateLabel: "Reveal",
+        style: "",
+        summary: `${attempt.task_title || "deneme"} tamam. Odulu ac ve yeni turu baslat.`
+      };
+    }
+
+    if (attempts.active) {
+      const mode = String(contract.required_mode || nexus.preferred_mode || chooseModeByRisk(riskScore));
+      const modeLabel = mode === "safe" ? "Temkinli" : mode === "aggressive" ? "Saldirgan" : "Dengeli";
+      return {
+        action: "complete_latest",
+        payload: { mode },
+        label: `${modeLabel} Bitir`,
+        stateLabel: "Aktif Deneme",
+        style: "info",
+        summary: `Aktif deneme var. Risk ${(riskScore * 100).toFixed(0)}% icin ${modeLabel.toLowerCase()} cikis onerildi.`
+      };
+    }
+
+    const claimable = (missions.list || []).find((m) => m.completed && !m.claimed);
+    if (claimable) {
+      return {
+        action: "claim_mission",
+        payload: { mission_key: claimable.key },
+        label: "Misyon Odulu Al",
+        stateLabel: "Misyon Hazir",
+        style: "info",
+        summary: `${claimable.title} odulu alinmamis. SC/RC akisini hizlandir.`
+      };
+    }
+
+    if (offers.length > 0) {
+      const best = pickBestOffer(offers);
+      return {
+        action: "accept_offer",
+        payload: { offer_id: Number(best?.id || offers[0].id) },
+        label: `Gorev Baslat #${Number(best?.id || offers[0].id)}`,
+        stateLabel: "Gorev Acik",
+        style: "info",
+        summary: `${best?.title || "Gorev"} gorevi acik. Kontrat modu: ${String(contract.required_mode || "balanced")}.`
+      };
+    }
+
+    if (asNum(balances.RC) >= 1) {
+      return {
+        action: "reroll_tasks",
+        payload: {},
+        label: "Panel Yenile (1 RC)",
+        stateLabel: "Reroll",
+        style: "warn",
+        summary: "Aktif gorev yok. RC kullanip yeni lineup cek."
+      };
+    }
+
+    return {
+      action: "open_tasks",
+      payload: {},
+      label: "Gorev Havuzunu Ac",
+      stateLabel: "Beklemede",
+      style: "warn",
+      summary: "Gorev dongusunu yeniden baslat. Sonraki odul reveal ile gelir."
+    };
+  }
+
+  function renderDirector(data) {
+    const suggestion = computeSuggestion(data);
+    state.suggestion = suggestion;
+    const daily = data.daily || {};
+    const season = data.season || {};
+    const nexus = data.nexus || {};
+    const contract = data.contract || {};
+    const attempts = data.attempts || {};
+    const offers = data.offers || [];
+
+    byId("directorState").textContent = suggestion.stateLabel;
+    byId("directorState").className = `badge ${suggestion.style || "info"}`.trim();
+    byId("directorSummary").textContent = nexus.title
+      ? `${suggestion.summary} | ${nexus.title}: ${String(nexus.subtitle || "").trim() || "pulse aktif"} | Kontrat ${String(
+          contract.title || "-"
+        )}`
+      : suggestion.summary;
+    byId("runSuggestedBtn").textContent = suggestion.label;
+
+    const microPct = attempts.revealable ? 100 : attempts.active ? 68 : offers.length > 0 ? 24 : 6;
+    const mesoPct = pct(asNum(daily.tasks_done), asNum(daily.daily_cap));
+    const macroPct = computeMacroProgress(season);
+
+    byId("loopMicroLine").textContent =
+      attempts.revealable ? "Reveal Hazir" : attempts.active ? "Deneme Acik" : offers.length > 0 ? "Gorev Secimi" : "Panel Bos";
+    byId("loopMesoLine").textContent = `${asNum(daily.tasks_done)}/${asNum(daily.daily_cap)} gunluk`;
+    byId("loopMacroLine").textContent = `S${season.season_id || 0} | ${asNum(season.points)} SP`;
+
+    byId("loopMicroMeter").style.width = `${microPct}%`;
+    byId("loopMesoMeter").style.width = `${mesoPct}%`;
+    byId("loopMacroMeter").style.width = `${macroPct}%`;
+  }
+
+  function renderContract(contract) {
+    const safe = contract && typeof contract === "object" ? contract : {};
+    const matched = Boolean(safe.match?.matched);
+    byId("contractBadge").textContent = matched ? "HIT" : "AKTIF";
+    byId("contractBadge").className = matched ? "badge" : "badge info";
+    byId("contractTitle").textContent = String(safe.title || "Nexus Contract");
+    byId("contractSubtitle").textContent = String(safe.subtitle || "Gunluk kontrat");
+    byId("contractTarget").textContent = `${String(safe.required_mode || "balanced").toUpperCase()} | ${String(
+      safe.require_result || "success_or_near"
+    ).toUpperCase()}`;
+    byId("contractObjective").textContent = String(safe.objective || "-");
+    byId("contractBoost").textContent = `SC x${asNum(safe.sc_multiplier || 1).toFixed(2)}`;
+    byId("contractMeta").textContent = `+${asNum(safe.rc_flat_bonus || 0)} RC | +${asNum(safe.season_bonus || 0)} SP | +${asNum(
+      safe.war_bonus || 0
+    )} War`;
+  }
+
+  async function runSuggestedAction() {
+    const suggestion = state.suggestion;
+    if (!suggestion) {
+      showToast("Oneri hazir degil.", true);
+      return;
+    }
+    if (suggestion.action === "reroll_tasks") {
+      await rerollTasks();
+      return;
+    }
+    if (suggestion.action === "open_play") {
+      await sendBotAction("open_play");
+      return;
+    }
+    if (suggestion.action === "open_leaderboard") {
+      await sendBotAction("open_leaderboard");
+      return;
+    }
+    await performAction(suggestion.action, suggestion.payload || {});
+  }
+
   function render(payload) {
     state.data = payload.data;
     const data = payload.data;
@@ -888,6 +1086,8 @@
     const balances = data.balances;
     const daily = data.daily;
     const season = data.season;
+    const nexus = data.nexus || {};
+    const contract = data.contract || {};
     const war = data.war;
     const missions = data.missions;
     const riskScore = asNum(data.risk_score);
@@ -903,11 +1103,16 @@
     byId("seasonLine").textContent = `S${season.season_id} | ${season.days_left} gun | ${asNum(season.points)} SP`;
     byId("warLine").textContent = `War ${war.tier} | Havuz ${Math.floor(asNum(war.value))}`;
     byId("riskLine").textContent = `Risk ${(riskScore * 100).toFixed(0)}%`;
+    byId("nexusLine").textContent = `Nexus ${String(nexus.title || "-")} | ${asNum(nexus.pressure_pct)}% | ${String(
+      nexus.preferred_mode || "balanced"
+    )}`;
+    renderContract(contract);
     const arenaReady = data.arena?.ready !== false;
     byId("arenaRating").textContent = arenaReady ? `${asNum(data.arena?.rating || 1000)}` : "N/A";
     byId("arenaRank").textContent = arenaReady ? `#${asNum(data.arena?.rank || 0) || "-"}` : "#-";
     renderToken(data.token || {});
     renderAdmin(data.admin || {});
+    renderDirector(data);
 
     renderOffers(data.offers || []);
     renderMissions(missions || { list: [], ready: 0 });
@@ -969,11 +1174,55 @@
     await loadBootstrap();
   }
 
+  function shouldShowIntroModal() {
+    try {
+      return localStorage.getItem(state.intro.seenKey) !== "1";
+    } catch (err) {
+      return true;
+    }
+  }
+
+  function hideIntroModal(remember = false) {
+    const modal = byId("introModal");
+    if (!modal) return;
+    if (remember) {
+      try {
+        localStorage.setItem(state.intro.seenKey, "1");
+      } catch (err) {}
+    }
+    modal.classList.add("hidden");
+    state.intro.visible = false;
+  }
+
+  function showIntroModal() {
+    const modal = byId("introModal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    state.intro.visible = true;
+    if (window.gsap) {
+      gsap.fromTo(modal.querySelector(".introCard"), { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.28, ease: "power2.out" });
+    }
+  }
+
   function bindUi() {
     byId("refreshBtn").addEventListener("click", () => {
       loadBootstrap().then(() => showToast("Panel yenilendi")).catch(showError);
     });
     byId("rerollBtn").addEventListener("click", () => rerollTasks().catch(showError));
+    byId("runSuggestedBtn").addEventListener("click", () => {
+      runSuggestedAction().catch(showError);
+    });
+    byId("refreshDirectorBtn").addEventListener("click", () => {
+      loadBootstrap().then(() => showToast("Yonlendirme guncellendi")).catch(showError);
+    });
+    byId("introStartBtn").addEventListener("click", () => {
+      hideIntroModal(true);
+      showToast("Nexus aktif");
+    });
+    byId("introSkipBtn").addEventListener("click", () => {
+      hideIntroModal(true);
+      showToast("Intro kaydedildi");
+    });
 
     document.querySelectorAll(".cmd").forEach((button) => {
       button.addEventListener("click", () => {
@@ -1329,6 +1578,9 @@
     bindUi();
     gsap.from(".card, .panel", { y: 18, opacity: 0, stagger: 0.05, duration: 0.38, ease: "power2.out" });
     await loadBootstrap();
+    if (shouldShowIntroModal()) {
+      showIntroModal();
+    }
     showToast("Nexus baglandi");
   }
 

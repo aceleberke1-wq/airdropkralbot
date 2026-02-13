@@ -23,6 +23,8 @@ const arenaEngine = require("../../bot/src/services/arenaEngine");
 const arenaService = require("../../bot/src/services/arenaService");
 const tokenEngine = require("../../bot/src/services/tokenEngine");
 const txVerifier = require("../../bot/src/services/txVerifier");
+const nexusEventEngine = require("../../bot/src/services/nexusEventEngine");
+const nexusContractEngine = require("../../bot/src/services/nexusContractEngine");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -758,13 +760,34 @@ async function buildTokenSummary(db, profile, runtimeConfig, balances) {
   };
 }
 
+function resolveLiveContract(runtimeConfig, season, anomaly) {
+  const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+    seasonId: season?.seasonId || 0,
+    anomalyId: anomaly?.id || "none"
+  });
+  return nexusContractEngine.publicContractView(contract);
+}
+
 async function buildActionSnapshot(db, profile, runtimeConfig) {
+  const season = seasonStore.getSeasonInfo(runtimeConfig);
+  const anomaly = nexusEventEngine.publicAnomalyView(
+    nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+      seasonId: season.seasonId
+    })
+  );
+  const contract = resolveLiveContract(runtimeConfig, season, anomaly);
   const balances = await economyStore.getBalances(db, profile.user_id);
   const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
   const riskState = await riskStore.getRiskState(db, profile.user_id);
   const live = await readOffersAttemptsEvents(db, profile.user_id);
   const token = await buildTokenSummary(db, profile, runtimeConfig, balances);
   return {
+    season: {
+      season_id: season.seasonId,
+      days_left: season.daysLeft
+    },
+    nexus: anomaly,
+    contract,
     balances,
     daily: buildDailyView(runtimeConfig, profile, dailyRaw),
     risk_score: Number(riskState.riskScore || 0),
@@ -889,6 +912,12 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     const runtimeConfig = await configService.getEconomyConfig(client);
 
     const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
     const seasonStat = await seasonStore.getSeasonStat(client, {
       userId: profile.user_id,
       seasonId: season.seasonId
@@ -925,6 +954,8 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
           days_left: season.daysLeft,
           points: Number(seasonStat?.season_points || 0)
         },
+        nexus: anomaly,
+        contract,
         war,
         risk_score: Number(riskState.riskScore || 0),
         missions: {
@@ -1251,6 +1282,14 @@ fastify.post(
         return;
       }
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const season = seasonStore.getSeasonInfo(runtimeConfig);
+      const anomaly = nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      });
+      const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+        seasonId: season.seasonId,
+        anomalyId: anomaly.id
+      });
       const freeze = await getFreezeState(client);
       if (freeze.freeze) {
         await client.query("ROLLBACK");
@@ -1297,6 +1336,8 @@ fastify.post(
             combo,
             mode: mode.key,
             mode_label: mode.label,
+            nexus: nexusEventEngine.publicAnomalyView(anomaly),
+            contract: nexusContractEngine.publicContractView(contract),
             snapshot
           }
         });
@@ -1310,17 +1351,24 @@ fastify.post(
         return;
       }
       const task = taskCatalog.getTaskById(offer.task_type) || { difficulty: Number(offer.difficulty || 0.4) };
+      const taskFamily = String(task.family || "core").toLowerCase();
       const baseDifficulty = Number(task.difficulty || offer.difficulty || 0.4);
       const safeDifficulty = economyEngine.clamp(baseDifficulty + mode.difficultyDelta, 0, 1);
       const risk = (await riskStore.getRiskState(client, profile.user_id)).riskScore;
+      const effectiveRisk = nexusEventEngine.applyRiskShift(risk, anomaly);
       const probabilities = economyEngine.getTaskProbabilities(runtimeConfig, {
         difficulty: safeDifficulty,
         streak: Number(profile.current_streak || 0),
-        risk
+        risk: effectiveRisk
       });
       const roll = economyEngine.rollTaskResult(probabilities);
       const durationSec = Math.max(0, Math.floor((Date.now() - new Date(lockedAttempt.started_at).getTime()) / 1000));
       const qualityScore = Number((0.55 + Math.random() * 0.4).toFixed(3));
+      const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+        modeKey: mode.key,
+        family: taskFamily,
+        result: roll.result
+      });
 
       const completed = await taskStore.completeAttemptIfPending(client, attemptId, roll.result, qualityScore, {
         duration_sec: durationSec,
@@ -1330,7 +1378,15 @@ fastify.post(
         roll: roll.roll,
         play_mode: mode.key,
         play_mode_label: mode.label,
-        play_mode_reward_multiplier: mode.rewardMultiplier
+        play_mode_reward_multiplier: mode.rewardMultiplier,
+        nexus_anomaly_id: anomaly.id,
+        nexus_anomaly_title: anomaly.title,
+        nexus_risk_shift: Number(anomaly.risk_shift || 0),
+        nexus_contract_id: contract.id,
+        nexus_contract_title: contract.title,
+        nexus_contract_mode_required: contract.required_mode,
+        nexus_contract_family: taskFamily,
+        nexus_contract_match: contractEval.matched
       });
 
       if (!completed) {
@@ -1348,6 +1404,8 @@ fastify.post(
             combo: computeCombo(recentResults),
             mode: mode.key,
             mode_label: mode.label,
+            nexus: nexusEventEngine.publicAnomalyView(anomaly),
+            contract: nexusContractEngine.publicContractView(contract),
             snapshot
           }
         });
@@ -1358,6 +1416,12 @@ fastify.post(
       await economyStore.incrementDailyTasks(client, profile.user_id, 1);
       const recentResults = await taskStore.getRecentAttemptResults(client, profile.user_id, 6);
       const combo = computeCombo(recentResults);
+      const contractFinalEval = nexusContractEngine.evaluateAttempt(contract, {
+        modeKey: mode.key,
+        family: taskFamily,
+        result: roll.result,
+        combo
+      });
 
       await antiAbuseEngine.applyRiskEvent(client, riskStore, runtimeConfig, {
         userId: profile.user_id,
@@ -1368,7 +1432,9 @@ fastify.post(
         attempt_id: attemptId,
         result: roll.result,
         play_mode: mode.key,
-        combo
+        combo,
+        nexus_contract_id: contract.id,
+        nexus_contract_match: Boolean(contractFinalEval.matched)
       });
 
       const snapshot = await buildActionSnapshot(client, profile, runtimeConfig);
@@ -1387,6 +1453,8 @@ fastify.post(
           },
           mode: mode.key,
           mode_label: mode.label,
+          nexus: nexusEventEngine.publicAnomalyView(anomaly),
+          contract: nexusContractEngine.publicContractView(contract, contractFinalEval),
           combo,
           snapshot
         }
@@ -1433,6 +1501,14 @@ fastify.post(
         return;
       }
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const season = seasonStore.getSeasonInfo(runtimeConfig);
+      const anomaly = nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      });
+      const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+        seasonId: season.seasonId,
+        anomalyId: anomaly.id
+      });
       const freeze = await getFreezeState(client);
       if (freeze.freeze) {
         await client.query("ROLLBACK");
@@ -1485,6 +1561,8 @@ fastify.post(
             pity_after: Number(existingLoot.pity_counter_after || 0),
             mode_label: existingLoot.rng_rolls_json?.play_mode_label || "Dengeli",
             combo: Number(existingLoot.rng_rolls_json?.combo_count || 0),
+            nexus: nexusEventEngine.publicAnomalyView(anomaly),
+            contract: nexusContractEngine.publicContractView(contract, existingLoot.rng_rolls_json?.nexus_contract_eval || null),
             snapshot
           }
         });
@@ -1498,6 +1576,8 @@ fastify.post(
         return;
       }
 
+      const task = taskCatalog.getTaskById(offer.task_type);
+      const taskFamily = String(task?.family || "core").toLowerCase();
       const difficulty = Number(offer.difficulty || 0.4);
       const dailyRaw = await economyStore.getTodayCounter(client, profile.user_id);
       const activeEffects = await shopStore.getActiveEffects(client, profile.user_id);
@@ -1508,13 +1588,14 @@ fastify.post(
       const combo = computeCombo(recentResults);
       const pityBefore = calculatePityBefore(recentTiers);
       const risk = (await riskStore.getRiskState(client, profile.user_id)).riskScore;
+      const effectiveRisk = nexusEventEngine.applyRiskShift(risk, anomaly);
 
       const outcome = economyEngine.computeRevealOutcome(runtimeConfig, {
         attemptResult: attempt.result,
         difficulty,
         streak: Number(profile.current_streak || 0),
         kingdomTier: Number(profile.kingdom_tier || 0),
-        risk,
+        risk: effectiveRisk,
         dailyTasks: Number(dailyRaw.tasks_done || 0),
         pityBefore
       });
@@ -1523,7 +1604,18 @@ fastify.post(
       const boostedReward = shopStore.applyEffectsToReward(modeAdjustedReward, activeEffects);
       const comboAdjusted = applyComboToReward(boostedReward, combo);
       const hiddenBonus = hiddenBonusForAttempt(attemptId, playMode.key, attempt.result);
-      const reward = hiddenBonus.hit ? mergeRewards(comboAdjusted.reward, hiddenBonus.bonus) : comboAdjusted.reward;
+      const hiddenAdjusted = hiddenBonus.hit ? mergeRewards(comboAdjusted.reward, hiddenBonus.bonus) : comboAdjusted.reward;
+      const anomalyAdjusted = nexusEventEngine.applyAnomalyToReward(hiddenAdjusted, anomaly, {
+        modeKey: playMode.key
+      });
+      const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+        modeKey: playMode.key,
+        family: taskFamily,
+        result: attempt.result,
+        combo
+      });
+      const contractAdjusted = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval);
+      const reward = contractAdjusted.reward;
       const boostLevel = shopStore.getScBoostMultiplier(activeEffects);
 
       const createdLoot = await taskStore.createLoot(client, {
@@ -1547,6 +1639,17 @@ fastify.post(
           hidden_bonus_roll: hiddenBonus.roll,
           hidden_bonus_threshold: hiddenBonus.threshold,
           hidden_bonus: hiddenBonus.bonus,
+          nexus_anomaly_id: anomaly.id,
+          nexus_anomaly_title: anomaly.title,
+          nexus_risk_shift: Number(anomaly.risk_shift || 0),
+          nexus_reward_modifiers: anomalyAdjusted.modifiers,
+          nexus_contract_id: contract.id,
+          nexus_contract_title: contract.title,
+          nexus_contract_required_mode: contract.required_mode,
+          nexus_contract_family: taskFamily,
+          nexus_contract_objective: contract.objective,
+          nexus_contract_eval: contractEval,
+          nexus_contract_reward_modifiers: contractAdjusted.modifiers,
           hard_currency_probability: outcome.hardCurrency.pHC,
           pity_bonus: outcome.hardCurrency.pityBonus,
           fatigue: outcome.fatigue,
@@ -1570,6 +1673,8 @@ fastify.post(
             pity_after: Number(loot.pity_counter_after || 0),
             mode_label: loot.rng_rolls_json?.play_mode_label || playMode.label,
             combo: Number(loot.rng_rolls_json?.combo_count || combo),
+            nexus: nexusEventEngine.publicAnomalyView(anomaly),
+            contract: nexusContractEngine.publicContractView(contract, loot.rng_rolls_json?.nexus_contract_eval || contractEval),
             snapshot
           }
         });
@@ -1600,10 +1705,12 @@ fastify.post(
         thresholds: runtimeConfig.kingdom?.thresholds
       });
 
-      const season = seasonStore.getSeasonInfo(runtimeConfig);
       const baseSeasonPoints = Number(reward.rc || 0) + Number(reward.sc || 0) + Number(reward.hc || 0) * 10;
       const seasonBonus = shopStore.getSeasonBonusMultiplier(activeEffects);
-      const seasonPoints = Math.max(0, Math.round(baseSeasonPoints * (1 + seasonBonus)));
+      const seasonPoints = Math.max(
+        0,
+        Math.round(baseSeasonPoints * (1 + seasonBonus) * Number(anomaly.season_multiplier || 1)) + Number(contractEval.season_bonus || 0)
+      );
       await seasonStore.addSeasonPoints(client, {
         userId: profile.user_id,
         seasonId: season.seasonId,
@@ -1619,12 +1726,14 @@ fastify.post(
         tier: outcome.tier,
         play_mode: playMode.key,
         combo,
-        season_points: seasonPoints
+        season_points: seasonPoints,
+        nexus_contract_id: contract.id,
+        nexus_contract_match: Boolean(contractEval.matched)
       });
 
       const warDelta = Math.max(
         1,
-        Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 5) + Number(reward.hc || 0) * 2
+        Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 5) + Number(reward.hc || 0) * 2 + Number(contractEval.war_bonus || 0)
       );
       const warCounter = await globalStore.incrementCounter(client, `war_pool_s${season.seasonId}`, warDelta);
       await riskStore.insertBehaviorEvent(client, profile.user_id, "war_contribution", {
@@ -1647,6 +1756,8 @@ fastify.post(
           pity_after: Number(loot?.pity_counter_after || outcome.pityAfter),
           mode_label: playMode.label,
           combo,
+          nexus: nexusEventEngine.publicAnomalyView(anomaly),
+          contract: nexusContractEngine.publicContractView(contract, contractEval),
           season_points: seasonPoints,
           war_delta: warDelta,
           war_pool: Number(warCounter.counter_value || 0),

@@ -37,6 +37,115 @@ tasks:
   near_miss_rate: 0.18
   task_rotation_hours: 8
 
+events:
+  anomalies:
+    - id: quantum_echo
+      title: Quantum Echo
+      subtitle: Drop amplification
+      description: SC akisi yukselir, risk hafif duser.
+      sc_multiplier: 1.18
+      rc_multiplier: 1.00
+      hc_multiplier: 1.00
+      season_multiplier: 1.03
+      risk_shift: -0.05
+      preferred_mode: aggressive
+    - id: war_fog
+      title: War Fog
+      subtitle: Control pressure
+      description: RC agirlikli dongu, risk yukselir.
+      sc_multiplier: 0.90
+      rc_multiplier: 1.35
+      hc_multiplier: 1.00
+      season_multiplier: 1.08
+      risk_shift: 0.09
+      preferred_mode: safe
+    - id: stability_window
+      title: Stability Window
+      subtitle: Balanced uptime
+      description: Tum oduller dengelenir, risk azalir.
+      sc_multiplier: 1.05
+      rc_multiplier: 1.07
+      hc_multiplier: 1.00
+      season_multiplier: 1.02
+      risk_shift: -0.08
+      preferred_mode: balanced
+    - id: flux_storm
+      title: Flux Storm
+      subtitle: High variance
+      description: HC ihtimali artar, risk yukselir.
+      sc_multiplier: 1.00
+      rc_multiplier: 1.00
+      hc_multiplier: 1.25
+      season_multiplier: 1.06
+      risk_shift: 0.12
+      preferred_mode: aggressive
+    - id: relic_bloom
+      title: Relic Bloom
+      subtitle: Season push
+      description: SP basinci artar, RC guclenir.
+      sc_multiplier: 0.95
+      rc_multiplier: 1.22
+      hc_multiplier: 1.00
+      season_multiplier: 1.12
+      risk_shift: 0.02
+      preferred_mode: balanced
+  contracts:
+    - id: overclock_chain
+      title: Overclock Chain
+      subtitle: Hiz + combo odakli
+      objective: COMBO ve RUSH ailelerinde agresif cikislar
+      required_mode: aggressive
+      focus_families: [combo, rush, micro]
+      require_result: success
+      sc_multiplier: 1.12
+      rc_flat_bonus: 1
+      season_bonus: 2
+      war_bonus: 1
+    - id: shield_protocol
+      title: Shield Protocol
+      subtitle: Temkinli stabil kazanc
+      objective: TIMER ve WAR akisini kayipsiz ilerlet
+      required_mode: safe
+      focus_families: [timer, war, social]
+      require_result: success_or_near
+      sc_multiplier: 1.05
+      rc_flat_bonus: 2
+      season_bonus: 3
+      war_bonus: 2
+    - id: balance_grid
+      title: Balance Grid
+      subtitle: Dengeli throughput
+      objective: INTEL, MICRO ve SPONSOR gorevlerinde dengeli performans
+      required_mode: balanced
+      focus_families: [intel, micro, sponsor]
+      require_result: success_or_near
+      sc_multiplier: 1.08
+      rc_flat_bonus: 1
+      season_bonus: 2
+      war_bonus: 1
+    - id: boss_window
+      title: Boss Window
+      subtitle: Yuksek risk yuksek tavan
+      objective: BOSS ve HEIST gorevlerinde agresif zafer
+      required_mode: aggressive
+      focus_families: [boss, heist, risk]
+      require_result: success
+      sc_multiplier: 1.15
+      rc_flat_bonus: 2
+      season_bonus: 4
+      war_bonus: 2
+    - id: war_fabric
+      title: War Fabric
+      subtitle: Topluluk havuzu baskisi
+      objective: WAR gorevleriyle havuza ivme ver
+      required_mode: balanced
+      focus_families: [war, social, timer]
+      require_result: success_or_near
+      sc_multiplier: 1.04
+      rc_flat_bonus: 3
+      season_bonus: 3
+      war_bonus: 3
+
 anti_abuse:
   ewma_alpha: 0.20
   short_complete_sec: 10

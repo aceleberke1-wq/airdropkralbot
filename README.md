@@ -45,24 +45,27 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 19. `/ops` risk/event operation console
 20. `/raid [safe|balanced|aggressive]` arena raid loop (RC ticket sink + rating)
 21. `/arena_rank` arena rating + leaderboard
-22. `/whoami` current telegram id + admin match check
-23. `/admin` admin panel
-24. `/admin_payouts` payout queue quick view
-25. `/admin_tokens` token queue quick view
-26. `/admin_freeze on|off [reason]` freeze control
-27. `/admin_config` active economy/token config summary
-28. `/admin_token_price <usd>` token spot update
-29. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
-30. `/admin_metrics` 24 saatlik operasyon metrikleri
-31. `/pay <requestId> <txHash>` mark payout paid
-32. `/reject_payout <requestId> <reason>` reject payout
-33. `/approve_token <requestId> [note]` approve token buy request
-34. `/reject_token <requestId> <reason>` reject token buy request
-35. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`
+22. `/nexus` daily anomaly pulse + tactical recommendation
+23. `/contract` daily Nexus contract target and reward model
+24. `/whoami` current telegram id + admin match check
+25. `/admin` admin panel
+26. `/admin_payouts` payout queue quick view
+27. `/admin_tokens` token queue quick view
+28. `/admin_freeze on|off [reason]` freeze control
+29. `/admin_config` active economy/token config summary
+30. `/admin_token_price <usd>` token spot update
+31. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
+32. `/admin_metrics` 24 saatlik operasyon metrikleri
+33. `/pay <requestId> <txHash>` mark payout paid
+34. `/reject_payout <requestId> <reason>` reject payout
+35. `/approve_token <requestId> [note]` approve token buy request
+36. `/reject_token <requestId> <reason>` reject token buy request
+37. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`, `kontrat`
 
 ## Micro Loop Extras
 1. Task panel includes `Panel Yenile (1 RC)` sink for fresh lineup.
 2. Daily mission board now tracks combo, aggressive win, rare hunt, and war contribution.
+3. Daily `Nexus Contract` loop now adds mode+family+result objectives with SC/RC/SP/War modifiers.
 
 ## WebApp (Rich UI)
 1. Open `/play` in bot to launch the Arena interface.
@@ -132,6 +135,19 @@ Run only one polling instance per token. If local and Render use same DB lock ke
 12. Optional chain verification flags:
 `TOKEN_TX_VERIFY=1` enables explorer/RPC lookup on tx submission.
 `TOKEN_TX_VERIFY_STRICT=1` rejects tx hashes not found on-chain.
+
+### Fast Deploy Checklist (current repo)
+1. Push latest main branch.
+2. In Render service (`airdropkral-admin`), set start command to `npm run start:all`.
+3. Ensure env includes:
+`BOT_ENABLED=1`, `KEEP_ADMIN_ON_BOT_EXIT=1`, `BOT_AUTO_RESTART=1`, `BOT_INSTANCE_LOCK_KEY=7262026`, `BOT_DRY_RUN=0`.
+4. Ensure `DATABASE_URL` is Neon/managed DB URL (not localhost), `DATABASE_SSL=1`.
+5. Run one-time migration from local with the same cloud DB:
+`npm run migrate:node`
+6. Redeploy service.
+7. Validate:
+`https://<render-service>.onrender.com/health`
+`https://webapp.k99-exchange.xyz/webapp`
 
 ### Why this matters
 - Telegram allows only one polling consumer for the same bot token.

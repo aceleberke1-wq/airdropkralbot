@@ -52,6 +52,60 @@
             <p class="label">Savas Basinci</p>
             <p id="warLine" class="value">War Tier Seed</p>
             <p id="riskLine" class="micro">Risk 0%</p>
+            <p id="nexusLine" class="micro">Nexus pulse: -</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="director card">
+        <div class="panelHead">
+          <h3>Taktik Yonlendirme</h3>
+          <span id="directorState" class="badge info">Taraniyor</span>
+        </div>
+        <p id="directorSummary" class="muted">Nexus akisindan sonra en dogru hamle burada cikar.</p>
+        <div class="directorGrid">
+          <div class="directorBox">
+            <p class="label">Mikro Loop</p>
+            <p id="loopMicroLine" class="value">Beklemede</p>
+            <div class="meter"><span id="loopMicroMeter"></span></div>
+          </div>
+          <div class="directorBox">
+            <p class="label">Meso Loop</p>
+            <p id="loopMesoLine" class="value">Gunluk Plan</p>
+            <div class="meter"><span id="loopMesoMeter"></span></div>
+          </div>
+          <div class="directorBox">
+            <p class="label">Macro Loop</p>
+            <p id="loopMacroLine" class="value">Sezon Basinci</p>
+            <div class="meter"><span id="loopMacroMeter"></span></div>
+          </div>
+        </div>
+        <div class="directorActions">
+          <button id="runSuggestedBtn" class="btn accent">Onerilen Hamleyi Uygula</button>
+          <button id="refreshDirectorBtn" class="btn ghost">Durumu Tazele</button>
+        </div>
+      </section>
+
+      <section class="contract card">
+        <div class="panelHead">
+          <h3>Nexus Kontrat</h3>
+          <span id="contractBadge" class="badge info">AKTIF</span>
+        </div>
+        <div class="contractGrid">
+          <div class="directorBox">
+            <p class="label">Kontrat</p>
+            <p id="contractTitle" class="value">-</p>
+            <p id="contractSubtitle" class="micro">-</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Hedef</p>
+            <p id="contractTarget" class="value">-</p>
+            <p id="contractObjective" class="micro">-</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Bonus Paket</p>
+            <p id="contractBoost" class="value">SC x1.00</p>
+            <p id="contractMeta" class="micro">+0 RC | +0 SP | +0 War</p>
           </div>
         </div>
       </section>
@@ -243,7 +297,11 @@
             <button class="cmd" data-action="open_wallet">Cuzdan</button>
             <button class="cmd" data-action="open_token">Token</button>
             <button class="cmd" data-action="open_war">War Room</button>
+            <button class="cmd" data-action="open_nexus">Nexus</button>
+            <button class="cmd" data-action="open_contract">Kontrat</button>
             <button class="cmd" data-action="open_missions">Misyon</button>
+            <button class="cmd" data-action="open_leaderboard">Liderlik</button>
+            <button class="cmd" data-action="open_play">Arena 3D</button>
             <button class="cmd" data-action="open_status">Durum</button>
             <button class="cmd" data-action="open_payout">Cekim</button>
           </div>
@@ -258,6 +316,25 @@
         </article>
       </section>
     </main>
+
+    <div id="introModal" class="introModal hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="introCard">
+        <p class="kicker">AirdropKralBot</p>
+        <h2 id="introTitle">Nexus Arena Protokolu</h2>
+        <p class="muted">
+          Bu panel oyun dongusunu tek ekranda yonetir: gorev, reveal, arena, token ekonomisi ve admin kontrol.
+        </p>
+        <ol class="introList">
+          <li>Canli Gorev Agi'ndan bir gorev baslat.</li>
+          <li>Operasyon Konsolu'nda denemeyi bitir, reveal ac.</li>
+          <li>Misyon Radar + Token Treasury ile gunu optimize et.</li>
+        </ol>
+        <div class="directorActions">
+          <button id="introStartBtn" class="btn accent">Nexus'a Gir</button>
+          <button id="introSkipBtn" class="btn ghost">Bir daha gosterme</button>
+        </div>
+      </div>
+    </div>
 
     <div id="toast" class="toast"></div>
 

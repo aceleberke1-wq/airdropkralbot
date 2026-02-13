@@ -25,6 +25,8 @@ const arenaEngine = require("./services/arenaEngine");
 const arenaService = require("./services/arenaService");
 const tokenEngine = require("./services/tokenEngine");
 const txVerifier = require("./services/txVerifier");
+const nexusEventEngine = require("./services/nexusEventEngine");
+const nexusContractEngine = require("./services/nexusContractEngine");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -466,12 +468,14 @@ function buildTaskKeyboard(offers) {
 function buildStartKeyboard() {
   return Markup.inlineKeyboard(
     [
+      Markup.button.callback("Hizli Rehber", "OPEN_GUIDE"),
       Markup.button.callback("Gorevleri Ac", "OPEN_TASKS"),
       Markup.button.callback("Cuzdani Goster", "OPEN_WALLET"),
       Markup.button.callback("Sezon", "OPEN_SEASON"),
       Markup.button.callback("Dukkan", "OPEN_SHOP"),
       Markup.button.callback("Misyonlar", "OPEN_MISSIONS"),
       Markup.button.callback("Gunluk", "OPEN_DAILY"),
+      Markup.button.callback("Nexus", "OPEN_NEXUS"),
       Markup.button.callback("Kingdom", "OPEN_KINGDOM"),
       Markup.button.callback("Arena 3D", "OPEN_PLAY"),
       Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"),
@@ -479,6 +483,21 @@ function buildStartKeyboard() {
       Markup.button.callback("War Room", "OPEN_WAR"),
       Markup.button.callback("Cekim", "OPEN_PAYOUT"),
       Markup.button.callback("Durum", "OPEN_STATUS")
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildGuideKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      Markup.button.callback("1) Gorev Ac", "OPEN_TASKS"),
+      Markup.button.callback("2) Dengeli Bitir", "GUIDE_FINISH_BALANCED"),
+      Markup.button.callback("3) Reveal Ac", "GUIDE_REVEAL"),
+      Markup.button.callback("4) Arena 3D", "OPEN_PLAY"),
+      Markup.button.callback("Nexus Pulse", "OPEN_NEXUS"),
+      Markup.button.callback("Cuzdan", "OPEN_WALLET"),
+      Markup.button.callback("Misyonlar", "OPEN_MISSIONS")
     ],
     { columns: 2 }
   );
@@ -652,6 +671,14 @@ async function ensureProfile(pool, ctx) {
   return withTransaction(pool, (db) => ensureProfileTx(db, ctx));
 }
 
+function resolveLiveContract(runtimeConfig, season, anomaly) {
+  const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+    seasonId: season?.seasonId || 0,
+    anomalyId: anomaly?.id || "none"
+  });
+  return nexusContractEngine.publicContractView(contract);
+}
+
 async function getSnapshot(pool, ctx) {
   return withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
@@ -659,9 +686,19 @@ async function getSnapshot(pool, ctx) {
     const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
     const runtimeConfig = await configService.getEconomyConfig(db);
     const dailyCap = economyEngine.getDailyCap(runtimeConfig, profile.kingdom_tier);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
     return {
       profile,
       balances,
+      season,
+      anomaly,
+      contract,
       daily: {
         dailyCap,
         tasksDone: Number(dailyRaw.tasks_done || 0),
@@ -703,7 +740,14 @@ async function sendTasks(ctx, pool, appConfig) {
       risk,
       targetSuccess: Number(runtimeConfig.tasks?.target_success_micro || 0.78)
     });
-    return { profile, offers };
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    return { profile, offers, anomaly, contract };
   });
 
   if (payload.freeze) {
@@ -711,7 +755,13 @@ async function sendTasks(ctx, pool, appConfig) {
     return;
   }
   const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
-  await ctx.replyWithMarkdown(messages.formatTasks(payload.offers, taskMap), buildTaskKeyboard(payload.offers));
+  await ctx.replyWithMarkdown(
+    messages.formatTasks(payload.offers, taskMap, {
+      anomaly: payload.anomaly,
+      contract: payload.contract
+    }),
+    buildTaskKeyboard(payload.offers)
+  );
 }
 
 async function rerollTasksTx(db, profile, appConfig, sourceRef) {
@@ -742,10 +792,17 @@ async function rerollTasksTx(db, profile, appConfig, sourceRef) {
     risk,
     targetSuccess: Number(runtimeConfig.tasks?.target_success_micro || 0.78)
   });
+  const season = seasonStore.getSeasonInfo(runtimeConfig);
+  const anomaly = nexusEventEngine.publicAnomalyView(
+    nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+      seasonId: season.seasonId
+    })
+  );
+  const contract = resolveLiveContract(runtimeConfig, season, anomaly);
   await riskStore.insertBehaviorEvent(db, profile.user_id, "task_reroll", {
     rc_cost: rerollCost
   });
-  return { ok: true, offers };
+  return { ok: true, offers, anomaly, contract };
 }
 
 async function handleRerollTasks(ctx, pool, appConfig) {
@@ -764,7 +821,13 @@ async function handleRerollTasks(ctx, pool, appConfig) {
     return;
   }
   const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
-  await ctx.replyWithMarkdown(messages.formatTasks(payload.offers, taskMap), buildTaskKeyboard(payload.offers));
+  await ctx.replyWithMarkdown(
+    messages.formatTasks(payload.offers, taskMap, {
+      anomaly: payload.anomaly,
+      contract: payload.contract
+    }),
+    buildTaskKeyboard(payload.offers)
+  );
 }
 
 async function handleTaskAccept(ctx, pool, appConfig) {
@@ -833,6 +896,14 @@ async function handleTaskComplete(ctx, pool, appConfig) {
 
   const payload = await withTransaction(pool, async (db) => {
     const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+      seasonId: season.seasonId
+    });
+    const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+      seasonId: season.seasonId,
+      anomalyId: anomaly.id
+    });
     const profile = await ensureProfileTx(db, ctx);
     const freeze = await systemStore.getFreezeState(db);
     if (freeze.freeze) return { error: "Sistem bakim modunda", freeze };
@@ -855,22 +926,26 @@ async function handleTaskComplete(ctx, pool, appConfig) {
         probabilities: null,
         attemptId,
         modeLabel: mode.label,
-        combo: computeCombo(recentResults)
+        combo: computeCombo(recentResults),
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract)
       };
     }
 
     const offer = await taskStore.getOffer(db, profile.user_id, lockedAttempt.task_offer_id);
     const task = taskCatalog.getTaskById(offer?.task_type || "") || { difficulty: Number(offer?.difficulty || 0.4) };
+    const taskFamily = String(task.family || "core").toLowerCase();
     const baseDifficulty = Number(task.difficulty || offer?.difficulty || 0.4);
     const safeDifficulty = economyEngine.clamp(baseDifficulty + mode.difficultyDelta, 0, 1);
     const risk = appConfig.loopV2Enabled ? (await riskStore.getRiskState(db, profile.user_id)).riskScore : 0;
+    const effectiveRisk = nexusEventEngine.applyRiskShift(risk, anomaly);
     let roll;
     let probabilities;
     if (appConfig.loopV2Enabled) {
       probabilities = economyEngine.getTaskProbabilities(runtimeConfig, {
         difficulty: safeDifficulty,
         streak: Number(profile.current_streak || 0),
-        risk
+        risk: effectiveRisk
       });
       roll = economyEngine.rollTaskResult(probabilities);
     } else {
@@ -882,6 +957,11 @@ async function handleTaskComplete(ctx, pool, appConfig) {
       Math.floor((Date.now() - new Date(lockedAttempt.started_at).getTime()) / 1000)
     );
     const qualityScore = Number((0.55 + Math.random() * 0.4).toFixed(3));
+    const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+      modeKey: mode.key,
+      family: taskFamily,
+      result: roll.result
+    });
 
     const completed = await taskStore.completeAttemptIfPending(db, attemptId, roll.result, qualityScore, {
       duration_sec: durationSec,
@@ -891,7 +971,15 @@ async function handleTaskComplete(ctx, pool, appConfig) {
       roll: roll.roll,
       play_mode: mode.key,
       play_mode_label: mode.label,
-      play_mode_reward_multiplier: mode.rewardMultiplier
+      play_mode_reward_multiplier: mode.rewardMultiplier,
+      nexus_anomaly_id: anomaly.id,
+      nexus_anomaly_title: anomaly.title,
+      nexus_risk_shift: Number(anomaly.risk_shift || 0),
+      nexus_contract_id: contract.id,
+      nexus_contract_title: contract.title,
+      nexus_contract_mode_required: contract.required_mode,
+      nexus_contract_family: taskFamily,
+      nexus_contract_match: contractEval.matched
     });
 
     if (!completed) {
@@ -903,7 +991,9 @@ async function handleTaskComplete(ctx, pool, appConfig) {
         probabilities,
         attemptId,
         modeLabel: mode.label,
-        combo: computeCombo(recentResults)
+        combo: computeCombo(recentResults),
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract)
       };
     }
 
@@ -912,6 +1002,12 @@ async function handleTaskComplete(ctx, pool, appConfig) {
 
     const recentResults = await taskStore.getRecentAttemptResults(db, profile.user_id, 6);
     const combo = computeCombo(recentResults);
+    const contractFinalEval = nexusContractEngine.evaluateAttempt(contract, {
+      modeKey: mode.key,
+      family: taskFamily,
+      result: roll.result,
+      combo
+    });
 
     if (appConfig.loopV2Enabled) {
       await antiAbuseEngine.applyRiskEvent(db, riskStore, runtimeConfig, {
@@ -925,12 +1021,14 @@ async function handleTaskComplete(ctx, pool, appConfig) {
       duplicate: false,
       result: roll.result,
       probabilities,
-      attemptId,
-      profile,
-      modeLabel: mode.label,
-      modeKey: mode.key,
-      combo
-    };
+        attemptId,
+        profile,
+        modeLabel: mode.label,
+        modeKey: mode.key,
+        combo,
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract, contractFinalEval)
+      };
   });
 
   if (payload.error) {
@@ -942,7 +1040,9 @@ async function handleTaskComplete(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(
     messages.formatTaskComplete(payload.result, payload.probabilities, {
       modeLabel: payload.modeLabel,
-      combo: payload.combo
+      combo: payload.combo,
+      anomaly: payload.anomaly,
+      contract: payload.contract
     })
   );
   await delay(350);
@@ -953,7 +1053,10 @@ async function handleTaskComplete(ctx, pool, appConfig) {
   logEvent("task_complete", {
     attempt_id: attemptId,
     result: payload.result,
-    duplicate: payload.duplicate
+    duplicate: payload.duplicate,
+    nexus_anomaly_id: payload.anomaly?.id || null,
+    nexus_contract_id: payload.contract?.id || null,
+    nexus_contract_match: Boolean(payload.contract?.match?.matched)
   });
 }
 
@@ -978,6 +1081,60 @@ function buildDailyView(runtimeConfig, profile, dailyRaw) {
   };
 }
 
+function recommendModeFromRisk(riskScore) {
+  const risk = Number(riskScore || 0);
+  if (risk >= 0.35) return "safe";
+  if (risk >= 0.18) return "balanced";
+  return "aggressive";
+}
+
+function buildNexusTactical(snapshot, anomaly, contract) {
+  const hasReveal = Boolean(snapshot?.attempts?.revealable);
+  const hasActive = Boolean(snapshot?.attempts?.active);
+  const hasOffers = Array.isArray(snapshot?.offers) && snapshot.offers.length > 0;
+  const mode = contract?.required_mode || anomaly?.preferred_mode || recommendModeFromRisk(snapshot?.riskScore || 0);
+  if (hasReveal) {
+    return { recommended_mode: mode, next_step: "reveal" };
+  }
+  if (hasActive) {
+    return { recommended_mode: mode, next_step: `finish ${mode}` };
+  }
+  if (hasOffers) {
+    return { recommended_mode: mode, next_step: "tasks" };
+  }
+  return { recommended_mode: mode, next_step: "tasks reroll" };
+}
+
+async function sendNexus(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    const risk = appConfig.loopV2Enabled ? await riskStore.getRiskState(db, profile.user_id) : { riskScore: 0 };
+    const offers = await taskStore.listActiveOffers(db, profile.user_id);
+    const activeAttempt = await taskStore.getLatestPendingAttempt(db, profile.user_id);
+    const revealable = await taskStore.getLatestRevealableAttempt(db, profile.user_id);
+    const tactical = buildNexusTactical(
+      {
+        offers,
+        attempts: { active: activeAttempt, revealable },
+        riskScore: Number(risk.riskScore || 0)
+      },
+      anomaly,
+      contract
+    );
+    return { anomaly, contract, tactical };
+  });
+
+  await ctx.replyWithMarkdown(messages.formatNexusPulse(payload), buildGuideKeyboard());
+}
+
 async function handleReveal(ctx, pool, appConfig) {
   const attemptId = Number(ctx.match[1]);
   if (!attemptId) return;
@@ -988,6 +1145,14 @@ async function handleReveal(ctx, pool, appConfig) {
 
   const payload = await withTransaction(pool, async (db) => {
     const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+      seasonId: season.seasonId
+    });
+    const contract = nexusContractEngine.resolveDailyContract(runtimeConfig, {
+      seasonId: season.seasonId,
+      anomalyId: anomaly.id
+    });
     const profile = await ensureProfileTx(db, ctx);
     const freeze = await systemStore.getFreezeState(db);
     if (freeze.freeze) return { error: "Sistem bakim modunda", freeze };
@@ -1026,12 +1191,16 @@ async function handleReveal(ctx, pool, appConfig) {
         modeLabel: existingLoot.rng_rolls_json?.play_mode_label || "Dengeli",
         boostLevel: Number(existingLoot.rng_rolls_json?.effect_sc_boost || 0),
         hiddenBonusHit: Boolean(existingLoot.rng_rolls_json?.hidden_bonus_hit),
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract, existingLoot.rng_rolls_json?.nexus_contract_eval || null),
         existing: true
       };
     }
 
     const offer = await taskStore.getOffer(db, profile.user_id, attempt.task_offer_id);
     const difficulty = Number(offer?.difficulty || 0.4);
+    const task = taskCatalog.getTaskById(offer?.task_type || "");
+    const taskFamily = String(task?.family || "core").toLowerCase();
     const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
     const activeEffects = await shopStore.getActiveEffects(db, profile.user_id);
     const playMode = getPlayMode(attempt.anti_abuse_flags?.play_mode || "balanced");
@@ -1040,6 +1209,7 @@ async function handleReveal(ctx, pool, appConfig) {
     const combo = computeCombo(recentResults);
     const pityBefore = calculatePityBefore(recentTiers);
     const risk = appConfig.loopV2Enabled ? (await riskStore.getRiskState(db, profile.user_id)).riskScore : 0;
+    const effectiveRisk = nexusEventEngine.applyRiskShift(risk, anomaly);
 
     const outcome = appConfig.loopV2Enabled
       ? economyEngine.computeRevealOutcome(runtimeConfig, {
@@ -1047,7 +1217,7 @@ async function handleReveal(ctx, pool, appConfig) {
           difficulty,
           streak: Number(profile.current_streak || 0),
           kingdomTier: Number(profile.kingdom_tier || 0),
-          risk,
+          risk: effectiveRisk,
           dailyTasks: Number(dailyRaw.tasks_done || 0),
           pityBefore
         })
@@ -1082,7 +1252,18 @@ async function handleReveal(ctx, pool, appConfig) {
       : modeAdjustedReward;
     const comboAdjusted = applyComboToReward(boostedReward, combo);
     const hiddenBonus = hiddenBonusForAttempt(attemptId, playMode.key, attempt.result);
-    const reward = hiddenBonus.hit ? mergeRewards(comboAdjusted.reward, hiddenBonus.bonus) : comboAdjusted.reward;
+    const hiddenAdjusted = hiddenBonus.hit ? mergeRewards(comboAdjusted.reward, hiddenBonus.bonus) : comboAdjusted.reward;
+    const anomalyAdjusted = nexusEventEngine.applyAnomalyToReward(hiddenAdjusted, anomaly, {
+      modeKey: playMode.key
+    });
+    const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+      modeKey: playMode.key,
+      family: taskFamily,
+      result: attempt.result,
+      combo
+    });
+    const contractAdjusted = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval);
+    const reward = contractAdjusted.reward;
     const boostLevel = shopStore.getScBoostMultiplier(activeEffects);
     const createdLoot = await taskStore.createLoot(db, {
       userId: profile.user_id,
@@ -1105,6 +1286,17 @@ async function handleReveal(ctx, pool, appConfig) {
         hidden_bonus_roll: hiddenBonus.roll,
         hidden_bonus_threshold: hiddenBonus.threshold,
         hidden_bonus: hiddenBonus.bonus,
+        nexus_anomaly_id: anomaly.id,
+        nexus_anomaly_title: anomaly.title,
+        nexus_risk_shift: Number(anomaly.risk_shift || 0),
+        nexus_reward_modifiers: anomalyAdjusted.modifiers,
+        nexus_contract_id: contract.id,
+        nexus_contract_title: contract.title,
+        nexus_contract_required_mode: contract.required_mode,
+        nexus_contract_family: taskFamily,
+        nexus_contract_objective: contract.objective,
+        nexus_contract_eval: contractEval,
+        nexus_contract_reward_modifiers: contractAdjusted.modifiers,
         hard_currency_probability: outcome.hardCurrency.pHC,
         pity_bonus: outcome.hardCurrency.pityBonus,
         fatigue: outcome.fatigue,
@@ -1125,6 +1317,8 @@ async function handleReveal(ctx, pool, appConfig) {
         modeLabel: already?.rng_rolls_json?.play_mode_label || playMode.label,
         boostLevel: Number(already?.rng_rolls_json?.effect_sc_boost || boostLevel),
         hiddenBonusHit: Boolean(already?.rng_rolls_json?.hidden_bonus_hit),
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract, already?.rng_rolls_json?.nexus_contract_eval || contractEval),
         existing: true
       };
     }
@@ -1153,10 +1347,12 @@ async function handleReveal(ctx, pool, appConfig) {
       thresholds: runtimeConfig.kingdom?.thresholds
     });
 
-    const season = seasonStore.getSeasonInfo(runtimeConfig);
     const baseSeasonPoints = Number(reward.rc || 0) + Number(reward.sc || 0) + Number(reward.hc || 0) * 10;
     const seasonBonus = shopStore.getSeasonBonusMultiplier(activeEffects);
-    const seasonPoints = Math.max(0, Math.round(baseSeasonPoints * (1 + seasonBonus)));
+    const seasonPoints = Math.max(
+      0,
+      Math.round(baseSeasonPoints * (1 + seasonBonus) * Number(anomaly.season_multiplier || 1)) + Number(contractEval.season_bonus || 0)
+    );
     await seasonStore.addSeasonPoints(db, {
       userId: profile.user_id,
       seasonId: season.seasonId,
@@ -1167,17 +1363,19 @@ async function handleReveal(ctx, pool, appConfig) {
       seasonId: season.seasonId
     });
 
-    await riskStore.insertBehaviorEvent(db, profile.user_id, "reveal_result", {
-      attempt_id: attemptId,
-      tier: outcome.tier,
-      play_mode: playMode.key,
-      combo,
-      season_points: seasonPoints
-    });
+      await riskStore.insertBehaviorEvent(db, profile.user_id, "reveal_result", {
+        attempt_id: attemptId,
+        tier: outcome.tier,
+        play_mode: playMode.key,
+        combo,
+        season_points: seasonPoints,
+        nexus_contract_id: contract.id,
+        nexus_contract_match: Boolean(contractEval.matched)
+      });
 
     const warDelta = Math.max(
       1,
-      Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 5) + Number(reward.hc || 0) * 2
+      Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 5) + Number(reward.hc || 0) * 2 + Number(contractEval.war_bonus || 0)
     );
     const warCounter = await globalStore.incrementCounter(db, `war_pool_s${season.seasonId}`, warDelta);
     await riskStore.insertBehaviorEvent(db, profile.user_id, "war_contribution", {
@@ -1189,21 +1387,23 @@ async function handleReveal(ctx, pool, appConfig) {
     const balances = await economyStore.getBalances(db, profile.user_id);
     const nextProfile = await userStore.getProfileByTelegramId(db, profile.telegram_id);
     const nextDaily = await economyStore.getTodayCounter(db, profile.user_id);
-    return {
-      profile: nextProfile,
-      balances,
-      daily: buildDailyView(runtimeConfig, nextProfile, nextDaily),
-      loot: createdLoot,
+      return {
+        profile: nextProfile,
+        balances,
+        daily: buildDailyView(runtimeConfig, nextProfile, nextDaily),
+        loot: createdLoot,
       reward,
       seasonPoints,
       combo,
       modeLabel: playMode.label,
-      boostLevel,
-      hiddenBonusHit: hiddenBonus.hit,
-      warDelta,
-      warPool: Number(warCounter.counter_value || 0),
-      existing: false
-    };
+        boostLevel,
+        hiddenBonusHit: hiddenBonus.hit,
+        warDelta,
+        warPool: Number(warCounter.counter_value || 0),
+        anomaly: nexusEventEngine.publicAnomalyView(anomaly),
+        contract: nexusContractEngine.publicContractView(contract, contractEval),
+        existing: false
+      };
   });
 
   if (payload.error) {
@@ -1228,7 +1428,11 @@ async function handleReveal(ctx, pool, appConfig) {
         modeLabel: payload.modeLabel || "Dengeli",
         combo: Number(payload.combo || 0),
         warDelta: Number(payload.warDelta || 0),
-        warPool: Number(payload.warPool || 0)
+        warPool: Number(payload.warPool || 0),
+        anomalyTitle: payload.anomaly?.title || payload.loot?.rng_rolls_json?.nexus_anomaly_title || "",
+        anomalyMode: payload.anomaly?.preferred_mode || "balanced",
+        contractTitle: payload.contract?.title || payload.loot?.rng_rolls_json?.nexus_contract_title || "",
+        contractMatch: Boolean(payload.contract?.match?.matched || payload.loot?.rng_rolls_json?.nexus_contract_eval?.matched)
       }
     ),
     buildPostRevealKeyboard()
@@ -1242,13 +1446,18 @@ async function handleReveal(ctx, pool, appConfig) {
     season_points: payload.seasonPoints || 0,
     combo: payload.combo || 0,
     mode: payload.modeLabel || "Dengeli",
-    war_delta: payload.warDelta || 0
+    war_delta: payload.warDelta || 0,
+    nexus_anomaly_id: payload.anomaly?.id || null,
+    nexus_contract_id: payload.contract?.id || null,
+    nexus_contract_match: Boolean(payload.contract?.match?.matched)
   });
 }
 
 async function sendWallet(ctx, pool) {
   const snapshot = await getSnapshot(pool, ctx);
-  await ctx.replyWithMarkdown(messages.formatWallet(snapshot.profile, snapshot.balances, snapshot.daily));
+  await ctx.replyWithMarkdown(
+    messages.formatWallet(snapshot.profile, snapshot.balances, snapshot.daily, snapshot.anomaly, snapshot.contract)
+  );
 }
 
 async function sendSeason(ctx, pool) {
@@ -1304,11 +1513,21 @@ async function sendDaily(ctx, pool) {
     const balances = await economyStore.getBalances(db, profile.user_id);
     const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
     const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
     const board = await missionStore.getMissionBoard(db, profile.user_id);
     const daily = buildDailyView(runtimeConfig, profile, dailyRaw);
-    return { profile, balances, daily, board };
+    return { profile, balances, daily, board, anomaly, contract };
   });
-  await ctx.replyWithMarkdown(messages.formatDaily(payload.profile, payload.daily, payload.board, payload.balances), buildMissionKeyboard(payload.board));
+  await ctx.replyWithMarkdown(
+    messages.formatDaily(payload.profile, payload.daily, payload.board, payload.balances, payload.anomaly, payload.contract),
+    buildMissionKeyboard(payload.board)
+  );
 }
 
 function buildKingdomState(profile, thresholds) {
@@ -2410,6 +2629,12 @@ async function sendStatus(ctx, pool, appConfig) {
     const runtimeConfig = await configService.getEconomyConfig(db);
     const freeze = await systemStore.getFreezeState(db);
     const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
     const war = await globalStore.getWarStatus(db, season.seasonId);
     const missions = await missionStore.getMissionBoard(db, profile.user_id);
     const payout = await buildPayoutView(db, profile, appConfig, runtimeConfig);
@@ -2420,6 +2645,8 @@ async function sendStatus(ctx, pool, appConfig) {
     return {
       freeze,
       season,
+      anomaly,
+      contract,
       war,
       payout,
       tokenView,
@@ -2436,6 +2663,8 @@ async function sendStatus(ctx, pool, appConfig) {
       `Freeze: *${payload.freeze.freeze ? "acik" : "kapali"}*\n` +
       `Config Kaynagi: *${payload.configCache.source}*\n` +
       `Sezon: *S${payload.season.seasonId}* (${payload.season.daysLeft} gun)\n` +
+      `Nexus: *${payload.anomaly.title}* (${payload.anomaly.pressure_pct}% basinc, ${payload.anomaly.preferred_mode})\n` +
+      `Kontrat: *${payload.contract.title}* [${payload.contract.required_mode}]\n` +
       `War Tier: *${payload.war.tier}* (${Math.floor(payload.war.value)})\n` +
       `Misyon: *${payload.readyMissions} hazir / ${payload.openMissions} aktif*\n` +
       `Risk: *${Math.round(payload.risk * 100)}%*\n` +
@@ -2453,6 +2682,13 @@ async function sendOps(ctx, pool) {
     const activeAttempt = await taskStore.getLatestPendingAttempt(db, profile.user_id);
     const revealAttempt = await taskStore.getLatestRevealableAttempt(db, profile.user_id);
     const effects = await shopStore.getActiveEffects(db, profile.user_id);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
 
     const activeOffer = activeAttempt ? await taskStore.getOffer(db, profile.user_id, activeAttempt.task_offer_id) : null;
     const revealOffer = revealAttempt ? await taskStore.getOffer(db, profile.user_id, revealAttempt.task_offer_id) : null;
@@ -2488,7 +2724,8 @@ async function sendOps(ctx, pool) {
         event_type: event.event_type,
         time: new Date(event.event_at).toISOString().slice(11, 16),
         hint: event.meta_json?.play_mode || event.meta_json?.tier || event.meta_json?.result || ""
-      }))
+      })),
+      anomaly
     };
   });
 
@@ -2587,6 +2824,37 @@ async function handleArenaRaid(ctx, pool) {
   await ctx.replyWithMarkdown(messages.formatArenaRaidResult(payload), buildRaidKeyboard());
 }
 
+async function sendGuide(ctx, pool) {
+  const snapshot = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const balances = await economyStore.getBalances(db, profile.user_id);
+    const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    const offers = await taskStore.listActiveOffers(db, profile.user_id);
+    const active = await taskStore.getLatestPendingAttempt(db, profile.user_id);
+    const revealable = await taskStore.getLatestRevealableAttempt(db, profile.user_id);
+    const risk = await riskStore.getRiskState(db, profile.user_id);
+    return {
+      profile,
+      balances,
+      daily: buildDailyView(runtimeConfig, profile, dailyRaw),
+      anomaly,
+      contract,
+      offers,
+      attempts: { active, revealable },
+      riskScore: Number(risk.riskScore || 0)
+    };
+  });
+  await ctx.replyWithMarkdown(messages.formatGuide(snapshot), buildGuideKeyboard());
+}
+
 async function sendPlay(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const url = buildSignedWebAppUrl(appConfig, ctx.from?.id);
@@ -2649,12 +2917,28 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     await sendWar(ctx, pool);
     return;
   }
+  if (action === "open_nexus") {
+    await sendNexus(ctx, pool, appConfig);
+    return;
+  }
+  if (action === "open_contract") {
+    await sendNexus(ctx, pool, appConfig);
+    return;
+  }
   if (action === "open_missions") {
     await sendMissions(ctx, pool);
     return;
   }
   if (action === "open_status") {
     await sendStatus(ctx, pool, appConfig);
+    return;
+  }
+  if (action === "open_leaderboard") {
+    await sendLeaderboard(ctx, pool);
+    return;
+  }
+  if (action === "open_play") {
+    await sendPlay(ctx, pool, appConfig);
     return;
   }
   if (action === "open_payout") {
@@ -2706,7 +2990,13 @@ async function handleWebAppAction(ctx, pool, appConfig) {
       return;
     }
     const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
-    await ctx.replyWithMarkdown(messages.formatTasks(result.offers, taskMap), buildTaskKeyboard(result.offers));
+    await ctx.replyWithMarkdown(
+      messages.formatTasks(result.offers, taskMap, {
+        anomaly: result.anomaly,
+        contract: result.contract
+      }),
+      buildTaskKeyboard(result.offers)
+    );
     return;
   }
 
@@ -2800,6 +3090,15 @@ function resolveTextIntent(input) {
   }
   if (/^(status|durum)\b/.test(normalized)) {
     return { action: "status" };
+  }
+  if (/^(nexus|pulse|anomaly)\b/.test(normalized)) {
+    return { action: "nexus" };
+  }
+  if (/^(contract|kontrat|sozlesme)\b/.test(normalized)) {
+    return { action: "nexus" };
+  }
+  if (/^(guide|rehber|nasil oynanir|yardim)\b/.test(normalized)) {
+    return { action: "guide" };
   }
 
   return null;
@@ -2905,6 +3204,14 @@ async function handleTextIntent(ctx, pool, appConfig) {
     await sendStatus(ctx, pool, appConfig);
     return true;
   }
+  if (intent.action === "nexus") {
+    await sendNexus(ctx, pool, appConfig);
+    return true;
+  }
+  if (intent.action === "guide") {
+    await sendGuide(ctx, pool);
+    return true;
+  }
 
   return false;
 }
@@ -3003,11 +3310,10 @@ async function start() {
       await ctx.replyWithMarkdown(messages.formatFreezeMessage(freeze.reason));
       return;
     }
-    const season = await withTransaction(pool, async (db) => {
-      const runtimeConfig = await configService.getEconomyConfig(db);
-      return seasonStore.getSeasonInfo(runtimeConfig);
-    });
-    await ctx.replyWithMarkdown(messages.formatStart(snapshot.profile, snapshot.balances, season), buildStartKeyboard());
+    await ctx.replyWithMarkdown(
+      messages.formatStart(snapshot.profile, snapshot.balances, snapshot.season, snapshot.anomaly, snapshot.contract),
+      buildStartKeyboard()
+    );
   });
 
   bot.command("profile", async (ctx) => {
@@ -3113,6 +3419,18 @@ async function start() {
     await sendStatus(ctx, pool, appConfig);
   });
 
+  bot.command("nexus", async (ctx) => {
+    await sendNexus(ctx, pool, appConfig);
+  });
+
+  bot.command("contract", async (ctx) => {
+    await sendNexus(ctx, pool, appConfig);
+  });
+
+  bot.command("kontrat", async (ctx) => {
+    await sendNexus(ctx, pool, appConfig);
+  });
+
   bot.command("durum", async (ctx) => {
     await sendStatus(ctx, pool, appConfig);
   });
@@ -3164,6 +3482,10 @@ async function start() {
   bot.command("help", async (ctx) => {
     await ensureProfile(pool, ctx);
     await ctx.replyWithMarkdown(messages.formatHelp());
+  });
+
+  bot.command("guide", async (ctx) => {
+    await sendGuide(ctx, pool);
   });
 
   bot.command("whoami", async (ctx) => {
@@ -3317,6 +3639,26 @@ async function start() {
     await sendStatus(ctx, pool, appConfig);
   });
 
+  bot.action("OPEN_NEXUS", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendNexus(ctx, pool, appConfig);
+  });
+
+  bot.action("OPEN_GUIDE", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendGuide(ctx, pool);
+  });
+
+  bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
+    await ctx.answerCbQuery();
+    await completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced");
+  });
+
+  bot.action("GUIDE_REVEAL", async (ctx) => {
+    await ctx.answerCbQuery();
+    await revealLatestFromCommand(ctx, pool, appConfig);
+  });
+
   bot.action("OPEN_PLAY", async (ctx) => {
     await ctx.answerCbQuery();
     await sendPlay(ctx, pool, appConfig);
@@ -3453,6 +3795,7 @@ async function start() {
   try {
     await bot.telegram.setMyCommands([
       { command: "start", description: "Kontrol panelini ac" },
+      { command: "guide", description: "Hizli baslangic rehberi" },
       { command: "tasks", description: "Gorev havuzunu goster" },
       { command: "finish", description: "Aktif gorevi bitir (safe/balanced/aggressive)" },
       { command: "reveal", description: "Son biten gorevi ac" },
@@ -3470,6 +3813,8 @@ async function start() {
       { command: "arena3d", description: "Arena 3D web arayuzu (alias)" },
       { command: "ops", description: "Risk ve event operasyon paneli" },
       { command: "status", description: "Sistem durumu" },
+      { command: "nexus", description: "Gunun event pulse ve taktik oneri" },
+      { command: "contract", description: "Gunun Nexus kontrati" },
       { command: "whoami", description: "Telegram ID + admin kontrol" },
       { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
       { command: "admin_config", description: "Admin ekonomi/token config ozeti" },

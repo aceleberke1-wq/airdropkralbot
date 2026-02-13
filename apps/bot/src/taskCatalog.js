@@ -54,6 +54,46 @@ const TASK_CATALOG = [
     rewardPreview: "Hizli reveal sansi",
     difficulty: 0.58,
     family: "rush"
+  },
+  {
+    id: "war_seed",
+    title: "War Seed",
+    durationMinutes: 18,
+    rewardPreview: "2-4 RC + sezon etkisi",
+    difficulty: 0.48,
+    family: "war"
+  },
+  {
+    id: "vault_breach",
+    title: "Vault Breach",
+    durationMinutes: 32,
+    rewardPreview: "2-5 SC + nadir drop sansi",
+    difficulty: 0.64,
+    family: "heist"
+  },
+  {
+    id: "signal_decode",
+    title: "Signal Decode",
+    durationMinutes: 14,
+    rewardPreview: "1-3 SC + combo bonusu",
+    difficulty: 0.39,
+    family: "intel"
+  },
+  {
+    id: "sponsor_surge",
+    title: "Sponsor Surge",
+    durationMinutes: 45,
+    rewardPreview: "3-6 SC + 1-2 RC",
+    difficulty: 0.52,
+    family: "sponsor"
+  },
+  {
+    id: "boss_gate",
+    title: "Boss Gate",
+    durationMinutes: 55,
+    rewardPreview: "0-2 HC + yuksek RC",
+    difficulty: 0.72,
+    family: "boss"
   }
 ];
 
@@ -83,11 +123,26 @@ function weightForTask(task, options) {
   if (tier >= 2 && (task.family === "risk" || task.family === "rush")) {
     weight += 0.4;
   }
+  if (tier >= 1 && (task.family === "war" || task.family === "boss")) {
+    weight += 0.25;
+  }
+  if (tier >= 3 && task.family === "heist") {
+    weight += 0.35;
+  }
   if (risk >= 0.6 && (task.family === "risk" || task.family === "rush")) {
     weight -= 0.4;
   }
+  if (risk >= 0.7 && (task.family === "boss" || task.family === "heist")) {
+    weight -= 0.25;
+  }
   if (task.family === "social") {
     weight += 0.2;
+  }
+  if (task.family === "intel") {
+    weight += 0.18;
+  }
+  if (task.family === "sponsor") {
+    weight += 0.1;
   }
   return Math.max(0.1, weight);
 }

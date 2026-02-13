@@ -13,25 +13,76 @@ function escapeMarkdown(value) {
   return String(value || "").replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 }
 
-function formatStart(profile, balances, season) {
+function formatStart(profile, balances, season, anomaly, contract) {
   const publicName = escapeMarkdown(profile.public_name);
   const sc = balances?.SC || 0;
   const hc = balances?.HC || 0;
   const rc = balances?.RC || 0;
   const seasonLine = season ? `\nSezon: *S${season.seasonId}* - ${season.daysLeft} gun` : "";
+  const anomalyLine = anomaly
+    ? `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% basinc, ${anomaly.preferred_mode})`
+    : "";
+  const contractLine = contract
+    ? `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
+    : "";
   return (
     `*AirdropKralBot // Kingdom Console*\n` +
     `Kral: *${publicName}*\n` +
     `Kingdom: *Tier ${profile.kingdom_tier}*\n` +
     `Streak: *${profile.current_streak} gun*\n` +
-    `Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}\n\n` +
-    `*Nasil ilerlersin?*\n` +
-    `1) /tasks ile gorev sec\n` +
-    `2) /finish ile denemeyi bitir\n` +
-    `3) /reveal ile odulu ac\n` +
-    `4) /wallet ve /token ile ekonomiyi yonet\n\n` +
+    `Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}${anomalyLine}${contractLine}\n\n` +
+    `*3 Adimlik Hizli Baslangic*\n` +
+    `1) /tasks ile gorev sec ve deneme ac\n` +
+    `2) /finish dengeli ile denemeyi kapat\n` +
+    `3) /reveal ile dropu al, /wallet ile verimi kontrol et\n\n` +
+    `*Neden bu dongu?*\n` +
+    `Micro: gorev -> bitir -> reveal\n` +
+    `Meso: gunluk cap + streak zinciri\n` +
+    `Macro: sezon puani + arena rank\n\n` +
     `Hud: ${progressBar(profile.current_streak, 14, 14)}\n` +
     `Aksiyon: /tasks -> /shop -> /leaderboard`
+  );
+}
+
+function formatGuide(snapshot) {
+  const profile = snapshot?.profile || {};
+  const daily = snapshot?.daily || {};
+  const attempts = snapshot?.attempts || {};
+  const offers = snapshot?.offers || [];
+  const balances = snapshot?.balances || {};
+  const anomaly = snapshot?.anomaly || null;
+  const contract = snapshot?.contract || null;
+  const hasActive = Boolean(attempts.active);
+  const hasReveal = Boolean(attempts.revealable);
+  const nextStep = hasReveal
+    ? "1) /reveal ile mevcut kasayi ac."
+    : hasActive
+      ? "1) /finish dengeli ile denemeyi tamamla."
+      : offers.length > 0
+        ? "1) /tasks ile panelden bir gorev sec."
+        : Number(balances.RC || 0) > 0
+          ? "1) /tasks ac, gerekirse Panel Yenile kullan."
+          : "1) RC kazanmak icin gorev dongusunu ac.";
+
+  return (
+    `*Nexus Rehber*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name || "oyuncu")}*\n` +
+    `Tier: *${profile.kingdom_tier || 0}* | Streak: *${profile.current_streak || 0} gun*\n` +
+    `Gunluk: *${Number(daily.tasksDone || 0)}/${Number(daily.dailyCap || 0)} gorev*` +
+    (anomaly ? `\nNexus: *${escapeMarkdown(anomaly.title || "-")}* (${anomaly.preferred_mode || "balanced"})` : "") +
+    (contract
+      ? `\nKontrat: *${escapeMarkdown(contract.title || "-")}* [${escapeMarkdown(contract.required_mode || "balanced")}]`
+      : "") +
+    `\n\n` +
+    `*Su an en iyi hamle*\n` +
+    `${nextStep}\n\n` +
+    `*Standart Akis*\n` +
+    `- /tasks -> gorev kabul\n` +
+    `- /finish [safe|balanced|aggressive] -> deneme sonucu\n` +
+    `- /reveal -> kesin odul\n` +
+    `- /missions ve /daily -> ek odul\n` +
+    `- /play -> Nexus Arena web paneli\n\n` +
+    `Kisa yazim: "gorev", "bitir dengeli", "reveal", "raid aggressive"`
   );
 }
 
@@ -53,7 +104,9 @@ function formatProfile(profile, balances) {
   );
 }
 
-function formatTasks(offers, taskMap) {
+function formatTasks(offers, taskMap, options = {}) {
+  const anomaly = options.anomaly || null;
+  const contract = options.contract || null;
   const lines = offers.map((offer, index) => {
     const task = taskMap.get(offer.task_type);
     const title = task ? task.title : offer.task_type;
@@ -64,8 +117,16 @@ function formatTasks(offers, taskMap) {
     const urgency = progressBar(Math.max(0, 60 - expires), 60, 8);
     return `${index + 1}) *${title}* [${family}] - ${duration} - ${reward}\n   Sure: ${expires} dk | ${urgency}`;
   });
+  const anomalyLine = anomaly
+    ? `Nexus: ${escapeMarkdown(anomaly.title)} | Risk shift ${Number(anomaly.risk_shift_pct || 0)}% | Oneri ${anomaly.preferred_mode}\n`
+    : "";
+  const contractLine = contract
+    ? `Kontrat: ${escapeMarkdown(contract.title)} | Hedef mod ${escapeMarkdown(contract.required_mode)} | Aile ${escapeMarkdown(
+        (contract.focus_families || []).join(", ") || "any"
+      )}\n`
+    : "";
   return (
-    `*Gorev Paneli*\n${lines.join("\n")}\n\n` +
+    `*Gorev Paneli*\n${anomalyLine}${contractLine}${lines.join("\n")}\n\n` +
     `Takim secimi kritik: Temkinli / Dengeli / Saldirgan.\n` +
     `Panel Yenileme: 1 RC (yeni lineup).`
   );
@@ -96,13 +157,18 @@ function formatTaskComplete(result, probabilities, details) {
         : "Bu tur kacti. Sonraki deneme daha kritik.";
   const modeLabel = details?.modeLabel || "Dengeli";
   const combo = Number(details?.combo || 0);
+  const anomalyLabel = details?.anomaly?.title ? `\nNexus: ${details.anomaly.title} (${details.anomaly.preferred_mode})` : "";
+  const contract = details?.contract || null;
+  const contractLabel = contract?.title
+    ? `\nKontrat: ${escapeMarkdown(contract.title)} (${contract?.match?.matched ? "HIT" : "MISS"})`
+    : "";
   const comboLine = combo > 1 ? `\nMomentum: x${(1 + Math.min(0.25, combo * 0.05)).toFixed(2)} (Combo ${combo})` : "";
   const successPct = Math.round((probabilities?.pSuccess || 0) * 100);
   return (
     `*Gorev Tamamlandi*\n` +
     `Sonuc: *${label}*\n` +
     `Mod: *${modeLabel}*\n` +
-    `Model Basari Olasiligi: *%${successPct}*${comboLine}\n` +
+    `Model Basari Olasiligi: *%${successPct}*${comboLine}${anomalyLabel}${contractLabel}\n` +
     `${hint}`
   );
 }
@@ -117,13 +183,21 @@ function formatLootReveal(lootTier, rewardLine, pityAfter, pityCap, balances, se
   const modeLine = meta?.modeLabel ? `\nMod: ${meta.modeLabel}` : "";
   const comboLine = Number(meta?.combo || 0) > 1 ? `\nCombo: ${meta.combo}` : "";
   const warLine = Number(meta?.warDelta || 0) > 0 ? `\nWar +${Math.floor(meta.warDelta)} | Havuz ${Math.floor(Number(meta?.warPool || 0))}` : "";
+  const anomalyLine = meta?.anomalyTitle ? `\nNexus: ${anomalyEscape(meta.anomalyTitle)} (${meta.anomalyMode || "balanced"})` : "";
+  const contractLine = meta?.contractTitle
+    ? `\nKontrat: ${escapeMarkdown(meta.contractTitle)} (${meta.contractMatch ? "HIT" : "MISS"})`
+    : "";
   return (
     `*Loot Reveal*\n` +
     `Seviye: *${lootTier}*\n` +
     `Kazanc: *${rewardLine}*\n\n` +
     `${pityLine}\n` +
-    `Toplam: ${sc} SC / ${hc} HC${seasonLine}${modeLine}${comboLine}${boostLine}${hiddenLine}${warLine}`
+    `Toplam: ${sc} SC / ${hc} HC${seasonLine}${modeLine}${comboLine}${boostLine}${hiddenLine}${warLine}${anomalyLine}${contractLine}`
   );
+}
+
+function anomalyEscape(value) {
+  return escapeMarkdown(String(value || ""));
 }
 
 function formatStreak(profile) {
@@ -136,7 +210,7 @@ function formatStreak(profile) {
   );
 }
 
-function formatWallet(profile, balances, daily) {
+function formatWallet(profile, balances, daily, anomaly, contract) {
   const sc = balances?.SC || 0;
   const hc = balances?.HC || 0;
   const rc = balances?.RC || 0;
@@ -149,6 +223,8 @@ function formatWallet(profile, balances, daily) {
   const earnedSc = Number(daily?.scEarned || 0);
   const capBar = progressBar(tasksDone, dailyCap || 1, 12);
   const productivity = dailyCap > 0 ? Math.min(1, tasksDone / dailyCap) : 0;
+  const anomalyLine = anomaly ? `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.preferred_mode})` : "";
+  const contractLine = contract ? `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]` : "";
   return (
     `*Cuzdan // Ekonomi HUD*\n` +
     `SC: *${sc}*\n` +
@@ -160,7 +236,7 @@ function formatWallet(profile, balances, daily) {
     `${capBar}` +
     (extraCurrencies ? `\n\n${extraCurrencies}` : "") +
     `\n\n` +
-    `Streak: *${profile.current_streak} gun* | Kingdom: *Tier ${profile.kingdom_tier}*`
+    `Streak: *${profile.current_streak} gun* | Kingdom: *Tier ${profile.kingdom_tier}*${anomalyLine}${contractLine}`
   );
 }
 
@@ -289,7 +365,7 @@ function formatTokenTxError(reason, request) {
   return `*TX Kaydi Hatasi*\n${escapeMarkdown(reason || "bilinmeyen_hata")}`;
 }
 
-function formatDaily(profile, daily, board, balances) {
+function formatDaily(profile, daily, board, balances, anomaly, contract) {
   const dailyCap = Number(daily?.dailyCap || 0);
   const tasksDone = Number(daily?.tasksDone || 0);
   const progress = progressBar(tasksDone, Math.max(1, dailyCap), 12);
@@ -306,12 +382,18 @@ function formatDaily(profile, daily, board, balances) {
     return `${mission.title}: ${mission.progress}/${mission.target} [${status}]`;
   });
 
+  const anomalyLine = anomaly
+    ? `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% basinc, ${anomaly.preferred_mode})`
+    : "";
+  const contractLine = contract
+    ? `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
+    : "";
   return (
     `*Gunluk Operasyon*\n` +
     `Kral: *${escapeMarkdown(profile.public_name)}*\n` +
     `Gorev: *${tasksDone}/${dailyCap}*\n` +
     `Cap HUD: ${progress}\n` +
-    `Bakiye: ${balances.SC} SC / ${balances.HC} HC / ${balances.RC} RC\n\n` +
+    `Bakiye: ${balances.SC} SC / ${balances.HC} HC / ${balances.RC} RC${anomalyLine}${contractLine}\n\n` +
     `Bekleyen Misyon Odulu: *${claimable.sc} SC + ${claimable.hc} HC + ${claimable.rc} RC*\n` +
     `${missionLines.join("\n")}`
   );
@@ -516,6 +598,9 @@ function formatOps(state) {
           .map((event) => `${event.time} ${escapeMarkdown(event.event_type)}${event.hint ? ` | ${escapeMarkdown(event.hint)}` : ""}`)
           .join("\n")
       : "Event yok";
+  const anomalyLine = state.anomaly
+    ? `\n\n*Nexus*\n${escapeMarkdown(state.anomaly.title)} (${state.anomaly.preferred_mode}) | ${state.anomaly.pressure_pct}%`
+    : "";
 
   return (
     `*Ops Console*\n` +
@@ -525,7 +610,7 @@ function formatOps(state) {
     `Aktif Attempt: ${activeLine}\n` +
     `Reveal Hazir: ${revealLine}\n\n` +
     `*Aktif Efektler*\n${effectsLine}\n\n` +
-    `*Son Eventler*\n${eventsLine}`
+    `*Son Eventler*\n${eventsLine}${anomalyLine}`
   );
 }
 
@@ -567,20 +652,48 @@ function formatArenaRaidResult(result) {
     loss: "KAYIP"
   };
   const outcome = outcomeMap[result.run?.outcome] || String(result.run?.outcome || "win").toUpperCase();
+  const anomalyLine = result.anomaly?.title
+    ? `\nNexus: *${escapeMarkdown(result.anomaly.title)}* (${escapeMarkdown(result.anomaly.preferred_mode || "balanced")})`
+    : "";
   return (
     `*Arena Raid Sonucu*\n` +
     `Mod: *${modeLabel}*\n` +
     `Durum: *${outcome}*\n` +
     `Odul: *${result.reward?.sc || 0} SC + ${result.reward?.hc || 0} HC + ${result.reward?.rc || 0} RC*\n` +
     `Rating: *${result.rating_after || 0}* (${sign}${result.run?.rating_delta || 0})\n` +
-    `Arena Rank: *#${result.rank || "-"}*\n` +
+    `Arena Rank: *#${result.rank || "-"}*${anomalyLine}\n` +
     `Sezon +${result.season_points || 0} | War +${result.war_delta || 0}`
+  );
+}
+
+function formatNexusPulse(payload) {
+  const anomaly = payload?.anomaly || {};
+  const tactical = payload?.tactical || {};
+  const contract = payload?.contract || {};
+  const bars = progressBar(Number(anomaly.pressure_pct || 0), 100, 14);
+  const families = Array.isArray(contract.focus_families) ? contract.focus_families.join(", ") : "";
+  return (
+    `*Nexus Pulse*\n` +
+    `Event: *${escapeMarkdown(anomaly.title || "Stability Window")}*\n` +
+    `Etki: ${escapeMarkdown(anomaly.subtitle || "-")}\n` +
+    `Risk Shift: *${Number(anomaly.risk_shift_pct || 0)}%*\n` +
+    `SC x${Number(anomaly.sc_multiplier || 1).toFixed(2)} | RC x${Number(anomaly.rc_multiplier || 1).toFixed(2)} | HC x${Number(
+      anomaly.hc_multiplier || 1
+    ).toFixed(2)}\n` +
+    `Sezon x${Number(anomaly.season_multiplier || 1).toFixed(2)}\n` +
+    `Basinc: ${bars}\n\n` +
+    `Kontrat: *${escapeMarkdown(contract.title || "Nexus Contract")}*\n` +
+    `Hedef Mod: *${escapeMarkdown(contract.required_mode || "balanced")}* | Aile: ${escapeMarkdown(families || "any")}\n` +
+    `Bonus: SC x${Number(contract.sc_multiplier || 1).toFixed(2)} +${Number(contract.rc_flat_bonus || 0)} RC\n\n` +
+    `Taktik Oneri: *${escapeMarkdown(tactical.recommended_mode || anomaly.preferred_mode || "balanced")}*\n` +
+    `Sonraki Hamle: ${escapeMarkdown(tactical.next_step || "tasks")}`
   );
 }
 
 function formatHelp() {
   return (
     `*Komutlar*\n` +
+    `/guide - Hizli baslangic rehberi\n` +
     `/tasks - Gorev havuzu\n` +
     `/finish [safe|balanced|aggressive] - Son aktif gorevi bitir\n` +
     `/reveal - Son biten gorevi ac\n` +
@@ -598,6 +711,8 @@ function formatHelp() {
     `/shop - Boost ve pass dukkani\n` +
     `/missions - Gunluk oduller\n` +
     `/war - Topluluk savasi\n` +
+    `/nexus - Gunun event ve taktik pulse\n` +
+    `/contract - Gunun kontrat hedefi\n` +
     `/play - Arena 3D arayuz\n` +
     `/arena - Arena 3D arayuz (alias)\n` +
     `/arena3d - Arena 3D arayuz (alias)\n` +
@@ -670,6 +785,8 @@ function formatAdminActionResult(title, details) {
 
 module.exports = {
   formatStart,
+  formatGuide,
+  formatNexusPulse,
   formatProfile,
   formatTasks,
   formatTaskStarted,
