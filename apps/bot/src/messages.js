@@ -607,7 +607,7 @@ function formatHelp() {
     `/payout - Cekim paneli\n` +
     `/streak - Zincir durumu\n` +
     `/profile - Kimlik karti\n\n` +
-    `Admin: /admin, /admin_config, /admin_freeze, /admin_token_price, /admin_token_gate`
+    `Admin: /admin, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
   );
 }
 

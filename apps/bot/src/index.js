@@ -1580,6 +1580,56 @@ async function sendAdminTokenQueue(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(`*Token Queue*\n${lines}`);
 }
 
+async function sendAdminMetrics(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const metrics = await withTransaction(pool, async (db) => {
+    const core = await db.query(
+      `SELECT
+          (SELECT COUNT(*)::bigint FROM users) AS users_total,
+          (SELECT COUNT(*)::bigint FROM users WHERE last_seen_at >= now() - interval '24 hours') AS users_active_24h,
+          (SELECT COUNT(*)::bigint FROM task_attempts WHERE started_at >= now() - interval '24 hours') AS attempts_started_24h,
+          (SELECT COUNT(*)::bigint FROM task_attempts WHERE completed_at >= now() - interval '24 hours') AS attempts_completed_24h,
+          (SELECT COUNT(*)::bigint FROM loot_reveals WHERE created_at >= now() - interval '24 hours') AS reveals_24h,
+          (SELECT COUNT(*)::bigint FROM payout_requests WHERE created_at >= now() - interval '24 hours') AS payouts_requested_24h,
+          (SELECT COUNT(*)::bigint FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_24h,
+          (SELECT COALESCE(SUM(amount), 0)::numeric FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_btc_24h,
+          (SELECT COALESCE(SUM(sc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS sc_today,
+          (SELECT COALESCE(SUM(hc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS hc_today,
+          (SELECT COALESCE(SUM(rc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS rc_today;`
+    );
+    const out = { ...(core.rows[0] || {}) };
+    try {
+      const token = await db.query(
+        `SELECT
+            (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_intents_24h,
+            (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE status = 'approved' AND created_at >= now() - interval '24 hours') AS token_approved_24h,
+            (SELECT COALESCE(SUM(usd_amount), 0)::numeric FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_usd_volume_24h;`
+      );
+      Object.assign(out, token.rows[0] || {});
+    } catch (err) {
+      if (err.code !== "42P01") {
+        throw err;
+      }
+      out.token_intents_24h = 0;
+      out.token_approved_24h = 0;
+      out.token_usd_volume_24h = 0;
+    }
+    return out;
+  });
+
+  await ctx.replyWithMarkdown(
+    `*Admin Metrikler (24s)*\n` +
+      `Users: *${Number(metrics.users_total || 0)}* | Active: *${Number(metrics.users_active_24h || 0)}*\n` +
+      `Attempts: *${Number(metrics.attempts_started_24h || 0)}* start / *${Number(metrics.attempts_completed_24h || 0)}* complete\n` +
+      `Reveal: *${Number(metrics.reveals_24h || 0)}*\n` +
+      `Payout: *${Number(metrics.payouts_requested_24h || 0)}* req / *${Number(metrics.payouts_paid_24h || 0)}* paid / *${Number(metrics.payouts_paid_btc_24h || 0).toFixed(8)} BTC*\n` +
+      `Token: *${Number(metrics.token_intents_24h || 0)}* intents / *${Number(metrics.token_approved_24h || 0)}* approved / *$${Number(metrics.token_usd_volume_24h || 0).toFixed(2)}*\n` +
+      `Today emission: *${Number(metrics.sc_today || 0).toFixed(2)} SC* | *${Number(metrics.hc_today || 0).toFixed(2)} HC* | *${Number(metrics.rc_today || 0).toFixed(2)} RC*`
+  );
+}
+
 async function sendAdminConfig(ctx, pool, appConfig) {
   if (!(await ensureAdminCtx(ctx, appConfig))) {
     return;
@@ -3132,6 +3182,10 @@ async function start() {
     await sendAdminTokenQueue(ctx, pool, appConfig);
   });
 
+  bot.command("admin_metrics", async (ctx) => {
+    await sendAdminMetrics(ctx, pool, appConfig);
+  });
+
   bot.command("admin_config", async (ctx) => {
     await sendAdminConfig(ctx, pool, appConfig);
   });
@@ -3419,6 +3473,7 @@ async function start() {
       { command: "whoami", description: "Telegram ID + admin kontrol" },
       { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
       { command: "admin_config", description: "Admin ekonomi/token config ozeti" },
+      { command: "admin_metrics", description: "Admin 24s operasyon metrikleri" },
       { command: "help", description: "Komut listesi" }
     ]);
   } catch (err) {

@@ -807,6 +807,7 @@
 
     panel.classList.remove("hidden");
     const summary = info.summary || {};
+    const metrics = summary.metrics || {};
     const freeze = summary.freeze || {};
     const token = summary.token || {};
     const gate = token.payout_gate || {};
@@ -814,6 +815,8 @@
     byId("adminBadge").className = freeze.freeze ? "badge warn" : "badge info";
     byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
     byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
+    byId("adminMetrics").textContent =
+      `24s: active ${asNum(metrics.users_active_24h)} | start ${asNum(metrics.attempts_started_24h)} | complete ${asNum(metrics.attempts_completed_24h)} | reveal ${asNum(metrics.reveals_24h)} | token $${asNum(metrics.token_usd_volume_24h).toFixed(2)}`;
     byId("adminQueue").textContent = `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}`;
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
@@ -836,6 +839,21 @@
       summary: payload.data
     });
     return payload.data;
+  }
+
+  async function fetchAdminMetrics() {
+    const query = new URLSearchParams(state.auth).toString();
+    const res = await fetch(`/webapp/api/admin/metrics?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_metrics_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    if (state.admin.summary && typeof state.admin.summary === "object") {
+      state.admin.summary.metrics = payload.data || {};
+      renderAdmin({ is_admin: true, summary: state.admin.summary });
+    }
+    return payload.data || {};
   }
 
   async function postAdmin(path, extraBody = {}) {
@@ -1008,6 +1026,11 @@
     byId("adminRefreshBtn").addEventListener("click", () => {
       fetchAdminSummary()
         .then(() => showToast("Admin panel yenilendi"))
+        .catch(showError);
+    });
+    byId("adminMetricsBtn").addEventListener("click", () => {
+      fetchAdminMetrics()
+        .then(() => showToast("Admin metrikleri yenilendi"))
         .catch(showError);
     });
     byId("adminFreezeOnBtn").addEventListener("click", () => {

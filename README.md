@@ -53,11 +53,12 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 27. `/admin_config` active economy/token config summary
 28. `/admin_token_price <usd>` token spot update
 29. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
-30. `/pay <requestId> <txHash>` mark payout paid
-31. `/reject_payout <requestId> <reason>` reject payout
-32. `/approve_token <requestId> [note]` approve token buy request
-33. `/reject_token <requestId> <reason>` reject token buy request
-34. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`
+30. `/admin_metrics` 24 saatlik operasyon metrikleri
+31. `/pay <requestId> <txHash>` mark payout paid
+32. `/reject_payout <requestId> <reason>` reject payout
+33. `/approve_token <requestId> [note]` approve token buy request
+34. `/reject_token <requestId> <reason>` reject token buy request
+35. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`
 
 ## Micro Loop Extras
 1. Task panel includes `Panel Yenile (1 RC)` sink for fresh lineup.
@@ -75,6 +76,11 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 `POST /webapp/api/arena/raid`, `GET /webapp/api/arena/leaderboard`,
 `GET /webapp/api/token/summary`, `POST /webapp/api/token/mint`,
 `POST /webapp/api/token/buy_intent`, `POST /webapp/api/token/submit_tx`.
+Admin WebApp endpoints:
+`GET /webapp/api/admin/summary`, `GET /webapp/api/admin/metrics`,
+`POST /webapp/api/admin/freeze`, `POST /webapp/api/admin/token/config`,
+`POST /webapp/api/admin/token/approve`, `POST /webapp/api/admin/token/reject`,
+`POST /webapp/api/admin/payout/pay`, `POST /webapp/api/admin/payout/reject`.
 5. Arena flow in WebApp can now run end-to-end (accept, complete, reveal) without leaving the WebApp.
 6. Telegram `web_app` button requires `https://`. If `WEBAPP_PUBLIC_URL` is `http://localhost...`, bot now falls back to normal URL button (local test mode).
 7. Real 3D asset pipeline is enabled:

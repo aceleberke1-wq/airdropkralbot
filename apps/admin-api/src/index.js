@@ -579,6 +579,7 @@ async function buildAdminSummary(db, runtimeConfig) {
   );
   const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
   const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
+  const metrics = await buildAdminMetrics(db);
 
   return {
     freeze,
@@ -588,6 +589,7 @@ async function buildAdminSummary(db, runtimeConfig) {
     pending_token_count: pendingTokenRequests.length,
     pending_payouts: pendingPayouts.slice(0, 10),
     pending_token_requests: pendingTokenRequests.slice(0, 10),
+    metrics,
     token: {
       symbol: tokenConfig.symbol,
       spot_usd: Number(tokenConfig.usd_price || 0),
@@ -597,6 +599,72 @@ async function buildAdminSummary(db, runtimeConfig) {
       payout_gate: gate
     }
   };
+}
+
+async function buildAdminMetrics(db) {
+  const metrics = {
+    window_hours: 24,
+    users_total: 0,
+    users_active_24h: 0,
+    attempts_started_24h: 0,
+    attempts_completed_24h: 0,
+    reveals_24h: 0,
+    payouts_requested_24h: 0,
+    payouts_paid_24h: 0,
+    payouts_paid_btc_24h: 0,
+    token_intents_24h: 0,
+    token_submitted_24h: 0,
+    token_approved_24h: 0,
+    token_usd_volume_24h: 0,
+    risk_high_count: 0,
+    risk_medium_count: 0,
+    risk_low_count: 0,
+    sc_today: 0,
+    hc_today: 0,
+    rc_today: 0
+  };
+
+  const coreRes = await db.query(
+    `SELECT
+        (SELECT COUNT(*)::bigint FROM users) AS users_total,
+        (SELECT COUNT(*)::bigint FROM users WHERE last_seen_at >= now() - interval '24 hours') AS users_active_24h,
+        (SELECT COUNT(*)::bigint FROM task_attempts WHERE started_at >= now() - interval '24 hours') AS attempts_started_24h,
+        (SELECT COUNT(*)::bigint FROM task_attempts WHERE completed_at >= now() - interval '24 hours') AS attempts_completed_24h,
+        (SELECT COUNT(*)::bigint FROM loot_reveals WHERE created_at >= now() - interval '24 hours') AS reveals_24h,
+        (SELECT COUNT(*)::bigint FROM payout_requests WHERE created_at >= now() - interval '24 hours') AS payouts_requested_24h,
+        (SELECT COUNT(*)::bigint FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_24h,
+        (SELECT COALESCE(SUM(amount), 0)::numeric FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_btc_24h,
+        (SELECT COUNT(*)::bigint FROM risk_scores WHERE risk_score >= 0.80) AS risk_high_count,
+        (SELECT COUNT(*)::bigint FROM risk_scores WHERE risk_score >= 0.50 AND risk_score < 0.80) AS risk_medium_count,
+        (SELECT COUNT(*)::bigint FROM risk_scores WHERE risk_score < 0.50) AS risk_low_count,
+        (SELECT COALESCE(SUM(sc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS sc_today,
+        (SELECT COALESCE(SUM(hc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS hc_today,
+        (SELECT COALESCE(SUM(rc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS rc_today;`
+  );
+  const row = coreRes.rows[0] || {};
+  for (const [key, value] of Object.entries(row)) {
+    metrics[key] = Number(value || 0);
+  }
+
+  try {
+    const tokenRes = await db.query(
+      `SELECT
+          (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_intents_24h,
+          (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE status = 'tx_submitted' AND created_at >= now() - interval '24 hours') AS token_submitted_24h,
+          (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE status = 'approved' AND created_at >= now() - interval '24 hours') AS token_approved_24h,
+          (SELECT COALESCE(SUM(usd_amount), 0)::numeric FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_usd_volume_24h;`
+    );
+    const tokenRow = tokenRes.rows[0] || {};
+    for (const [key, value] of Object.entries(tokenRow)) {
+      metrics[key] = Number(value || 0);
+    }
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+
+  return metrics;
 }
 
 async function writeConfigVersion(db, configKey, configJson, adminId) {
@@ -2255,6 +2323,29 @@ fastify.get("/webapp/api/admin/summary", async (request, reply) => {
       success: true,
       session: issueWebAppSession(auth.uid),
       data: summary
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/admin/metrics", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const metrics = await buildAdminMetrics(client);
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: metrics
     });
   } finally {
     client.release();
