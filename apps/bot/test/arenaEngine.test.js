@@ -80,3 +80,64 @@ test("loss produces negative rating delta", () => {
   assert.equal(result.outcome, "loss");
   assert.ok(result.ratingDelta < 0);
 });
+
+test("expectedActionForSequence is deterministic and in allowed set", () => {
+  const sessionRef = "session-demo-001";
+  const seq3a = arenaEngine.expectedActionForSequence(sessionRef, 3);
+  const seq3b = arenaEngine.expectedActionForSequence(sessionRef, 3);
+  const seq4 = arenaEngine.expectedActionForSequence(sessionRef, 4);
+
+  assert.equal(seq3a, seq3b);
+  assert.ok(arenaEngine.SESSION_ACTIONS.includes(seq3a));
+  assert.ok(arenaEngine.SESSION_ACTIONS.includes(seq4));
+});
+
+test("evaluateSessionAction rewards correct action and penalizes high latency", () => {
+  const sessionRef = "session-auth-123";
+  const expected = arenaEngine.expectedActionForSequence(sessionRef, 1);
+
+  const ok = arenaEngine.evaluateSessionAction(
+    {
+      sessionRef,
+      score: 0,
+      combo: 0,
+      comboMax: 0,
+      hits: 0,
+      misses: 0,
+      actionCount: 0
+    },
+    {
+      actionSeq: 1,
+      inputAction: expected,
+      latencyMs: 80
+    },
+    config
+  );
+
+  assert.equal(ok.accepted, true);
+  assert.ok(ok.scoreAfter > 0);
+  assert.equal(ok.hitsAfter, 1);
+
+  const bad = arenaEngine.evaluateSessionAction(
+    {
+      sessionRef,
+      score: ok.scoreAfter,
+      combo: ok.comboAfter,
+      comboMax: ok.comboMax,
+      hits: ok.hitsAfter,
+      misses: ok.missesAfter,
+      actionCount: ok.actionCount
+    },
+    {
+      actionSeq: 2,
+      inputAction: "strike",
+      latencyMs: 9999
+    },
+    config
+  );
+
+  assert.equal(bad.accepted, false);
+  assert.ok(bad.scoreDelta < 0);
+  assert.equal(bad.comboAfter, 0);
+  assert.equal(bad.missesAfter, 1);
+});

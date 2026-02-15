@@ -13,6 +13,7 @@
     "dev:bot": "node apps/bot/src/index.js",
     "dev:admin": "node apps/admin-api/src/index.js",
     "migrate:node": "node scripts/migrate_node.js",
-    "test:bot": "node --test apps/bot/test/*.test.js"
+    "test:bot": "node --test apps/bot/test/*.test.js",
+    "check:release": "powershell -ExecutionPolicy Bypass -File scripts/check_release_readiness.ps1"
   }
 }

@@ -41,14 +41,25 @@ function requireEnv(name, opts = {}) {
   return value;
 }
 
+function parseTelegramId(rawValue, fieldName) {
+  const cleaned = String(rawValue || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
+  if (!/^\d+$/.test(cleaned)) {
+    throw new Error(`${fieldName} must be a numeric Telegram user id`);
+  }
+  const parsed = Number(cleaned);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} is out of range`);
+  }
+  return parsed;
+}
+
 function loadConfig() {
   const dryRun = process.env.BOT_DRY_RUN === "1";
   const botToken = dryRun ? process.env.BOT_TOKEN || "" : requireEnv("BOT_TOKEN");
   const adminIdRaw = requireEnv("ADMIN_TELEGRAM_ID");
-  const adminTelegramId = Number(adminIdRaw);
-  if (Number.isNaN(adminTelegramId)) {
-    throw new Error("ADMIN_TELEGRAM_ID must be a number");
-  }
+  const adminTelegramId = parseTelegramId(adminIdRaw, "ADMIN_TELEGRAM_ID");
 
   const addresses = {
     btc: requireEnv("BTC_PAYOUT_ADDRESS_PRIMARY"),
@@ -184,14 +195,19 @@ function cloneJson(value) {
 }
 
 function isAdminCtx(ctx, appConfig) {
-  return Number(ctx.from?.id || 0) === Number(appConfig.adminTelegramId || 0);
+  const actorId = Number(ctx.from?.id || 0);
+  return actorId > 0 && String(actorId) === String(appConfig.adminTelegramId || "");
 }
 
 async function ensureAdminCtx(ctx, appConfig) {
   if (isAdminCtx(ctx, appConfig)) {
     return true;
   }
-  await ctx.replyWithMarkdown("*Admin Yetkisi Gerekli*\nBu komut sadece admin hesap icin aciktir.");
+  await ctx.replyWithMarkdown(
+    `*Admin Yetkisi Gerekli*\n` +
+      `Bu komut sadece admin hesap icin aciktir.\n` +
+      `Kontrol: /whoami`
+  );
   return false;
 }
 
@@ -468,6 +484,7 @@ function buildTaskKeyboard(offers) {
 function buildStartKeyboard() {
   return Markup.inlineKeyboard(
     [
+      Markup.button.callback("Onboard", "OPEN_ONBOARD"),
       Markup.button.callback("Hizli Rehber", "OPEN_GUIDE"),
       Markup.button.callback("Gorevleri Ac", "OPEN_TASKS"),
       Markup.button.callback("Cuzdani Goster", "OPEN_WALLET"),
@@ -708,6 +725,41 @@ async function getSnapshot(pool, ctx) {
       }
     };
   });
+}
+
+async function fetchBotAdminMetrics(db) {
+  const core = await db.query(
+    `SELECT
+        (SELECT COUNT(*)::bigint FROM users) AS users_total,
+        (SELECT COUNT(*)::bigint FROM users WHERE last_seen_at >= now() - interval '24 hours') AS users_active_24h,
+        (SELECT COUNT(*)::bigint FROM task_attempts WHERE started_at >= now() - interval '24 hours') AS attempts_started_24h,
+        (SELECT COUNT(*)::bigint FROM task_attempts WHERE completed_at >= now() - interval '24 hours') AS attempts_completed_24h,
+        (SELECT COUNT(*)::bigint FROM loot_reveals WHERE created_at >= now() - interval '24 hours') AS reveals_24h,
+        (SELECT COUNT(*)::bigint FROM payout_requests WHERE created_at >= now() - interval '24 hours') AS payouts_requested_24h,
+        (SELECT COUNT(*)::bigint FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_24h,
+        (SELECT COALESCE(SUM(amount), 0)::numeric FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_btc_24h,
+        (SELECT COALESCE(SUM(sc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS sc_today,
+        (SELECT COALESCE(SUM(hc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS hc_today,
+        (SELECT COALESCE(SUM(rc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS rc_today;`
+  );
+  const out = { ...(core.rows[0] || {}) };
+  try {
+    const token = await db.query(
+      `SELECT
+          (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_intents_24h,
+          (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE status = 'approved' AND created_at >= now() - interval '24 hours') AS token_approved_24h,
+          (SELECT COALESCE(SUM(usd_amount), 0)::numeric FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_usd_volume_24h;`
+    );
+    Object.assign(out, token.rows[0] || {});
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+    out.token_intents_24h = 0;
+    out.token_approved_24h = 0;
+    out.token_usd_volume_24h = 0;
+  }
+  return out;
 }
 
 async function ensureOffersTx(db, profile, options = {}) {
@@ -1803,40 +1855,7 @@ async function sendAdminMetrics(ctx, pool, appConfig) {
   if (!(await ensureAdminCtx(ctx, appConfig))) {
     return;
   }
-  const metrics = await withTransaction(pool, async (db) => {
-    const core = await db.query(
-      `SELECT
-          (SELECT COUNT(*)::bigint FROM users) AS users_total,
-          (SELECT COUNT(*)::bigint FROM users WHERE last_seen_at >= now() - interval '24 hours') AS users_active_24h,
-          (SELECT COUNT(*)::bigint FROM task_attempts WHERE started_at >= now() - interval '24 hours') AS attempts_started_24h,
-          (SELECT COUNT(*)::bigint FROM task_attempts WHERE completed_at >= now() - interval '24 hours') AS attempts_completed_24h,
-          (SELECT COUNT(*)::bigint FROM loot_reveals WHERE created_at >= now() - interval '24 hours') AS reveals_24h,
-          (SELECT COUNT(*)::bigint FROM payout_requests WHERE created_at >= now() - interval '24 hours') AS payouts_requested_24h,
-          (SELECT COUNT(*)::bigint FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_24h,
-          (SELECT COALESCE(SUM(amount), 0)::numeric FROM payout_requests WHERE status = 'paid' AND created_at >= now() - interval '24 hours') AS payouts_paid_btc_24h,
-          (SELECT COALESCE(SUM(sc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS sc_today,
-          (SELECT COALESCE(SUM(hc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS hc_today,
-          (SELECT COALESCE(SUM(rc_earned), 0)::numeric FROM daily_counters WHERE day_date = CURRENT_DATE) AS rc_today;`
-    );
-    const out = { ...(core.rows[0] || {}) };
-    try {
-      const token = await db.query(
-        `SELECT
-            (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_intents_24h,
-            (SELECT COUNT(*)::bigint FROM token_purchase_requests WHERE status = 'approved' AND created_at >= now() - interval '24 hours') AS token_approved_24h,
-            (SELECT COALESCE(SUM(usd_amount), 0)::numeric FROM token_purchase_requests WHERE created_at >= now() - interval '24 hours') AS token_usd_volume_24h;`
-      );
-      Object.assign(out, token.rows[0] || {});
-    } catch (err) {
-      if (err.code !== "42P01") {
-        throw err;
-      }
-      out.token_intents_24h = 0;
-      out.token_approved_24h = 0;
-      out.token_usd_volume_24h = 0;
-    }
-    return out;
-  });
+  const metrics = await withTransaction(pool, async (db) => fetchBotAdminMetrics(db));
 
   await ctx.replyWithMarkdown(
     `*Admin Metrikler (24s)*\n` +
@@ -1847,6 +1866,22 @@ async function sendAdminMetrics(ctx, pool, appConfig) {
       `Token: *${Number(metrics.token_intents_24h || 0)}* intents / *${Number(metrics.token_approved_24h || 0)}* approved / *$${Number(metrics.token_usd_volume_24h || 0).toFixed(2)}*\n` +
       `Today emission: *${Number(metrics.sc_today || 0).toFixed(2)} SC* | *${Number(metrics.hc_today || 0).toFixed(2)} HC* | *${Number(metrics.rc_today || 0).toFixed(2)} RC*`
   );
+}
+
+async function sendAdminLive(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const payload = await withTransaction(pool, async (db) => {
+    const snapshot = await buildAdminSnapshot(db, appConfig);
+    const metrics = await fetchBotAdminMetrics(db);
+    return {
+      snapshot,
+      metrics,
+      webappUrl: appConfig.webappPublicUrl || ""
+    };
+  });
+  await ctx.replyWithMarkdown(messages.formatAdminLive(payload), buildAdminKeyboard(payload.snapshot));
 }
 
 async function sendAdminConfig(ctx, pool, appConfig) {
@@ -2855,6 +2890,29 @@ async function sendGuide(ctx, pool) {
   await ctx.replyWithMarkdown(messages.formatGuide(snapshot), buildGuideKeyboard());
 }
 
+async function sendOnboard(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const balances = await economyStore.getBalances(db, profile.user_id);
+    const dailyRaw = await economyStore.getTodayCounter(db, profile.user_id);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const tokenView = await buildTokenView(db, profile, appConfig);
+    return {
+      profile,
+      balances,
+      daily: buildDailyView(runtimeConfig, profile, dailyRaw),
+      season,
+      token: {
+        symbol: tokenView.symbol,
+        balance: Number(tokenView.balance || 0),
+        spotUsd: Number(tokenView.spotUsd || 0)
+      }
+    };
+  });
+  await ctx.replyWithMarkdown(messages.formatOnboard(payload), buildGuideKeyboard());
+}
+
 async function sendPlay(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const url = buildSignedWebAppUrl(appConfig, ctx.from?.id);
@@ -3488,12 +3546,20 @@ async function start() {
     await sendGuide(ctx, pool);
   });
 
+  bot.command("onboard", async (ctx) => {
+    await sendOnboard(ctx, pool, appConfig);
+  });
+
   bot.command("whoami", async (ctx) => {
     await ctx.replyWithMarkdown(messages.formatAdminWhoami(ctx.from?.id, appConfig.adminTelegramId));
   });
 
   bot.command("admin", async (ctx) => {
     await sendAdminPanel(ctx, pool, appConfig);
+  });
+
+  bot.command("admin_live", async (ctx) => {
+    await sendAdminLive(ctx, pool, appConfig);
   });
 
   bot.command("admin_payouts", async (ctx) => {
@@ -3649,6 +3715,11 @@ async function start() {
     await sendGuide(ctx, pool);
   });
 
+  bot.action("OPEN_ONBOARD", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendOnboard(ctx, pool, appConfig);
+  });
+
   bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
     await ctx.answerCbQuery();
     await completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced");
@@ -3795,6 +3866,7 @@ async function start() {
   try {
     await bot.telegram.setMyCommands([
       { command: "start", description: "Kontrol panelini ac" },
+      { command: "onboard", description: "3 adim hizli baslangic" },
       { command: "guide", description: "Hizli baslangic rehberi" },
       { command: "tasks", description: "Gorev havuzunu goster" },
       { command: "finish", description: "Aktif gorevi bitir (safe/balanced/aggressive)" },
@@ -3817,6 +3889,7 @@ async function start() {
       { command: "contract", description: "Gunun Nexus kontrati" },
       { command: "whoami", description: "Telegram ID + admin kontrol" },
       { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
+      { command: "admin_live", description: "Admin canli operasyon paneli" },
       { command: "admin_config", description: "Admin ekonomi/token config ozeti" },
       { command: "admin_metrics", description: "Admin 24s operasyon metrikleri" },
       { command: "help", description: "Komut listesi" }

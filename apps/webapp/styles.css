@@ -31,6 +31,36 @@ body {
   overflow-x: hidden;
 }
 
+body.quality-low #bg3d {
+  opacity: 0.48;
+}
+
+body.quality-low .noise,
+body.quality-low .scanlines {
+  opacity: 0.06;
+}
+
+body.quality-high #bg3d {
+  opacity: 0.82;
+}
+
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+body.large-type {
+  font-size: 17px;
+}
+
+body.large-type .micro,
+body.large-type .muted,
+body.large-type .cmd {
+  font-size: 13px;
+}
+
 #bg3d {
   position: fixed;
   inset: 0;
@@ -550,6 +580,11 @@ h3 {
 .cmd:hover {
   transform: translateY(-1px);
   border-color: rgba(61, 248, 194, 0.65);
+}
+
+.btn[data-active="1"] {
+  border-color: rgba(61, 248, 194, 0.58);
+  background: rgba(61, 248, 194, 0.16);
 }
 
 .btn.accent {

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { clamp } = require("./economyEngine");
 
 const RAID_MODES = {
@@ -29,6 +30,8 @@ const RAID_MODES = {
     enemyMax: 1.22
   }
 };
+
+const SESSION_ACTIONS = ["strike", "guard", "charge"];
 
 function ln1p(value) {
   return Math.log(1 + Math.max(0, Number(value || 0)));
@@ -216,8 +219,141 @@ function simulateRaid(config, input = {}, randoms = {}) {
   };
 }
 
+function getSessionConfig(config) {
+  const arena = config?.arena || {};
+  const session = arena.session || {};
+  return {
+    ttlSec: Math.max(20, Number(session.ttl_sec || 75)),
+    maxActions: Math.max(3, Math.min(64, Number(session.max_actions || 24))),
+    latencyHardMs: Math.max(200, Number(session.latency_hard_ms || 1800)),
+    latencySoftMs: Math.max(120, Number(session.latency_soft_ms || 900)),
+    resolveMinActions: Math.max(3, Number(session.resolve_min_actions || 6))
+  };
+}
+
+function normalizeArenaAction(actionRaw) {
+  const key = String(actionRaw || "").trim().toLowerCase();
+  return SESSION_ACTIONS.includes(key) ? key : "";
+}
+
+function expectedActionForSequence(sessionRef, actionSeq) {
+  const normalizedSeq = Math.max(1, Number(actionSeq || 1));
+  const hex = crypto
+    .createHash("sha1")
+    .update(`${String(sessionRef || "session")}::${normalizedSeq}`)
+    .digest("hex");
+  const idx = parseInt(hex.slice(0, 8), 16) % SESSION_ACTIONS.length;
+  return SESSION_ACTIONS[idx];
+}
+
+function evaluateSessionAction(currentState, input = {}, config) {
+  const state = currentState || {};
+  const sessionCfg = getSessionConfig(config);
+  const expected = expectedActionForSequence(state.sessionRef, input.actionSeq);
+  const inputAction = normalizeArenaAction(input.inputAction);
+  const latency = Math.max(0, Number(input.latencyMs || 0));
+  const latencyPenalty =
+    latency >= sessionCfg.latencyHardMs
+      ? 5
+      : latency > sessionCfg.latencySoftMs
+        ? 2
+        : 0;
+
+  const wasCorrect = inputAction && inputAction === expected && latency < sessionCfg.latencyHardMs;
+  const comboBefore = Math.max(0, Number(state.combo || 0));
+  const hitsBefore = Math.max(0, Number(state.hits || 0));
+  const missesBefore = Math.max(0, Number(state.misses || 0));
+  const scoreBefore = Math.max(0, Number(state.score || 0));
+  let comboAfter = 0;
+  let hitsAfter = hitsBefore;
+  let missesAfter = missesBefore;
+  let scoreDelta = 0;
+
+  if (wasCorrect) {
+    comboAfter = comboBefore + 1;
+    hitsAfter += 1;
+    scoreDelta = Math.max(1, 7 + Math.min(17, comboAfter * 2) - latencyPenalty);
+  } else {
+    comboAfter = 0;
+    missesAfter += 1;
+    scoreDelta = -Math.max(2, 4 + latencyPenalty);
+  }
+
+  const scoreAfter = Math.max(0, scoreBefore + scoreDelta);
+  const comboMax = Math.max(Number(state.comboMax || 0), comboAfter);
+  const actionCount = Math.max(0, Number(state.actionCount || 0)) + 1;
+
+  return {
+    expectedAction: expected,
+    inputAction,
+    accepted: wasCorrect,
+    latencyMs: latency,
+    scoreDelta,
+    scoreAfter,
+    comboAfter,
+    comboMax,
+    hitsAfter,
+    missesAfter,
+    actionCount
+  };
+}
+
+function resolveSessionModeByScore(score) {
+  const safeScore = Math.max(0, Number(score || 0));
+  if (safeScore >= 120) return "aggressive";
+  if (safeScore >= 55) return "balanced";
+  return "safe";
+}
+
+function resolveSessionOutcome(input = {}) {
+  const score = Math.max(0, Number(input.score || 0));
+  const hits = Math.max(0, Number(input.hits || 0));
+  const misses = Math.max(0, Number(input.misses || 0));
+  const attempts = Math.max(1, hits + misses);
+  const hitRatio = clamp(hits / attempts, 0, 1);
+
+  if (score >= 105 && hitRatio >= 0.62) {
+    return "win";
+  }
+  if (score >= 48 || hitRatio >= 0.43) {
+    return "near";
+  }
+  return "loss";
+}
+
+function computeSessionReward(config, input = {}) {
+  const mode = getRaidMode(input.mode || resolveSessionModeByScore(input.score));
+  const outcome = input.outcome || resolveSessionOutcome(input);
+  const risk = clamp(Number(input.risk || 0), 0, 1);
+  const simulated = computeReward({
+    config,
+    mode,
+    outcome,
+    kingdomTier: Number(input.kingdomTier || 0),
+    streak: Number(input.streak || 0),
+    rating: Number(input.rating || 1000),
+    risk,
+    randomHc: Number.isFinite(Number(input.randomHc)) ? Number(input.randomHc) : Math.random()
+  });
+  return {
+    mode,
+    outcome,
+    reward: simulated.reward,
+    hcChance: simulated.hcChance
+  };
+}
+
 module.exports = {
   getRaidMode,
   getArenaConfig,
-  simulateRaid
+  simulateRaid,
+  computeRatingDelta,
+  SESSION_ACTIONS,
+  getSessionConfig,
+  normalizeArenaAction,
+  expectedActionForSequence,
+  evaluateSessionAction,
+  resolveSessionModeByScore,
+  resolveSessionOutcome,
+  computeSessionReward
 };

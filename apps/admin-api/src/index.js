@@ -32,7 +32,22 @@ if (fs.existsSync(envPath)) {
 }
 
 const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN;
-const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID || 0);
+
+function parseTelegramId(rawValue, fieldName) {
+  const cleaned = String(rawValue || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
+  if (!/^\d+$/.test(cleaned)) {
+    throw new Error(`${fieldName} must be a numeric Telegram user id`);
+  }
+  const parsed = Number(cleaned);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} is out of range`);
+  }
+  return parsed;
+}
+
+const ADMIN_TELEGRAM_ID = parseTelegramId(process.env.ADMIN_TELEGRAM_ID || "", "ADMIN_TELEGRAM_ID");
 const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_SSL = process.env.DATABASE_SSL === "1";
 const PORT = Number(process.env.PORT || process.env.ADMIN_API_PORT || 4000);
@@ -42,6 +57,19 @@ const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
 const TOKEN_TX_VERIFY_STRICT = process.env.TOKEN_TX_VERIFY_STRICT === "1";
 const WEBAPP_DIR = path.join(__dirname, "../../webapp");
 const WEBAPP_ASSETS_DIR = path.join(WEBAPP_DIR, "assets");
+const FLAG_DEFAULTS = Object.freeze({
+  ARENA_AUTH_ENABLED: process.env.ARENA_AUTH_ENABLED === "1",
+  TOKEN_CURVE_ENABLED: process.env.TOKEN_CURVE_ENABLED === "1",
+  TOKEN_AUTO_APPROVE_ENABLED: process.env.TOKEN_AUTO_APPROVE_ENABLED === "1",
+  WEBAPP_V3_ENABLED: process.env.WEBAPP_V3_ENABLED === "1"
+});
+const RELEASE_ENV = String(process.env.RELEASE_ENV || process.env.NODE_ENV || "production");
+const RELEASE_GIT_REVISION = String(
+  process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || process.env.RELEASE_GIT_REVISION || "local"
+).trim();
+const RELEASE_DEPLOY_ID = String(
+  process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_DEPLOY_ID || ""
+).trim();
 
 if (!ADMIN_API_TOKEN) {
   throw new Error("Missing required env: ADMIN_API_TOKEN");
@@ -61,12 +89,19 @@ pool.on("error", (err) => {
 
 function parseAdminId(req) {
   const headerValue = req.headers["x-admin-id"];
-  const parsed = Number(headerValue || ADMIN_TELEGRAM_ID || 0);
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (headerValue === undefined || headerValue === null || String(headerValue).trim() === "") {
+    return ADMIN_TELEGRAM_ID;
+  }
+  try {
+    return parseTelegramId(headerValue, "x-admin-id");
+  } catch {
+    return 0;
+  }
 }
 
 function isAdminTelegramId(telegramId) {
-  return Number(telegramId || 0) === Number(ADMIN_TELEGRAM_ID || 0);
+  const actorId = Number(telegramId || 0);
+  return actorId > 0 && String(actorId) === String(ADMIN_TELEGRAM_ID || "");
 }
 
 async function requireTables() {
@@ -106,6 +141,103 @@ function deterministicUuid(input) {
   return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex
     .slice(16, 20)
     .join("")}-${hex.slice(20, 32).join("")}`;
+}
+
+function newUuid() {
+  if (typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return deterministicUuid(`release:${Date.now()}:${Math.random()}`);
+}
+
+async function hasReleaseMarkersTable(db) {
+  const check = await db.query(`SELECT to_regclass('public.release_markers') IS NOT NULL AS ok;`);
+  return Boolean(check.rows?.[0]?.ok);
+}
+
+async function readActiveEconomyVersion(db) {
+  try {
+    const result = await db.query(
+      `SELECT version
+       FROM config_versions
+       WHERE config_key = 'economy_params'
+       ORDER BY version DESC, created_at DESC
+       LIMIT 1;`
+    );
+    return Number(result.rows?.[0]?.version || 0);
+  } catch (err) {
+    if (err.code === "42P01") {
+      return 0;
+    }
+    throw err;
+  }
+}
+
+async function insertReleaseMarker(db, payload = {}) {
+  const marker = {
+    releaseRef: String(payload.releaseRef || newUuid()),
+    gitRevision: String(payload.gitRevision || RELEASE_GIT_REVISION || "local"),
+    deployId: String(payload.deployId || RELEASE_DEPLOY_ID || ""),
+    environment: String(payload.environment || RELEASE_ENV || "production"),
+    configVersion: Number(payload.configVersion || 0),
+    health: payload.health || {},
+    notes: String(payload.notes || ""),
+    createdBy: Number(payload.createdBy || 0)
+  };
+  const inserted = await db.query(
+    `INSERT INTO release_markers (
+       release_ref,
+       git_revision,
+       deploy_id,
+       environment,
+       config_version,
+       health_json,
+       notes,
+       created_by
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+     RETURNING *;`,
+    [
+      marker.releaseRef,
+      marker.gitRevision,
+      marker.deployId,
+      marker.environment,
+      marker.configVersion,
+      JSON.stringify(marker.health),
+      marker.notes,
+      marker.createdBy
+    ]
+  );
+  return inserted.rows?.[0] || null;
+}
+
+async function readLatestReleaseMarker(db) {
+  const result = await db.query(
+    `SELECT id, release_ref, git_revision, deploy_id, environment, config_version, health_json, notes, created_at, created_by
+     FROM release_markers
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1;`
+  );
+  return result.rows?.[0] || null;
+}
+
+async function captureReleaseMarker(db, payload = {}) {
+  const exists = await hasReleaseMarkersTable(db);
+  if (!exists) {
+    return null;
+  }
+  const configVersion = Number(payload.configVersion || (await readActiveEconomyVersion(db)));
+  const health = payload.health || (await dependencyHealth());
+  return insertReleaseMarker(db, {
+    releaseRef: payload.releaseRef,
+    gitRevision: payload.gitRevision,
+    deployId: payload.deployId,
+    environment: payload.environment,
+    configVersion,
+    health,
+    notes: payload.notes,
+    createdBy: payload.createdBy
+  });
 }
 
 function signWebAppPayload(uid, ts) {
@@ -298,6 +430,55 @@ async function getFreezeState(db) {
     freeze: Boolean(json.freeze),
     reason: String(json.reason || "")
   };
+}
+
+function normalizeFlagKey(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
+}
+
+async function loadFeatureFlags(db) {
+  const flags = { ...FLAG_DEFAULTS };
+  try {
+    const result = await db.query(
+      `SELECT flag_key, is_enabled
+       FROM feature_flags;`
+    );
+    for (const row of result.rows) {
+      const key = normalizeFlagKey(row.flag_key);
+      if (!key) continue;
+      flags[key] = Boolean(row.is_enabled);
+    }
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+  return flags;
+}
+
+function isFeatureEnabled(flags, key) {
+  const normalizedKey = normalizeFlagKey(key);
+  if (!normalizedKey) return false;
+  return Boolean(flags?.[normalizedKey]);
+}
+
+async function upsertFeatureFlag(db, { flagKey, enabled, updatedBy, note }) {
+  const normalized = normalizeFlagKey(flagKey);
+  const result = await db.query(
+    `INSERT INTO feature_flags (flag_key, is_enabled, note, updated_by)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (flag_key)
+     DO UPDATE SET
+       is_enabled = EXCLUDED.is_enabled,
+       note = COALESCE(NULLIF(EXCLUDED.note, ''), feature_flags.note),
+       updated_at = now(),
+       updated_by = EXCLUDED.updated_by
+     RETURNING flag_key, is_enabled, note, updated_at, updated_by;`,
+    [normalized, Boolean(enabled), String(note || ""), Number(updatedBy || 0)]
+  );
+  return result.rows[0] || null;
 }
 
 const PLAY_MODES = {
@@ -514,17 +695,22 @@ function mapTokenRequestPreview(rows) {
   }));
 }
 
-function computeTokenMarketCapGate(tokenConfig, tokenSupplyTotal) {
+function computeTokenMarketCapGate(tokenConfig, tokenSupplyTotal, spotUsdOverride = null) {
   const gate = tokenConfig?.payout_gate || {};
   const enabled = Boolean(gate.enabled);
   const minMarketCapUsd = Math.max(0, Number(gate.min_market_cap_usd || 0));
-  const marketCapUsd = Number(tokenSupplyTotal || 0) * Math.max(0, Number(tokenConfig?.usd_price || 0));
+  const spotUsd =
+    Number.isFinite(Number(spotUsdOverride)) && Number(spotUsdOverride) > 0
+      ? Number(spotUsdOverride)
+      : Math.max(0, Number(tokenConfig?.usd_price || 0));
+  const marketCapUsd = Number(tokenSupplyTotal || 0) * spotUsd;
   return {
     enabled,
     allowed: !enabled || marketCapUsd >= minMarketCapUsd,
     current: Number(marketCapUsd || 0),
     min: Number(minMarketCapUsd || 0),
-    targetMax: Math.max(0, Number(gate.target_band_max_usd || 0))
+    targetMax: Math.max(0, Number(gate.target_band_max_usd || 0)),
+    spot_usd: Number(spotUsd || 0)
   };
 }
 
@@ -559,6 +745,7 @@ async function validateAndVerifyTokenTx(chain, txHashRaw) {
 }
 
 async function buildAdminSummary(db, runtimeConfig) {
+  const featureFlags = await loadFeatureFlags(db);
   const freeze = await getFreezeState(db);
   const usersRes = await db.query(`SELECT COUNT(*)::bigint AS c FROM users;`);
   const activeAttemptsRes = await db.query(
@@ -579,11 +766,43 @@ async function buildAdminSummary(db, runtimeConfig) {
   const pendingTokenRequests = tokenRows.filter((row) =>
     ["pending_payment", "tx_submitted"].includes(String(row.status || "").toLowerCase())
   );
+  let manualTokenQueue = [];
+  let autoDecisions = [];
+  try {
+    manualTokenQueue = await tokenStore.listManualReviewQueue(db, 20);
+    autoDecisions = await tokenStore.listTokenAutoDecisions(db, { limit: 20 });
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
   const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
-  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
+  let marketState = null;
+  try {
+    marketState = await tokenStore.getTokenMarketState(db, tokenConfig.symbol);
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+  const curveEnabled = Boolean(
+    isFeatureEnabled(featureFlags, "TOKEN_CURVE_ENABLED") && tokenConfig.curve?.enabled
+  );
+  const curveState = tokenEngine.normalizeCurveState(tokenConfig, marketState);
+  const autoPolicyEnabled = Boolean(
+    isFeatureEnabled(featureFlags, "TOKEN_AUTO_APPROVE_ENABLED") && curveState.autoPolicy.enabled
+  );
+  const curveQuote = tokenEngine.computeTreasuryCurvePrice({
+    tokenConfig,
+    marketState,
+    totalSupply: Number(tokenSupply.total || 0)
+  });
+  const spotUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
+  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total, spotUsd);
   const metrics = await buildAdminMetrics(db);
 
   return {
+    feature_flags: featureFlags,
     freeze,
     total_users: Number(usersRes.rows[0]?.c || 0),
     active_attempts: Number(activeAttemptsRes.rows[0]?.c || 0),
@@ -591,14 +810,38 @@ async function buildAdminSummary(db, runtimeConfig) {
     pending_token_count: pendingTokenRequests.length,
     pending_payouts: pendingPayouts.slice(0, 10),
     pending_token_requests: pendingTokenRequests.slice(0, 10),
+    manual_token_queue: manualTokenQueue,
+    token_auto_decisions: autoDecisions,
     metrics,
     token: {
       symbol: tokenConfig.symbol,
-      spot_usd: Number(tokenConfig.usd_price || 0),
+      spot_usd: Number(spotUsd || 0),
       supply: Number(tokenSupply.total || 0),
       holders: Number(tokenSupply.holders || 0),
-      market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(tokenConfig.usd_price || 0)).toFixed(8)),
-      payout_gate: gate
+      market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(spotUsd || 0)).toFixed(8)),
+      payout_gate: gate,
+      curve_enabled: curveEnabled,
+      curve: {
+        enabled: curveEnabled,
+        admin_floor_usd: Number(curveState.adminFloorUsd || 0),
+        base_usd: Number(curveState.curveBaseUsd || 0),
+        k: Number(curveState.curveK || 0),
+        supply_norm_divisor: Number(curveState.supplyNormDivisor || 1),
+        demand_factor: Number(curveState.demandFactor || 1),
+        volatility_dampen: Number(curveState.volatilityDampen || 0),
+        quote: {
+          price_usd: Number(curveQuote.priceUsd || 0),
+          supply_norm: Number(curveQuote.supplyNorm || 0),
+          demand_factor: Number(curveQuote.demandFactor || 1)
+        }
+      },
+      auto_policy: {
+        enabled: autoPolicyEnabled,
+        auto_usd_limit: Number(curveState.autoPolicy.autoUsdLimit || 10),
+        risk_threshold: Number(curveState.autoPolicy.riskThreshold || 0.35),
+        velocity_per_hour: Number(curveState.autoPolicy.velocityPerHour || 8),
+        require_onchain_verified: Boolean(curveState.autoPolicy.requireOnchainVerified)
+      }
     }
   };
 }
@@ -717,12 +960,12 @@ async function patchTokenRuntimeConfig(db, adminId, patchInput) {
   return { version, config: reloaded };
 }
 
-async function buildTokenSummary(db, profile, runtimeConfig, balances) {
+async function buildTokenSummary(db, profile, runtimeConfig, balances, options = {}) {
   const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const featureFlags = options.featureFlags || (await loadFeatureFlags(db));
   const symbol = tokenConfig.symbol;
   const balance = Number((balances || {})[symbol] || 0);
   const tokenSupply = await economyStore.getCurrencySupply(db, symbol);
-  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
   const unifiedUnits = tokenEngine.computeUnifiedUnits(balances || {}, tokenConfig);
   const mintableFromBalances = tokenEngine.estimateTokenFromBalances(balances || {}, tokenConfig);
   const requests = await listTokenRequestsSafe(db, profile.user_id, 5);
@@ -738,18 +981,57 @@ async function buildTokenSummary(db, profile, runtimeConfig, balances) {
     };
   });
 
+  let marketState = null;
+  try {
+    marketState = await tokenStore.getTokenMarketState(db, symbol);
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+  const curveEnabled = Boolean(
+    isFeatureEnabled(featureFlags, "TOKEN_CURVE_ENABLED") && tokenConfig.curve?.enabled
+  );
+  const curveQuote = tokenEngine.computeTreasuryCurvePrice({
+    tokenConfig,
+    marketState,
+    totalSupply: Number(tokenSupply.total || 0)
+  });
+  const spotUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
+  const gate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total, spotUsd);
+
   return {
     enabled: tokenConfig.enabled,
     symbol,
     decimals: tokenConfig.decimals,
-    usd_price: Number(tokenConfig.usd_price || 0),
-    market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(tokenConfig.usd_price || 0)).toFixed(8)),
+    usd_price: Number(spotUsd || 0),
+    market_cap_usd: Number((Number(tokenSupply.total || 0) * Number(spotUsd || 0)).toFixed(8)),
     total_supply: Number(tokenSupply.total || 0),
     holders: Number(tokenSupply.holders || 0),
     payout_gate: gate,
     balance,
     unified_units: unifiedUnits,
     mintable_from_balances: mintableFromBalances,
+    curve: {
+      enabled: curveEnabled,
+      market_state: marketState
+        ? {
+            admin_floor_usd: Number(marketState.admin_floor_usd || 0),
+            curve_base_usd: Number(marketState.curve_base_usd || 0),
+            curve_k: Number(marketState.curve_k || 0),
+            demand_factor: Number(marketState.demand_factor || 1),
+            supply_norm_divisor: Number(marketState.supply_norm_divisor || 1)
+          }
+        : null,
+      quote: {
+        price_usd: Number(curveQuote.priceUsd || 0),
+        supply_norm: Number(curveQuote.supplyNorm || 0),
+        demand_factor: Number(curveQuote.demandFactor || 1),
+        admin_floor_usd: Number(curveQuote.adminFloorUsd || 0),
+        curve_base_usd: Number(curveQuote.curveBaseUsd || 0),
+        curve_k: Number(curveQuote.curveK || 0)
+      }
+    },
     purchase: {
       min_usd: Number(tokenConfig.purchase.min_usd || 0),
       max_usd: Number(tokenConfig.purchase.max_usd || 0),
@@ -805,16 +1087,93 @@ function dbPingWithTimeout(ms) {
   ]);
 }
 
-fastify.get("/healthz", async () => ({ ok: true, service: "up" }));
-
-fastify.get("/health", async () => {
+async function dependencyHealth() {
+  let dbOk = false;
+  let reason = "";
   try {
     const db = await dbPingWithTimeout(5000);
-    return { ok: true, db: db.rows[0]?.ok === 1 };
+    dbOk = db.rows[0]?.ok === 1;
   } catch (err) {
-    return { ok: true, db: false, reason: err?.message || "db_unavailable" };
+    dbOk = false;
+    reason = err?.message || "db_unavailable";
   }
+
+  let arenaSessionTables = false;
+  let tokenMarketTables = false;
+  let queueTables = false;
+  let releaseMarkersTable = false;
+  try {
+    const check = await pool.query(
+      `SELECT
+         to_regclass('public.arena_sessions') IS NOT NULL AS arena_sessions,
+         to_regclass('public.arena_session_actions') IS NOT NULL AS arena_session_actions,
+         to_regclass('public.arena_session_results') IS NOT NULL AS arena_session_results,
+         to_regclass('public.token_market_state') IS NOT NULL AS token_market_state,
+         to_regclass('public.token_auto_decisions') IS NOT NULL AS token_auto_decisions,
+         to_regclass('public.feature_flags') IS NOT NULL AS feature_flags,
+         to_regclass('public.release_markers') IS NOT NULL AS release_markers;`
+    );
+    const row = check.rows[0] || {};
+    arenaSessionTables = Boolean(row.arena_sessions && row.arena_session_actions && row.arena_session_results);
+    tokenMarketTables = Boolean(row.token_market_state);
+    queueTables = Boolean(row.token_auto_decisions && row.feature_flags);
+    releaseMarkersTable = Boolean(row.release_markers);
+  } catch (err) {
+    if (!reason) {
+      reason = err?.message || "dependency_check_failed";
+    }
+  }
+
+  return {
+    ok: Boolean(dbOk),
+    db: dbOk,
+    reason,
+    dependencies: {
+      arena_session_tables: arenaSessionTables,
+      token_market_tables: tokenMarketTables,
+      queue_tables: queueTables,
+      release_markers: releaseMarkersTable
+    }
+  };
+}
+
+function arenaSessionErrorCode(error) {
+  const key = String(error || "").toLowerCase();
+  if (
+    [
+      "session_not_found",
+      "attempt_not_found",
+      "user_not_started"
+    ].includes(key)
+  ) {
+    return 404;
+  }
+  if (["session_expired", "session_not_active", "invalid_action_seq", "arena_auth_disabled"].includes(key)) {
+    return 409;
+  }
+  if (["session_not_ready", "invalid_input_action"].includes(key)) {
+    return 400;
+  }
+  if (key === "freeze_mode") {
+    return 409;
+  }
+  if (key === "arena_session_tables_missing") {
+    return 503;
+  }
+  return 400;
+}
+
+fastify.get("/healthz", async () => {
+  const health = await dependencyHealth();
+  return {
+    ok: health.ok,
+    service: "up",
+    db: health.db,
+    dependencies: health.dependencies
+  };
 });
+
+fastify.get("/health", async () => dependencyHealth());
 
 fastify.get("/webapp", async (request, reply) => {
   const indexPath = path.join(WEBAPP_DIR, "index.html");
@@ -1879,6 +2238,281 @@ fastify.post(
 );
 
 fastify.post(
+  "/webapp/api/arena/session/start",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "string", minLength: 6, maxLength: 96 },
+          mode_suggested: { type: "string" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const started = await arenaService.startAuthoritativeSession(client, {
+        profile,
+        config: runtimeConfig,
+        requestId: String(request.body.request_id || `webapp:${Date.now()}`),
+        modeSuggested: request.body.mode_suggested,
+        source: "webapp"
+      });
+      if (!started.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(started.error)).send({ success: false, error: started.error });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          duplicate: Boolean(started.duplicate),
+          session: started.session
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/arena/session/action",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref", "action_seq", "input_action"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 },
+          action_seq: { type: "integer", minimum: 1 },
+          input_action: { type: "string", enum: arenaEngine.SESSION_ACTIONS },
+          latency_ms: { type: "integer", minimum: 0 },
+          client_ts: { type: "integer", minimum: 0 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const acted = await arenaService.applyAuthoritativeSessionAction(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        actionSeq: Number(request.body.action_seq || 0),
+        inputAction: String(request.body.input_action || ""),
+        latencyMs: Number(request.body.latency_ms || 0),
+        clientTs: Number(request.body.client_ts || 0),
+        source: "webapp"
+      });
+      if (!acted.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(acted.error)).send({
+          success: false,
+          error: acted.error,
+          min_actions: acted.min_actions || 0,
+          action_count: acted.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: acted
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/arena/session/resolve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const resolved = await arenaService.resolveAuthoritativeSession(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        source: "webapp"
+      });
+      if (!resolved.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(resolved.error)).send({
+          success: false,
+          error: resolved.error,
+          min_actions: resolved.min_actions || 0,
+          action_count: resolved.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: resolved
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/arena/session/state", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+      reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+      return;
+    }
+    const statePayload = await arenaService.getAuthoritativeSessionState(client, {
+      profile,
+      sessionRef: String(request.query.session_ref || "")
+    });
+    if (!statePayload.ok) {
+      reply.code(arenaSessionErrorCode(statePayload.error)).send({
+        success: false,
+        error: statePayload.error
+      });
+      return;
+    }
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: statePayload
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
   "/webapp/api/arena/raid",
   {
     schema: {
@@ -2043,6 +2677,82 @@ fastify.get("/webapp/api/token/summary", async (request, reply) => {
       return;
     }
     throw err;
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/token/quote", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+
+  const usdAmount = Number(request.query.usd || 0);
+  const chain = String(request.query.chain || "").toUpperCase();
+  if (!Number.isFinite(usdAmount) || usdAmount <= 0) {
+    reply.code(400).send({ success: false, error: "invalid_usd_amount" });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+    const featureFlags = await loadFeatureFlags(client);
+    const marketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const supply = await economyStore.getCurrencySupply(client, tokenConfig.symbol);
+    const curveEnabled = Boolean(
+      isFeatureEnabled(featureFlags, "TOKEN_CURVE_ENABLED") && tokenConfig.curve?.enabled
+    );
+    const curveQuote = tokenEngine.computeTreasuryCurvePrice({
+      tokenConfig,
+      marketState,
+      totalSupply: Number(supply.total || 0)
+    });
+    const priceUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
+    const quote = tokenEngine.quotePurchaseByUsd(usdAmount, tokenConfig, { priceUsd });
+    if (!quote.ok) {
+      reply.code(409).send({ success: false, error: quote.reason, data: quote });
+      return;
+    }
+
+    const chainConfig = tokenEngine.getChainConfig(tokenConfig, chain);
+    if (!chainConfig) {
+      reply.code(400).send({ success: false, error: "chain_not_supported" });
+      return;
+    }
+    const payAddress = tokenEngine.resolvePaymentAddress({ addresses: getPaymentAddressBook() }, chainConfig);
+    if (!payAddress) {
+      reply.code(409).send({ success: false, error: "chain_not_enabled" });
+      return;
+    }
+    const gate = computeTokenMarketCapGate(tokenConfig, supply.total, priceUsd);
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        quote,
+        chain: chainConfig.chain,
+        pay_currency: chainConfig.payCurrency,
+        pay_address: payAddress,
+        curve: {
+          enabled: curveEnabled,
+          quote: curveQuote
+        },
+        payout_gate: gate
+      }
+    });
   } finally {
     client.release();
   }
@@ -2384,17 +3094,124 @@ fastify.post(
       });
 
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const featureFlags = await loadFeatureFlags(client);
+      const marketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      const curveEnabled = Boolean(
+        isFeatureEnabled(featureFlags, "TOKEN_CURVE_ENABLED") && tokenConfig.curve?.enabled
+      );
+      const curveState = tokenEngine.normalizeCurveState(tokenConfig, marketState);
+      const supply = await economyStore.getCurrencySupply(client, tokenConfig.symbol);
+      const curveQuote = tokenEngine.computeTreasuryCurvePrice({
+        tokenConfig,
+        marketState,
+        totalSupply: Number(supply.total || 0)
+      });
+      const spotUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
+      const marketGate = computeTokenMarketCapGate(tokenConfig, supply.total, spotUsd);
+      const autoPolicyEnabled = Boolean(
+        isFeatureEnabled(featureFlags, "TOKEN_AUTO_APPROVE_ENABLED") && curveState.autoPolicy.enabled
+      );
+      const velocityPerHour = await tokenStore.countRecentTokenVelocity(client, profile.user_id, 60).catch((err) => {
+        if (err.code === "42P01") return 0;
+        throw err;
+      });
+      const riskState = await riskStore.getRiskState(client, profile.user_id);
+      const onchainVerified = isOnchainVerifiedStatus(txCheck.verify?.status);
+      const autoDecision = tokenEngine.evaluateAutoApprovePolicy(
+        {
+          usdAmount: Number(purchaseRequest.usd_amount || 0),
+          riskScore: Number(riskState.riskScore || 0),
+          velocityPerHour,
+          onchainVerified,
+          gateOpen: marketGate.allowed
+        },
+        {
+          enabled: autoPolicyEnabled,
+          autoUsdLimit: Number(curveState.autoPolicy.autoUsdLimit || 10),
+          riskThreshold: Number(curveState.autoPolicy.riskThreshold || 0.35),
+          velocityPerHour: Number(curveState.autoPolicy.velocityPerHour || 8),
+          requireOnchainVerified: Boolean(curveState.autoPolicy.requireOnchainVerified)
+        }
+      );
+      await tokenStore
+        .insertTokenAutoDecision(client, {
+          requestId,
+          tokenSymbol: tokenConfig.symbol,
+          decision: autoDecision.decision,
+          reason: autoDecision.reason,
+          policy: autoDecision.policy,
+          riskScore: Number(riskState.riskScore || 0),
+          usdAmount: Number(purchaseRequest.usd_amount || 0),
+          txHash: txCheck.formatCheck.normalizedHash,
+          decidedBy: autoDecision.passed ? "auto_policy" : "manual_queue"
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+
+      let requestView = updated;
+      if (autoDecision.passed) {
+        const refEventId = deterministicUuid(`token_purchase_credit:${requestId}:${tokenConfig.symbol}`);
+        await economyStore.creditCurrency(client, {
+          userId: profile.user_id,
+          currency: tokenConfig.symbol,
+          amount: Number(purchaseRequest.token_amount || 0),
+          reason: "token_purchase_auto_approved",
+          refEventId,
+          meta: {
+            request_id: requestId,
+            usd_amount: Number(purchaseRequest.usd_amount || 0),
+            chain: purchaseRequest.chain,
+            tx_hash: txCheck.formatCheck.normalizedHash
+          }
+        });
+        requestView = await tokenStore.markPurchaseApproved(client, {
+          requestId,
+          adminId: 0,
+          adminNote: `auto_approved:${autoDecision.reason}`
+        });
+      }
+
+      requestView = await tokenStore.patchPurchaseRequestMeta(client, {
+        requestId,
+        metaPatch: {
+          auto_decision: autoDecision.decision,
+          auto_decision_reason: autoDecision.reason,
+          auto_decision_reasons: autoDecision.reasons || [],
+          auto_policy: autoDecision.policy || {},
+          market_gate: marketGate,
+          curve_price_usd: Number(spotUsd || 0),
+          curve_enabled: curveEnabled,
+          onchain_verified: onchainVerified,
+          velocity_per_hour: Number(velocityPerHour || 0)
+        }
+      });
+
       const balances = await economyStore.getBalances(client, profile.user_id);
-      const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+      const token = await buildTokenSummary(client, profile, runtimeConfig, balances, {
+        featureFlags
+      });
       await client.query("COMMIT");
       reply.send({
         success: true,
         session: issueWebAppSession(auth.uid),
         data: {
           request: {
-            id: Number(updated.id),
-            status: updated.status,
-            tx_hash: updated.tx_hash
+            id: Number(requestView?.id || updated.id),
+            status: requestView?.status || updated.status,
+            tx_hash: requestView?.tx_hash || updated.tx_hash
+          },
+          decision: {
+            decision: autoDecision.decision,
+            reason: autoDecision.reason,
+            reasons: autoDecision.reasons || [],
+            passed: Boolean(autoDecision.passed)
           },
           token
         }
@@ -2457,6 +3274,44 @@ fastify.get("/webapp/api/admin/metrics", async (request, reply) => {
       success: true,
       session: issueWebAppSession(auth.uid),
       data: metrics
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/admin/queues", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const payoutQueue = await payoutStore.listRequests(client, { status: "requested", limit: 50 }).catch((err) => {
+      if (err.code === "42P01") return [];
+      throw err;
+    });
+    const manualTokenQueue = await tokenStore.listManualReviewQueue(client, 50).catch((err) => {
+      if (err.code === "42P01") return [];
+      throw err;
+    });
+    const autoDecisions = await tokenStore.listTokenAutoDecisions(client, { limit: 50 }).catch((err) => {
+      if (err.code === "42P01") return [];
+      throw err;
+    });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        payout_queue: payoutQueue,
+        token_manual_queue: manualTokenQueue,
+        token_auto_decisions: autoDecisions
+      }
     });
   } finally {
     client.release();
@@ -2606,6 +3461,270 @@ fastify.post(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/token/auto_policy",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          enabled: { type: "boolean" },
+          auto_usd_limit: { type: "number", minimum: 0.5 },
+          risk_threshold: { type: "number", minimum: 0, maximum: 1 },
+          velocity_per_hour: { type: "integer", minimum: 1, maximum: 1000 },
+          require_onchain_verified: { type: "boolean" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const currentMarketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const nextPolicy = {
+        ...normalized.autoPolicy
+      };
+      if (typeof request.body.enabled === "boolean") {
+        nextPolicy.enabled = Boolean(request.body.enabled);
+      }
+      if (Number.isFinite(Number(request.body.auto_usd_limit))) {
+        nextPolicy.autoUsdLimit = Math.max(0.5, Number(request.body.auto_usd_limit));
+      }
+      if (Number.isFinite(Number(request.body.risk_threshold))) {
+        nextPolicy.riskThreshold = Math.max(0, Math.min(1, Number(request.body.risk_threshold)));
+      }
+      if (Number.isFinite(Number(request.body.velocity_per_hour))) {
+        nextPolicy.velocityPerHour = Math.max(1, Math.floor(Number(request.body.velocity_per_hour)));
+      }
+      if (typeof request.body.require_onchain_verified === "boolean") {
+        nextPolicy.requireOnchainVerified = Boolean(request.body.require_onchain_verified);
+      }
+
+      await tokenStore.upsertTokenMarketState(client, {
+        tokenSymbol: tokenConfig.symbol,
+        adminFloorUsd: normalized.adminFloorUsd,
+        curveBaseUsd: normalized.curveBaseUsd,
+        curveK: normalized.curveK,
+        supplyNormDivisor: normalized.supplyNormDivisor,
+        demandFactor: normalized.demandFactor,
+        volatilityDampen: normalized.volatilityDampen,
+        autoPolicy: {
+          enabled: Boolean(nextPolicy.enabled),
+          auto_usd_limit: Number(nextPolicy.autoUsdLimit || 10),
+          risk_threshold: Number(nextPolicy.riskThreshold || 0.35),
+          velocity_per_hour: Number(nextPolicy.velocityPerHour || 8),
+          require_onchain_verified: Boolean(nextPolicy.requireOnchainVerified)
+        },
+        updatedBy: Number(auth.uid)
+      });
+
+      if (typeof request.body.enabled === "boolean") {
+        await upsertFeatureFlag(client, {
+          flagKey: "TOKEN_AUTO_APPROVE_ENABLED",
+          enabled: Boolean(request.body.enabled),
+          updatedBy: Number(auth.uid),
+          note: "updated via /webapp/api/admin/token/auto_policy"
+        }).catch((err) => {
+          if (err.code !== "42P01") throw err;
+        });
+      }
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'webapp_token_auto_policy_update', 'token_market_state', $2::jsonb);`,
+        [
+          Number(auth.uid),
+          JSON.stringify({
+            token_symbol: tokenConfig.symbol,
+            policy: {
+              enabled: Boolean(nextPolicy.enabled),
+              auto_usd_limit: Number(nextPolicy.autoUsdLimit || 10),
+              risk_threshold: Number(nextPolicy.riskThreshold || 0.35),
+              velocity_per_hour: Number(nextPolicy.velocityPerHour || 8),
+              require_onchain_verified: Boolean(nextPolicy.requireOnchainVerified)
+            },
+            feature_flag_enabled: typeof request.body.enabled === "boolean" ? Boolean(request.body.enabled) : null
+          })
+        ]
+      );
+
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: summary
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/admin/token/curve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          enabled: { type: "boolean" },
+          admin_floor_usd: { type: "number", minimum: 0.00000001 },
+          base_usd: { type: "number", minimum: 0.00000001 },
+          k: { type: "number", minimum: 0 },
+          supply_norm_divisor: { type: "number", minimum: 1 },
+          demand_factor: { type: "number", minimum: 0.1 },
+          volatility_dampen: { type: "number", minimum: 0, maximum: 1 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const currentMarketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const next = {
+        adminFloorUsd: normalized.adminFloorUsd,
+        curveBaseUsd: normalized.curveBaseUsd,
+        curveK: normalized.curveK,
+        supplyNormDivisor: normalized.supplyNormDivisor,
+        demandFactor: normalized.demandFactor,
+        volatilityDampen: normalized.volatilityDampen
+      };
+
+      if (Number.isFinite(Number(request.body.admin_floor_usd))) {
+        next.adminFloorUsd = Math.max(0.00000001, Number(request.body.admin_floor_usd));
+      }
+      if (Number.isFinite(Number(request.body.base_usd))) {
+        next.curveBaseUsd = Math.max(0.00000001, Number(request.body.base_usd));
+      }
+      if (Number.isFinite(Number(request.body.k))) {
+        next.curveK = Math.max(0, Number(request.body.k));
+      }
+      if (Number.isFinite(Number(request.body.supply_norm_divisor))) {
+        next.supplyNormDivisor = Math.max(1, Number(request.body.supply_norm_divisor));
+      }
+      if (Number.isFinite(Number(request.body.demand_factor))) {
+        next.demandFactor = Math.max(0.1, Number(request.body.demand_factor));
+      }
+      if (Number.isFinite(Number(request.body.volatility_dampen))) {
+        next.volatilityDampen = Math.max(0, Math.min(1, Number(request.body.volatility_dampen)));
+      }
+
+      await tokenStore.upsertTokenMarketState(client, {
+        tokenSymbol: tokenConfig.symbol,
+        adminFloorUsd: next.adminFloorUsd,
+        curveBaseUsd: next.curveBaseUsd,
+        curveK: next.curveK,
+        supplyNormDivisor: next.supplyNormDivisor,
+        demandFactor: next.demandFactor,
+        volatilityDampen: next.volatilityDampen,
+        autoPolicy: normalized.autoPolicy,
+        updatedBy: Number(auth.uid)
+      });
+
+      if (typeof request.body.enabled === "boolean") {
+        await upsertFeatureFlag(client, {
+          flagKey: "TOKEN_CURVE_ENABLED",
+          enabled: Boolean(request.body.enabled),
+          updatedBy: Number(auth.uid),
+          note: "updated via /webapp/api/admin/token/curve"
+        }).catch((err) => {
+          if (err.code !== "42P01") throw err;
+        });
+      }
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'webapp_token_curve_update', 'token_market_state', $2::jsonb);`,
+        [
+          Number(auth.uid),
+          JSON.stringify({
+            token_symbol: tokenConfig.symbol,
+            curve: {
+              admin_floor_usd: next.adminFloorUsd,
+              base_usd: next.curveBaseUsd,
+              k: next.curveK,
+              supply_norm_divisor: next.supplyNormDivisor,
+              demand_factor: next.demandFactor,
+              volatility_dampen: next.volatilityDampen
+            },
+            feature_flag_enabled: typeof request.body.enabled === "boolean" ? Boolean(request.body.enabled) : null
+          })
+        ]
+      );
+
+      const summary = await buildAdminSummary(client, runtimeConfig);
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: summary
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
       throw err;
     } finally {
       client.release();
@@ -3012,6 +4131,66 @@ fastify.addHook("preHandler", async (request, reply) => {
   }
 });
 
+fastify.get("/admin/whoami", async (request, reply) => {
+  const headerId = parseAdminId(request);
+  reply.send({
+    success: true,
+    data: {
+      header_admin_id: Number(headerId || 0),
+      configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+      is_admin: isAdminTelegramId(headerId),
+      hint: "Use /whoami in bot and set ADMIN_TELEGRAM_ID to the same value."
+    }
+  });
+});
+
+fastify.get("/admin/release/latest", async (request, reply) => {
+  const exists = await hasReleaseMarkersTable(pool);
+  if (!exists) {
+    reply.code(503).send({ success: false, error: "release_markers_missing" });
+    return;
+  }
+  const marker = await readLatestReleaseMarker(pool);
+  reply.send({ success: true, data: marker });
+});
+
+fastify.post(
+  "/admin/release/mark",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          git_revision: { type: "string", maxLength: 200 },
+          deploy_id: { type: "string", maxLength: 200 },
+          environment: { type: "string", maxLength: 50 },
+          config_version: { type: "integer", minimum: 0 },
+          notes: { type: "string", maxLength: 500 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const exists = await hasReleaseMarkersTable(pool);
+    if (!exists) {
+      reply.code(503).send({ success: false, error: "release_markers_missing" });
+      return;
+    }
+    const adminId = parseAdminId(request);
+    const health = await dependencyHealth();
+    const marker = await captureReleaseMarker(pool, {
+      gitRevision: request.body?.git_revision || RELEASE_GIT_REVISION || "manual",
+      deployId: request.body?.deploy_id || RELEASE_DEPLOY_ID || "",
+      environment: request.body?.environment || RELEASE_ENV || "production",
+      configVersion: Number(request.body?.config_version || 0),
+      notes: request.body?.notes || "manual_release_marker",
+      createdBy: adminId,
+      health
+    });
+    reply.send({ success: true, data: marker });
+  }
+);
+
 fastify.post(
   "/admin/configs",
   {
@@ -3209,6 +4388,249 @@ fastify.get("/admin/system/state", async (request, reply) => {
     }
   });
 });
+
+fastify.post(
+  "/admin/token/auto-policy",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean" },
+          auto_usd_limit: { type: "number", minimum: 0.5 },
+          risk_threshold: { type: "number", minimum: 0, maximum: 1 },
+          velocity_per_hour: { type: "integer", minimum: 1, maximum: 1000 },
+          require_onchain_verified: { type: "boolean" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const adminId = parseAdminId(request);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const currentMarketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const nextPolicy = {
+        ...normalized.autoPolicy
+      };
+
+      if (typeof request.body.enabled === "boolean") {
+        nextPolicy.enabled = Boolean(request.body.enabled);
+      }
+      if (Number.isFinite(Number(request.body.auto_usd_limit))) {
+        nextPolicy.autoUsdLimit = Math.max(0.5, Number(request.body.auto_usd_limit));
+      }
+      if (Number.isFinite(Number(request.body.risk_threshold))) {
+        nextPolicy.riskThreshold = Math.max(0, Math.min(1, Number(request.body.risk_threshold)));
+      }
+      if (Number.isFinite(Number(request.body.velocity_per_hour))) {
+        nextPolicy.velocityPerHour = Math.max(1, Math.floor(Number(request.body.velocity_per_hour)));
+      }
+      if (typeof request.body.require_onchain_verified === "boolean") {
+        nextPolicy.requireOnchainVerified = Boolean(request.body.require_onchain_verified);
+      }
+
+      const upserted = await tokenStore.upsertTokenMarketState(client, {
+        tokenSymbol: tokenConfig.symbol,
+        adminFloorUsd: normalized.adminFloorUsd,
+        curveBaseUsd: normalized.curveBaseUsd,
+        curveK: normalized.curveK,
+        supplyNormDivisor: normalized.supplyNormDivisor,
+        demandFactor: normalized.demandFactor,
+        volatilityDampen: normalized.volatilityDampen,
+        autoPolicy: {
+          enabled: Boolean(nextPolicy.enabled),
+          auto_usd_limit: Number(nextPolicy.autoUsdLimit || 10),
+          risk_threshold: Number(nextPolicy.riskThreshold || 0.35),
+          velocity_per_hour: Number(nextPolicy.velocityPerHour || 8),
+          require_onchain_verified: Boolean(nextPolicy.requireOnchainVerified)
+        },
+        updatedBy: adminId
+      });
+
+      if (typeof request.body.enabled === "boolean") {
+        await upsertFeatureFlag(client, {
+          flagKey: "TOKEN_AUTO_APPROVE_ENABLED",
+          enabled: Boolean(request.body.enabled),
+          updatedBy: adminId,
+          note: "updated via /admin/token/auto-policy"
+        }).catch((err) => {
+          if (err.code !== "42P01") throw err;
+        });
+      }
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_auto_policy_update', 'token_market_state', $2::jsonb);`,
+        [
+          adminId,
+          JSON.stringify({
+            token_symbol: tokenConfig.symbol,
+            policy: upserted?.auto_policy_json || {},
+            feature_flag_enabled:
+              typeof request.body.enabled === "boolean" ? Boolean(request.body.enabled) : null
+          })
+        ]
+      );
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        data: {
+          token_symbol: tokenConfig.symbol,
+          auto_policy: upserted?.auto_policy_json || {},
+          updated_at: upserted?.updated_at || null
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/admin/token/curve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean" },
+          admin_floor_usd: { type: "number", minimum: 0.00000001 },
+          base_usd: { type: "number", minimum: 0.00000001 },
+          k: { type: "number", minimum: 0 },
+          supply_norm_divisor: { type: "number", minimum: 1 },
+          demand_factor: { type: "number", minimum: 0.1 },
+          volatility_dampen: { type: "number", minimum: 0, maximum: 1 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const adminId = parseAdminId(request);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
+      const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+      const currentMarketState = await tokenStore.getTokenMarketState(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const next = {
+        adminFloorUsd: normalized.adminFloorUsd,
+        curveBaseUsd: normalized.curveBaseUsd,
+        curveK: normalized.curveK,
+        supplyNormDivisor: normalized.supplyNormDivisor,
+        demandFactor: normalized.demandFactor,
+        volatilityDampen: normalized.volatilityDampen
+      };
+
+      if (Number.isFinite(Number(request.body.admin_floor_usd))) {
+        next.adminFloorUsd = Math.max(0.00000001, Number(request.body.admin_floor_usd));
+      }
+      if (Number.isFinite(Number(request.body.base_usd))) {
+        next.curveBaseUsd = Math.max(0.00000001, Number(request.body.base_usd));
+      }
+      if (Number.isFinite(Number(request.body.k))) {
+        next.curveK = Math.max(0, Number(request.body.k));
+      }
+      if (Number.isFinite(Number(request.body.supply_norm_divisor))) {
+        next.supplyNormDivisor = Math.max(1, Number(request.body.supply_norm_divisor));
+      }
+      if (Number.isFinite(Number(request.body.demand_factor))) {
+        next.demandFactor = Math.max(0.1, Number(request.body.demand_factor));
+      }
+      if (Number.isFinite(Number(request.body.volatility_dampen))) {
+        next.volatilityDampen = Math.max(0, Math.min(1, Number(request.body.volatility_dampen)));
+      }
+
+      const upserted = await tokenStore.upsertTokenMarketState(client, {
+        tokenSymbol: tokenConfig.symbol,
+        adminFloorUsd: next.adminFloorUsd,
+        curveBaseUsd: next.curveBaseUsd,
+        curveK: next.curveK,
+        supplyNormDivisor: next.supplyNormDivisor,
+        demandFactor: next.demandFactor,
+        volatilityDampen: next.volatilityDampen,
+        autoPolicy: normalized.autoPolicy,
+        updatedBy: adminId
+      });
+
+      if (typeof request.body.enabled === "boolean") {
+        await upsertFeatureFlag(client, {
+          flagKey: "TOKEN_CURVE_ENABLED",
+          enabled: Boolean(request.body.enabled),
+          updatedBy: adminId,
+          note: "updated via /admin/token/curve"
+        }).catch((err) => {
+          if (err.code !== "42P01") throw err;
+        });
+      }
+
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'token_curve_update', 'token_market_state', $2::jsonb);`,
+        [
+          adminId,
+          JSON.stringify({
+            token_symbol: tokenConfig.symbol,
+            curve: {
+              admin_floor_usd: next.adminFloorUsd,
+              base_usd: next.curveBaseUsd,
+              k: next.curveK,
+              supply_norm_divisor: next.supplyNormDivisor,
+              demand_factor: next.demandFactor,
+              volatility_dampen: next.volatilityDampen
+            },
+            feature_flag_enabled:
+              typeof request.body.enabled === "boolean" ? Boolean(request.body.enabled) : null
+          })
+        ]
+      );
+
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        data: {
+          token_symbol: tokenConfig.symbol,
+          curve: {
+            admin_floor_usd: Number(upserted?.admin_floor_usd || next.adminFloorUsd),
+            base_usd: Number(upserted?.curve_base_usd || next.curveBaseUsd),
+            k: Number(upserted?.curve_k || next.curveK),
+            supply_norm_divisor: Number(upserted?.supply_norm_divisor || next.supplyNormDivisor),
+            demand_factor: Number(upserted?.demand_factor || next.demandFactor),
+            volatility_dampen: Number(upserted?.volatility_dampen || next.volatilityDampen)
+          },
+          updated_at: upserted?.updated_at || null
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "token_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
 
 fastify.get(
   "/admin/payouts",
@@ -3790,4 +5212,27 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
     process.exit(1);
   }
   fastify.log.info(`Admin API listening on ${address}`);
+  (async () => {
+    try {
+      const marker = await captureReleaseMarker(pool, {
+        gitRevision: RELEASE_GIT_REVISION || "boot",
+        deployId: RELEASE_DEPLOY_ID || "",
+        environment: RELEASE_ENV || "production",
+        notes: "startup_boot_marker",
+        createdBy: Number(ADMIN_TELEGRAM_ID || 0)
+      });
+      if (marker) {
+        fastify.log.info({
+          event: "release_marker_created",
+          release_ref: marker.release_ref,
+          git_revision: marker.git_revision,
+          deploy_id: marker.deploy_id
+        });
+      } else {
+        fastify.log.warn({ event: "release_marker_skipped", reason: "table_missing" });
+      }
+    } catch (markerErr) {
+      fastify.log.warn({ err: markerErr, event: "release_marker_failed" });
+    }
+  })();
 });

@@ -86,6 +86,30 @@ function formatGuide(snapshot) {
   );
 }
 
+function formatOnboard(payload = {}) {
+  const profile = payload.profile || {};
+  const balances = payload.balances || {};
+  const daily = payload.daily || {};
+  const season = payload.season || {};
+  const token = payload.token || {};
+  const symbol = String(token.symbol || "NXT").toUpperCase();
+  return (
+    `*AirdropKralBot Onboard*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name || "oyuncu")}* | Tier *${profile.kingdom_tier || 0}*\n` +
+    `Bakiye: *${Number(balances.SC || 0)} SC / ${Number(balances.HC || 0)} HC / ${Number(balances.RC || 0)} RC*\n` +
+    `Sezon: *S${Number(season.seasonId || 0)}* - ${Number(season.daysLeft || 0)} gun\n\n` +
+    `*3 adimda basla*\n` +
+    `1) /tasks -> bir gorev sec\n` +
+    `2) /finish dengeli -> denemeyi kapat\n` +
+    `3) /reveal -> odulu ac\n\n` +
+    `*Ekonomi ozeti*\n` +
+    `Gunluk cap: *${Number(daily.tasksDone || 0)}/${Number(daily.dailyCap || 0)}*\n` +
+    `Bugun kazanilan: *${Number(daily.scEarned || 0)} SC*\n` +
+    `Token: *${Number(token.balance || 0).toFixed(4)} ${symbol}* | Spot *$${Number(token.spotUsd || 0).toFixed(8)}*\n\n` +
+    `Kisayol: /play (Nexus), /wallet, /missions, /token`
+  );
+}
+
 function formatProfile(profile, balances) {
   const publicName = escapeMarkdown(profile.public_name);
   const progress = progressBar(profile.reputation_score || 0, 1500);
@@ -693,6 +717,7 @@ function formatNexusPulse(payload) {
 function formatHelp() {
   return (
     `*Komutlar*\n` +
+    `/onboard - 3 adim hizli giris\n` +
     `/guide - Hizli baslangic rehberi\n` +
     `/tasks - Gorev havuzu\n` +
     `/finish [safe|balanced|aggressive] - Son aktif gorevi bitir\n` +
@@ -722,7 +747,7 @@ function formatHelp() {
     `/payout - Cekim paneli\n` +
     `/streak - Zincir durumu\n` +
     `/profile - Kimlik karti\n\n` +
-    `Admin: /admin, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
+    `Admin: /admin, /admin_live, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
   );
 }
 
@@ -771,11 +796,15 @@ function formatAdminPanel(snapshot, isAdmin) {
 
 function formatAdminWhoami(telegramId, adminTelegramId) {
   const isAdmin = Number(telegramId || 0) === Number(adminTelegramId || 0);
+  const nextStep = isAdmin
+    ? "Durum: admin kilidi dogru."
+    : "Fix: /whoami ID degerini local + Render ADMIN_TELEGRAM_ID alanina birebir yaz.";
   return (
     `*Kimlik Kontrol*\n` +
     `Telegram ID: *${Number(telegramId || 0)}*\n` +
     `Config Admin ID: *${Number(adminTelegramId || 0)}*\n` +
-    `Yetki: *${isAdmin ? "ADMIN" : "USER"}*`
+    `Yetki: *${isAdmin ? "ADMIN" : "USER"}*\n` +
+    `${escapeMarkdown(nextStep)}`
   );
 }
 
@@ -783,9 +812,47 @@ function formatAdminActionResult(title, details) {
   return `*${escapeMarkdown(title)}*\n${escapeMarkdown(details || "islem tamamlandi")}`;
 }
 
+function formatAdminLive(payload = {}) {
+  const snapshot = payload.snapshot || {};
+  const metrics = payload.metrics || {};
+  const webappUrl = String(payload.webappUrl || "");
+  const freeze = snapshot.freeze || {};
+  const token = snapshot.token || {};
+  const gate = token.payoutGate || {};
+  const payoutQueue = Number(snapshot.pendingPayoutCount || 0);
+  const tokenQueue = Number(snapshot.pendingTokenCount || 0);
+  const critical =
+    freeze.freeze || payoutQueue > 0 || tokenQueue > 0
+      ? "Aksiyon gerekli"
+      : "Stabil";
+  const queueHint =
+    payoutQueue + tokenQueue > 0
+      ? `Payout ${payoutQueue} | Token ${tokenQueue}`
+      : "Queue temiz";
+
+  return (
+    `*Admin Live*\n` +
+    `Durum: *${critical}*\n` +
+    `Freeze: *${freeze.freeze ? "ON" : "OFF"}*` +
+    (freeze.reason ? ` (${escapeMarkdown(freeze.reason)})` : "") +
+    `\nUsers: *${Number(snapshot.totalUsers || 0)}* | Active Attempt: *${Number(snapshot.activeAttempts || 0)}*\n` +
+    `Queue: *${queueHint}*\n` +
+    `Token: *${escapeMarkdown(token.symbol || "NXT")}* | Spot *$${Number(token.spotUsd || 0).toFixed(8)}* | Cap *$${Number(
+      token.marketCapUsd || 0
+    ).toFixed(2)}*\n` +
+    `Gate: *${gate.allowed ? "OPEN" : "LOCKED"}* (${Number(gate.current || 0).toFixed(2)} / ${Number(gate.min || 0).toFixed(2)})\n\n` +
+    `24s: users *${Number(metrics.users_active_24h || 0)}* | reveal *${Number(metrics.reveals_24h || 0)}* | token *$${Number(
+      metrics.token_usd_volume_24h || 0
+    ).toFixed(2)}*\n\n` +
+    (webappUrl ? `WebApp: ${escapeMarkdown(webappUrl)}\n` : "") +
+    `Komutlar: /admin, /admin_payouts, /admin_tokens, /admin_metrics`
+  );
+}
+
 module.exports = {
   formatStart,
   formatGuide,
+  formatOnboard,
   formatNexusPulse,
   formatProfile,
   formatTasks,
@@ -817,6 +884,7 @@ module.exports = {
   formatArenaRaidResult,
   formatHelp,
   formatAdminPanel,
+  formatAdminLive,
   formatAdminWhoami,
   formatAdminActionResult
 };

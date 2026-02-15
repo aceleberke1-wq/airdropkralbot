@@ -65,3 +65,83 @@ test("planMintFromBalances returns insufficient when requested too high", () => 
   assert.equal(plan.ok, false);
   assert.equal(plan.reason, "insufficient_balance");
 });
+
+test("computeTreasuryCurvePrice is monotonic and clamps to admin floor", () => {
+  const cfg = tokenEngine.normalizeTokenConfig({
+    token: {
+      usd_price: 0.0005,
+      curve: {
+        enabled: true,
+        admin_floor_usd: 0.0008,
+        base_usd: 0.0003,
+        k: 0.12,
+        supply_norm_divisor: 1000,
+        demand_factor: 1
+      }
+    }
+  });
+
+  const low = tokenEngine.computeTreasuryCurvePrice({
+    tokenConfig: cfg,
+    marketState: null,
+    totalSupply: 100
+  });
+  const high = tokenEngine.computeTreasuryCurvePrice({
+    tokenConfig: cfg,
+    marketState: null,
+    totalSupply: 100000
+  });
+
+  assert.ok(low.priceUsd >= 0.0008);
+  assert.ok(high.priceUsd >= low.priceUsd);
+});
+
+test("evaluateAutoApprovePolicy enforces usd/risk/velocity/onchain and gate", () => {
+  const policy = {
+    enabled: true,
+    autoUsdLimit: 10,
+    riskThreshold: 0.35,
+    velocityPerHour: 8,
+    requireOnchainVerified: true
+  };
+
+  const pass = tokenEngine.evaluateAutoApprovePolicy(
+    {
+      usdAmount: 5,
+      riskScore: 0.12,
+      velocityPerHour: 2,
+      onchainVerified: true,
+      gateOpen: true
+    },
+    policy
+  );
+  assert.equal(pass.passed, true);
+  assert.equal(pass.decision, "auto_approved");
+
+  const failRisk = tokenEngine.evaluateAutoApprovePolicy(
+    {
+      usdAmount: 5,
+      riskScore: 0.8,
+      velocityPerHour: 2,
+      onchainVerified: true,
+      gateOpen: true
+    },
+    policy
+  );
+  assert.equal(failRisk.passed, false);
+  assert.equal(failRisk.decision, "manual_review");
+  assert.equal(failRisk.reason, "risk_threshold_exceeded");
+
+  const failOnchain = tokenEngine.evaluateAutoApprovePolicy(
+    {
+      usdAmount: 5,
+      riskScore: 0.1,
+      velocityPerHour: 2,
+      onchainVerified: false,
+      gateOpen: true
+    },
+    policy
+  );
+  assert.equal(failOnchain.passed, false);
+  assert.equal(failOnchain.reason, "onchain_verification_required");
+});

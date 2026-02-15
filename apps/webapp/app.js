@@ -26,9 +26,29 @@
       misses: 0,
       secondsLeft: 0
     },
+    v3: {
+      appState: "idle",
+      session: null,
+      queue: [],
+      draining: false,
+      arenaAuthAvailable: null,
+      tokenQuote: null,
+      quoteTimer: null
+    },
     intro: {
       seenKey: "airdropkral_intro_seen_v2",
       visible: false
+    },
+    ui: {
+      qualityMode: "auto",
+      autoQualityMode: "normal",
+      reducedMotion: false,
+      largeText: false,
+      storageKeys: {
+        quality: "airdropkral_ui_quality_v1",
+        reducedMotion: "airdropkral_ui_reduced_motion_v1",
+        largeText: "airdropkral_ui_large_text_v1"
+      }
     }
   };
 
@@ -39,6 +59,36 @@
     tg.setHeaderColor("#0d1635");
     tg.setBackgroundColor("#0b112a");
   }
+
+  const QUALITY_PROFILES = Object.freeze({
+    low: {
+      key: "low",
+      pixelRatioCap: 1.05,
+      starCount: 900,
+      starSize: 0.02,
+      enableShards: false,
+      pointerLerp: 0.011,
+      cameraDrift: 0.45
+    },
+    normal: {
+      key: "normal",
+      pixelRatioCap: 1.6,
+      starCount: 1800,
+      starSize: 0.028,
+      enableShards: true,
+      pointerLerp: 0.018,
+      cameraDrift: 0.8
+    },
+    high: {
+      key: "high",
+      pixelRatioCap: 2,
+      starCount: 2800,
+      starSize: 0.034,
+      enableShards: true,
+      pointerLerp: 0.024,
+      cameraDrift: 1.05
+    }
+  });
 
   function byId(id) {
     return document.getElementById(id);
@@ -71,6 +121,132 @@
 
   function tokenDecimals(token) {
     return Math.max(2, Math.min(8, Number(token?.decimals || 4)));
+  }
+
+  function readStorage(key, fallback = "") {
+    try {
+      const value = localStorage.getItem(key);
+      return value === null ? fallback : value;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch {}
+  }
+
+  function getEffectiveQualityMode() {
+    if (state.ui.qualityMode !== "auto") {
+      return state.ui.qualityMode;
+    }
+    return state.ui.autoQualityMode || "normal";
+  }
+
+  function getQualityProfile(modeKey = null) {
+    const key = String(modeKey || getEffectiveQualityMode() || "normal").toLowerCase();
+    return QUALITY_PROFILES[key] || QUALITY_PROFILES.normal;
+  }
+
+  function qualityButtonLabel() {
+    if (state.ui.qualityMode === "auto") {
+      return `Perf: Auto (${getEffectiveQualityMode()})`;
+    }
+    return `Perf: ${state.ui.qualityMode}`;
+  }
+
+  function applyUiClasses() {
+    const body = document.body;
+    const effective = getEffectiveQualityMode();
+    body.classList.toggle("reduced-motion", state.ui.reducedMotion);
+    body.classList.toggle("large-type", state.ui.largeText);
+    body.classList.toggle("quality-low", effective === "low");
+    body.classList.toggle("quality-high", effective === "high");
+    body.classList.toggle("quality-normal", effective === "normal");
+
+    const qualityBtn = byId("qualityToggleBtn");
+    if (qualityBtn) {
+      qualityBtn.textContent = qualityButtonLabel();
+      qualityBtn.dataset.active = state.ui.qualityMode === "auto" ? "0" : "1";
+    }
+    const motionBtn = byId("motionToggleBtn");
+    if (motionBtn) {
+      motionBtn.textContent = state.ui.reducedMotion ? "Motion: Azaltildi" : "Motion: Acik";
+      motionBtn.dataset.active = state.ui.reducedMotion ? "1" : "0";
+    }
+    const typeBtn = byId("typeToggleBtn");
+    if (typeBtn) {
+      typeBtn.textContent = state.ui.largeText ? "Yazi: Buyuk" : "Yazi: Normal";
+      typeBtn.dataset.active = state.ui.largeText ? "1" : "0";
+    }
+  }
+
+  function persistUiPrefs() {
+    writeStorage(state.ui.storageKeys.quality, state.ui.qualityMode);
+    writeStorage(state.ui.storageKeys.reducedMotion, state.ui.reducedMotion ? "1" : "0");
+    writeStorage(state.ui.storageKeys.largeText, state.ui.largeText ? "1" : "0");
+  }
+
+  function loadUiPrefs() {
+    const quality = String(readStorage(state.ui.storageKeys.quality, "auto") || "auto").toLowerCase();
+    if (["auto", "high", "low"].includes(quality)) {
+      state.ui.qualityMode = quality;
+    }
+    state.ui.reducedMotion = readStorage(state.ui.storageKeys.reducedMotion, "0") === "1";
+    state.ui.largeText = readStorage(state.ui.storageKeys.largeText, "0") === "1";
+    applyUiClasses();
+  }
+
+  function applyArenaQualityProfile(profile = null) {
+    const arena = state.arena;
+    if (!arena || !arena.renderer) {
+      return;
+    }
+    const nextProfile = profile || getQualityProfile();
+    arena.qualityProfile = nextProfile;
+    const ratioCap = state.ui.reducedMotion ? Math.min(1.2, nextProfile.pixelRatioCap) : nextProfile.pixelRatioCap;
+    arena.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ratioCap));
+    if (arena.starsMaterial) {
+      arena.starsMaterial.size = nextProfile.starSize;
+    }
+    if (arena.stars && arena.stars.geometry && typeof arena.stars.geometry.setDrawRange === "function") {
+      arena.stars.geometry.setDrawRange(0, nextProfile.starCount);
+    }
+    if (arena.shards) {
+      arena.shards.visible = Boolean(nextProfile.enableShards && !state.ui.reducedMotion);
+    }
+    applyUiClasses();
+  }
+
+  function cycleQualityMode() {
+    const nextMap = {
+      auto: "high",
+      high: "low",
+      low: "auto"
+    };
+    state.ui.qualityMode = nextMap[state.ui.qualityMode] || "auto";
+    if (state.ui.qualityMode !== "auto") {
+      state.ui.autoQualityMode = "normal";
+    }
+    persistUiPrefs();
+    applyArenaQualityProfile();
+    showToast(`Performans modu: ${qualityButtonLabel()}`);
+  }
+
+  function toggleMotion() {
+    state.ui.reducedMotion = !state.ui.reducedMotion;
+    persistUiPrefs();
+    applyArenaQualityProfile();
+    showToast(state.ui.reducedMotion ? "Motion azaltildi" : "Motion acildi");
+  }
+
+  function toggleLargeText() {
+    state.ui.largeText = !state.ui.largeText;
+    persistUiPrefs();
+    applyUiClasses();
+    showToast(state.ui.largeText ? "Buyuk yazi modu acik" : "Yazi boyutu normale dondu");
   }
 
   function renewAuth(payload) {
@@ -284,6 +460,27 @@
   }
 
   function applySimInput(action) {
+    if (state.v3.session && String(state.v3.session.status || "") === "active") {
+      enqueueArenaAction(action)
+        .then(async () => {
+          const activeSession = state.v3.session;
+          if (!activeSession) {
+            return;
+          }
+          const actionCount = asNum(activeSession.action_count);
+          const minResolve = Math.max(6, asNum(activeSession.state?.resolve_min_actions || 6));
+          if (actionCount >= minResolve) {
+            const resolved = await resolveArenaSession();
+            const outcome = String(resolved?.outcome || resolved?.session?.result?.outcome || "near");
+            showToast(`Auth resolve: ${outcome.toUpperCase()}`);
+            triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive");
+            await loadBootstrap();
+          }
+        })
+        .catch(showError);
+      return;
+    }
+
     if (!state.sim.active || !state.sim.awaiting) {
       return;
     }
@@ -393,6 +590,41 @@
   }
 
   async function startSimulation() {
+    if (state.v3.session && String(state.v3.session.status || "") === "active") {
+      const actionCount = asNum(state.v3.session.action_count);
+      if (actionCount < 6) {
+        showToast(`Auth session aktif. En az ${6 - actionCount} hamle daha gerekli.`, true);
+        return;
+      }
+      const resolved = await resolveArenaSession();
+      const outcome = String(resolved?.outcome || resolved?.session?.result?.outcome || "near");
+      showToast(`Auth resolve: ${outcome.toUpperCase()}`);
+      triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive");
+      await loadBootstrap();
+      return;
+    }
+
+    if (state.v3.arenaAuthAvailable !== false) {
+      try {
+        const suggested = chooseModeByRisk(state.data?.risk_score);
+        await startArenaSession(suggested);
+        showToast("Auth session basladi");
+        triggerArenaPulse("info");
+        return;
+      } catch (err) {
+        const message = String(err?.message || "");
+        if (
+          message.includes("arena_auth_disabled") ||
+          message.includes("arena_session_tables_missing") ||
+          message.includes("session_not_active")
+        ) {
+          state.v3.arenaAuthAvailable = false;
+        } else {
+          throw err;
+        }
+      }
+    }
+
     if (state.sim.active) {
       return;
     }
@@ -473,6 +705,184 @@
       client_ts: Date.now(),
       ...extra
     };
+  }
+
+  function setClientState(nextState) {
+    const allowed = new Set(["idle", "task", "combat", "reveal", "warning"]);
+    const normalized = allowed.has(String(nextState || "").toLowerCase())
+      ? String(nextState || "").toLowerCase()
+      : "idle";
+    state.v3.appState = normalized;
+    document.body.dataset.appState = normalized;
+  }
+
+  function syncArenaSessionUi(session) {
+    state.v3.session = session || null;
+    if (!session) {
+      setClientState("idle");
+      return;
+    }
+    const status = String(session.status || "active");
+    if (status === "resolved") {
+      setClientState("reveal");
+    } else if (status === "active") {
+      setClientState("combat");
+    } else {
+      setClientState("warning");
+    }
+
+    const expected = String(session.next_expected_action || "").toUpperCase();
+    const score = asNum(session.score);
+    const combo = asNum(session.combo_max);
+    const hits = asNum(session.hits);
+    const misses = asNum(session.misses);
+    const ttl = asNum(session.ttl_sec_left);
+    byId("simTimer").textContent = status === "active" ? `TTL ${ttl}s` : String(status || "hazir").toUpperCase();
+    byId("simPrompt").textContent =
+      status === "active"
+        ? `Auth Session #${asNum(session.session_id)} | Beklenen: ${expected || "-"}`
+        : `Session ${String(status || "idle").toUpperCase()} | Resolve hazir`;
+    byId("simStats").textContent = `Skor ${score} | Combo ${combo} | Hit ${hits} | Miss ${misses}`;
+    byId("simStartBtn").disabled = status === "active";
+    const canInput = status === "active";
+    byId("simStrikeBtn").disabled = !canInput;
+    byId("simGuardBtn").disabled = !canInput;
+    byId("simChargeBtn").disabled = !canInput;
+  }
+
+  async function fetchArenaSessionState(sessionRef = "") {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig
+    });
+    if (sessionRef) {
+      query.set("session_ref", sessionRef);
+    }
+    const res = await fetch(`/webapp/api/arena/session/state?${query.toString()}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `arena_session_state_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.arenaAuthAvailable = true;
+    const session = payload.data?.session || null;
+    syncArenaSessionUi(session);
+    return session;
+  }
+
+  async function startArenaSession(modeSuggested = "balanced") {
+    const res = await fetch("/webapp/api/arena/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        request_id: `webapp_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        mode_suggested: modeSuggested
+      })
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `arena_session_start_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.arenaAuthAvailable = true;
+    const session = payload.data?.session || null;
+    syncArenaSessionUi(session);
+    return session;
+  }
+
+  async function postArenaSessionAction(inputAction, queuedAt) {
+    const session = state.v3.session;
+    if (!session || !session.session_ref) {
+      throw new Error("session_not_found");
+    }
+    const actionSeq = asNum(session.action_count) + 1;
+    const latencyMs = Math.max(0, Date.now() - Number(queuedAt || Date.now()));
+    const res = await fetch("/webapp/api/arena/session/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref,
+        action_seq: actionSeq,
+        input_action: String(inputAction || "").toLowerCase(),
+        latency_ms: latencyMs,
+        client_ts: Date.now()
+      })
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `arena_session_action_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.arenaAuthAvailable = true;
+    syncArenaSessionUi(payload.data?.session || null);
+    return payload.data || {};
+  }
+
+  async function drainArenaQueue() {
+    if (state.v3.draining) {
+      return;
+    }
+    state.v3.draining = true;
+    try {
+      while (state.v3.queue.length > 0) {
+        const next = state.v3.queue.shift();
+        await postArenaSessionAction(next.action, next.queuedAt);
+      }
+    } finally {
+      state.v3.draining = false;
+    }
+  }
+
+  async function enqueueArenaAction(action) {
+    if (!state.v3.session || !state.v3.session.session_ref) {
+      throw new Error("session_not_found");
+    }
+    state.v3.queue.push({
+      action: String(action || "").toLowerCase(),
+      queuedAt: Date.now()
+    });
+    await drainArenaQueue();
+  }
+
+  async function resolveArenaSession() {
+    const session = state.v3.session;
+    if (!session || !session.session_ref) {
+      throw new Error("session_not_found");
+    }
+    const res = await fetch("/webapp/api/arena/session/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref
+      })
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `arena_session_resolve_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.arenaAuthAvailable = true;
+    const resolved = payload.data || {};
+    syncArenaSessionUi(resolved.session || null);
+    return resolved;
   }
 
   function triggerArenaPulse(tone) {
@@ -756,6 +1166,71 @@
       .join("");
   }
 
+  async function fetchTokenQuote(usdAmount, chain) {
+    const usd = asNum(usdAmount);
+    const chainKey = String(chain || "").toUpperCase();
+    if (!usd || !chainKey) {
+      return null;
+    }
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      usd: String(usd),
+      chain: chainKey
+    }).toString();
+    const res = await fetch(`/webapp/api/token/quote?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `token_quote_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    return payload.data || null;
+  }
+
+  async function refreshTokenQuote() {
+    const usd = asNum(byId("tokenUsdInput").value || 0);
+    const chain = String(byId("tokenChainSelect").value || "").toUpperCase();
+    if (!usd || !chain) {
+      state.v3.tokenQuote = null;
+      return;
+    }
+    const quote = await fetchTokenQuote(usd, chain);
+    state.v3.tokenQuote = quote;
+    if (quote && quote.quote) {
+      const gate = quote.gate || {};
+      const q = quote.quote || {};
+      const symbol = String(q.tokenSymbol || state.data?.token?.symbol || "NXT");
+      byId("tokenHint").textContent =
+        `Quote: $${asNum(q.usdAmount).toFixed(2)} -> ${asNum(q.tokenAmount).toFixed(4)} ${symbol} ` +
+        `(${chain}) | min ${asNum(q.tokenMinReceive).toFixed(4)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
+    }
+  }
+
+  function scheduleTokenQuote() {
+    if (state.v3.quoteTimer) {
+      clearTimeout(state.v3.quoteTimer);
+    }
+    state.v3.quoteTimer = setTimeout(() => {
+      refreshTokenQuote().catch((err) => {
+        const msg = String(err?.message || "");
+        if (
+          msg.includes("unsupported_chain") ||
+          msg.includes("chain_address_missing") ||
+          msg.includes("purchase_below_min") ||
+          msg.includes("purchase_above_max")
+        ) {
+          state.v3.tokenQuote = null;
+          byId("tokenHint").textContent = "Quote alinmadi. Zincir veya USD miktarini kontrol et.";
+          return;
+        }
+        showError(err);
+      });
+    }, 300);
+  }
+
   function renderToken(token) {
     const safe = token && typeof token === "object" ? token : {};
     const symbol = String(safe.symbol || "NXT").toUpperCase();
@@ -774,7 +1249,14 @@
     byId("tokenUnits").textContent = `Unify Units: ${units.toFixed(2)}`;
 
     const requests = Array.isArray(safe.requests) ? safe.requests : [];
-    if (requests.length > 0) {
+    if (state.v3.tokenQuote?.quote) {
+      const quote = state.v3.tokenQuote.quote;
+      const gate = state.v3.tokenQuote.gate || {};
+      byId("tokenHint").textContent =
+        `Quote: $${asNum(quote.usdAmount).toFixed(2)} -> ${asNum(quote.tokenAmount).toFixed(4)} ${String(
+          quote.tokenSymbol || symbol
+        )} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
+    } else if (requests.length > 0) {
       const latest = requests[0];
       byId("tokenHint").textContent = `Son talep #${latest.id} ${String(latest.status || "").toUpperCase()} (${asNum(latest.usd_amount).toFixed(2)} USD)`;
     } else {
@@ -798,6 +1280,8 @@
     byId("tokenBuyBtn").disabled = chainSelect.options.length === 0;
     if (enabledChains.length === 0) {
       byId("tokenHint").textContent = "Zincir odeme adresleri tanimli degil. Admin env kontrol etmeli.";
+    } else {
+      scheduleTokenQuote();
     }
   }
 
@@ -817,22 +1301,47 @@
     panel.classList.remove("hidden");
     const summary = info.summary || {};
     const metrics = summary.metrics || {};
+    const queues = summary.queues || {};
+    const manualTokenQueue = Array.isArray(queues.token_manual_queue) ? queues.token_manual_queue.length : 0;
+    const autoDecisions = Array.isArray(queues.token_auto_decisions) ? queues.token_auto_decisions.length : 0;
     const freeze = summary.freeze || {};
     const token = summary.token || {};
     const gate = token.payout_gate || {};
+    const curve = token.curve || {};
+    const autoPolicy = token.auto_policy || {};
     byId("adminBadge").textContent = freeze.freeze ? "FREEZE ON" : "ADMIN";
     byId("adminBadge").className = freeze.freeze ? "badge warn" : "badge info";
     byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
     byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
     byId("adminMetrics").textContent =
       `24s: active ${asNum(metrics.users_active_24h)} | start ${asNum(metrics.attempts_started_24h)} | complete ${asNum(metrics.attempts_completed_24h)} | reveal ${asNum(metrics.reveals_24h)} | token $${asNum(metrics.token_usd_volume_24h).toFixed(2)}`;
-    byId("adminQueue").textContent = `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}`;
+    byId("adminQueue").textContent =
+      `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}` +
+      ` | manual ${manualTokenQueue} | auto ${autoDecisions}`;
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
+    const curveFloor = asNum(curve.admin_floor_usd);
+    const curveBase = asNum(curve.base_usd);
+    const curveK = asNum(curve.k);
+    const curveDemand = asNum(curve.demand_factor);
+    const curveDivisor = asNum(curve.supply_norm_divisor);
+    const autoUsdLimit = asNum(autoPolicy.auto_usd_limit);
+    const autoRisk = asNum(autoPolicy.risk_threshold);
+    const autoVelocity = asNum(autoPolicy.velocity_per_hour);
     byId("adminTokenPriceInput").value = spot > 0 ? spot.toFixed(8) : "";
     byId("adminTokenGateMinInput").value = minCap > 0 ? String(Math.floor(minCap)) : "";
     byId("adminTokenGateMaxInput").value = targetMax > 0 ? String(Math.floor(targetMax)) : "";
+    byId("adminCurveEnabledInput").value = curve.enabled ? "1" : "0";
+    byId("adminCurveFloorInput").value = curveFloor > 0 ? curveFloor.toFixed(8) : "";
+    byId("adminCurveBaseInput").value = curveBase > 0 ? curveBase.toFixed(8) : "";
+    byId("adminCurveKInput").value = curveK >= 0 ? String(curveK) : "";
+    byId("adminCurveDemandInput").value = curveDemand > 0 ? String(curveDemand) : "";
+    byId("adminCurveDivisorInput").value = curveDivisor > 0 ? String(Math.floor(curveDivisor)) : "";
+    byId("adminAutoPolicyEnabledInput").value = autoPolicy.enabled ? "1" : "0";
+    byId("adminAutoUsdLimitInput").value = autoUsdLimit > 0 ? String(autoUsdLimit) : "";
+    byId("adminAutoRiskInput").value = autoRisk >= 0 ? String(autoRisk) : "";
+    byId("adminAutoVelocityInput").value = autoVelocity > 0 ? String(Math.floor(autoVelocity)) : "";
   }
 
   async function fetchAdminSummary() {
@@ -847,7 +1356,25 @@
       is_admin: true,
       summary: payload.data
     });
+    try {
+      const queues = await fetchAdminQueues();
+      if (state.admin.summary && typeof state.admin.summary === "object") {
+        state.admin.summary.queues = queues;
+        renderAdmin({ is_admin: true, summary: state.admin.summary });
+      }
+    } catch (_) {}
     return payload.data;
+  }
+
+  async function fetchAdminQueues() {
+    const query = new URLSearchParams(state.auth).toString();
+    const res = await fetch(`/webapp/api/admin/queues?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_queues_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    return payload.data || {};
   }
 
   async function fetchAdminMetrics() {
@@ -1150,6 +1677,21 @@
     }
     renewAuth(payload);
     render(payload);
+    try {
+      await fetchArenaSessionState();
+    } catch (err) {
+      const message = String(err?.message || "");
+      if (
+        message.includes("arena_auth_disabled") ||
+        message.includes("arena_session_tables_missing") ||
+        message.includes("user_not_started")
+      ) {
+        state.v3.arenaAuthAvailable = false;
+        syncArenaSessionUi(null);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async function rerollTasks() {
@@ -1199,7 +1741,7 @@
     if (!modal) return;
     modal.classList.remove("hidden");
     state.intro.visible = true;
-    if (window.gsap) {
+    if (window.gsap && !state.ui.reducedMotion) {
       gsap.fromTo(modal.querySelector(".introCard"), { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.28, ease: "power2.out" });
     }
   }
@@ -1209,6 +1751,15 @@
       loadBootstrap().then(() => showToast("Panel yenilendi")).catch(showError);
     });
     byId("rerollBtn").addEventListener("click", () => rerollTasks().catch(showError));
+    byId("qualityToggleBtn").addEventListener("click", () => {
+      cycleQualityMode();
+    });
+    byId("motionToggleBtn").addEventListener("click", () => {
+      toggleMotion();
+    });
+    byId("typeToggleBtn").addEventListener("click", () => {
+      toggleLargeText();
+    });
     byId("runSuggestedBtn").addEventListener("click", () => {
       runSuggestedAction().catch(showError);
     });
@@ -1261,6 +1812,12 @@
       const usdAmount = asNum(byId("tokenUsdInput").value || 0);
       const chain = String(byId("tokenChainSelect").value || "").toUpperCase();
       performAction("buy_token", { usd_amount: usdAmount, chain }).catch(showError);
+    });
+    byId("tokenUsdInput").addEventListener("input", () => {
+      scheduleTokenQuote();
+    });
+    byId("tokenChainSelect").addEventListener("change", () => {
+      scheduleTokenQuote();
     });
     byId("tokenTxBtn").addEventListener("click", () => {
       const requestId = asNum(byId("tokenReqInput").value || 0);
@@ -1349,6 +1906,44 @@
         })
         .catch(showError);
     });
+    byId("adminCurveSaveBtn").addEventListener("click", () => {
+      const enabled = String(byId("adminCurveEnabledInput").value || "1") === "1";
+      const adminFloorRaw = String(byId("adminCurveFloorInput").value || "").trim();
+      const baseUsdRaw = String(byId("adminCurveBaseInput").value || "").trim();
+      const kRaw = String(byId("adminCurveKInput").value || "").trim();
+      const demandRaw = String(byId("adminCurveDemandInput").value || "").trim();
+      const divisorRaw = String(byId("adminCurveDivisorInput").value || "").trim();
+      const payload = { enabled };
+      if (adminFloorRaw) payload.admin_floor_usd = asNum(adminFloorRaw);
+      if (baseUsdRaw) payload.base_usd = asNum(baseUsdRaw);
+      if (kRaw) payload.k = asNum(kRaw);
+      if (demandRaw) payload.demand_factor = asNum(demandRaw);
+      if (divisorRaw) payload.supply_norm_divisor = Math.floor(asNum(divisorRaw));
+      postAdmin("/webapp/api/admin/token/curve", payload)
+        .then((summary) => {
+          renderAdmin({ is_admin: true, summary });
+          showToast("Curve guncellendi");
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("adminAutoPolicySaveBtn").addEventListener("click", () => {
+      const enabled = String(byId("adminAutoPolicyEnabledInput").value || "0") === "1";
+      const autoUsdLimitRaw = String(byId("adminAutoUsdLimitInput").value || "").trim();
+      const riskThresholdRaw = String(byId("adminAutoRiskInput").value || "").trim();
+      const velocityPerHourRaw = String(byId("adminAutoVelocityInput").value || "").trim();
+      const payload = { enabled };
+      if (autoUsdLimitRaw) payload.auto_usd_limit = asNum(autoUsdLimitRaw);
+      if (riskThresholdRaw) payload.risk_threshold = clamp(asNum(riskThresholdRaw), 0, 1);
+      if (velocityPerHourRaw) payload.velocity_per_hour = Math.floor(asNum(velocityPerHourRaw));
+      postAdmin("/webapp/api/admin/token/auto_policy", payload)
+        .then((summary) => {
+          renderAdmin({ is_admin: true, summary });
+          showToast("Auto policy guncellendi");
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
     byId("adminTokenRejectBtn").addEventListener("click", () => {
       const requestId = asNum(byId("adminTokenRequestId").value || 0);
       if (!requestId) {
@@ -1432,7 +2027,6 @@
     }
     const canvas = byId("bg3d");
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x070b1f, 12, 45);
 
@@ -1448,22 +2042,58 @@
 
     const fallback = createFallbackArena(scene);
     let modelRoot = null;
+    const sideModels = [];
     const mixers = [];
+    const profile = getQualityProfile();
     const manifest = await loadAssetManifest();
-    const modelPath = String(manifest?.models?.arena_core || "");
-    if (modelPath) {
-      const model = await tryLoadArenaModel(scene, modelPath);
-      if (model) {
+    const models = manifest?.models || {};
+    const resolveModelEntry = (key) => {
+      const entry = models[key];
+      if (!entry) {
+        return null;
+      }
+      if (typeof entry === "string") {
+        return { path: entry };
+      }
+      if (entry && typeof entry === "object" && typeof entry.path === "string") {
+        return entry;
+      }
+      return null;
+    };
+    const applyTransform = (node, entry, defaults = {}) => {
+      if (!node) return;
+      const pos = Array.isArray(entry?.position) ? entry.position : defaults.position || [0, 0, 0];
+      const rot = Array.isArray(entry?.rotation) ? entry.rotation : defaults.rotation || [0, 0, 0];
+      const scl = Array.isArray(entry?.scale) ? entry.scale : defaults.scale || [2, 2, 2];
+      node.position.set(asNum(pos[0]), asNum(pos[1]), asNum(pos[2]));
+      node.rotation.set(asNum(rot[0]), asNum(rot[1]), asNum(rot[2]));
+      node.scale.set(asNum(scl[0]), asNum(scl[1]), asNum(scl[2]));
+    };
+    const coreEntry = resolveModelEntry("arena_core");
+    if (coreEntry?.path) {
+      const model = await tryLoadArenaModel(scene, String(coreEntry.path));
+      if (model && model.root) {
         modelRoot = model.root;
+        applyTransform(modelRoot, coreEntry, { scale: [2, 2, 2] });
+        mixers.push(...model.mixers);
+      }
+    }
+    for (const key of ["enemy_rig", "reward_crate", "ambient_fx"]) {
+      const entry = resolveModelEntry(key);
+      if (!entry?.path) {
+        continue;
+      }
+      const model = await tryLoadArenaModel(scene, String(entry.path));
+      if (model && model.root) {
+        applyTransform(model.root, entry, { scale: [1.6, 1.6, 1.6] });
+        sideModels.push(model.root);
         mixers.push(...model.mixers);
       }
     }
 
-    const stars = new THREE.Points(
-      new THREE.BufferGeometry(),
-      new THREE.PointsMaterial({ color: 0xb2d5ff, size: 0.03 })
-    );
-    const count = 2200;
+    const starsMaterial = new THREE.PointsMaterial({ color: 0xb2d5ff, size: profile.starSize });
+    const stars = new THREE.Points(new THREE.BufferGeometry(), starsMaterial);
+    const count = QUALITY_PROFILES.high.starCount;
     const coords = new Float32Array(count * 3);
     for (let i = 0; i < count * 3; i += 3) {
       coords[i] = (Math.random() - 0.5) * 54;
@@ -1471,6 +2101,7 @@
       coords[i + 2] = (Math.random() - 0.5) * 30;
     }
     stars.geometry.setAttribute("position", new THREE.BufferAttribute(coords, 3));
+    stars.geometry.setDrawRange(0, profile.starCount);
     scene.add(stars);
 
     const pointer = { x: 0, y: 0 };
@@ -1480,6 +2111,7 @@
     });
 
     function resize() {
+      applyArenaQualityProfile();
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1488,9 +2120,14 @@
     window.addEventListener("resize", resize);
 
     const clock = new THREE.Clock();
+    let fpsFrames = 0;
+    let fpsWindowStart = performance.now();
+    let lowFpsWindows = 0;
+    let highFpsWindows = 0;
     function tick() {
       const dt = clock.getDelta();
       const t = performance.now() * 0.001;
+      const activeProfile = state.arena?.qualityProfile || profile;
       fallback.core.rotation.x = t * 0.15;
       fallback.core.rotation.y = t * 0.28;
       fallback.ring.rotation.z = t * 0.21;
@@ -1498,7 +2135,7 @@
       fallback.pulseShell.rotation.y = t * 0.05;
       stars.rotation.y = t * 0.02;
 
-      if (fallback.shards && fallback.shardMeta && fallback.shardDummy) {
+      if (activeProfile.enableShards && !state.ui.reducedMotion && fallback.shards && fallback.shardMeta && fallback.shardDummy) {
         const dummy = fallback.shardDummy;
         for (let i = 0; i < fallback.shardMeta.length; i += 1) {
           const meta = fallback.shardMeta[i];
@@ -1515,16 +2152,50 @@
       if (modelRoot) {
         modelRoot.rotation.y += dt * 0.35;
       }
+      for (const model of sideModels) {
+        model.rotation.y += dt * 0.08;
+      }
       for (const mixer of mixers) {
         mixer.update(dt);
       }
-      camera.position.x += ((pointer.x * 1.1) - camera.position.x) * 0.02;
-      camera.position.y += ((-pointer.y * 0.6) - camera.position.y + 1.5) * 0.02;
+      const cameraTargetX = pointer.x * activeProfile.cameraDrift;
+      const cameraTargetY = -pointer.y * (activeProfile.cameraDrift * 0.52);
+      camera.position.x += (cameraTargetX - camera.position.x) * activeProfile.pointerLerp;
+      camera.position.y += (cameraTargetY - camera.position.y + 1.5) * activeProfile.pointerLerp;
       camera.lookAt(0, 0, 0);
       renderer.render(scene, camera);
+
+      fpsFrames += 1;
+      const now = performance.now();
+      if (now - fpsWindowStart >= 1000) {
+        const fps = (fpsFrames * 1000) / (now - fpsWindowStart);
+        fpsFrames = 0;
+        fpsWindowStart = now;
+        if (state.ui.qualityMode === "auto") {
+          if (fps < 28) {
+            lowFpsWindows += 1;
+            highFpsWindows = 0;
+            if (lowFpsWindows >= 3 && state.ui.autoQualityMode !== "low") {
+              state.ui.autoQualityMode = "low";
+              applyArenaQualityProfile(getQualityProfile("low"));
+              showToast("Performans: Auto low moda gecti");
+            }
+          } else if (fps > 52) {
+            highFpsWindows += 1;
+            lowFpsWindows = 0;
+            if (highFpsWindows >= 6 && state.ui.autoQualityMode === "low") {
+              state.ui.autoQualityMode = "normal";
+              applyArenaQualityProfile(getQualityProfile("normal"));
+              showToast("Performans: Auto normal moda dondu");
+            }
+          } else {
+            lowFpsWindows = 0;
+            highFpsWindows = 0;
+          }
+        }
+      }
       requestAnimationFrame(tick);
     }
-    tick();
 
     state.arena = {
       renderer,
@@ -1536,9 +2207,15 @@
       glow: fallback.glow,
       pulseShell: fallback.pulseShell,
       shards: fallback.shards,
+      stars,
+      starsMaterial,
       modelRoot,
+      sideModels,
+      qualityProfile: profile,
       mixers
     };
+    applyArenaQualityProfile(profile);
+    tick();
   }
 
   function showError(err) {
@@ -1574,9 +2251,12 @@
   }
 
   async function boot() {
+    loadUiPrefs();
     await initThree();
     bindUi();
-    gsap.from(".card, .panel", { y: 18, opacity: 0, stagger: 0.05, duration: 0.38, ease: "power2.out" });
+    if (window.gsap && !state.ui.reducedMotion) {
+      gsap.from(".card, .panel", { y: 18, opacity: 0, stagger: 0.05, duration: 0.38, ease: "power2.out" });
+    }
     await loadBootstrap();
     if (shouldShowIntroModal()) {
       showIntroModal();

@@ -3,6 +3,22 @@ const DEFAULT_TOKEN_CONFIG = {
   symbol: "NXT",
   decimals: 4,
   usd_price: 0.0005,
+  curve: {
+    enabled: false,
+    admin_floor_usd: 0.0005,
+    base_usd: 0.0005,
+    k: 0.08,
+    supply_norm_divisor: 100000,
+    demand_factor: 1,
+    volatility_dampen: 0.15
+  },
+  auto_approve: {
+    enabled: false,
+    auto_usd_limit: 10,
+    risk_threshold: 0.35,
+    velocity_per_hour: 8,
+    require_onchain_verified: true
+  },
   mint: {
     units_per_token: 100,
     min_tokens: 0.01,
@@ -64,6 +80,56 @@ function normalizeTokenConfig(runtimeConfig) {
     symbol: String(incoming.symbol || DEFAULT_TOKEN_CONFIG.symbol).toUpperCase(),
     decimals: clamp(Math.floor(toNum(incoming.decimals, DEFAULT_TOKEN_CONFIG.decimals)), 2, 8),
     usd_price: Math.max(0.00000001, toNum(incoming.usd_price, DEFAULT_TOKEN_CONFIG.usd_price)),
+    curve: {
+      enabled:
+        typeof incoming.curve?.enabled === "boolean"
+          ? incoming.curve.enabled
+          : DEFAULT_TOKEN_CONFIG.curve.enabled,
+      admin_floor_usd: Math.max(
+        0.00000001,
+        toNum(incoming.curve?.admin_floor_usd, DEFAULT_TOKEN_CONFIG.curve.admin_floor_usd)
+      ),
+      base_usd: Math.max(0.00000001, toNum(incoming.curve?.base_usd, DEFAULT_TOKEN_CONFIG.curve.base_usd)),
+      k: Math.max(0, toNum(incoming.curve?.k, DEFAULT_TOKEN_CONFIG.curve.k)),
+      supply_norm_divisor: Math.max(
+        1,
+        toNum(incoming.curve?.supply_norm_divisor, DEFAULT_TOKEN_CONFIG.curve.supply_norm_divisor)
+      ),
+      demand_factor: Math.max(
+        0.1,
+        toNum(incoming.curve?.demand_factor, DEFAULT_TOKEN_CONFIG.curve.demand_factor)
+      ),
+      volatility_dampen: clamp(
+        toNum(incoming.curve?.volatility_dampen, DEFAULT_TOKEN_CONFIG.curve.volatility_dampen),
+        0,
+        1
+      )
+    },
+    auto_approve: {
+      enabled:
+        typeof incoming.auto_approve?.enabled === "boolean"
+          ? incoming.auto_approve.enabled
+          : DEFAULT_TOKEN_CONFIG.auto_approve.enabled,
+      auto_usd_limit: Math.max(
+        0.5,
+        toNum(incoming.auto_approve?.auto_usd_limit, DEFAULT_TOKEN_CONFIG.auto_approve.auto_usd_limit)
+      ),
+      risk_threshold: clamp(
+        toNum(incoming.auto_approve?.risk_threshold, DEFAULT_TOKEN_CONFIG.auto_approve.risk_threshold),
+        0,
+        1
+      ),
+      velocity_per_hour: Math.max(
+        1,
+        Math.floor(
+          toNum(incoming.auto_approve?.velocity_per_hour, DEFAULT_TOKEN_CONFIG.auto_approve.velocity_per_hour)
+        )
+      ),
+      require_onchain_verified:
+        typeof incoming.auto_approve?.require_onchain_verified === "boolean"
+          ? incoming.auto_approve.require_onchain_verified
+          : DEFAULT_TOKEN_CONFIG.auto_approve.require_onchain_verified
+    },
     mint: {
       units_per_token: Math.max(
         1,
@@ -123,6 +189,78 @@ function normalizeTokenConfig(runtimeConfig) {
   return merged;
 }
 
+function normalizeCurveState(tokenConfig, marketState = null) {
+  const curveCfg = tokenConfig?.curve || DEFAULT_TOKEN_CONFIG.curve;
+  const state = marketState || {};
+  const policyRaw = state.auto_policy_json || {};
+  return {
+    tokenSymbol: String(state.token_symbol || tokenConfig?.symbol || "NXT").toUpperCase(),
+    adminFloorUsd: Math.max(
+      0.00000001,
+      toNum(state.admin_floor_usd, curveCfg.admin_floor_usd)
+    ),
+    curveBaseUsd: Math.max(0.00000001, toNum(state.curve_base_usd, curveCfg.base_usd)),
+    curveK: Math.max(0, toNum(state.curve_k, curveCfg.k)),
+    supplyNormDivisor: Math.max(
+      1,
+      toNum(state.supply_norm_divisor, curveCfg.supply_norm_divisor)
+    ),
+    demandFactor: Math.max(0.1, toNum(state.demand_factor, curveCfg.demand_factor)),
+    volatilityDampen: clamp(
+      toNum(state.volatility_dampen, curveCfg.volatility_dampen),
+      0,
+      1
+    ),
+    autoPolicy: {
+      enabled:
+        typeof policyRaw.enabled === "boolean"
+          ? policyRaw.enabled
+          : Boolean(tokenConfig?.auto_approve?.enabled),
+      autoUsdLimit: Math.max(
+        0.5,
+        toNum(policyRaw.auto_usd_limit, tokenConfig?.auto_approve?.auto_usd_limit)
+      ),
+      riskThreshold: clamp(
+        toNum(policyRaw.risk_threshold, tokenConfig?.auto_approve?.risk_threshold),
+        0,
+        1
+      ),
+      velocityPerHour: Math.max(
+        1,
+        Math.floor(
+          toNum(policyRaw.velocity_per_hour, tokenConfig?.auto_approve?.velocity_per_hour)
+        )
+      ),
+      requireOnchainVerified:
+        typeof policyRaw.require_onchain_verified === "boolean"
+          ? policyRaw.require_onchain_verified
+          : Boolean(tokenConfig?.auto_approve?.require_onchain_verified)
+    }
+  };
+}
+
+function computeTreasuryCurvePrice({ tokenConfig, marketState, totalSupply, demandShock = 0 }) {
+  const state = normalizeCurveState(tokenConfig, marketState);
+  const supply = Math.max(0, toNum(totalSupply, 0));
+  const supplyNorm = supply / Math.max(1, state.supplyNormDivisor);
+  const demandFactorRaw = state.demandFactor + toNum(demandShock, 0);
+  const demandFactor = clamp(demandFactorRaw, 0.1, 4);
+  const curve =
+    state.curveBaseUsd *
+    (1 + state.curveK * Math.log(1 + Math.max(0, supplyNorm))) *
+    demandFactor;
+  const priceUsd = Math.max(state.adminFloorUsd, curve);
+  return {
+    priceUsd: roundTo(priceUsd, 8),
+    supplyNorm: roundTo(supplyNorm, 8),
+    demandFactor: roundTo(demandFactor, 8),
+    adminFloorUsd: roundTo(state.adminFloorUsd, 8),
+    curveBaseUsd: roundTo(state.curveBaseUsd, 8),
+    curveK: roundTo(state.curveK, 8),
+    state
+  };
+}
+
 function normalizeChain(chainRaw) {
   return String(chainRaw || "").trim().toUpperCase();
 }
@@ -163,7 +301,7 @@ function estimateTokenFromBalances(balances, tokenConfig) {
   return floorTo(units / tokenConfig.mint.units_per_token, tokenConfig.decimals);
 }
 
-function quotePurchaseByUsd(usdRaw, tokenConfig) {
+function quotePurchaseByUsd(usdRaw, tokenConfig, opts = {}) {
   const usd = toNum(usdRaw, 0);
   if (!Number.isFinite(usd) || usd <= 0) {
     return { ok: false, reason: "invalid_usd_amount" };
@@ -175,14 +313,79 @@ function quotePurchaseByUsd(usdRaw, tokenConfig) {
     return { ok: false, reason: "purchase_above_max", maxUsd: tokenConfig.purchase.max_usd };
   }
 
-  const tokenAmount = roundTo(usd / tokenConfig.usd_price, tokenConfig.decimals);
+  const priceUsd = Math.max(
+    0.00000001,
+    toNum(opts.priceUsd, toNum(tokenConfig.usd_price, DEFAULT_TOKEN_CONFIG.usd_price))
+  );
+  const tokenAmount = roundTo(usd / priceUsd, tokenConfig.decimals);
   const slippage = roundTo(tokenAmount * tokenConfig.purchase.slippage_pct, tokenConfig.decimals);
   return {
     ok: true,
     usdAmount: roundTo(usd, 8),
+    priceUsd: roundTo(priceUsd, 8),
     tokenAmount,
     tokenMinReceive: Math.max(0, roundTo(tokenAmount - slippage, tokenConfig.decimals)),
     tokenSymbol: tokenConfig.symbol
+  };
+}
+
+function evaluateAutoApprovePolicy(input = {}, policyInput = {}) {
+  const policy = {
+    enabled: Boolean(policyInput.enabled),
+    autoUsdLimit: Math.max(0.5, toNum(policyInput.autoUsdLimit, 10)),
+    riskThreshold: clamp(toNum(policyInput.riskThreshold, 0.35), 0, 1),
+    velocityPerHour: Math.max(1, Math.floor(toNum(policyInput.velocityPerHour, 8))),
+    requireOnchainVerified: Boolean(policyInput.requireOnchainVerified)
+  };
+  if (!policy.enabled) {
+    return {
+      decision: "manual_review",
+      reason: "policy_disabled",
+      reasons: ["policy_disabled"],
+      passed: false,
+      policy
+    };
+  }
+
+  const usdAmount = Math.max(0, toNum(input.usdAmount, 0));
+  const riskScore = clamp(toNum(input.riskScore, 0), 0, 1);
+  const velocityPerHour = Math.max(0, Math.floor(toNum(input.velocityPerHour, 0)));
+  const onchainVerified = Boolean(input.onchainVerified);
+  const gateOpen = input.gateOpen !== false;
+  const reasons = [];
+
+  if (usdAmount > policy.autoUsdLimit) {
+    reasons.push("usd_limit_exceeded");
+  }
+  if (riskScore > policy.riskThreshold) {
+    reasons.push("risk_threshold_exceeded");
+  }
+  if (velocityPerHour > policy.velocityPerHour) {
+    reasons.push("velocity_limit_exceeded");
+  }
+  if (policy.requireOnchainVerified && !onchainVerified) {
+    reasons.push("onchain_verification_required");
+  }
+  if (!gateOpen) {
+    reasons.push("market_cap_gate_closed");
+  }
+
+  if (reasons.length > 0) {
+    return {
+      decision: "manual_review",
+      reason: reasons[0],
+      reasons,
+      passed: false,
+      policy
+    };
+  }
+
+  return {
+    decision: "auto_approved",
+    reason: "all_checks_passed",
+    reasons: [],
+    passed: true,
+    policy
   };
 }
 
@@ -262,11 +465,14 @@ function planMintFromBalances(balances, tokenConfig, requestedTokenRaw) {
 module.exports = {
   DEFAULT_TOKEN_CONFIG,
   normalizeTokenConfig,
+  normalizeCurveState,
+  computeTreasuryCurvePrice,
   normalizeChain,
   getChainConfig,
   resolvePaymentAddress,
   computeUnifiedUnits,
   estimateTokenFromBalances,
   quotePurchaseByUsd,
-  planMintFromBalances
+  planMintFromBalances,
+  evaluateAutoApprovePolicy
 };
