@@ -3,7 +3,7 @@ services:
     name: airdropkral-admin
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build:webapp
     startCommand: npm run start:all
     autoDeploy: true
     envVars:
@@ -31,3 +31,15 @@ services:
         value: "1"
       - key: TOKEN_TX_VERIFY_STRICT
         value: "0"
+      - key: ARENA_AUTH_ENABLED
+        value: "1"
+      - key: RAID_AUTH_ENABLED
+        value: "1"
+      - key: TOKEN_CURVE_ENABLED
+        value: "1"
+      - key: TOKEN_AUTO_APPROVE_ENABLED
+        value: "1"
+      - key: WEBAPP_V3_ENABLED
+        value: "1"
+      - key: WEBAPP_TS_BUNDLE_ENABLED
+        value: "1"
