@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AirdropKral Arena Nexus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    
+  </head>
+  <body>
+    <canvas id="bg3d"></canvas>
+    <div class="noise"></div>
+    <div class="scanlines"></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <p class="kicker">AirdropKralBot</p>
+          <h1>Nexus Arena</h1>
+          <p id="seasonLine" class="micro">S0 - 0 gun</p>
+        </div>
+        <div class="headerActions">
+          <button id="refreshBtn" class="btn ghost">Yenile</button>
+          <button id="rerollBtn" class="btn accent">Panel Yenile (1 RC)</button>
+          <button id="qualityToggleBtn" class="btn ghost">Perf: Auto</button>
+          <button id="motionToggleBtn" class="btn ghost">Motion: Acik</button>
+          <button id="typeToggleBtn" class="btn ghost">Yazi: Normal</button>
+        </div>
+      </header>
+
+      <section class="hero card">
+        <div class="heroMain">
+          <h2 id="kingName">Kral</h2>
+          <p id="kingMeta" class="muted">Tier - | Streak -</p>
+          <div class="chipRow">
+            <span class="chip">SC <b id="balSC">0</b></span>
+            <span class="chip">HC <b id="balHC">0</b></span>
+            <span class="chip">RC <b id="balRC">0</b></span>
+            <span class="chip">NXT <b id="balToken">0</b></span>
+          </div>
+        </div>
+        <div class="heroStats">
+          <div class="statBlock">
+            <p class="label">Gunluk Verim</p>
+            <p id="dailyLine" class="value">0 / 0 gorev</p>
+            <div class="meter"><span id="dailyMeter"></span></div>
+            <p id="dailyEarned" class="micro">Bugun: 0 SC | 0 RC</p>
+          </div>
+          <div class="statBlock">
+            <p class="label">Savas Basinci</p>
+            <p id="warLine" class="value">War Tier Seed</p>
+            <p id="riskLine" class="micro">Risk 0%</p>
+            <p id="nexusLine" class="micro">Nexus pulse: -</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="director card">
+        <div class="panelHead">
+          <h3>Taktik Yonlendirme</h3>
+          <span id="directorState" class="badge info">Taraniyor</span>
+        </div>
+        <p id="directorSummary" class="muted">Nexus akisindan sonra en dogru hamle burada cikar.</p>
+        <div class="directorGrid">
+          <div class="directorBox">
+            <p class="label">Mikro Loop</p>
+            <p id="loopMicroLine" class="value">Beklemede</p>
+            <div class="meter"><span id="loopMicroMeter"></span></div>
+          </div>
+          <div class="directorBox">
+            <p class="label">Meso Loop</p>
+            <p id="loopMesoLine" class="value">Gunluk Plan</p>
+            <div class="meter"><span id="loopMesoMeter"></span></div>
+          </div>
+          <div class="directorBox">
+            <p class="label">Macro Loop</p>
+            <p id="loopMacroLine" class="value">Sezon Basinci</p>
+            <div class="meter"><span id="loopMacroMeter"></span></div>
+          </div>
+        </div>
+        <div class="directorActions">
+          <button id="runSuggestedBtn" class="btn accent">Onerilen Hamleyi Uygula</button>
+          <button id="refreshDirectorBtn" class="btn ghost">Durumu Tazele</button>
+        </div>
+      </section>
+
+      <section class="contract card">
+        <div class="panelHead">
+          <h3>Nexus Kontrat</h3>
+          <span id="contractBadge" class="badge info">AKTIF</span>
+        </div>
+        <div class="contractGrid">
+          <div class="directorBox">
+            <p class="label">Kontrat</p>
+            <p id="contractTitle" class="value">-</p>
+            <p id="contractSubtitle" class="micro">-</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Hedef</p>
+            <p id="contractTarget" class="value">-</p>
+            <p id="contractObjective" class="micro">-</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Bonus Paket</p>
+            <p id="contractBoost" class="value">SC x1.00</p>
+            <p id="contractMeta" class="micro">+0 RC | +0 SP | +0 War</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="layout">
+        <article class="panel tasks">
+          <div class="panelHead">
+            <h3>Canli Gorev Agi</h3>
+            <span id="offerBadge" class="badge">0 aktif</span>
+          </div>
+          <div id="offersList" class="offerList"></div>
+        </article>
+
+        <article class="panel operation">
+          <div class="panelHead">
+            <h3>Operasyon Konsolu</h3>
+            <span id="arenaStatus" class="badge warn">Beklemede</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Aktif Deneme</p>
+              <p id="activeAttempt" class="value">Yok</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Reveal Hazir</p>
+              <p id="revealAttempt" class="value">Yok</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Arena Rating</p>
+              <p id="arenaRating" class="value">1000</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Arena Rank</p>
+              <p id="arenaRank" class="value">#-</p>
+            </div>
+          </div>
+          <div class="modeGrid">
+            <button id="finishSafeBtn" class="mode safe">Temkinli Bitir</button>
+            <button id="finishBalancedBtn" class="mode balanced">Dengeli Bitir</button>
+            <button id="finishAggressiveBtn" class="mode aggressive">Saldirgan Bitir</button>
+            <button id="revealBtn" class="mode reveal">Reveal Ac</button>
+          </div>
+          <div class="modeGrid raidGrid">
+            <button id="raidSafeBtn" class="mode safe">Raid Temkinli</button>
+            <button id="raidBalancedBtn" class="mode balanced">Raid Dengeli</button>
+            <button id="raidAggressiveBtn" class="mode aggressive">Raid Saldirgan</button>
+            <button id="arenaBoardBtn" class="mode reveal">Arena Top</button>
+          </div>
+          <div class="simBox">
+            <div class="simHead">
+              <p class="label">Combat Simulator</p>
+              <p id="simTimer" class="micro">Hazir</p>
+            </div>
+            <p id="simPrompt" class="simPrompt">Session baslat, pattern yakala, skorla otomatik resolve et.</p>
+            <p id="simStats" class="micro">Skor 0 | Combo 0 | Hit 0 | Miss 0</p>
+            <div class="simActions">
+              <button id="simStartBtn" class="mode reveal">Session Baslat</button>
+              <button id="simStrikeBtn" class="mode aggressive">Strike</button>
+              <button id="simGuardBtn" class="mode safe">Guard</button>
+              <button id="simChargeBtn" class="mode balanced">Charge</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel tokenPanel">
+          <div class="panelHead">
+            <h3>Token Treasury</h3>
+            <span id="tokenBadge" class="badge info">NXT</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Token Durumu</p>
+              <p id="tokenSummary" class="value">0 NXT</p>
+              <p id="tokenRate" class="micro">$0.000000 / token</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Mint Potansiyeli</p>
+              <p id="tokenMintable" class="value">0 NXT</p>
+              <p id="tokenUnits" class="micro">Unify Units: 0</p>
+            </div>
+          </div>
+          <div class="tokenActions">
+            <div class="tokenRow">
+              <label for="tokenUsdInput" class="label">USD Alim Talebi</label>
+              <input id="tokenUsdInput" type="number" min="1" step="0.5" value="5" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenChainSelect" class="label">Zincir</label>
+              <select id="tokenChainSelect"></select>
+            </div>
+            <div class="modeGrid">
+              <button id="tokenMintBtn" class="mode balanced">Max Mint</button>
+              <button id="tokenBuyBtn" class="mode reveal">Alim Talebi</button>
+            </div>
+            <div class="tokenRow">
+              <label for="tokenReqInput" class="label">Talep ID</label>
+              <input id="tokenReqInput" type="number" min="1" placeholder="Orn: 12" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenTxInput" class="label">TX Hash</label>
+              <input id="tokenTxInput" type="text" placeholder="0x... veya hash..." />
+            </div>
+            <button id="tokenTxBtn" class="mode aggressive">TX Gonder</button>
+            <p id="tokenHint" class="micro">Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.</p>
+          </div>
+        </article>
+
+        <article id="adminPanel" class="panel adminPanel hidden">
+          <div class="panelHead">
+            <h3>Admin Merkezi</h3>
+            <span id="adminBadge" class="badge warn">USER</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Sistem Durumu</p>
+              <p id="adminMeta" class="value">-</p>
+              <p id="adminTokenCap" class="micro">Market cap -</p>
+              <p id="adminMetrics" class="micro">24s metrikler -</p>
+            </div>
+          </div>
+          <div class="tokenActions">
+            <div class="tokenRow">
+              <label for="adminFreezeReason" class="label">Freeze Sebep</label>
+              <input id="adminFreezeReason" type="text" placeholder="Bakim, guvenlik vb" />
+            </div>
+            <div class="modeGrid">
+              <button id="adminFreezeOnBtn" class="mode aggressive">Freeze Ac</button>
+              <button id="adminFreezeOffBtn" class="mode safe">Freeze Kapat</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminTokenRequestId" class="label">Token Talep ID</label>
+              <input id="adminTokenRequestId" type="number" min="1" placeholder="Orn: 24" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminTokenPriceInput" class="label">Token Fiyat (USD)</label>
+              <input id="adminTokenPriceInput" type="number" step="0.00000001" min="0.00000001" placeholder="0.0005" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminTokenGateMinInput" class="label">Gate Min Cap (USD)</label>
+              <input id="adminTokenGateMinInput" type="number" min="1" placeholder="10000000" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminTokenGateMaxInput" class="label">Gate Target Max (USD)</label>
+              <input id="adminTokenGateMaxInput" type="number" min="1" placeholder="20000000" />
+            </div>
+            <div class="modeGrid">
+              <button id="adminTokenPriceSaveBtn" class="mode balanced">Fiyat Kaydet</button>
+              <button id="adminTokenGateSaveBtn" class="mode reveal">Gate Kaydet</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveEnabledInput" class="label">Curve Aktif</label>
+              <select id="adminCurveEnabledInput">
+                <option value="1">ON</option>
+                <option value="0">OFF</option>
+              </select>
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveFloorInput" class="label">Curve Floor (USD)</label>
+              <input id="adminCurveFloorInput" type="number" step="0.00000001" min="0.00000001" placeholder="0.0005" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveBaseInput" class="label">Curve Base (USD)</label>
+              <input id="adminCurveBaseInput" type="number" step="0.00000001" min="0.00000001" placeholder="0.0005" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveKInput" class="label">Curve K</label>
+              <input id="adminCurveKInput" type="number" step="0.0001" min="0" placeholder="0.08" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveDemandInput" class="label">Demand Factor</label>
+              <input id="adminCurveDemandInput" type="number" step="0.01" min="0.1" placeholder="1.00" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminCurveDivisorInput" class="label">Supply Norm Divisor</label>
+              <input id="adminCurveDivisorInput" type="number" step="1" min="1" placeholder="100000" />
+            </div>
+            <button id="adminCurveSaveBtn" class="mode reveal">Curve Kaydet</button>
+            <div class="tokenRow">
+              <label for="adminAutoPolicyEnabledInput" class="label">Auto Approval</label>
+              <select id="adminAutoPolicyEnabledInput">
+                <option value="1">ON</option>
+                <option value="0">OFF</option>
+              </select>
+            </div>
+            <div class="tokenRow">
+              <label for="adminAutoUsdLimitInput" class="label">Auto USD Limit</label>
+              <input id="adminAutoUsdLimitInput" type="number" step="0.5" min="0.5" placeholder="10" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminAutoRiskInput" class="label">Auto Risk Threshold</label>
+              <input id="adminAutoRiskInput" type="number" step="0.01" min="0" max="1" placeholder="0.35" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminAutoVelocityInput" class="label">Auto Velocity /h</label>
+              <input id="adminAutoVelocityInput" type="number" step="1" min="1" max="1000" placeholder="8" />
+            </div>
+            <button id="adminAutoPolicySaveBtn" class="mode balanced">Auto Policy Kaydet</button>
+            <div class="modeGrid">
+              <button id="adminTokenApproveBtn" class="mode balanced">Token Onayla</button>
+              <button id="adminTokenRejectBtn" class="mode aggressive">Token Reddet</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminPayoutRequestId" class="label">Payout Talep ID</label>
+              <input id="adminPayoutRequestId" type="number" min="1" placeholder="Orn: 7" />
+            </div>
+            <div class="tokenRow">
+              <label for="adminPayoutTxHash" class="label">Payout TX Hash</label>
+              <input id="adminPayoutTxHash" type="text" placeholder="btc tx hash..." />
+            </div>
+            <div class="modeGrid">
+              <button id="adminPayoutPayBtn" class="mode reveal">Payout Paid</button>
+              <button id="adminPayoutRejectBtn" class="mode aggressive">Payout Reddet</button>
+            </div>
+            <button id="adminRefreshBtn" class="mode balanced">Admin Yenile</button>
+            <button id="adminMetricsBtn" class="mode safe">Metrik Yenile</button>
+            <p id="adminQueue" class="micro">Queue: -</p>
+          </div>
+        </article>
+
+        <article class="panel missions">
+          <div class="panelHead">
+            <h3>Misyon Radar</h3>
+            <span id="missionBadge" class="badge">0 hazir</span>
+          </div>
+          <div id="missionsList" class="missionList"></div>
+        </article>
+
+        <article class="panel commands">
+          <div class="panelHead">
+            <h3>Komut Matrix</h3>
+            <span class="badge info">Bot Kisa Yollar</span>
+          </div>
+          <div class="commandGrid">
+            <button class="cmd" data-action="open_tasks">Gorevler</button>
+            <button class="cmd" data-action="open_daily">Gunluk</button>
+            <button class="cmd" data-action="open_kingdom">Kingdom</button>
+            <button class="cmd" data-action="open_wallet">Cuzdan</button>
+            <button class="cmd" data-action="open_token">Token</button>
+            <button class="cmd" data-action="open_war">War Room</button>
+            <button class="cmd" data-action="open_nexus">Nexus</button>
+            <button class="cmd" data-action="open_contract">Kontrat</button>
+            <button class="cmd" data-action="open_missions">Misyon</button>
+            <button class="cmd" data-action="open_leaderboard">Liderlik</button>
+            <button class="cmd" data-action="open_play">Arena 3D</button>
+            <button class="cmd" data-action="open_status">Durum</button>
+            <button class="cmd" data-action="open_payout">Cekim</button>
+          </div>
+        </article>
+
+        <article class="panel feed">
+          <div class="panelHead">
+            <h3>Signal Feed</h3>
+            <span class="badge info">Son 15 event</span>
+          </div>
+          <ul id="eventFeed" class="eventFeed"></ul>
+        </article>
+      </section>
+    </main>
+
+    <div id="introModal" class="introModal hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="introCard">
+        <p class="kicker">AirdropKralBot</p>
+        <h2 id="introTitle">Nexus Arena Protokolu</h2>
+        <p class="muted">
+          Bu panel oyun dongusunu tek ekranda yonetir: gorev, reveal, arena, token ekonomisi ve admin kontrol.
+        </p>
+        <ol class="introList">
+          <li>Canli Gorev Agi'ndan bir gorev baslat.</li>
+          <li>Operasyon Konsolu'nda denemeyi bitir, reveal ac.</li>
+          <li>Misyon Radar + Token Treasury ile gunu optimize et.</li>
+        </ol>
+        <div class="directorActions">
+          <button id="introStartBtn" class="btn accent">Nexus'a Gir</button>
+          <button id="introSkipBtn" class="btn ghost">Bir daha gosterme</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+

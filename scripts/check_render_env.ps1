@@ -69,9 +69,11 @@ $required = @(
 
 $featureFlags = @(
   "ARENA_AUTH_ENABLED",
+  "RAID_AUTH_ENABLED",
   "TOKEN_CURVE_ENABLED",
   "TOKEN_AUTO_APPROVE_ENABLED",
-  "WEBAPP_V3_ENABLED"
+  "WEBAPP_V3_ENABLED",
+  "WEBAPP_TS_BUNDLE_ENABLED"
 )
 
 Write-Host ""
@@ -164,9 +166,11 @@ Write-Host "  BOT_AUTO_RESTART=1"
 Write-Host "  BOT_INSTANCE_LOCK_KEY=7262026"
 Write-Host "  BOT_DRY_RUN=0"
 Write-Host "  ARENA_AUTH_ENABLED=1"
+Write-Host "  RAID_AUTH_ENABLED=1"
 Write-Host "  TOKEN_CURVE_ENABLED=1"
 Write-Host "  TOKEN_AUTO_APPROVE_ENABLED=1"
 Write-Host "  WEBAPP_V3_ENABLED=1"
+Write-Host "  WEBAPP_TS_BUNDLE_ENABLED=1"
 Write-Host ""
 Write-Host "If you also run local bot, stop one side to avoid 409 polling conflict."
 Write-Host ""

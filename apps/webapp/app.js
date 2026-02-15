@@ -31,9 +31,26 @@
       session: null,
       queue: [],
       draining: false,
+      raidSession: null,
+      raidQueue: [],
+      raidDraining: false,
+      raidAuthAvailable: null,
       arenaAuthAvailable: null,
       tokenQuote: null,
-      quoteTimer: null
+      quoteTimer: null,
+      featureFlags: {}
+    },
+    telemetry: {
+      deviceHash: "",
+      perfTier: "normal",
+      fpsAvg: 0,
+      frameTimeMs: 0,
+      latencyAvgMs: 0,
+      droppedFrames: 0,
+      gpuTimeMs: 0,
+      cpuTimeMs: 0,
+      perfTimer: null,
+      lastPerfPostAt: 0
     },
     intro: {
       seenKey: "airdropkral_intro_seen_v2",
@@ -92,6 +109,25 @@
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  function getPerfBridge() {
+    const bridge = window.__AKR_V32_PERF__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function initPerfBridge() {
+    const bridge = getPerfBridge();
+    if (!bridge) {
+      state.telemetry.deviceHash = "legacy";
+      state.telemetry.perfTier = "normal";
+      return;
+    }
+    state.telemetry.deviceHash = String(bridge.deviceHash || "legacy");
+    state.telemetry.perfTier = String(bridge.perfTier || "normal");
   }
 
   function asNum(value) {
@@ -191,8 +227,8 @@
 
   function loadUiPrefs() {
     const quality = String(readStorage(state.ui.storageKeys.quality, "auto") || "auto").toLowerCase();
-    if (["auto", "high", "low"].includes(quality)) {
-      state.ui.qualityMode = quality;
+    if (["auto", "high", "low", "normal"].includes(quality)) {
+      state.ui.qualityMode = quality === "normal" ? "auto" : quality;
     }
     state.ui.reducedMotion = readStorage(state.ui.storageKeys.reducedMotion, "0") === "1";
     state.ui.largeText = readStorage(state.ui.storageKeys.largeText, "0") === "1";
@@ -232,6 +268,7 @@
     }
     persistUiPrefs();
     applyArenaQualityProfile();
+    schedulePerfProfile(true);
     showToast(`Performans modu: ${qualityButtonLabel()}`);
   }
 
@@ -239,6 +276,7 @@
     state.ui.reducedMotion = !state.ui.reducedMotion;
     persistUiPrefs();
     applyArenaQualityProfile();
+    schedulePerfProfile(true);
     showToast(state.ui.reducedMotion ? "Motion azaltildi" : "Motion acildi");
   }
 
@@ -246,7 +284,71 @@
     state.ui.largeText = !state.ui.largeText;
     persistUiPrefs();
     applyUiClasses();
+    schedulePerfProfile(true);
     showToast(state.ui.largeText ? "Buyuk yazi modu acik" : "Yazi boyutu normale dondu");
+  }
+
+  function markLatency(valueMs) {
+    const latency = Math.max(0, asNum(valueMs));
+    if (!state.telemetry.latencyAvgMs) {
+      state.telemetry.latencyAvgMs = latency;
+      return;
+    }
+    state.telemetry.latencyAvgMs = state.telemetry.latencyAvgMs * 0.84 + latency * 0.16;
+  }
+
+  async function postPerfProfile(force = false) {
+    const bridge = getPerfBridge();
+    if (!bridge || typeof bridge.post !== "function") {
+      return;
+    }
+    const now = Date.now();
+    const intervalMs = 45_000;
+    if (!force && now - state.telemetry.lastPerfPostAt < intervalMs) {
+      return;
+    }
+    if (!state.auth.uid || !state.auth.ts || !state.auth.sig) {
+      return;
+    }
+    state.telemetry.lastPerfPostAt = now;
+    const qualityMode = state.ui.qualityMode === "auto" ? getEffectiveQualityMode() : state.ui.qualityMode;
+    await bridge.post({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      device_hash: state.telemetry.deviceHash || "legacy",
+      ui_mode: "hardcore",
+      quality_mode: qualityMode,
+      reduced_motion: Boolean(state.ui.reducedMotion),
+      large_text: Boolean(state.ui.largeText),
+      sound_enabled: true,
+      platform: "telegram_web",
+      gpu_tier: String(state.telemetry.perfTier || "normal"),
+      cpu_tier: String(state.telemetry.perfTier || "normal"),
+      memory_tier: String(state.telemetry.perfTier || "normal"),
+      fps_avg: Number(state.telemetry.fpsAvg || 0),
+      frame_time_ms: Number(state.telemetry.frameTimeMs || 0),
+      latency_avg_ms: Number(state.telemetry.latencyAvgMs || 0),
+      dropped_frames: Number(state.telemetry.droppedFrames || 0),
+      gpu_time_ms: Number(state.telemetry.gpuTimeMs || 0),
+      cpu_time_ms: Number(state.telemetry.cpuTimeMs || 0),
+      profile_json: {
+        quality_mode: qualityMode,
+        auto_quality_mode: state.ui.autoQualityMode,
+        app_state: state.v3.appState
+      }
+    });
+  }
+
+  function schedulePerfProfile(force = false) {
+    if (state.telemetry.perfTimer) {
+      clearTimeout(state.telemetry.perfTimer);
+      state.telemetry.perfTimer = null;
+    }
+    const delay = force ? 300 : 1200;
+    state.telemetry.perfTimer = setTimeout(() => {
+      postPerfProfile(force).catch(() => {});
+    }, delay);
   }
 
   function renewAuth(payload) {
@@ -759,7 +861,9 @@
     if (sessionRef) {
       query.set("session_ref", sessionRef);
     }
+    const t0 = performance.now();
     const res = await fetch(`/webapp/api/arena/session/state?${query.toString()}`);
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       const error = new Error(payload.error || `arena_session_state_failed:${res.status}`);
@@ -774,6 +878,7 @@
   }
 
   async function startArenaSession(modeSuggested = "balanced") {
+    const t0 = performance.now();
     const res = await fetch("/webapp/api/arena/session/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -785,6 +890,7 @@
         mode_suggested: modeSuggested
       })
     });
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       const error = new Error(payload.error || `arena_session_start_failed:${res.status}`);
@@ -805,6 +911,7 @@
     }
     const actionSeq = asNum(session.action_count) + 1;
     const latencyMs = Math.max(0, Date.now() - Number(queuedAt || Date.now()));
+    const t0 = performance.now();
     const res = await fetch("/webapp/api/arena/session/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -819,6 +926,7 @@
         client_ts: Date.now()
       })
     });
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       const error = new Error(payload.error || `arena_session_action_failed:${res.status}`);
@@ -862,6 +970,7 @@
     if (!session || !session.session_ref) {
       throw new Error("session_not_found");
     }
+    const t0 = performance.now();
     const res = await fetch("/webapp/api/arena/session/resolve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -872,6 +981,7 @@
         session_ref: session.session_ref
       })
     });
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       const error = new Error(payload.error || `arena_session_resolve_failed:${res.status}`);
@@ -882,6 +992,174 @@
     state.v3.arenaAuthAvailable = true;
     const resolved = payload.data || {};
     syncArenaSessionUi(resolved.session || null);
+    return resolved;
+  }
+
+  function raidPlanForMode(mode) {
+    const key = String(mode || "balanced").toLowerCase();
+    if (key === "safe") {
+      return ["guard", "guard", "strike", "charge", "guard", "strike"];
+    }
+    if (key === "aggressive") {
+      return ["strike", "strike", "charge", "strike", "charge", "strike", "guard"];
+    }
+    return ["strike", "guard", "charge", "strike", "guard", "charge"];
+  }
+
+  function syncRaidSessionUi(session) {
+    state.v3.raidSession = session || null;
+    if (!session) {
+      return;
+    }
+    const status = String(session.status || "active");
+    if (status === "resolved") {
+      const result = session.result || {};
+      const outcome = String(result.outcome || "resolved").toUpperCase();
+      const reward = result.reward || {};
+      updateArenaStatus(
+        `Raid ${outcome} | +${asNum(reward.sc)} SC +${asNum(reward.rc)} RC`,
+        outcome === "LOSS" ? "warn" : "info"
+      );
+      return;
+    }
+    const ttl = Math.max(0, asNum(session.ttl_sec_left || 0));
+    const nextAction = String(session.next_expected_action || "-").toUpperCase();
+    updateArenaStatus(`Raid Aktif | ${ttl}s | ${nextAction}`, "warn");
+  }
+
+  async function fetchRaidSessionState(sessionRef = "") {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig
+    });
+    if (sessionRef) {
+      query.set("session_ref", sessionRef);
+    }
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/arena/raid/session/state?${query.toString()}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `raid_session_state_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.raidAuthAvailable = true;
+    const session = payload.data?.session || null;
+    syncRaidSessionUi(session);
+    return session;
+  }
+
+  async function startRaidSession(modeSuggested = "balanced") {
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/arena/raid/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        request_id: `webapp_raid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        mode_suggested: modeSuggested
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `raid_session_start_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.raidAuthAvailable = true;
+    const session = payload.data?.session || null;
+    syncRaidSessionUi(session);
+    return session;
+  }
+
+  async function postRaidSessionAction(inputAction, queuedAt) {
+    const session = state.v3.raidSession;
+    if (!session || !session.session_ref) {
+      throw new Error("raid_session_not_found");
+    }
+    const actionSeq = asNum(session.action_count) + 1;
+    const latencyMs = Math.max(0, Date.now() - Number(queuedAt || Date.now()));
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/arena/raid/session/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref,
+        action_seq: actionSeq,
+        input_action: String(inputAction || "").toLowerCase(),
+        latency_ms: latencyMs,
+        client_ts: Date.now()
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `raid_session_action_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.raidAuthAvailable = true;
+    syncRaidSessionUi(payload.data?.session || null);
+    return payload.data || {};
+  }
+
+  async function resolveRaidSession() {
+    const session = state.v3.raidSession;
+    if (!session || !session.session_ref) {
+      throw new Error("raid_session_not_found");
+    }
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/arena/raid/session/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `raid_session_resolve_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.raidAuthAvailable = true;
+    const resolved = payload.data || {};
+    syncRaidSessionUi(resolved.session || null);
+    return resolved;
+  }
+
+  async function runAuthoritativeRaid(mode = "balanced") {
+    const session = await startRaidSession(mode);
+    if (!session || !session.session_ref) {
+      throw new Error("raid_session_not_found");
+    }
+    const actionPlan = raidPlanForMode(mode);
+    for (const action of actionPlan) {
+      await postRaidSessionAction(action, Date.now());
+    }
+    const resolved = await resolveRaidSession();
+    const result = resolved.result || {};
+    const reward = result.reward || {};
+    const outcome = String(result.outcome || "resolved");
+    showToast(`Raid ${outcome} | +${asNum(reward.sc)} SC +${asNum(reward.rc)} RC`);
+    triggerArenaPulse(mode);
+    await loadBootstrap();
     return resolved;
   }
 
@@ -967,11 +1245,13 @@
       sig: state.auth.sig,
       ...payload
     };
+    const t0 = performance.now();
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
+    markLatency(performance.now() - t0);
     const result = await response.json();
     if (!response.ok || !result.success) {
       const error = new Error(result.error || `action_failed:${response.status}`);
@@ -1036,6 +1316,25 @@
   }
 
   async function performAction(action, payload = {}) {
+    if (action === "arena_raid") {
+      const raidEnabled = Boolean(state.v3.featureFlags?.RAID_AUTH_ENABLED);
+      if (raidEnabled) {
+        try {
+          await runAuthoritativeRaid(payload.mode || chooseModeByRisk(asNum(state.data?.risk_score || 0)));
+          return;
+        } catch (err) {
+          const message = String(err?.message || "");
+          const shouldFallback =
+            message.includes("raid_auth_disabled") ||
+            message.includes("raid_session_tables_missing") ||
+            Number(err?.code || 0) === 404;
+          if (!shouldFallback) {
+            throw err;
+          }
+        }
+      }
+    }
+
     try {
       const apiData = await postActionApi(action, payload);
       if (apiData) {
@@ -1057,7 +1356,9 @@
 
   async function loadArenaLeaderboard() {
     const query = new URLSearchParams(state.auth).toString();
+    const t0 = performance.now();
     const res = await fetch(`/webapp/api/arena/leaderboard?${query}`);
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       throw new Error(payload.error || `arena_leaderboard_failed:${res.status}`);
@@ -1393,6 +1694,7 @@
   }
 
   async function postAdmin(path, extraBody = {}) {
+    const t0 = performance.now();
     const res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1400,9 +1702,10 @@
         uid: state.auth.uid,
         ts: state.auth.ts,
         sig: state.auth.sig,
-        ...extraBody
+      ...extraBody
       })
     });
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       throw new Error(payload.error || `admin_action_failed:${res.status}`);
@@ -1667,7 +1970,9 @@
 
   async function loadBootstrap() {
     const query = new URLSearchParams(state.auth).toString();
+    const t0 = performance.now();
     const res = await fetch(`/webapp/api/bootstrap?${query}`);
+    markLatency(performance.now() - t0);
     if (!res.ok) {
       throw new Error(`bootstrap_failed:${res.status}`);
     }
@@ -1676,6 +1981,27 @@
       throw new Error(payload.error || "bootstrap_failed");
     }
     renewAuth(payload);
+    state.v3.featureFlags = payload.data?.feature_flags || {};
+    if (payload.data?.perf_profile) {
+      const perf = payload.data.perf_profile;
+      state.telemetry.fpsAvg = asNum(perf.fps_avg || perf.fpsAvg || state.telemetry.fpsAvg);
+      state.telemetry.frameTimeMs = asNum(perf.frame_time_ms || perf.frameTimeMs || state.telemetry.frameTimeMs);
+      state.telemetry.latencyAvgMs = asNum(perf.latency_avg_ms || perf.latencyAvgMs || state.telemetry.latencyAvgMs);
+      state.telemetry.perfTier = String(perf.gpu_tier || perf.gpuTier || state.telemetry.perfTier || "normal");
+    }
+    if (payload.data?.ui_prefs) {
+      const prefs = payload.data.ui_prefs;
+      const nextReduced = Boolean(prefs.reduced_motion);
+      const nextLarge = Boolean(prefs.large_text);
+      const quality = String(prefs.quality_mode || "").toLowerCase();
+      if (["auto", "high", "normal", "low"].includes(quality)) {
+        state.ui.qualityMode = quality === "normal" ? "auto" : quality;
+      }
+      state.ui.reducedMotion = nextReduced;
+      state.ui.largeText = nextLarge;
+      persistUiPrefs();
+      applyUiClasses();
+    }
     render(payload);
     try {
       await fetchArenaSessionState();
@@ -1692,10 +2018,27 @@
         throw err;
       }
     }
+    try {
+      await fetchRaidSessionState();
+    } catch (err) {
+      const message = String(err?.message || "");
+      if (
+        message.includes("raid_auth_disabled") ||
+        message.includes("raid_session_tables_missing") ||
+        message.includes("user_not_started")
+      ) {
+        state.v3.raidAuthAvailable = false;
+        syncRaidSessionUi(null);
+      } else {
+        throw err;
+      }
+    }
+    schedulePerfProfile(true);
   }
 
   async function rerollTasks() {
     const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const t0 = performance.now();
     const res = await fetch("/webapp/api/tasks/reroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1706,6 +2049,7 @@
         request_id: requestId
       })
     });
+    markLatency(performance.now() - t0);
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       throw new Error(payload.error || `reroll_failed:${res.status}`);
@@ -2169,6 +2513,20 @@
       const now = performance.now();
       if (now - fpsWindowStart >= 1000) {
         const fps = (fpsFrames * 1000) / (now - fpsWindowStart);
+        const frameTimeMs = fps > 0 ? 1000 / fps : 0;
+        if (!state.telemetry.fpsAvg) {
+          state.telemetry.fpsAvg = fps;
+        } else {
+          state.telemetry.fpsAvg = state.telemetry.fpsAvg * 0.82 + fps * 0.18;
+        }
+        if (!state.telemetry.frameTimeMs) {
+          state.telemetry.frameTimeMs = frameTimeMs;
+        } else {
+          state.telemetry.frameTimeMs = state.telemetry.frameTimeMs * 0.82 + frameTimeMs * 0.18;
+        }
+        if (fps < 24) {
+          state.telemetry.droppedFrames += 1;
+        }
         fpsFrames = 0;
         fpsWindowStart = now;
         if (state.ui.qualityMode === "auto") {
@@ -2193,6 +2551,7 @@
             highFpsWindows = 0;
           }
         }
+        schedulePerfProfile(false);
       }
       requestAnimationFrame(tick);
     }
@@ -2230,6 +2589,11 @@
       insufficient_rc: "RC yetersiz, arena ticket alinmadi.",
       arena_cooldown: "Arena cooldown aktif, biraz bekle.",
       arena_tables_missing: "Arena tablolari migration bekliyor.",
+      raid_session_tables_missing: "Raid tablolari migration bekliyor.",
+      raid_session_not_found: "Raid oturumu bulunamadi.",
+      raid_auth_disabled: "Raid authoritative mod kapali.",
+      raid_session_expired: "Raid oturumu zaman asimina ugradi.",
+      raid_session_resolved: "Raid oturumu zaten cozuldu.",
       token_tables_missing: "Token migration eksik, DB migrate calistir.",
       token_disabled: "Token sistemi su an kapali.",
       purchase_below_min: "USD miktari min sinirin altinda.",
@@ -2251,6 +2615,7 @@
   }
 
   async function boot() {
+    initPerfBridge();
     loadUiPrefs();
     await initThree();
     bindUi();

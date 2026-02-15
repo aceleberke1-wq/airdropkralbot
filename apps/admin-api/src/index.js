@@ -15,6 +15,7 @@ const shopStore = require("../../bot/src/stores/shopStore");
 const userStore = require("../../bot/src/stores/userStore");
 const arenaStore = require("../../bot/src/stores/arenaStore");
 const tokenStore = require("../../bot/src/stores/tokenStore");
+const webappStore = require("../../bot/src/stores/webappStore");
 const payoutStore = require("../../bot/src/stores/payoutStore");
 const configService = require("../../bot/src/services/configService");
 const economyEngine = require("../../bot/src/services/economyEngine");
@@ -56,12 +57,15 @@ const WEBAPP_AUTH_TTL_SEC = Number(process.env.WEBAPP_AUTH_TTL_SEC || 900);
 const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
 const TOKEN_TX_VERIFY_STRICT = process.env.TOKEN_TX_VERIFY_STRICT === "1";
 const WEBAPP_DIR = path.join(__dirname, "../../webapp");
+const WEBAPP_DIST_DIR = path.join(WEBAPP_DIR, "dist");
 const WEBAPP_ASSETS_DIR = path.join(WEBAPP_DIR, "assets");
 const FLAG_DEFAULTS = Object.freeze({
   ARENA_AUTH_ENABLED: process.env.ARENA_AUTH_ENABLED === "1",
+  RAID_AUTH_ENABLED: process.env.RAID_AUTH_ENABLED === "1",
   TOKEN_CURVE_ENABLED: process.env.TOKEN_CURVE_ENABLED === "1",
   TOKEN_AUTO_APPROVE_ENABLED: process.env.TOKEN_AUTO_APPROVE_ENABLED === "1",
-  WEBAPP_V3_ENABLED: process.env.WEBAPP_V3_ENABLED === "1"
+  WEBAPP_V3_ENABLED: process.env.WEBAPP_V3_ENABLED === "1",
+  WEBAPP_TS_BUNDLE_ENABLED: process.env.WEBAPP_TS_BUNDLE_ENABLED === "1"
 });
 const RELEASE_ENV = String(process.env.RELEASE_ENV || process.env.NODE_ENV || "production");
 const RELEASE_GIT_REVISION = String(
@@ -132,6 +136,104 @@ function parseLimit(value, fallback = 50, max = 200) {
     return fallback;
   }
   return Math.max(1, Math.min(max, Math.floor(parsed)));
+}
+
+const ORACLE_CACHE = {
+  ts: 0,
+  payload: null
+};
+
+async function fetchWithTimeout(url, timeoutMs = 3500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        accept: "application/json"
+      }
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getReliableCoreApiQuote(db, { force = false } = {}) {
+  const now = Date.now();
+  if (!force && ORACLE_CACHE.payload && now - ORACLE_CACHE.ts < 45000) {
+    return ORACLE_CACHE.payload;
+  }
+
+  const endpoint = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
+  const started = Date.now();
+  let payload = {
+    provider: "coingecko",
+    endpoint,
+    ok: false,
+    statusCode: 0,
+    latencyMs: 0,
+    priceUsd: 0,
+    errorCode: "",
+    errorMessage: "",
+    sourceTs: null
+  };
+  try {
+    const res = await fetchWithTimeout(endpoint, 3500);
+    payload.statusCode = Number(res.status || 0);
+    payload.latencyMs = Date.now() - started;
+    const body = await res.json().catch(() => ({}));
+    const price = Number(body?.bitcoin?.usd || 0);
+    payload.priceUsd = Number.isFinite(price) ? price : 0;
+    payload.ok = res.ok && payload.priceUsd > 0;
+    if (!payload.ok && !payload.errorCode) {
+      payload.errorCode = "upstream_invalid_payload";
+    }
+  } catch (err) {
+    payload.latencyMs = Date.now() - started;
+    payload.errorCode = err?.name === "AbortError" ? "timeout" : "network_error";
+    payload.errorMessage = String(err?.message || "oracle_fetch_failed");
+  }
+
+  if (payload.ok) {
+    payload.sourceTs = new Date().toISOString();
+  }
+
+  try {
+    await webappStore.insertExternalApiHealth(db, {
+      provider: payload.provider,
+      endpoint: payload.endpoint,
+      checkName: "token_quote",
+      ok: payload.ok,
+      statusCode: payload.statusCode,
+      latencyMs: payload.latencyMs,
+      errorCode: payload.errorCode,
+      errorMessage: payload.errorMessage,
+      healthJson: {
+        price_usd: payload.priceUsd
+      }
+    });
+    if (payload.ok) {
+      await webappStore.insertPriceOracleSnapshot(db, {
+        provider: payload.provider,
+        symbol: "BTC",
+        priceUsd: payload.priceUsd,
+        confidence: payload.statusCode === 200 ? 0.95 : 0.6,
+        sourceTs: payload.sourceTs,
+        snapshotJson: {
+          endpoint: payload.endpoint
+        }
+      });
+    }
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+
+  ORACLE_CACHE.ts = now;
+  ORACLE_CACHE.payload = payload;
+  return payload;
 }
 
 function deterministicUuid(input) {
@@ -479,6 +581,29 @@ async function upsertFeatureFlag(db, { flagKey, enabled, updatedBy, note }) {
     [normalized, Boolean(enabled), String(note || ""), Number(updatedBy || 0)]
   );
   return result.rows[0] || null;
+}
+
+async function resolveWebAppVariant(db) {
+  const flags = await loadFeatureFlags(db);
+  const tsBundleEnabled = isFeatureEnabled(flags, "WEBAPP_TS_BUNDLE_ENABLED");
+  if (tsBundleEnabled) {
+    const distIndex = path.join(WEBAPP_DIST_DIR, "index.html");
+    const distAltIndex = path.join(WEBAPP_DIST_DIR, "index.vite.html");
+    if (fs.existsSync(distIndex) || fs.existsSync(distAltIndex)) {
+      return {
+        source: "dist",
+        rootDir: WEBAPP_DIST_DIR,
+        assetsDir: path.join(WEBAPP_DIST_DIR, "assets"),
+        indexPath: fs.existsSync(distIndex) ? distIndex : distAltIndex
+      };
+    }
+  }
+  return {
+    source: "legacy",
+    rootDir: WEBAPP_DIR,
+    assetsDir: WEBAPP_ASSETS_DIR,
+    indexPath: path.join(WEBAPP_DIR, "index.html")
+  };
 }
 
 const PLAY_MODES = {
@@ -1099,8 +1224,12 @@ async function dependencyHealth() {
   }
 
   let arenaSessionTables = false;
+  let raidSessionTables = false;
   let tokenMarketTables = false;
   let queueTables = false;
+  let webappPerfTables = false;
+  let oracleTables = false;
+  let guardrailTables = false;
   let releaseMarkersTable = false;
   try {
     const check = await pool.query(
@@ -1108,15 +1237,29 @@ async function dependencyHealth() {
          to_regclass('public.arena_sessions') IS NOT NULL AS arena_sessions,
          to_regclass('public.arena_session_actions') IS NOT NULL AS arena_session_actions,
          to_regclass('public.arena_session_results') IS NOT NULL AS arena_session_results,
+         to_regclass('public.raid_sessions') IS NOT NULL AS raid_sessions,
+         to_regclass('public.raid_actions') IS NOT NULL AS raid_actions,
+         to_regclass('public.raid_results') IS NOT NULL AS raid_results,
          to_regclass('public.token_market_state') IS NOT NULL AS token_market_state,
          to_regclass('public.token_auto_decisions') IS NOT NULL AS token_auto_decisions,
+         to_regclass('public.user_ui_prefs') IS NOT NULL AS user_ui_prefs,
+         to_regclass('public.device_perf_profiles') IS NOT NULL AS device_perf_profiles,
+         to_regclass('public.render_quality_snapshots') IS NOT NULL AS render_quality_snapshots,
+         to_regclass('public.price_oracle_snapshots') IS NOT NULL AS price_oracle_snapshots,
+         to_regclass('public.external_api_health') IS NOT NULL AS external_api_health,
+         to_regclass('public.treasury_guardrails') IS NOT NULL AS treasury_guardrails,
+         to_regclass('public.velocity_buckets') IS NOT NULL AS velocity_buckets,
          to_regclass('public.feature_flags') IS NOT NULL AS feature_flags,
          to_regclass('public.release_markers') IS NOT NULL AS release_markers;`
     );
     const row = check.rows[0] || {};
     arenaSessionTables = Boolean(row.arena_sessions && row.arena_session_actions && row.arena_session_results);
+    raidSessionTables = Boolean(row.raid_sessions && row.raid_actions && row.raid_results);
     tokenMarketTables = Boolean(row.token_market_state);
     queueTables = Boolean(row.token_auto_decisions && row.feature_flags);
+    webappPerfTables = Boolean(row.user_ui_prefs && row.device_perf_profiles && row.render_quality_snapshots);
+    oracleTables = Boolean(row.price_oracle_snapshots && row.external_api_health);
+    guardrailTables = Boolean(row.treasury_guardrails && row.velocity_buckets);
     releaseMarkersTable = Boolean(row.release_markers);
   } catch (err) {
     if (!reason) {
@@ -1130,8 +1273,12 @@ async function dependencyHealth() {
     reason,
     dependencies: {
       arena_session_tables: arenaSessionTables,
+      raid_session_tables: raidSessionTables,
       token_market_tables: tokenMarketTables,
       queue_tables: queueTables,
+      webapp_perf_tables: webappPerfTables,
+      oracle_tables: oracleTables,
+      guardrail_tables: guardrailTables,
       release_markers: releaseMarkersTable
     }
   };
@@ -1151,13 +1298,16 @@ function arenaSessionErrorCode(error) {
   if (["session_expired", "session_not_active", "invalid_action_seq", "arena_auth_disabled"].includes(key)) {
     return 409;
   }
+  if (["insufficient_rc"].includes(key)) {
+    return 409;
+  }
   if (["session_not_ready", "invalid_input_action"].includes(key)) {
     return 400;
   }
   if (key === "freeze_mode") {
     return 409;
   }
-  if (key === "arena_session_tables_missing") {
+  if (["arena_session_tables_missing", "raid_session_tables_missing"].includes(key)) {
     return 503;
   }
   return 400;
@@ -1176,28 +1326,46 @@ fastify.get("/healthz", async () => {
 fastify.get("/health", async () => dependencyHealth());
 
 fastify.get("/webapp", async (request, reply) => {
-  const indexPath = path.join(WEBAPP_DIR, "index.html");
-  if (!fs.existsSync(indexPath)) {
-    reply.code(404).type("text/plain").send("webapp_not_found");
-    return;
+  const client = await pool.connect();
+  try {
+    const variant = await resolveWebAppVariant(client);
+    const indexPath = variant.indexPath || path.join(variant.rootDir, "index.html");
+    if (!fs.existsSync(indexPath)) {
+      reply.code(404).type("text/plain").send("webapp_not_found");
+      return;
+    }
+    reply.type("text/html; charset=utf-8").send(fs.readFileSync(indexPath, "utf8"));
+  } finally {
+    client.release();
   }
-  reply.type("text/html; charset=utf-8").send(fs.readFileSync(indexPath, "utf8"));
 });
 
 fastify.get("/webapp/:asset", async (request, reply) => {
   const asset = String(request.params.asset || "");
-  const allowed = new Set(["app.js", "styles.css"]);
-  if (!allowed.has(asset)) {
-    reply.code(404).type("text/plain").send("asset_not_found");
-    return;
+  const client = await pool.connect();
+  try {
+    const variant = await resolveWebAppVariant(client);
+    const legacyAllowed = new Set(["app.js", "styles.css"]);
+    if (variant.source === "legacy" && !legacyAllowed.has(asset)) {
+      reply.code(404).type("text/plain").send("asset_not_found");
+      return;
+    }
+    const filePath = path.join(variant.rootDir, asset);
+    if (!filePath.startsWith(variant.rootDir) || !fs.existsSync(filePath)) {
+      reply.code(404).type("text/plain").send("asset_not_found");
+      return;
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const type =
+      ext === ".js"
+        ? "application/javascript; charset=utf-8"
+        : ext === ".css"
+          ? "text/css; charset=utf-8"
+          : "application/octet-stream";
+    reply.type(type).send(fs.readFileSync(filePath, ext === ".js" || ext === ".css" ? "utf8" : undefined));
+  } finally {
+    client.release();
   }
-  const filePath = path.join(WEBAPP_DIR, asset);
-  if (!fs.existsSync(filePath)) {
-    reply.code(404).type("text/plain").send("asset_not_found");
-    return;
-  }
-  const type = asset.endsWith(".js") ? "application/javascript; charset=utf-8" : "text/css; charset=utf-8";
-  reply.type(type).send(fs.readFileSync(filePath, "utf8"));
 });
 
 fastify.get("/webapp/assets/*", async (request, reply) => {
@@ -1206,33 +1374,43 @@ fastify.get("/webapp/assets/*", async (request, reply) => {
     reply.code(404).type("text/plain").send("asset_not_found");
     return;
   }
-  const filePath = path.join(WEBAPP_ASSETS_DIR, rawPath);
-  if (!filePath.startsWith(WEBAPP_ASSETS_DIR) || !fs.existsSync(filePath)) {
-    reply.code(404).type("text/plain").send("asset_not_found");
-    return;
+  const client = await pool.connect();
+  try {
+    const variant = await resolveWebAppVariant(client);
+    const filePath = path.join(variant.assetsDir, rawPath);
+    if (!filePath.startsWith(variant.assetsDir) || !fs.existsSync(filePath)) {
+      reply.code(404).type("text/plain").send("asset_not_found");
+      return;
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType =
+      ext === ".glb"
+        ? "model/gltf-binary"
+        : ext === ".gltf"
+          ? "model/gltf+json; charset=utf-8"
+          : ext === ".png"
+            ? "image/png"
+            : ext === ".jpg" || ext === ".jpeg"
+              ? "image/jpeg"
+              : ext === ".webp"
+                ? "image/webp"
+                : ext === ".mp3"
+                  ? "audio/mpeg"
+                  : ext === ".ogg"
+                    ? "audio/ogg"
+                    : ext === ".wav"
+                      ? "audio/wav"
+                      : ext === ".js"
+                        ? "application/javascript; charset=utf-8"
+                        : ext === ".css"
+                          ? "text/css; charset=utf-8"
+                          : "application/octet-stream";
+
+    reply.type(contentType).send(fs.readFileSync(filePath));
+  } finally {
+    client.release();
   }
-
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType =
-    ext === ".glb"
-      ? "model/gltf-binary"
-      : ext === ".gltf"
-        ? "model/gltf+json; charset=utf-8"
-        : ext === ".png"
-          ? "image/png"
-          : ext === ".jpg" || ext === ".jpeg"
-            ? "image/jpeg"
-            : ext === ".webp"
-              ? "image/webp"
-              : ext === ".mp3"
-                ? "audio/mpeg"
-                : ext === ".ogg"
-                  ? "audio/ogg"
-                  : ext === ".wav"
-                    ? "audio/wav"
-                    : "application/octet-stream";
-
-  reply.type(contentType).send(fs.readFileSync(filePath));
 });
 
 fastify.get("/webapp/api/bootstrap", async (request, reply) => {
@@ -1294,7 +1472,19 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     const arenaRank = arenaReady ? await arenaStore.getRank(client, profile.user_id) : null;
     const arenaRuns = arenaReady ? await arenaStore.getRecentRuns(client, profile.user_id, 5) : [];
     const arenaLeaders = arenaReady ? await arenaStore.getLeaderboard(client, season.seasonId, 5) : [];
+    const director = arenaReady
+      ? await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
+      : null;
     const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+    const uiPrefs = await webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const featureFlags = await loadFeatureFlags(client);
     const isAdmin = isAdminTelegramId(auth.uid);
     const adminSummary = isAdmin ? await buildAdminSummary(client, runtimeConfig) : null;
 
@@ -1327,6 +1517,17 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         attempts: live.attempts,
         events: live.events,
         token,
+        director,
+        feature_flags: featureFlags,
+        perf_profile: perfProfile,
+        ui_prefs:
+          uiPrefs || {
+            ui_mode: "hardcore",
+            quality_mode: "auto",
+            reduced_motion: false,
+            large_text: false,
+            sound_enabled: true
+          },
         admin: {
           is_admin: isAdmin,
           telegram_id: Number(auth.uid || 0),
@@ -1352,6 +1553,161 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     client.release();
   }
 });
+
+fastify.get("/webapp/api/telemetry/perf-profile", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const deviceHash = String(request.query.device_hash || "").trim();
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const pref = await webappStore.getUserUiPrefs(client, profile.user_id);
+    const perf = await webappStore.getLatestPerfProfile(client, profile.user_id, deviceHash);
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        perf_profile: perf || null,
+        ui_prefs:
+          pref || {
+            ui_mode: "hardcore",
+            quality_mode: "auto",
+            reduced_motion: false,
+            large_text: false,
+            sound_enabled: true
+          }
+      }
+    });
+  } catch (err) {
+    if (err.code === "42P01") {
+      reply.code(503).send({ success: false, error: "perf_profile_tables_missing" });
+      return;
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/telemetry/perf-profile",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          device_hash: { type: "string", minLength: 3, maxLength: 128 },
+          ui_mode: { type: "string" },
+          quality_mode: { type: "string" },
+          reduced_motion: { type: "boolean" },
+          large_text: { type: "boolean" },
+          sound_enabled: { type: "boolean" },
+          platform: { type: "string" },
+          gpu_tier: { type: "string" },
+          cpu_tier: { type: "string" },
+          memory_tier: { type: "string" },
+          fps_avg: { type: "number" },
+          frame_time_ms: { type: "number" },
+          latency_avg_ms: { type: "number" },
+          dropped_frames: { type: "integer" },
+          gpu_time_ms: { type: "number" },
+          cpu_time_ms: { type: "number" },
+          profile_json: { type: "object" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const deviceHash = String(request.body.device_hash || "").trim() || "unknown";
+    const uiModeRaw = String(request.body.ui_mode || "hardcore").toLowerCase();
+    const qualityRaw = String(request.body.quality_mode || "auto").toLowerCase();
+    const uiMode = ["hardcore", "standard", "minimal"].includes(uiModeRaw) ? uiModeRaw : "hardcore";
+    const qualityMode = ["auto", "high", "normal", "low"].includes(qualityRaw) ? qualityRaw : "auto";
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+
+      const perf = await webappStore.upsertDevicePerfProfile(client, {
+        userId: profile.user_id,
+        deviceHash,
+        platform: String(request.body.platform || ""),
+        gpuTier: String(request.body.gpu_tier || "unknown"),
+        cpuTier: String(request.body.cpu_tier || "unknown"),
+        memoryTier: String(request.body.memory_tier || "unknown"),
+        fpsAvg: Number(request.body.fps_avg || 0),
+        frameTimeMs: Number(request.body.frame_time_ms || 0),
+        latencyAvgMs: Number(request.body.latency_avg_ms || 0),
+        profileJson: request.body.profile_json || {}
+      });
+      const prefs = await webappStore.upsertUserUiPrefs(client, {
+        userId: profile.user_id,
+        uiMode,
+        qualityMode,
+        reducedMotion: Boolean(request.body.reduced_motion),
+        largeText: Boolean(request.body.large_text),
+        soundEnabled: request.body.sound_enabled !== false,
+        prefsJson: {
+          device_hash: deviceHash
+        }
+      });
+      await webappStore.insertRenderQualitySnapshot(client, {
+        userId: profile.user_id,
+        deviceHash,
+        qualityMode,
+        fpsAvg: Number(request.body.fps_avg || 0),
+        droppedFrames: Number(request.body.dropped_frames || 0),
+        gpuTimeMs: Number(request.body.gpu_time_ms || 0),
+        cpuTimeMs: Number(request.body.cpu_time_ms || 0),
+        snapshotJson: {
+          frame_time_ms: Number(request.body.frame_time_ms || 0),
+          latency_avg_ms: Number(request.body.latency_avg_ms || 0),
+          profile_json: request.body.profile_json || {}
+        }
+      });
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          perf_profile: perf,
+          ui_prefs: prefs
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "perf_profile_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
 
 fastify.post(
   "/webapp/api/tasks/reroll",
@@ -2283,6 +2639,7 @@ fastify.post(
         return;
       }
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
       const started = await arenaService.startAuthoritativeSession(client, {
         profile,
         config: runtimeConfig,
@@ -2301,7 +2658,12 @@ fastify.post(
         session: issueWebAppSession(auth.uid),
         data: {
           duplicate: Boolean(started.duplicate),
-          session: started.session
+          session: started.session,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          server_tick: Date.now(),
+          idempotency_key: started.session?.session_ref || null
         }
       });
     } catch (err) {
@@ -2362,6 +2724,7 @@ fastify.post(
         return;
       }
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
       const acted = await arenaService.applyAuthoritativeSessionAction(client, {
         profile,
         config: runtimeConfig,
@@ -2386,7 +2749,14 @@ fastify.post(
       reply.send({
         success: true,
         session: issueWebAppSession(auth.uid),
-        data: acted
+        data: {
+          ...acted,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:${Number(request.body.action_seq || 0)}`
+        }
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -2442,6 +2812,7 @@ fastify.post(
         return;
       }
       const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
       const resolved = await arenaService.resolveAuthoritativeSession(client, {
         profile,
         config: runtimeConfig,
@@ -2462,7 +2833,14 @@ fastify.post(
       reply.send({
         success: true,
         session: issueWebAppSession(auth.uid),
-        data: resolved
+        data: {
+          ...resolved,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:resolve`
+        }
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -2491,6 +2869,9 @@ fastify.get("/webapp/api/arena/session/state", async (request, reply) => {
       reply.code(409).send({ success: false, error: "arena_auth_disabled" });
       return;
     }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
+    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
     const statePayload = await arenaService.getAuthoritativeSessionState(client, {
       profile,
       sessionRef: String(request.query.session_ref || "")
@@ -2505,7 +2886,355 @@ fastify.get("/webapp/api/arena/session/state", async (request, reply) => {
     reply.send({
       success: true,
       session: issueWebAppSession(auth.uid),
-      data: statePayload
+      data: {
+        ...statePayload,
+        contract: directorPayload?.contract || null,
+        anomaly: directorPayload?.anomaly || null,
+        director: directorPayload?.director || null,
+        perf_profile: perfProfile,
+        idempotency_key: statePayload?.session?.session_ref ? `${statePayload.session.session_ref}:state` : null,
+        server_tick: Date.now()
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/arena/director", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+      reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const director = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: director
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/arena/raid/session/start",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "string", minLength: 6, maxLength: 96 },
+          mode_suggested: { type: "string" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED") || !isFeatureEnabled(flags, "RAID_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "raid_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const started = await arenaService.startAuthoritativeRaidSession(client, {
+        profile,
+        config: runtimeConfig,
+        requestId: String(request.body.request_id || `raid:${Date.now()}`),
+        modeSuggested: request.body.mode_suggested,
+        source: "webapp"
+      });
+      if (!started.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(started.error)).send({ success: false, error: started.error });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...started,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          server_tick: Date.now(),
+          idempotency_key: started.session?.request_ref || null,
+          director: started.session?.director || directorPayload?.director || {},
+          perf_profile: perfProfile
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/arena/raid/session/action",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref", "action_seq", "input_action"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 },
+          action_seq: { type: "integer", minimum: 1 },
+          input_action: { type: "string", enum: arenaEngine.SESSION_ACTIONS },
+          latency_ms: { type: "integer", minimum: 0 },
+          client_ts: { type: "integer", minimum: 0 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED") || !isFeatureEnabled(flags, "RAID_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "raid_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const acted = await arenaService.applyAuthoritativeRaidAction(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        actionSeq: Number(request.body.action_seq || 0),
+        inputAction: String(request.body.input_action || ""),
+        latencyMs: Number(request.body.latency_ms || 0),
+        clientTs: Number(request.body.client_ts || 0),
+        source: "webapp"
+      });
+      if (!acted.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(acted.error)).send({
+          success: false,
+          error: acted.error,
+          min_actions: acted.min_actions || 0,
+          action_count: acted.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...acted,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:${Number(request.body.action_seq || 0)}`,
+          perf_profile: perfProfile
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/arena/raid/session/resolve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED") || !isFeatureEnabled(flags, "RAID_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "raid_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const resolved = await arenaService.resolveAuthoritativeRaidSession(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        source: "webapp"
+      });
+      if (!resolved.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(resolved.error)).send({
+          success: false,
+          error: resolved.error,
+          min_actions: resolved.min_actions || 0,
+          action_count: resolved.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...resolved,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:resolve`,
+          perf_profile: perfProfile
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/arena/raid/session/state", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED") || !isFeatureEnabled(flags, "RAID_AUTH_ENABLED")) {
+      reply.code(409).send({ success: false, error: "raid_auth_disabled" });
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const directorPayload = await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null);
+    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+    const statePayload = await arenaService.getAuthoritativeRaidSessionState(client, {
+      profile,
+      sessionRef: String(request.query.session_ref || "")
+    });
+    if (!statePayload.ok) {
+      reply.code(arenaSessionErrorCode(statePayload.error)).send({
+        success: false,
+        error: statePayload.error
+      });
+      return;
+    }
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        ...statePayload,
+        contract: directorPayload?.contract || null,
+        anomaly: directorPayload?.anomaly || null,
+        director: directorPayload?.director || null,
+        perf_profile: perfProfile,
+        idempotency_key: statePayload?.session?.session_ref ? `${statePayload.session.session_ref}:state` : null,
+        server_tick: Date.now()
+      }
     });
   } finally {
     client.release();
@@ -2720,6 +3449,24 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
       marketState,
       totalSupply: Number(supply.total || 0)
     });
+    const oracleProbe = await getReliableCoreApiQuote(client).catch((err) => {
+      if (err.code === "42P01") {
+        return {
+          provider: "coingecko",
+          ok: false,
+          statusCode: 0,
+          latencyMs: 0,
+          priceUsd: 0,
+          errorCode: "oracle_tables_missing",
+          errorMessage: "oracle tables missing"
+        };
+      }
+      throw err;
+    });
+    const guardrail = await tokenStore.getTreasuryGuardrail(client, tokenConfig.symbol).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
     const priceUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
     const quote = tokenEngine.quotePurchaseByUsd(usdAmount, tokenConfig, { priceUsd });
     if (!quote.ok) {
@@ -2750,7 +3497,20 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
           enabled: curveEnabled,
           quote: curveQuote
         },
-        payout_gate: gate
+        payout_gate: {
+          ...gate,
+          guardrail: guardrail
+            ? {
+                min_market_cap_usd: Number(guardrail.min_market_cap_usd || 0),
+                target_market_cap_max_usd: Number(guardrail.target_market_cap_max_usd || 0),
+                auto_usd_limit: Number(guardrail.auto_usd_limit || 0),
+                risk_threshold: Number(guardrail.risk_threshold || 0),
+                velocity_per_hour: Number(guardrail.velocity_per_hour || 0),
+                require_onchain_verified: Boolean(guardrail.require_onchain_verified)
+              }
+            : null
+        },
+        external_api: oracleProbe
       }
     });
   } finally {
@@ -2964,6 +3724,15 @@ fastify.post(
           token_min_receive: quote.tokenMinReceive
         }
       });
+      await tokenStore.incrementVelocityBucket(client, {
+        userId: profile.user_id,
+        actionKey: "token_buy_intent",
+        amount: 1
+      }).catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
 
       await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_token_buy_intent", {
         request_id: requestRow.id,
@@ -3062,6 +3831,18 @@ fastify.post(
       }
 
       const txCheck = await validateAndVerifyTokenTx(purchaseRequest.chain, txHash);
+      await webappStore.insertChainVerifyLog(client, {
+        requestId,
+        chain: purchaseRequest.chain,
+        txHash,
+        verifyStatus: txCheck.verify?.status || (txCheck.ok ? "verified" : "failed"),
+        latencyMs: Number(txCheck.verify?.latency_ms || 0),
+        verifyJson: txCheck.verify || {}
+      }).catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
       if (!txCheck.ok) {
         await client.query("ROLLBACK");
         const code = txCheck.reason === "tx_not_found_onchain" ? 409 : 400;
@@ -3092,6 +3873,15 @@ fastify.post(
         request_id: requestId,
         tx_hash: txCheck.formatCheck.normalizedHash.slice(0, 18)
       });
+      await tokenStore.incrementVelocityBucket(client, {
+        userId: profile.user_id,
+        actionKey: "token_submit_tx",
+        amount: 1
+      }).catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
 
       const runtimeConfig = await configService.getEconomyConfig(client);
       const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
@@ -3112,6 +3902,28 @@ fastify.post(
       });
       const spotUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
       const marketGate = computeTokenMarketCapGate(tokenConfig, supply.total, spotUsd);
+      const guardrail = await tokenStore.getTreasuryGuardrail(client, tokenConfig.symbol).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+      await tokenStore
+        .insertPayoutGateEvent(client, {
+          tokenSymbol: tokenConfig.symbol,
+          gateOpen: Boolean(marketGate.allowed),
+          reason: marketGate.allowed ? "gate_open" : "gate_closed",
+          marketCapUsd: Number(marketGate.current_market_cap_usd || 0),
+          eventJson: {
+            min_market_cap_usd: Number(marketGate.min_market_cap_usd || 0),
+            current_market_cap_usd: Number(marketGate.current_market_cap_usd || 0),
+            request_id: requestId
+          },
+          createdBy: Number(auth.uid || 0)
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       const autoPolicyEnabled = Boolean(
         isFeatureEnabled(featureFlags, "TOKEN_AUTO_APPROVE_ENABLED") && curveState.autoPolicy.enabled
       );
@@ -3131,10 +3943,13 @@ fastify.post(
         },
         {
           enabled: autoPolicyEnabled,
-          autoUsdLimit: Number(curveState.autoPolicy.autoUsdLimit || 10),
-          riskThreshold: Number(curveState.autoPolicy.riskThreshold || 0.35),
-          velocityPerHour: Number(curveState.autoPolicy.velocityPerHour || 8),
-          requireOnchainVerified: Boolean(curveState.autoPolicy.requireOnchainVerified)
+          autoUsdLimit: Number(guardrail?.auto_usd_limit || curveState.autoPolicy.autoUsdLimit || 10),
+          riskThreshold: Number(guardrail?.risk_threshold || curveState.autoPolicy.riskThreshold || 0.35),
+          velocityPerHour: Number(guardrail?.velocity_per_hour || curveState.autoPolicy.velocityPerHour || 8),
+          requireOnchainVerified:
+            typeof guardrail?.require_onchain_verified === "boolean"
+              ? Boolean(guardrail.require_onchain_verified)
+              : Boolean(curveState.autoPolicy.requireOnchainVerified)
         }
       );
       await tokenStore
@@ -3304,13 +4119,37 @@ fastify.get("/webapp/api/admin/queues", async (request, reply) => {
       if (err.code === "42P01") return [];
       throw err;
     });
+    const raidQueue = await client
+      .query(
+        `SELECT id, session_ref, user_id, status, mode_suggested, action_count, score, started_at, expires_at
+         FROM raid_sessions
+         WHERE status = 'active'
+         ORDER BY started_at DESC
+         LIMIT 50;`
+      )
+      .then((res) => res.rows)
+      .catch((err) => {
+        if (err.code === "42P01") return [];
+        throw err;
+      });
+    const apiHealth = await webappStore.getLatestExternalApiHealth(client, "coingecko", 20).catch((err) => {
+      if (err.code === "42P01") return [];
+      throw err;
+    });
+    const latestRelease = await readLatestReleaseMarker(client).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
     reply.send({
       success: true,
       session: issueWebAppSession(auth.uid),
       data: {
         payout_queue: payoutQueue,
         token_manual_queue: manualTokenQueue,
-        token_auto_decisions: autoDecisions
+        token_auto_decisions: autoDecisions,
+        raid_active_sessions: raidQueue,
+        external_api_health: apiHealth,
+        release_latest: latestRelease
       }
     });
   } finally {
@@ -3546,6 +4385,25 @@ fastify.post(
         },
         updatedBy: Number(auth.uid)
       });
+      await tokenStore
+        .upsertTreasuryGuardrail(client, {
+          tokenSymbol: tokenConfig.symbol,
+          minMarketCapUsd: Number(tokenConfig.payout_gate?.min_market_cap_usd || 0),
+          targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+          autoUsdLimit: Number(nextPolicy.autoUsdLimit || 10),
+          riskThreshold: Number(nextPolicy.riskThreshold || 0.35),
+          velocityPerHour: Number(nextPolicy.velocityPerHour || 8),
+          requireOnchainVerified: Boolean(nextPolicy.requireOnchainVerified),
+          guardrailJson: {
+            source: "webapp_api_admin_token_auto_policy"
+          },
+          updatedBy: Number(auth.uid)
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
 
       if (typeof request.body.enabled === "boolean") {
         await upsertFeatureFlag(client, {
@@ -3680,6 +4538,25 @@ fastify.post(
         autoPolicy: normalized.autoPolicy,
         updatedBy: Number(auth.uid)
       });
+      await tokenStore
+        .upsertTreasuryGuardrail(client, {
+          tokenSymbol: tokenConfig.symbol,
+          minMarketCapUsd: Number(tokenConfig.payout_gate?.min_market_cap_usd || 0),
+          targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+          autoUsdLimit: Number(normalized.autoPolicy?.autoUsdLimit || 10),
+          riskThreshold: Number(normalized.autoPolicy?.riskThreshold || 0.35),
+          velocityPerHour: Number(normalized.autoPolicy?.velocityPerHour || 8),
+          requireOnchainVerified: Boolean(normalized.autoPolicy?.requireOnchainVerified),
+          guardrailJson: {
+            source: "webapp_api_admin_token_curve"
+          },
+          updatedBy: Number(auth.uid)
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
 
       if (typeof request.body.enabled === "boolean") {
         await upsertFeatureFlag(client, {
@@ -4454,6 +5331,25 @@ fastify.post(
         },
         updatedBy: adminId
       });
+      await tokenStore
+        .upsertTreasuryGuardrail(client, {
+          tokenSymbol: tokenConfig.symbol,
+          minMarketCapUsd: Number(tokenConfig.payout_gate?.min_market_cap_usd || 0),
+          targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+          autoUsdLimit: Number(nextPolicy.autoUsdLimit || 10),
+          riskThreshold: Number(nextPolicy.riskThreshold || 0.35),
+          velocityPerHour: Number(nextPolicy.velocityPerHour || 8),
+          requireOnchainVerified: Boolean(nextPolicy.requireOnchainVerified),
+          guardrailJson: {
+            source: "admin_token_auto_policy"
+          },
+          updatedBy: adminId
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
 
       if (typeof request.body.enabled === "boolean") {
         await upsertFeatureFlag(client, {
@@ -4570,6 +5466,25 @@ fastify.post(
         autoPolicy: normalized.autoPolicy,
         updatedBy: adminId
       });
+      await tokenStore
+        .upsertTreasuryGuardrail(client, {
+          tokenSymbol: tokenConfig.symbol,
+          minMarketCapUsd: Number(tokenConfig.payout_gate?.min_market_cap_usd || 0),
+          targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+          autoUsdLimit: Number(normalized.autoPolicy?.autoUsdLimit || 10),
+          riskThreshold: Number(normalized.autoPolicy?.riskThreshold || 0.35),
+          velocityPerHour: Number(normalized.autoPolicy?.velocityPerHour || 8),
+          requireOnchainVerified: Boolean(normalized.autoPolicy?.requireOnchainVerified),
+          guardrailJson: {
+            source: "admin_token_curve"
+          },
+          updatedBy: adminId
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
 
       if (typeof request.body.enabled === "boolean") {
         await upsertFeatureFlag(client, {

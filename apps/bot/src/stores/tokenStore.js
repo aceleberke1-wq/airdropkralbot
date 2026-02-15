@@ -316,6 +316,101 @@ async function listManualReviewQueue(db, limit = 30) {
   return result.rows;
 }
 
+async function getTreasuryGuardrail(db, tokenSymbol = "NXT") {
+  const result = await db.query(
+    `SELECT token_symbol, min_market_cap_usd, target_market_cap_max_usd, auto_usd_limit, risk_threshold, velocity_per_hour,
+            require_onchain_verified, guardrail_json, updated_at, updated_by
+     FROM treasury_guardrails
+     WHERE token_symbol = $1
+     LIMIT 1;`,
+    [String(tokenSymbol || "NXT").toUpperCase()]
+  );
+  return result.rows[0] || null;
+}
+
+async function upsertTreasuryGuardrail(db, payload) {
+  const symbol = String(payload.tokenSymbol || "NXT").toUpperCase();
+  const result = await db.query(
+    `INSERT INTO treasury_guardrails (
+       token_symbol,
+       min_market_cap_usd,
+       target_market_cap_max_usd,
+       auto_usd_limit,
+       risk_threshold,
+       velocity_per_hour,
+       require_onchain_verified,
+       guardrail_json,
+       updated_by
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+     ON CONFLICT (token_symbol)
+     DO UPDATE SET
+       min_market_cap_usd = EXCLUDED.min_market_cap_usd,
+       target_market_cap_max_usd = EXCLUDED.target_market_cap_max_usd,
+       auto_usd_limit = EXCLUDED.auto_usd_limit,
+       risk_threshold = EXCLUDED.risk_threshold,
+       velocity_per_hour = EXCLUDED.velocity_per_hour,
+       require_onchain_verified = EXCLUDED.require_onchain_verified,
+       guardrail_json = EXCLUDED.guardrail_json,
+       updated_at = now(),
+       updated_by = EXCLUDED.updated_by
+     RETURNING token_symbol, min_market_cap_usd, target_market_cap_max_usd, auto_usd_limit, risk_threshold, velocity_per_hour,
+               require_onchain_verified, guardrail_json, updated_at, updated_by;`,
+    [
+      symbol,
+      Number(payload.minMarketCapUsd || 0),
+      Number(payload.targetMarketCapMaxUsd || 0),
+      Number(payload.autoUsdLimit || 10),
+      Number(payload.riskThreshold || 0.35),
+      Number(payload.velocityPerHour || 8),
+      Boolean(payload.requireOnchainVerified),
+      JSON.stringify(payload.guardrailJson || {}),
+      Number(payload.updatedBy || 0)
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertPayoutGateEvent(db, payload) {
+  const result = await db.query(
+    `INSERT INTO payout_gate_events (
+       token_symbol,
+       gate_open,
+       reason,
+       market_cap_usd,
+       event_json,
+       created_by
+     )
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+     RETURNING id, token_symbol, gate_open, reason, market_cap_usd, event_json, created_at, created_by;`,
+    [
+      String(payload.tokenSymbol || "NXT").toUpperCase(),
+      Boolean(payload.gateOpen),
+      String(payload.reason || ""),
+      Number(payload.marketCapUsd || 0),
+      JSON.stringify(payload.eventJson || {}),
+      Number(payload.createdBy || 0)
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function incrementVelocityBucket(db, { userId, actionKey, amount = 1, bucketTime = null }) {
+  const safeAmount = Math.max(1, Math.floor(Number(amount || 1)));
+  const tsValue = bucketTime ? new Date(bucketTime) : new Date();
+  const result = await db.query(
+    `INSERT INTO velocity_buckets (user_id, bucket_hour, action_key, counter)
+     VALUES ($1, date_trunc('hour', $2::timestamptz), $3, $4)
+     ON CONFLICT (user_id, bucket_hour, action_key)
+     DO UPDATE SET
+       counter = velocity_buckets.counter + EXCLUDED.counter,
+       updated_at = now()
+     RETURNING user_id, bucket_hour, action_key, counter, updated_at;`,
+    [userId, tsValue.toISOString(), String(actionKey || "default"), safeAmount]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   listUserPurchaseRequests,
   getPurchaseRequest,
@@ -333,5 +428,9 @@ module.exports = {
   listTokenAutoDecisions,
   insertTokenLiquiditySnapshot,
   countRecentTokenVelocity,
-  listManualReviewQueue
+  listManualReviewQueue,
+  getTreasuryGuardrail,
+  upsertTreasuryGuardrail,
+  insertPayoutGateEvent,
+  incrementVelocityBucket
 };

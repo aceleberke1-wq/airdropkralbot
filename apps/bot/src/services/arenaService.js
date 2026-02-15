@@ -833,11 +833,789 @@ async function getAuthoritativeSessionState(db, { profile, sessionRef }) {
   };
 }
 
+function toRaidSessionView(session, result = null, actions = [], bossCycle = null) {
+  if (!session) {
+    return null;
+  }
+  const state = session.state_json || {};
+  const expiresAt = session.expires_at ? new Date(session.expires_at).getTime() : 0;
+  const ttlSecLeft = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : 0;
+  return {
+    session_id: Number(session.id || 0),
+    session_ref: session.session_ref,
+    request_ref: session.request_ref || "",
+    status: session.status,
+    mode_suggested: session.mode_suggested,
+    mode_final: session.mode_final || null,
+    score: Number(session.score || 0),
+    combo_max: Number(session.combo_max || 0),
+    hits: Number(session.hits || 0),
+    misses: Number(session.misses || 0),
+    action_count: Number(session.action_count || 0),
+    contract_key: session.contract_key || "",
+    anomaly_id: session.anomaly_id || "",
+    boss_cycle_id: Number(session.boss_cycle_id || 0),
+    ttl_sec_left: ttlSecLeft,
+    started_at: session.started_at,
+    resolved_at: session.resolved_at || null,
+    next_expected_action: String(state.next_expected || ""),
+    director: session.director_json || {},
+    state,
+    boss_cycle: bossCycle
+      ? {
+          id: Number(bossCycle.id || 0),
+          cycle_ref: bossCycle.cycle_ref,
+          cycle_key: bossCycle.cycle_key,
+          boss_name: bossCycle.boss_name,
+          tier: bossCycle.tier,
+          wave_total: Number(bossCycle.wave_total || 0),
+          wave_index: Number(bossCycle.wave_index || 0),
+          hp_total: Number(bossCycle.hp_total || 0),
+          hp_remaining: Number(bossCycle.hp_remaining || 0),
+          state: bossCycle.state,
+          ends_at: bossCycle.ends_at
+        }
+      : null,
+    actions: (actions || []).map((row) => ({
+      action_seq: Number(row.action_seq || 0),
+      input_action: row.input_action,
+      accepted: Boolean(row.accepted),
+      latency_ms: Number(row.latency_ms || 0),
+      score_delta: Number(row.score_delta || 0),
+      combo_after: Number(row.combo_after || 0),
+      created_at: row.created_at
+    })),
+    result: result
+      ? {
+          id: Number(result.id || 0),
+          mode: result.mode,
+          outcome: result.outcome,
+          reward: {
+            sc: Number(result.reward_sc || 0),
+            hc: Number(result.reward_hc || 0),
+            rc: Number(result.reward_rc || 0)
+          },
+          rating_delta: Number(result.rating_delta || 0),
+          damage_done: Number(result.damage_done || 0),
+          created_at: result.created_at,
+          resolved_json: result.resolved_json || {}
+        }
+      : null
+  };
+}
+
+function dailyCapForProfile(config, profile) {
+  const base = Number(config?.loops?.meso?.daily_cap_base || 120);
+  const tier = Number(profile?.kingdom_tier || 0);
+  return Math.max(20, Math.round(base + tier * 20));
+}
+
+function buildDirectorDecision({
+  profile,
+  config,
+  riskScore,
+  dailyCounter,
+  activeArenaSession,
+  activeRaidSession,
+  anomaly,
+  contract
+}) {
+  const dailyTasks = Number(dailyCounter?.tasks_done || 0);
+  const dailyCap = dailyCapForProfile(config, profile);
+  const capRatio = dailyCap > 0 ? Math.min(1.5, dailyTasks / dailyCap) : 0;
+  const risk = Math.max(0, Math.min(1, Number(riskScore || 0)));
+  const hasActionableSession = Boolean(activeArenaSession || activeRaidSession);
+  const shouldReveal = hasActionableSession && Number(activeArenaSession?.action_count || 0) >= 6;
+  const recommendedMode =
+    contract?.required_mode ||
+    anomaly?.preferred_mode ||
+    (risk >= 0.3 ? "safe" : risk <= 0.12 ? "aggressive" : "balanced");
+
+  let recommendedAction = "start_task";
+  let stateLabel = "Hazir";
+  let style = "info";
+  if (activeRaidSession) {
+    recommendedAction = Number(activeRaidSession.action_count || 0) >= 7 ? "resolve_raid" : "continue_raid";
+    stateLabel = "Raid Aktif";
+    style = "warn";
+  } else if (activeArenaSession) {
+    recommendedAction = shouldReveal ? "resolve_arena" : "continue_arena";
+    stateLabel = "Arena Aktif";
+    style = "warn";
+  } else if (capRatio >= 1) {
+    recommendedAction = "play_safe";
+    stateLabel = "Cap Uzeri";
+    style = "danger";
+  }
+
+  return {
+    stateLabel,
+    style,
+    recommended_action: recommendedAction,
+    recommended_mode: recommendedMode,
+    risk_band: risk >= 0.35 ? "high" : risk >= 0.2 ? "mid" : "low",
+    cap_ratio: Number(capRatio.toFixed(3))
+  };
+}
+
+function formatCycleKey(seasonId) {
+  const d = new Date();
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `s${seasonId}_${yyyy}${mm}${dd}`;
+}
+
+function defaultBossForSeason(seasonId) {
+  const roster = ["Nexus Warden", "Flux Hydra", "Aether Golem", "Chrono Specter", "Iron Leviathan"];
+  const idx = Math.abs(Number(seasonId || 0)) % roster.length;
+  return roster[idx];
+}
+
+async function ensureActiveBossCycle(db, seasonId) {
+  const existing = await arenaStore.getActiveBossCycle(db, seasonId, { forUpdate: true });
+  if (existing) {
+    return existing;
+  }
+  const cycleKey = formatCycleKey(seasonId);
+  return arenaStore.createBossCycle(db, {
+    cycleRef: deterministicUuid(`boss_cycle:${cycleKey}`),
+    cycleKey,
+    seasonId,
+    bossName: defaultBossForSeason(seasonId),
+    tier: "seed",
+    waveTotal: 3,
+    waveIndex: 1,
+    hpTotal: 1800,
+    hpRemaining: 1800,
+    cycleJson: { source: "auto_seed" }
+  });
+}
+
+async function buildDirectorView(db, { profile, config }) {
+  const season = seasonStore.getSeasonInfo(config);
+  const anomaly = nexusEventEngine.publicAnomalyView(
+    nexusEventEngine.resolveDailyAnomaly(config, { seasonId: season.seasonId })
+  );
+  const contract = nexusContractEngine.publicContractView(
+    nexusContractEngine.resolveDailyContract(config, {
+      seasonId: season.seasonId,
+      anomalyId: anomaly.id
+    })
+  );
+  const riskState = await riskStore.getRiskState(db, profile.user_id);
+  const dailyCounter = await economyStore.getTodayCounter(db, profile.user_id);
+  const activeArenaSession = await arenaStore.getActiveSession(db, profile.user_id);
+  const activeRaidSession = await arenaStore.getActiveRaidSession(db, profile.user_id);
+  const decision = buildDirectorDecision({
+    profile,
+    config,
+    riskScore: Number(riskState.riskScore || 0),
+    dailyCounter,
+    activeArenaSession,
+    activeRaidSession,
+    anomaly,
+    contract
+  });
+
+  return {
+    server_tick: Date.now(),
+    season: {
+      season_id: season.seasonId,
+      days_left: season.daysLeft
+    },
+    risk_score: Number(riskState.riskScore || 0),
+    daily: {
+      tasks_done: Number(dailyCounter.tasks_done || 0),
+      sc_earned: Number(dailyCounter.sc_earned || 0),
+      hc_earned: Number(dailyCounter.hc_earned || 0),
+      rc_earned: Number(dailyCounter.rc_earned || 0),
+      cap: dailyCapForProfile(config, profile)
+    },
+    active: {
+      arena_session_ref: activeArenaSession?.session_ref || null,
+      raid_session_ref: activeRaidSession?.session_ref || null
+    },
+    anomaly,
+    contract,
+    director: decision
+  };
+}
+
+async function startAuthoritativeRaidSession(db, { profile, config, requestId, modeSuggested, source }) {
+  const ready = await arenaStore.hasRaidSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "raid_session_tables_missing" };
+  }
+
+  await arenaStore.expireStaleRaidSessions(db, profile.user_id);
+  const existingActive = await arenaStore.getActiveRaidSession(db, profile.user_id, { forUpdate: true });
+  if (existingActive) {
+    const existingResult = await arenaStore.getRaidResultBySessionId(db, existingActive.id);
+    const existingActions = await arenaStore.getRaidActions(db, existingActive.id);
+    const bossCycle = existingActive.boss_cycle_id
+      ? await db.query(`SELECT * FROM boss_cycles WHERE id = $1 LIMIT 1;`, [existingActive.boss_cycle_id]).then((r) => r.rows[0] || null)
+      : null;
+    return {
+      ok: true,
+      duplicate: true,
+      session: toRaidSessionView(existingActive, existingResult, existingActions, bossCycle)
+    };
+  }
+
+  const season = seasonStore.getSeasonInfo(config);
+  const anomaly = nexusEventEngine.resolveDailyAnomaly(config, { seasonId: season.seasonId });
+  const contract = nexusContractEngine.resolveDailyContract(config, {
+    seasonId: season.seasonId,
+    anomalyId: anomaly.id
+  });
+  const riskState = await riskStore.getRiskState(db, profile.user_id);
+  const directorView = await buildDirectorView(db, { profile, config });
+  const suggested =
+    String(modeSuggested || "").trim().toLowerCase() ||
+    String(contract.required_mode || anomaly.preferred_mode || (Number(riskState.riskScore || 0) > 0.27 ? "safe" : "balanced"));
+  const mode = arenaEngine.getRaidMode(suggested);
+  const sessionRef = buildRunNonce(profile.user_id, requestId || `${Date.now()}:${Math.random()}`);
+  const requestRef = requestId ? `raid:${profile.user_id}:${requestId}` : null;
+  const sessionConfig = arenaEngine.getSessionConfig(config);
+  const bossCycle = await ensureActiveBossCycle(db, season.seasonId);
+  const arenaConfig = arenaEngine.getArenaConfig(config);
+
+  const debit = await economyStore.debitCurrency(db, {
+    userId: profile.user_id,
+    currency: "RC",
+    amount: arenaConfig.ticketCostRc,
+    reason: "raid_ticket_spend",
+    refEventId: deterministicUuid(`raid_ticket:${sessionRef}:RC`),
+    meta: {
+      mode: mode.key,
+      source: source || "webapp",
+      session_ref: sessionRef
+    }
+  });
+  if (!debit.applied) {
+    return {
+      ok: false,
+      error: debit.reason === "insufficient_balance" ? "insufficient_rc" : "raid_ticket_error"
+    };
+  }
+
+  const stateJson = {
+    combo: 0,
+    combo_max: 0,
+    hits: 0,
+    misses: 0,
+    action_count: 0,
+    score: 0,
+    phase: "combat",
+    next_expected: arenaEngine.expectedActionForSequence(sessionRef, 1),
+    latency_hard_ms: sessionConfig.latencyHardMs,
+    max_actions: sessionConfig.maxActions
+  };
+  const created = await arenaStore.createRaidSession(db, {
+    sessionRef,
+    requestRef,
+    userId: profile.user_id,
+    seasonId: season.seasonId,
+    bossCycleId: bossCycle?.id || null,
+    modeSuggested: mode.key,
+    contractKey: String(contract.id || ""),
+    anomalyId: String(anomaly.id || ""),
+    directorJson: directorView,
+    requestMeta: {
+      source: source || "webapp",
+      request_id: requestId || null
+    },
+    stateJson,
+    ttlSec: Math.max(45, sessionConfig.ttlSec)
+  });
+
+  await riskStore.insertBehaviorEvent(db, profile.user_id, "raid_session_start", {
+    session_ref: sessionRef,
+    mode_suggested: mode.key,
+    boss_cycle_id: Number(bossCycle?.id || 0),
+    source: source || "webapp"
+  });
+  await insertWebappEvent(db, {
+    eventRef: deterministicUuid(`webapp:raid:start:${sessionRef}`),
+    userId: profile.user_id,
+    sessionRef,
+    eventType: "raid_session_start",
+    eventState: "ok",
+    meta: {
+      mode_suggested: mode.key,
+      boss_cycle_id: Number(bossCycle?.id || 0)
+    }
+  });
+  await insertFunnelEvent(db, {
+    userId: profile.user_id,
+    funnelName: "raid_v3",
+    stepKey: "session_start",
+    stepState: "enter",
+    meta: { session_ref: sessionRef, mode_suggested: mode.key }
+  });
+
+  return {
+    ok: true,
+    duplicate: false,
+    session: toRaidSessionView(created, null, [], bossCycle)
+  };
+}
+
+async function applyAuthoritativeRaidAction(
+  db,
+  { profile, config, sessionRef, actionSeq, inputAction, latencyMs, clientTs, source }
+) {
+  const ready = await arenaStore.hasRaidSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "raid_session_tables_missing" };
+  }
+  await arenaStore.expireStaleRaidSessions(db, profile.user_id);
+  const session = await arenaStore.getRaidSessionByRef(db, profile.user_id, sessionRef, { forUpdate: true });
+  if (!session) {
+    return { ok: false, error: "session_not_found" };
+  }
+  if (session.status !== "active") {
+    const result = await arenaStore.getRaidResultBySessionId(db, session.id);
+    const actions = await arenaStore.getRaidActions(db, session.id);
+    const bossCycle = session.boss_cycle_id
+      ? await db.query(`SELECT * FROM boss_cycles WHERE id = $1 LIMIT 1;`, [session.boss_cycle_id]).then((r) => r.rows[0] || null)
+      : null;
+    return {
+      ok: true,
+      duplicate: true,
+      session: toRaidSessionView(session, result, actions, bossCycle)
+    };
+  }
+  if (session.expires_at && new Date(session.expires_at).getTime() <= Date.now()) {
+    await db.query(
+      `UPDATE raid_sessions
+       SET status = 'expired',
+           updated_at = now()
+       WHERE id = $1;`,
+      [session.id]
+    );
+    return { ok: false, error: "session_expired" };
+  }
+
+  const sessionConfig = arenaEngine.getSessionConfig(config);
+  const seq = Number(actionSeq || 0);
+  if (!Number.isFinite(seq) || seq <= 0 || seq > sessionConfig.maxActions) {
+    return { ok: false, error: "invalid_action_seq" };
+  }
+
+  const currentState = {
+    sessionRef: session.session_ref,
+    score: Number(session.score || 0),
+    combo: Number(session.state_json?.combo || 0),
+    comboMax: Number(session.combo_max || 0),
+    hits: Number(session.hits || 0),
+    misses: Number(session.misses || 0),
+    actionCount: Number(session.action_count || 0)
+  };
+  const evaluation = arenaEngine.evaluateSessionAction(
+    currentState,
+    {
+      actionSeq: seq,
+      inputAction,
+      latencyMs: Math.max(0, Number(latencyMs || 0))
+    },
+    config
+  );
+
+  const actionRow = await arenaStore.upsertRaidAction(db, {
+    sessionId: session.id,
+    actionSeq: seq,
+    inputAction: evaluation.inputAction || "guard",
+    latencyMs: evaluation.latencyMs,
+    accepted: evaluation.accepted,
+    scoreDelta: evaluation.scoreDelta,
+    comboAfter: evaluation.comboAfter,
+    actionJson: {
+      expected_action: evaluation.expectedAction,
+      client_ts: Number(clientTs || 0),
+      source: source || "webapp"
+    }
+  });
+  const duplicate = !Boolean(actionRow?.inserted);
+  if (!duplicate) {
+    await arenaStore.updateRaidSessionProgress(db, {
+      sessionId: session.id,
+      score: evaluation.scoreAfter,
+      comboMax: evaluation.comboMax,
+      hits: evaluation.hitsAfter,
+      misses: evaluation.missesAfter,
+      actionCount: evaluation.actionCount,
+      stateJson: {
+        combo: evaluation.comboAfter,
+        combo_max: evaluation.comboMax,
+        hits: evaluation.hitsAfter,
+        misses: evaluation.missesAfter,
+        action_count: evaluation.actionCount,
+        score: evaluation.scoreAfter,
+        next_expected: arenaEngine.expectedActionForSequence(session.session_ref, seq + 1),
+        last_action_seq: seq,
+        last_client_ts: Number(clientTs || 0),
+        last_latency_ms: evaluation.latencyMs
+      }
+    });
+    await riskStore.insertBehaviorEvent(db, profile.user_id, "raid_session_action", {
+      session_ref: sessionRef,
+      action_seq: seq,
+      input_action: evaluation.inputAction,
+      accepted: evaluation.accepted,
+      latency_ms: evaluation.latencyMs
+    });
+    await insertWebappEvent(db, {
+      eventRef: deterministicUuid(`webapp:raid:action:${sessionRef}:${seq}`),
+      userId: profile.user_id,
+      sessionRef,
+      eventType: "raid_session_action",
+      eventState: evaluation.accepted ? "ok" : "miss",
+      latencyMs: evaluation.latencyMs,
+      meta: {
+        action_seq: seq,
+        input_action: evaluation.inputAction,
+        expected_action: evaluation.expectedAction
+      }
+    });
+  }
+  const refreshed = await arenaStore.getRaidSessionByRef(db, profile.user_id, sessionRef);
+  const actions = await arenaStore.getRaidActions(db, session.id);
+  const bossCycle = refreshed?.boss_cycle_id
+    ? await db.query(`SELECT * FROM boss_cycles WHERE id = $1 LIMIT 1;`, [refreshed.boss_cycle_id]).then((r) => r.rows[0] || null)
+    : null;
+  return {
+    ok: true,
+    duplicate,
+    action: {
+      action_seq: seq,
+      accepted: evaluation.accepted,
+      expected_action: evaluation.expectedAction,
+      score_delta: evaluation.scoreDelta,
+      score_after: Number(refreshed?.score || evaluation.scoreAfter),
+      combo_after: evaluation.comboAfter
+    },
+    session: toRaidSessionView(refreshed || session, null, actions, bossCycle)
+  };
+}
+
+async function resolveAuthoritativeRaidSession(db, { profile, config, sessionRef, source }) {
+  const ready = await arenaStore.hasRaidSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "raid_session_tables_missing" };
+  }
+  await arenaStore.expireStaleRaidSessions(db, profile.user_id);
+  const session = await arenaStore.getRaidSessionByRef(db, profile.user_id, sessionRef, { forUpdate: true });
+  if (!session) {
+    return { ok: false, error: "session_not_found" };
+  }
+  const existingResult = await arenaStore.getRaidResultBySessionId(db, session.id);
+  if (existingResult) {
+    const actions = await arenaStore.getRaidActions(db, session.id);
+    const bossCycle = session.boss_cycle_id
+      ? await db.query(`SELECT * FROM boss_cycles WHERE id = $1 LIMIT 1;`, [session.boss_cycle_id]).then((r) => r.rows[0] || null)
+      : null;
+    return {
+      ok: true,
+      duplicate: true,
+      session: toRaidSessionView(session, existingResult, actions, bossCycle)
+    };
+  }
+  if (session.status !== "active") {
+    return { ok: false, error: "session_not_active" };
+  }
+  if (session.expires_at && new Date(session.expires_at).getTime() <= Date.now()) {
+    await db.query(
+      `UPDATE raid_sessions
+       SET status = 'expired',
+           updated_at = now()
+       WHERE id = $1;`,
+      [session.id]
+    );
+    return { ok: false, error: "session_expired" };
+  }
+
+  const sessionConfig = arenaEngine.getSessionConfig(config);
+  if (Number(session.action_count || 0) < Math.max(4, sessionConfig.resolveMinActions)) {
+    return {
+      ok: false,
+      error: "session_not_ready",
+      min_actions: Math.max(4, sessionConfig.resolveMinActions),
+      action_count: Number(session.action_count || 0)
+    };
+  }
+
+  const season = seasonStore.getSeasonInfo(config);
+  const anomaly = nexusEventEngine.resolveDailyAnomaly(config, { seasonId: season.seasonId });
+  const contract = nexusContractEngine.resolveDailyContract(config, {
+    seasonId: season.seasonId,
+    anomalyId: anomaly.id
+  });
+  const riskState = await riskStore.getRiskState(db, profile.user_id);
+  const adjustedRisk = nexusEventEngine.applyRiskShift(Number(riskState.riskScore || 0), anomaly);
+  const arenaConfig = arenaEngine.getArenaConfig(config);
+  const arenaState = await arenaStore.getArenaState(db, profile.user_id, arenaConfig.baseRating);
+  const comboMax = Number(session.combo_max || 0);
+  const score = Number(session.score || 0);
+  const mode = arenaEngine.resolveSessionModeByScore(score);
+  const outcome = arenaEngine.resolveSessionOutcome({
+    score,
+    hits: Number(session.hits || 0),
+    misses: Number(session.misses || 0)
+  });
+
+  const rewardInfo = arenaEngine.computeSessionReward(config, {
+    mode,
+    outcome,
+    score,
+    hits: Number(session.hits || 0),
+    misses: Number(session.misses || 0),
+    risk: adjustedRisk,
+    kingdomTier: Number(profile.kingdom_tier || 0),
+    streak: Number(profile.current_streak || 0),
+    rating: Number(arenaState?.rating || arenaConfig.baseRating)
+  });
+  const activeEffects = await shopStore.getActiveEffects(db, profile.user_id);
+  const boostedReward = shopStore.applyEffectsToReward(rewardInfo.reward, activeEffects);
+  const anomalyAdjusted = nexusEventEngine.applyAnomalyToReward(boostedReward, anomaly, { modeKey: mode });
+  const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+    modeKey: mode,
+    family: "boss",
+    result: normalizeOutcomeForContract(outcome),
+    combo: comboMax
+  });
+  const contractAdjusted = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval);
+  const reward = contractAdjusted.reward;
+  const ratingDelta = computeSessionRatingDelta(config, mode, outcome, score);
+  const damageDone = Math.max(
+    18,
+    Math.round(Number(score || 0) * 1.1 + Number(comboMax || 0) * 3 + (outcome === "win" ? 60 : outcome === "near" ? 22 : 8))
+  );
+
+  const rewardRefs = {
+    SC: deterministicUuid(`raid_session:${session.id}:SC`),
+    HC: deterministicUuid(`raid_session:${session.id}:HC`),
+    RC: deterministicUuid(`raid_session:${session.id}:RC`)
+  };
+  await economyStore.creditReward(db, {
+    userId: profile.user_id,
+    reward,
+    reason: `raid_session_resolve_${outcome}`,
+    meta: {
+      session_ref: sessionRef,
+      mode,
+      outcome,
+      source: source || "webapp"
+    },
+    refEventIds: rewardRefs
+  });
+
+  const nextArenaState = await arenaStore.applyArenaOutcome(db, {
+    userId: profile.user_id,
+    ratingDelta,
+    outcome
+  });
+  const baseSeasonPoints = Math.max(
+    0,
+    Number(reward.rc || 0) * 3 + Number(reward.sc || 0) + Number(reward.hc || 0) * 10 + (outcome === "win" ? 7 : outcome === "near" ? 3 : 0)
+  );
+  const seasonBonus = shopStore.getSeasonBonusMultiplier(activeEffects);
+  const seasonPoints = Math.max(
+    0,
+    Math.round(baseSeasonPoints * (1 + seasonBonus) * Number(anomaly.season_multiplier || 1)) + Number(contractEval.season_bonus || 0)
+  );
+  await seasonStore.addSeasonPoints(db, {
+    userId: profile.user_id,
+    seasonId: season.seasonId,
+    points: seasonPoints
+  });
+  await seasonStore.syncIdentitySeasonRank(db, {
+    userId: profile.user_id,
+    seasonId: season.seasonId
+  });
+
+  const warDelta = Math.max(
+    1,
+    Number(reward.rc || 0) * 2 + Math.floor(Number(reward.sc || 0) / 2) + Number(reward.hc || 0) * 3 + Number(contractEval.war_bonus || 0)
+  );
+  const warCounter = await globalStore.incrementCounter(db, `war_pool_s${season.seasonId}`, warDelta);
+  await userStore.touchStreakOnAction(db, {
+    userId: profile.user_id,
+    decayPerDay: Number(config.loops?.meso?.streak_decay_per_day || 1)
+  });
+  await userStore.addReputation(db, {
+    userId: profile.user_id,
+    points: Number(reward.rc || 0) + (outcome === "win" ? 4 : outcome === "near" ? 2 : 0),
+    thresholds: config.kingdom?.thresholds
+  });
+
+  let bossCycle = null;
+  if (session.boss_cycle_id) {
+    bossCycle = await arenaStore.applyBossCycleDamage(db, {
+      bossCycleId: session.boss_cycle_id,
+      damageDone,
+      metaPatch: {
+        last_session_ref: sessionRef,
+        last_outcome: outcome
+      }
+    });
+  }
+
+  await arenaStore.markRaidSessionResolved(db, {
+    sessionId: session.id,
+    modeFinal: mode,
+    stateJson: {
+      resolved_outcome: outcome,
+      resolved_reward: reward,
+      rating_delta: ratingDelta,
+      season_points: seasonPoints,
+      war_delta: warDelta,
+      damage_done: damageDone
+    }
+  });
+
+  const resultRef = deterministicUuid(`raid_session_result:${session.id}`);
+  const result = await arenaStore.createRaidResult(db, {
+    sessionId: session.id,
+    resultRef,
+    bossCycleId: session.boss_cycle_id || null,
+    mode,
+    outcome,
+    rewardSc: Number(reward.sc || 0),
+    rewardHc: Number(reward.hc || 0),
+    rewardRc: Number(reward.rc || 0),
+    ratingDelta,
+    damageDone,
+    resolvedJson: {
+      season_id: season.seasonId,
+      season_points: seasonPoints,
+      war_delta: warDelta,
+      war_pool: Number(warCounter.counter_value || 0),
+      contract_eval: contractEval,
+      anomaly_id: anomaly.id,
+      anomaly_title: anomaly.title,
+      boss_cycle: bossCycle
+        ? {
+            id: Number(bossCycle.id || 0),
+            hp_remaining: Number(bossCycle.hp_remaining || 0),
+            state: bossCycle.state
+          }
+        : null
+    }
+  });
+
+  await antiAbuseEngine.applyRiskEvent(db, riskStore, config, {
+    userId: profile.user_id,
+    eventType: "arena_raid",
+    context: {
+      source: "raid_session",
+      outcome,
+      mode,
+      rating_delta: ratingDelta
+    }
+  });
+  await riskStore.insertBehaviorEvent(db, profile.user_id, "raid_session_resolve", {
+    session_ref: sessionRef,
+    score,
+    mode,
+    outcome,
+    reward,
+    rating_delta: ratingDelta,
+    season_points: seasonPoints,
+    war_delta: warDelta,
+    damage_done: damageDone
+  });
+  await insertWebappEvent(db, {
+    eventRef: deterministicUuid(`webapp:raid:resolve:${sessionRef}`),
+    userId: profile.user_id,
+    sessionRef,
+    eventType: "raid_session_resolve",
+    eventState: outcome,
+    meta: {
+      score,
+      mode,
+      outcome,
+      reward,
+      rating_delta: ratingDelta,
+      damage_done: damageDone
+    }
+  });
+  await insertFunnelEvent(db, {
+    userId: profile.user_id,
+    funnelName: "raid_v3",
+    stepKey: "session_resolve",
+    stepState: outcome,
+    meta: { session_ref: sessionRef, mode, outcome, score }
+  });
+
+  const refreshed = await arenaStore.getRaidSessionByRef(db, profile.user_id, sessionRef);
+  const actions = await arenaStore.getRaidActions(db, session.id);
+  const rank = await arenaStore.getRank(db, profile.user_id);
+  return {
+    ok: true,
+    duplicate: false,
+    mode,
+    outcome,
+    reward,
+    rating_after: Number(nextArenaState?.rating || arenaConfig.baseRating),
+    rating_delta: ratingDelta,
+    rank: Number(rank?.rank || 0),
+    season_points: seasonPoints,
+    war_delta: warDelta,
+    war_pool: Number(warCounter.counter_value || 0),
+    damage_done: damageDone,
+    session: toRaidSessionView(refreshed || session, result, actions, bossCycle)
+  };
+}
+
+async function getAuthoritativeRaidSessionState(db, { profile, sessionRef }) {
+  const ready = await arenaStore.hasRaidSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "raid_session_tables_missing" };
+  }
+  await arenaStore.expireStaleRaidSessions(db, profile.user_id);
+  let sessionBundle = null;
+  if (sessionRef) {
+    sessionBundle = await arenaStore.getRaidSessionWithResult(db, profile.user_id, sessionRef);
+  } else {
+    const active = await arenaStore.getActiveRaidSession(db, profile.user_id);
+    if (active) {
+      const result = await arenaStore.getRaidResultBySessionId(db, active.id);
+      const actions = await arenaStore.getRaidActions(db, active.id);
+      sessionBundle = { session: active, result, actions };
+    } else {
+      const latest = await arenaStore.getLatestResolvedRaidSession(db, profile.user_id, 180);
+      if (latest) {
+        const session = await arenaStore.getRaidSessionByRef(db, profile.user_id, latest.session_ref);
+        const result = await arenaStore.getRaidResultBySessionId(db, latest.id);
+        const actions = await arenaStore.getRaidActions(db, latest.id, 40);
+        sessionBundle = { session, result, actions };
+      }
+    }
+  }
+  if (!sessionBundle || !sessionBundle.session) {
+    return { ok: true, session: null };
+  }
+  const bossCycle = sessionBundle.session.boss_cycle_id
+    ? await db.query(`SELECT * FROM boss_cycles WHERE id = $1 LIMIT 1;`, [sessionBundle.session.boss_cycle_id]).then((r) => r.rows[0] || null)
+    : null;
+  return {
+    ok: true,
+    session: toRaidSessionView(sessionBundle.session, sessionBundle.result, sessionBundle.actions, bossCycle)
+  };
+}
+
 module.exports = {
   runArenaRaid,
   buildRunNonce,
   startAuthoritativeSession,
   applyAuthoritativeSessionAction,
   resolveAuthoritativeSession,
-  getAuthoritativeSessionState
+  getAuthoritativeSessionState,
+  startAuthoritativeRaidSession,
+  applyAuthoritativeRaidAction,
+  resolveAuthoritativeRaidSession,
+  getAuthoritativeRaidSessionState,
+  buildDirectorView
 };

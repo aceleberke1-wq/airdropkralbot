@@ -2,6 +2,7 @@ param(
   [string]$EnvPath = ".env",
   [string]$HealthBaseUrl = "",
   [switch]$SkipTests,
+  [switch]$SkipWebAppBuild,
   [switch]$SkipMigrate,
   [switch]$SkipHealth,
   [string]$ExpectedAdminTelegramId = ""
@@ -115,6 +116,15 @@ try {
       & npm run test:bot
       if ($LASTEXITCODE -ne 0) {
         throw "npm run test:bot failed"
+      }
+    }
+  }
+
+  if (-not $SkipWebAppBuild) {
+    Invoke-Step "WebApp bundle build" {
+      & npm run build:webapp
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm run build:webapp failed"
       }
     }
   }

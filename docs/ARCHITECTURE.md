@@ -15,6 +15,10 @@ This repository runs AirdropKralBot as a single-service production stack.
 4. Telemetry/funnel tables (`V017`)
 5. Feature flags + runtime ops tables (`V018`)
 6. Release revision markers (`V019`)
+7. Raid sessions + boss cycles (`V020`)
+8. Device perf/ui preference tables (`V021`)
+9. External API health + oracle snapshots (`V022`)
+10. Treasury guardrails + payout gate events (`V023`)
 
 ## Authoritative game loop
 1. WebApp starts session: `/webapp/api/arena/session/start`
@@ -22,6 +26,8 @@ This repository runs AirdropKralBot as a single-service production stack.
 3. Backend validates action window/latency/replay and writes once
 4. Resolve endpoint computes reward server-side only
 5. Credits use idempotent ledger refs (exactly-once)
+6. Raid loop mirrors same model:
+   `/webapp/api/arena/raid/session/start|action|resolve|state`
 
 ## Token treasury model
 1. Quote endpoint uses curve price:
@@ -34,6 +40,8 @@ This repository runs AirdropKralBot as a single-service production stack.
 ## Control plane
 1. Admin endpoints for freeze, curve, auto-policy, payout/token queue decisions
 2. Runtime switches via feature flags
+   `ARENA_AUTH_ENABLED`, `RAID_AUTH_ENABLED`, `TOKEN_CURVE_ENABLED`,
+   `TOKEN_AUTO_APPROVE_ENABLED`, `WEBAPP_V3_ENABLED`, `WEBAPP_TS_BUNDLE_ENABLED`
 3. Immutable `admin_audit` trail for sensitive operations
 4. Release traceability via `release_markers` (`/admin/release/mark`, `/admin/release/latest`)
 

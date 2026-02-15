@@ -16,6 +16,7 @@ const globalStore = require("./stores/globalStore");
 const payoutStore = require("./stores/payoutStore");
 const arenaStore = require("./stores/arenaStore");
 const tokenStore = require("./stores/tokenStore");
+const webappStore = require("./stores/webappStore");
 const taskCatalog = require("./taskCatalog");
 const messages = require("./messages");
 const configService = require("./services/configService");
@@ -1185,6 +1186,85 @@ async function sendNexus(ctx, pool, appConfig) {
   });
 
   await ctx.replyWithMarkdown(messages.formatNexusPulse(payload), buildGuideKeyboard());
+}
+
+async function sendRaidContract(ctx, pool) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    const risk = await riskStore.getRiskState(db, profile.user_id).catch(() => ({ riskScore: 0 }));
+    const tactical = buildNexusTactical(
+      {
+        offers: [],
+        attempts: {},
+        riskScore: Number(risk.riskScore || 0)
+      },
+      anomaly,
+      contract
+    );
+    const war = await globalStore.getWarState(db).catch(() => ({
+      tier: "seed",
+      value: 0
+    }));
+    return {
+      profile,
+      anomaly,
+      contract,
+      tactical,
+      risk: Number(risk.riskScore || 0),
+      war
+    };
+  });
+  await ctx.replyWithMarkdown(messages.formatRaidContract(payload));
+}
+
+async function sendUiMode(ctx, pool) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const prefs = await webappStore.getUserUiPrefs(db, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const perf = await webappStore.getLatestPerfProfile(db, profile.user_id, "").catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    return { profile, prefs, perf };
+  });
+  await ctx.replyWithMarkdown(messages.formatUiMode(payload.profile, payload.prefs, payload.perf), {
+    parse_mode: "Markdown"
+  });
+}
+
+async function sendPerf(ctx, pool) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const perf = await webappStore.getLatestPerfProfile(db, profile.user_id, "").catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const external = await webappStore.getLatestExternalApiHealth(db, 4).catch((err) => {
+      if (err.code === "42P01") return [];
+      throw err;
+    });
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const freeze = await systemStore.getFreezeState(db).catch(() => ({ freeze: false, reason: "" }));
+    return {
+      profile,
+      perf,
+      external,
+      freeze,
+      token: tokenEngine.normalizeTokenConfig(runtimeConfig)
+    };
+  });
+  await ctx.replyWithMarkdown(messages.formatPerf(payload));
 }
 
 async function handleReveal(ctx, pool, appConfig) {
@@ -3155,6 +3235,15 @@ function resolveTextIntent(input) {
   if (/^(contract|kontrat|sozlesme)\b/.test(normalized)) {
     return { action: "nexus" };
   }
+  if (/^(raid contract|raid kontrat|kontrat raid)\b/.test(normalized)) {
+    return { action: "raid_contract" };
+  }
+  if (/^(perf|performans|fps)\b/.test(normalized)) {
+    return { action: "perf" };
+  }
+  if (/^(ui mode|arayuz|ui)\b/.test(normalized)) {
+    return { action: "ui_mode" };
+  }
   if (/^(guide|rehber|nasil oynanir|yardim)\b/.test(normalized)) {
     return { action: "guide" };
   }
@@ -3264,6 +3353,18 @@ async function handleTextIntent(ctx, pool, appConfig) {
   }
   if (intent.action === "nexus") {
     await sendNexus(ctx, pool, appConfig);
+    return true;
+  }
+  if (intent.action === "raid_contract") {
+    await sendRaidContract(ctx, pool);
+    return true;
+  }
+  if (intent.action === "perf") {
+    await sendPerf(ctx, pool);
+    return true;
+  }
+  if (intent.action === "ui_mode") {
+    await sendUiMode(ctx, pool);
     return true;
   }
   if (intent.action === "guide") {
@@ -3548,6 +3649,18 @@ async function start() {
 
   bot.command("onboard", async (ctx) => {
     await sendOnboard(ctx, pool, appConfig);
+  });
+
+  bot.command("ui_mode", async (ctx) => {
+    await sendUiMode(ctx, pool);
+  });
+
+  bot.command("perf", async (ctx) => {
+    await sendPerf(ctx, pool);
+  });
+
+  bot.command("raid_contract", async (ctx) => {
+    await sendRaidContract(ctx, pool);
   });
 
   bot.command("whoami", async (ctx) => {
@@ -3887,6 +4000,9 @@ async function start() {
       { command: "status", description: "Sistem durumu" },
       { command: "nexus", description: "Gunun event pulse ve taktik oneri" },
       { command: "contract", description: "Gunun Nexus kontrati" },
+      { command: "raid_contract", description: "Raid kontrat + bonus hedefi" },
+      { command: "ui_mode", description: "UI kalite ve erisilebilirlik ozeti" },
+      { command: "perf", description: "Performans + API health ozeti" },
       { command: "whoami", description: "Telegram ID + admin kontrol" },
       { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
       { command: "admin_live", description: "Admin canli operasyon paneli" },

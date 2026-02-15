@@ -738,6 +738,9 @@ function formatHelp() {
     `/war - Topluluk savasi\n` +
     `/nexus - Gunun event ve taktik pulse\n` +
     `/contract - Gunun kontrat hedefi\n` +
+    `/raid_contract - Raid kontrat + bonus paketi\n` +
+    `/ui_mode - UI kalite/erisilebilirlik ozeti\n` +
+    `/perf - Son perf + API health durumu\n` +
     `/play - Arena 3D arayuz\n` +
     `/arena - Arena 3D arayuz (alias)\n` +
     `/arena3d - Arena 3D arayuz (alias)\n` +
@@ -748,6 +751,78 @@ function formatHelp() {
     `/streak - Zincir durumu\n` +
     `/profile - Kimlik karti\n\n` +
     `Admin: /admin, /admin_live, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
+  );
+}
+
+function formatRaidContract(payload = {}) {
+  const profile = payload.profile || {};
+  const anomaly = payload.anomaly || {};
+  const contract = payload.contract || {};
+  const tactical = payload.tactical || {};
+  const war = payload.war || {};
+  const riskPct = (Number(payload.risk || 0) * 100).toFixed(0);
+  const focusFamilies = Array.isArray(contract.focus_families) ? contract.focus_families.join(", ") : "any";
+  const bonus = contract.match_bonus || {};
+  return (
+    `*Raid Kontrat Direktifi*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name || "-")}*\n` +
+    `Event: *${escapeMarkdown(anomaly.title || "Stability Window")}* | Risk *${riskPct}%*\n` +
+    `War Tier: *${escapeMarkdown(String(war.tier || "seed"))}* | Havuz *${Number(war.value || 0).toFixed(0)}*\n\n` +
+    `Kontrat: *${escapeMarkdown(contract.title || "Nexus Contract")}*\n` +
+    `Hedef Mod: *${escapeMarkdown(contract.required_mode || "balanced")}*\n` +
+    `Aile: ${escapeMarkdown(focusFamilies)}\n` +
+    `Bonus: SC x${Number(bonus.sc_multiplier || 1).toFixed(2)} | +${Number(bonus.rc_flat_bonus || 0)} RC | +${Number(
+      bonus.season_points || 0
+    )} SP\n\n` +
+    `Taktik: *${escapeMarkdown(tactical.recommended_mode || "balanced")}*\n` +
+    `Sonraki Hamle: ${escapeMarkdown(tactical.next_step || "raid balanced")}`
+  );
+}
+
+function formatUiMode(profile = {}, prefs = null, perf = null) {
+  const resolved = prefs || {};
+  const uiMode = String(resolved.ui_mode || "hardcore");
+  const quality = String(resolved.quality_mode || "auto");
+  const reduced = Boolean(resolved.reduced_motion);
+  const largeType = Boolean(resolved.large_text);
+  const fps = Number(perf?.fps_avg || 0);
+  return (
+    `*UI Mode*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name || "-")}*\n` +
+    `Profil: *${escapeMarkdown(uiMode)}*\n` +
+    `Quality: *${escapeMarkdown(quality)}* | Reduced Motion: *${reduced ? "ON" : "OFF"}*\n` +
+    `Large Text: *${largeType ? "ON" : "OFF"}*\n` +
+    `Son FPS(avg): *${fps > 0 ? fps.toFixed(1) : "-"}*\n\n` +
+    `WebApp ayari: /play -> Perf dugmeleri (Auto/High/Low, Motion, Yazi)`
+  );
+}
+
+function formatPerf(payload = {}) {
+  const profile = payload.profile || {};
+  const perf = payload.perf || {};
+  const external = Array.isArray(payload.external) ? payload.external : [];
+  const freeze = payload.freeze || {};
+  const token = payload.token || {};
+  const lines = external.length
+    ? external
+        .slice(0, 4)
+        .map((row) => {
+          const ok = row.healthy ? "OK" : "WARN";
+          const code = Number(row.status_code || 0);
+          const latency = Number(row.latency_ms || 0);
+          return `- ${escapeMarkdown(String(row.provider || "api"))}: ${ok} (${code}/${latency}ms)`;
+        })
+        .join("\n")
+    : "- API health verisi yok";
+  return (
+    `*Perf + Health*\n` +
+    `Kral: *${escapeMarkdown(profile.public_name || "-")}*\n` +
+    `FPS(avg): *${Number(perf.fps_avg || 0).toFixed(1)}* | Frame: *${Number(perf.frame_time_ms || 0).toFixed(2)}ms*\n` +
+    `Latency(avg): *${Number(perf.latency_avg_ms || 0).toFixed(1)}ms*\n` +
+    `Dropped Frame: *${Number(perf.dropped_frames || 0)}*\n` +
+    `Freeze: *${freeze.freeze ? "ON" : "OFF"}*\n` +
+    `Token Symbol: *${escapeMarkdown(token.symbol || "NXT")}*\n\n` +
+    `Dis API Durumu\n${lines}`
   );
 }
 
@@ -883,6 +958,9 @@ module.exports = {
   formatArenaStatus,
   formatArenaRaidResult,
   formatHelp,
+  formatRaidContract,
+  formatUiMode,
+  formatPerf,
   formatAdminPanel,
   formatAdminLive,
   formatAdminWhoami,

@@ -15,10 +15,12 @@
 
 ## V3 flags
 1. `ARENA_AUTH_ENABLED=1`
-2. `TOKEN_CURVE_ENABLED=1`
-3. `TOKEN_AUTO_APPROVE_ENABLED=1`
-4. `WEBAPP_V3_ENABLED=1`
-5. Degisimlerden sonra Render redeploy yap.
+2. `RAID_AUTH_ENABLED=1`
+3. `TOKEN_CURVE_ENABLED=1`
+4. `TOKEN_AUTO_APPROVE_ENABLED=1`
+5. `WEBAPP_V3_ENABLED=1`
+6. `WEBAPP_TS_BUNDLE_ENABLED=0|1` (`1` icin once `npm run build:webapp`)
+7. Degisimlerden sonra Render redeploy yap.
 
 ## Health checks
 1. `/healthz` -> proses sagligi
@@ -31,6 +33,7 @@
 2. Script su adimlari zorunlu kontrol eder:
 - strict env check
 - `npm run test:bot`
+- `npm run build:webapp` (skip edilmediyse)
 - `npm run migrate:node`
 - `.env` vs `.env.example` key diff
 - `/healthz`, `/health`, `/webapp` smoke

@@ -64,6 +64,9 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 38. `/reject_token <requestId> <reason>` reject token buy request
 39. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`, `kontrat`
 40. Admin lock rule: `/whoami` Telegram ID must exactly match `ADMIN_TELEGRAM_ID` (local + Render env)
+41. `/raid_contract` canli raid kontrat + bonus paketi
+42. `/ui_mode` son UI preference + kalite ozeti
+43. `/perf` fps/latency + provider health ozeti
 
 ## Micro Loop Extras
 1. Task panel includes `Panel Yenile (1 RC)` sink for fresh lineup.
@@ -82,9 +85,13 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 `POST /webapp/api/arena/raid`, `GET /webapp/api/arena/leaderboard`,
 `POST /webapp/api/arena/session/start`, `POST /webapp/api/arena/session/action`,
 `POST /webapp/api/arena/session/resolve`, `GET /webapp/api/arena/session/state`,
+`POST /webapp/api/arena/raid/session/start`, `POST /webapp/api/arena/raid/session/action`,
+`POST /webapp/api/arena/raid/session/resolve`, `GET /webapp/api/arena/raid/session/state`,
+`GET /webapp/api/arena/director`,
 `GET /webapp/api/token/summary`, `POST /webapp/api/token/mint`,
 `POST /webapp/api/token/buy_intent`, `POST /webapp/api/token/submit_tx`,
-`GET /webapp/api/token/quote`.
+`GET /webapp/api/token/quote`,
+`GET /webapp/api/telemetry/perf-profile`, `POST /webapp/api/telemetry/perf-profile`.
 Admin WebApp endpoints:
 `GET /webapp/api/admin/summary`, `GET /webapp/api/admin/metrics`,
 `POST /webapp/api/admin/freeze`, `POST /webapp/api/admin/token/config`,
@@ -98,6 +105,8 @@ Admin WebApp endpoints:
 `apps/webapp/assets/manifest.json` -> `models.arena_core` path (GLB).  
 If model exists, GLTF animations auto-play. If not, procedural fallback scene stays active.
 8. WebApp now includes adaptive performance controls (Auto/High/Low), reduced-motion mode, and large typography mode.
+9. WebApp TS bundle (Vite) optional rollout:
+`npm run build:webapp` then set `WEBAPP_TS_BUNDLE_ENABLED=1`.
 
 ## Domain + DNS (k99-exchange.xyz)
 1. For Telegram Mini App mode, `WEBAPP_PUBLIC_URL` must be `https://.../webapp`.
@@ -139,7 +148,7 @@ if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 10. Free plan recommended flags:
 `BOT_ENABLED=1`, `BOT_AUTO_RESTART=1`, `KEEP_ADMIN_ON_BOT_EXIT=1`, `BOT_INSTANCE_LOCK_KEY=7262026`
 V3 feature flags:
-`ARENA_AUTH_ENABLED=1`, `TOKEN_CURVE_ENABLED=1`, `TOKEN_AUTO_APPROVE_ENABLED=1`, `WEBAPP_V3_ENABLED=1`
+`ARENA_AUTH_ENABLED=1`, `RAID_AUTH_ENABLED=1`, `TOKEN_CURVE_ENABLED=1`, `TOKEN_AUTO_APPROVE_ENABLED=1`, `WEBAPP_V3_ENABLED=1`, `WEBAPP_TS_BUNDLE_ENABLED=0|1`
 Run only one polling instance per token. If local and Render use same DB lock key, duplicate instance auto-stops.
 11. Validate local `.env` before copying to Render:
 `powershell -ExecutionPolicy Bypass -File scripts/check_render_env.ps1`
@@ -231,7 +240,7 @@ Run bot tests with:
 
 ## Migrations
 SQL migrations are in `db/migrations`. Apply them with your preferred migration tool.
-Latest baseline for V3.1: `V015..V019`.
+Latest baseline for V3.2: `V015..V023`.
 
 ## Structure
 1. `apps/bot` Telegram bot stub
