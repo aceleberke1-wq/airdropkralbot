@@ -14,6 +14,7 @@
 `GET /admin/whoami` (Bearer token ile) `is_admin=true` donmeli.
 
 ## V3 flags
+0. `FLAG_SOURCE_MODE=env_locked`
 1. `ARENA_AUTH_ENABLED=1`
 2. `RAID_AUTH_ENABLED=1`
 3. `TOKEN_CURVE_ENABLED=1`
@@ -21,6 +22,7 @@
 5. `WEBAPP_V3_ENABLED=1`
 6. `WEBAPP_TS_BUNDLE_ENABLED=0|1` (`1` icin once `npm run build:webapp`)
 7. Degisimlerden sonra Render redeploy yap.
+8. `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1`
 
 ## Health checks
 1. `/healthz` -> proses sagligi

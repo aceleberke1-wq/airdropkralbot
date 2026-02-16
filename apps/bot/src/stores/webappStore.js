@@ -218,6 +218,99 @@ async function insertExternalApiHealth(db, payload) {
   return result.rows[0] || null;
 }
 
+async function insertCombatFrameStat(db, payload) {
+  const result = await db.query(
+    `INSERT INTO combat_frame_stats (
+       user_id,
+       session_ref,
+       mode,
+       device_hash,
+       fps_avg,
+       frame_time_ms,
+       dropped_frames,
+       gpu_time_ms,
+       cpu_time_ms,
+       stats_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+     RETURNING id, user_id, session_ref, mode, device_hash, fps_avg, frame_time_ms, dropped_frames, gpu_time_ms, cpu_time_ms, stats_json, created_at;`,
+    [
+      payload.userId || null,
+      String(payload.sessionRef || ""),
+      String(payload.mode || "combat"),
+      String(payload.deviceHash || "unknown"),
+      Number(payload.fpsAvg || 0),
+      Number(payload.frameTimeMs || 0),
+      Math.max(0, Math.floor(Number(payload.droppedFrames || 0))),
+      Number(payload.gpuTimeMs || 0),
+      Number(payload.cpuTimeMs || 0),
+      JSON.stringify(payload.statsJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertCombatNetStat(db, payload) {
+  const result = await db.query(
+    `INSERT INTO combat_net_stats (
+       user_id,
+       session_ref,
+       mode,
+       transport,
+       tick_ms,
+       action_window_ms,
+       rtt_ms,
+       jitter_ms,
+       packet_loss_pct,
+       accepted_actions,
+       rejected_actions,
+       stats_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+     RETURNING id, user_id, session_ref, mode, transport, tick_ms, action_window_ms, rtt_ms, jitter_ms, packet_loss_pct,
+               accepted_actions, rejected_actions, stats_json, created_at;`,
+    [
+      payload.userId || null,
+      String(payload.sessionRef || ""),
+      String(payload.mode || "combat"),
+      String(payload.transport || "poll"),
+      Math.max(1, Math.floor(Number(payload.tickMs || 1000))),
+      Math.max(1, Math.floor(Number(payload.actionWindowMs || 800))),
+      Number(payload.rttMs || 0),
+      Number(payload.jitterMs || 0),
+      Math.max(0, Number(payload.packetLossPct || 0)),
+      Math.max(0, Math.floor(Number(payload.acceptedActions || 0))),
+      Math.max(0, Math.floor(Number(payload.rejectedActions || 0))),
+      JSON.stringify(payload.statsJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertUiInteractionEvent(db, payload) {
+  const result = await db.query(
+    `INSERT INTO ui_interaction_events (
+       user_id,
+       event_key,
+       event_name,
+       event_scope,
+       event_value,
+       event_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+     RETURNING id, user_id, event_key, event_name, event_scope, event_value, event_json, created_at;`,
+    [
+      payload.userId || null,
+      String(payload.eventKey || "unknown"),
+      String(payload.eventName || ""),
+      String(payload.eventScope || "webapp"),
+      String(payload.eventValue || ""),
+      JSON.stringify(payload.eventJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
 async function getLatestExternalApiHealth(db, provider, limit = 20) {
   const result = await db.query(
     `SELECT id, provider, endpoint, check_name, ok, status_code, latency_ms, error_code, error_message, health_json, checked_at
@@ -239,5 +332,8 @@ module.exports = {
   insertPriceOracleSnapshot,
   insertChainVerifyLog,
   insertExternalApiHealth,
+  insertCombatFrameStat,
+  insertCombatNetStat,
+  insertUiInteractionEvent,
   getLatestExternalApiHealth
 };

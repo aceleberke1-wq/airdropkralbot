@@ -1,7 +1,8 @@
 param(
   [string]$EnvPath = ".env",
   [switch]$Strict,
-  [string]$ExpectedAdminTelegramId = ""
+  [string]$ExpectedAdminTelegramId = "1995400205",
+  [string]$ExpectedWebAppPublicUrl = "https://webapp.k99-exchange.xyz/webapp?v=20260213-1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,7 @@ $required = @(
   "DATABASE_URL",
   "WEBAPP_HMAC_SECRET",
   "WEBAPP_PUBLIC_URL",
+  "FLAG_SOURCE_MODE",
   "ADMIN_API_TOKEN",
   "BOT_DRY_RUN",
   "BOT_ENABLED",
@@ -70,6 +72,7 @@ $required = @(
 $featureFlags = @(
   "ARENA_AUTH_ENABLED",
   "RAID_AUTH_ENABLED",
+  "PVP_WS_ENABLED",
   "TOKEN_CURVE_ENABLED",
   "TOKEN_AUTO_APPROVE_ENABLED",
   "WEBAPP_V3_ENABLED",
@@ -142,8 +145,26 @@ $web = [string]$envMap["WEBAPP_PUBLIC_URL"]
 if ($web) {
   if (Is-ValidUrl -Value $web -RequireHttps) {
     Write-Host "[OK] WEBAPP_PUBLIC_URL is HTTPS." -ForegroundColor Green
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedWebAppPublicUrl)) {
+      if ($web.Trim() -eq $ExpectedWebAppPublicUrl.Trim()) {
+        Write-Host "[OK] WEBAPP_PUBLIC_URL matches expected production URL." -ForegroundColor Green
+      } else {
+        Write-Host ("[MISMATCH] WEBAPP_PUBLIC_URL=" + $web + " but expected=" + $ExpectedWebAppPublicUrl) -ForegroundColor Red
+        if ($Strict) { $criticalIssues += 1 }
+      }
+    }
   } else {
     Write-Host "[WARN] WEBAPP_PUBLIC_URL must be valid HTTPS URL." -ForegroundColor Yellow
+    if ($Strict) { $criticalIssues += 1 }
+  }
+}
+
+$flagSourceMode = [string]$envMap["FLAG_SOURCE_MODE"]
+if ($flagSourceMode) {
+  if ($flagSourceMode -in @("env_locked", "db_override")) {
+    Write-Host ("[OK] FLAG_SOURCE_MODE=" + $flagSourceMode) -ForegroundColor Green
+  } else {
+    Write-Host "[WARN] FLAG_SOURCE_MODE should be env_locked or db_override." -ForegroundColor Yellow
     if ($Strict) { $criticalIssues += 1 }
   }
 }
@@ -164,6 +185,7 @@ Write-Host "  BOT_ENABLED=1"
 Write-Host "  KEEP_ADMIN_ON_BOT_EXIT=1"
 Write-Host "  BOT_AUTO_RESTART=1"
 Write-Host "  BOT_INSTANCE_LOCK_KEY=7262026"
+Write-Host "  FLAG_SOURCE_MODE=env_locked"
 Write-Host "  BOT_DRY_RUN=0"
 Write-Host "  ARENA_AUTH_ENABLED=1"
 Write-Host "  RAID_AUTH_ENABLED=1"
@@ -171,6 +193,7 @@ Write-Host "  TOKEN_CURVE_ENABLED=1"
 Write-Host "  TOKEN_AUTO_APPROVE_ENABLED=1"
 Write-Host "  WEBAPP_V3_ENABLED=1"
 Write-Host "  WEBAPP_TS_BUNDLE_ENABLED=1"
+Write-Host "  WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1"
 Write-Host ""
 Write-Host "If you also run local bot, stop one side to avoid 409 polling conflict."
 Write-Host ""

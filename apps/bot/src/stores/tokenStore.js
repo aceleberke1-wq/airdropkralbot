@@ -411,6 +411,94 @@ async function incrementVelocityBucket(db, { userId, actionKey, amount = 1, buck
   return result.rows[0] || null;
 }
 
+async function insertTreasuryPolicyHistory(db, payload) {
+  const result = await db.query(
+    `INSERT INTO treasury_policy_history (
+       token_symbol,
+       source,
+       actor_id,
+       previous_policy_json,
+       next_policy_json,
+       reason
+     )
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
+     RETURNING id, token_symbol, source, actor_id, previous_policy_json, next_policy_json, reason, created_at;`,
+    [
+      String(payload.tokenSymbol || "NXT").toUpperCase(),
+      String(payload.source || "runtime"),
+      Number(payload.actorId || 0),
+      JSON.stringify(payload.previousPolicyJson || {}),
+      JSON.stringify(payload.nextPolicyJson || {}),
+      String(payload.reason || "")
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertPayoutGateSnapshot(db, payload) {
+  const result = await db.query(
+    `INSERT INTO payout_gate_snapshots (
+       token_symbol,
+       gate_open,
+       market_cap_usd,
+       min_market_cap_usd,
+       target_market_cap_max_usd,
+       snapshot_json,
+       created_by
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+     RETURNING id, token_symbol, gate_open, market_cap_usd, min_market_cap_usd, target_market_cap_max_usd,
+               snapshot_json, created_at, created_by;`,
+    [
+      String(payload.tokenSymbol || "NXT").toUpperCase(),
+      Boolean(payload.gateOpen),
+      Number(payload.marketCapUsd || 0),
+      Number(payload.minMarketCapUsd || 0),
+      Number(payload.targetMarketCapMaxUsd || 0),
+      JSON.stringify(payload.snapshotJson || {}),
+      Number(payload.createdBy || 0)
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertTokenQuoteTrace(db, payload) {
+  const result = await db.query(
+    `INSERT INTO token_quote_traces (
+       request_id,
+       user_id,
+       token_symbol,
+       chain,
+       usd_amount,
+       token_amount,
+       price_usd,
+       curve_enabled,
+       gate_open,
+       risk_score,
+       velocity_per_hour,
+       trace_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+     RETURNING id, request_id, user_id, token_symbol, chain, usd_amount, token_amount, price_usd, curve_enabled, gate_open,
+               risk_score, velocity_per_hour, trace_json, created_at;`,
+    [
+      payload.requestId || null,
+      payload.userId || null,
+      String(payload.tokenSymbol || "NXT").toUpperCase(),
+      String(payload.chain || ""),
+      Number(payload.usdAmount || 0),
+      Number(payload.tokenAmount || 0),
+      Number(payload.priceUsd || 0),
+      Boolean(payload.curveEnabled),
+      Boolean(payload.gateOpen),
+      Number(payload.riskScore || 0),
+      Math.max(0, Math.floor(Number(payload.velocityPerHour || 0))),
+      JSON.stringify(payload.traceJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   listUserPurchaseRequests,
   getPurchaseRequest,
@@ -432,5 +520,8 @@ module.exports = {
   getTreasuryGuardrail,
   upsertTreasuryGuardrail,
   insertPayoutGateEvent,
-  incrementVelocityBucket
+  incrementVelocityBucket,
+  insertTreasuryPolicyHistory,
+  insertPayoutGateSnapshot,
+  insertTokenQuoteTrace
 };

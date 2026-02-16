@@ -137,10 +137,10 @@ Note: free tunnel URL changes on each restart. Re-run script when it changes.
 2. Create Blueprint in Render from this repo.
 3. Set required secrets:
 `BOT_TOKEN`, `BOT_USERNAME`, `ADMIN_TELEGRAM_ID`, payout addresses, `DATABASE_URL`, `ADMIN_API_TOKEN`, `WEBAPP_HMAC_SECRET`, `WEBAPP_PUBLIC_URL`.
-4. Keep `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp`.
+4. Keep `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1`.
 5. Add custom domain `webapp.k99-exchange.xyz` to the admin web service.
 6. DNS:
-if NS is Vercel -> add CNAME in Vercel DNS (`webapp -> <render-service>.onrender.com`).
+if NS is Vercel -> add CNAME in Vercel DNS (`webapp -> airdropkral-admin.onrender.com`).
 if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 7. Start command should be `npm run start:all`.
 8. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
@@ -149,9 +149,13 @@ if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
 `BOT_ENABLED=1`, `BOT_AUTO_RESTART=1`, `KEEP_ADMIN_ON_BOT_EXIT=1`, `BOT_INSTANCE_LOCK_KEY=7262026`
 V3 feature flags:
 `ARENA_AUTH_ENABLED=1`, `RAID_AUTH_ENABLED=1`, `TOKEN_CURVE_ENABLED=1`, `TOKEN_AUTO_APPROVE_ENABLED=1`, `WEBAPP_V3_ENABLED=1`, `WEBAPP_TS_BUNDLE_ENABLED=0|1`
+Runtime source:
+`FLAG_SOURCE_MODE=env_locked`
 Run only one polling instance per token. If local and Render use same DB lock key, duplicate instance auto-stops.
 11. Validate local `.env` before copying to Render:
 `powershell -ExecutionPolicy Bypass -File scripts/check_render_env.ps1`
+11.1 Render paneline girecegin key/value listesini lokal `.env`'den export et:
+`powershell -ExecutionPolicy Bypass -File scripts/export_render_env.ps1`
 12. Run release gate before pushing `main`:
 `npm run check:release`
 13. If admin commands fail, run `/whoami` in Telegram and set the exact value as `ADMIN_TELEGRAM_ID`.
@@ -171,8 +175,8 @@ Run only one polling instance per token. If local and Render use same DB lock ke
 `npm run migrate:node`
 6. Redeploy service.
 7. Validate:
-`https://<render-service>.onrender.com/health`
-`https://webapp.k99-exchange.xyz/webapp`
+`https://airdropkral-admin.onrender.com/health`
+`https://webapp.k99-exchange.xyz/webapp?v=20260213-1`
 
 ### Why this matters
 - Telegram allows only one polling consumer for the same bot token.
@@ -183,7 +187,7 @@ Run only one polling instance per token. If local and Render use same DB lock ke
 1. Publish this local folder to GitHub:
 `powershell -ExecutionPolicy Bypass -File scripts/publish_github.ps1 -RepoName "airdropkralbot" -Private`
 or explicitly:
-`powershell -ExecutionPolicy Bypass -File scripts/publish_github.ps1 -Owner "YOUR_GITHUB_USER" -RepoName "airdropkralbot"`
+`powershell -ExecutionPolicy Bypass -File scripts/publish_github.ps1 -Owner "aceleberke1-wq" -RepoName "airdropkralbot"`
 2. Script will:
 - initialize git repo
 - commit files (without `.env`)

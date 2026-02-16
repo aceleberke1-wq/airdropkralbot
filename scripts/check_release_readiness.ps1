@@ -5,7 +5,8 @@ param(
   [switch]$SkipWebAppBuild,
   [switch]$SkipMigrate,
   [switch]$SkipHealth,
-  [string]$ExpectedAdminTelegramId = ""
+  [string]$ExpectedAdminTelegramId = "1995400205",
+  [string]$ExpectedWebAppPublicUrl = "https://webapp.k99-exchange.xyz/webapp?v=20260213-1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,11 +62,21 @@ function Resolve-HealthBaseUrl {
   if ([string]::IsNullOrWhiteSpace($web)) {
     return ""
   }
-  $trimmed = $web.Trim().TrimEnd("/")
-  if ($trimmed.ToLower().EndsWith("/webapp")) {
-    return $trimmed.Substring(0, $trimmed.Length - 7)
+  $trimmed = $web.Trim()
+  try {
+    $uri = [Uri]$trimmed
+    $authority = $uri.GetLeftPart([System.UriPartial]::Authority)
+    if ([string]::IsNullOrWhiteSpace($authority)) {
+      return $trimmed.TrimEnd("/")
+    }
+    return $authority.TrimEnd("/")
+  } catch {
+    $fallback = $trimmed.TrimEnd("/")
+    if ($fallback.ToLower().EndsWith("/webapp")) {
+      return $fallback.Substring(0, $fallback.Length - 7)
+    }
+    return $fallback
   }
-  return $trimmed
 }
 
 function Compare-EnvKeys {
@@ -104,6 +115,9 @@ try {
     )
     if (-not [string]::IsNullOrWhiteSpace($ExpectedAdminTelegramId)) {
       $args += @("-ExpectedAdminTelegramId", $ExpectedAdminTelegramId)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedWebAppPublicUrl)) {
+      $args += @("-ExpectedWebAppPublicUrl", $ExpectedWebAppPublicUrl)
     }
     & powershell @args
     if ($LASTEXITCODE -ne 0) {

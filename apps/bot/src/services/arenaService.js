@@ -904,6 +904,160 @@ function toRaidSessionView(session, result = null, actions = [], bossCycle = nul
   };
 }
 
+function resolvePvpSide(session, userId) {
+  const actorId = Number(userId || 0);
+  if (Number(session?.user_left_id || 0) === actorId) {
+    return "left";
+  }
+  if (Number(session?.user_right_id || 0) === actorId) {
+    return "right";
+  }
+  return "left";
+}
+
+function pvpOutcomeForSide(winnerSide, side) {
+  const normalizedWinner = String(winnerSide || "none").toLowerCase();
+  const normalizedSide = String(side || "left").toLowerCase();
+  if (normalizedWinner === "draw" || normalizedWinner === "none") {
+    return "draw";
+  }
+  return normalizedWinner === normalizedSide ? "win" : "loss";
+}
+
+function computePvpShadowScore(sessionRef, scoreLeft, actionCountLeft) {
+  const base = Math.max(0, Number(scoreLeft || 0));
+  const actionFactor = Math.max(1, Number(actionCountLeft || 1));
+  const hashHex = crypto.createHash("sha1").update(`pvp-shadow:${String(sessionRef || "")}`).digest("hex");
+  const seed = parseInt(hashHex.slice(0, 8), 16) / 0xffffffff;
+  const multiplier = 0.76 + seed * 0.42;
+  const variance = Math.round((actionFactor % 5) - 2);
+  return Math.max(0, Math.round(base * multiplier + variance));
+}
+
+function toPvpSessionView(session, result = null, actions = [], viewerUserId = null) {
+  if (!session) {
+    return null;
+  }
+  const state = session.state_json || {};
+  const viewerSide = resolvePvpSide(session, viewerUserId);
+  const opponentSide = viewerSide === "left" ? "right" : "left";
+  const expiresAt = session.expires_at ? new Date(session.expires_at).getTime() : 0;
+  const ttlSecLeft = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : 0;
+  const outcomeForViewer = result ? pvpOutcomeForSide(result.resolved_json?.winner_side || session.winner_side, viewerSide) : null;
+  return {
+    session_id: Number(session.id || 0),
+    session_ref: session.session_ref,
+    request_ref: session.request_ref || "",
+    status: session.status,
+    transport: session.transport || "poll",
+    tick_ms: Number(session.tick_ms || 1000),
+    action_window_ms: Number(session.action_window_ms || 800),
+    mode_suggested: session.mode_suggested,
+    mode_final: session.mode_final || null,
+    opponent_type: session.opponent_type || "shadow",
+    viewer_side: viewerSide,
+    player_user_id: Number(viewerSide === "left" ? session.user_left_id || 0 : session.user_right_id || 0),
+    opponent_user_id: Number(opponentSide === "left" ? session.user_left_id || 0 : session.user_right_id || 0) || null,
+    score: {
+      left: Number(session.score_left || 0),
+      right: Number(session.score_right || 0),
+      self: Number(viewerSide === "left" ? session.score_left || 0 : session.score_right || 0),
+      opponent: Number(opponentSide === "left" ? session.score_left || 0 : session.score_right || 0)
+    },
+    combo: {
+      left: Number(session.combo_left || 0),
+      right: Number(session.combo_right || 0),
+      self: Number(viewerSide === "left" ? session.combo_left || 0 : session.combo_right || 0),
+      opponent: Number(opponentSide === "left" ? session.combo_left || 0 : session.combo_right || 0)
+    },
+    action_count: {
+      left: Number(session.action_count_left || 0),
+      right: Number(session.action_count_right || 0),
+      self: Number(viewerSide === "left" ? session.action_count_left || 0 : session.action_count_right || 0),
+      opponent: Number(opponentSide === "left" ? session.action_count_left || 0 : session.action_count_right || 0)
+    },
+    ttl_sec_left: ttlSecLeft,
+    started_at: session.started_at,
+    resolved_at: session.resolved_at || null,
+    next_expected_action: String(state[`next_expected_${viewerSide}`] || ""),
+    state,
+    actions: (actions || []).map((row) => {
+      const actorSide = Number(row.actor_user_id || 0) === Number(session.user_left_id || 0) ? "left" : "right";
+      return {
+        action_seq: Number(row.action_seq || 0),
+        actor_user_id: Number(row.actor_user_id || 0),
+        actor_side: actorSide,
+        input_action: row.input_action,
+        accepted: Boolean(row.accepted),
+        latency_ms: Number(row.latency_ms || 0),
+        score_delta: Number(row.score_delta || 0),
+        created_at: row.created_at
+      };
+    }),
+    result: result
+      ? (() => {
+          const rewardsBySide = result.resolved_json?.rewards_by_side || {};
+          const ratingsBySide = result.resolved_json?.ratings_by_side || {};
+          const viewerReward = rewardsBySide?.[viewerSide];
+          const viewerRating = ratingsBySide?.[viewerSide];
+          return {
+            id: Number(result.id || 0),
+            mode: result.mode,
+            outcome: result.outcome,
+            outcome_for_viewer: outcomeForViewer,
+            winner_user_id: Number(result.winner_user_id || 0) || null,
+            winner_side: result.resolved_json?.winner_side || session.winner_side || "none",
+            score_left: Number(result.score_left || 0),
+            score_right: Number(result.score_right || 0),
+            reward: viewerReward
+              ? {
+                  sc: Number(viewerReward.sc || 0),
+                  hc: Number(viewerReward.hc || 0),
+                  rc: Number(viewerReward.rc || 0)
+                }
+              : {
+                  sc: Number(result.reward_sc || 0),
+                  hc: Number(result.reward_hc || 0),
+                  rc: Number(result.reward_rc || 0)
+                },
+            rating_delta: viewerRating ? Number(viewerRating.delta || 0) : Number(result.rating_delta || 0),
+            created_at: result.created_at,
+            resolved_json: result.resolved_json || {}
+          };
+        })()
+      : null
+  };
+}
+
+async function getIdentityProfileSnapshot(db, userId) {
+  const safeUserId = Number(userId || 0);
+  if (!safeUserId) {
+    return null;
+  }
+  const result = await db.query(
+    `SELECT
+       i.user_id,
+       COALESCE(i.public_name, CONCAT('u', i.user_id::text)) AS public_name,
+       COALESCE(i.kingdom_tier, 0) AS kingdom_tier,
+       COALESCE(i.current_streak, 0) AS current_streak,
+       COALESCE(i.reputation_score, 0) AS reputation_score
+     FROM identities i
+     WHERE i.user_id = $1
+     LIMIT 1;`,
+    [safeUserId]
+  );
+  if (result.rows[0]) {
+    return result.rows[0];
+  }
+  return {
+    user_id: safeUserId,
+    public_name: `u${safeUserId}`,
+    kingdom_tier: 0,
+    current_streak: 0,
+    reputation_score: 0
+  };
+}
+
 function dailyCapForProfile(config, profile) {
   const base = Number(config?.loops?.meso?.daily_cap_base || 120);
   const tier = Number(profile?.kingdom_tier || 0);
@@ -1606,6 +1760,716 @@ async function getAuthoritativeRaidSessionState(db, { profile, sessionRef }) {
   };
 }
 
+async function startAuthoritativePvpSession(
+  db,
+  { profile, config, requestId, modeSuggested, source, transportHint = "poll", wsEnabled = false }
+) {
+  const ready = await arenaStore.hasPvpSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "pvp_session_tables_missing" };
+  }
+
+  await arenaStore.expireStalePvpQueue(db, profile.user_id);
+  await arenaStore.expireStalePvpSessions(db, profile.user_id);
+
+  const existingActive = await arenaStore.getActivePvpSession(db, profile.user_id, { forUpdate: true });
+  if (existingActive) {
+    const existingResult = await arenaStore.getPvpResultBySessionId(db, existingActive.id);
+    const existingActions = await arenaStore.getPvpActions(db, existingActive.id);
+    return {
+      ok: true,
+      duplicate: true,
+      transport: existingActive.transport || "poll",
+      tick_ms: Number(existingActive.tick_ms || 1000),
+      action_window_ms: Number(existingActive.action_window_ms || 800),
+      session: toPvpSessionView(existingActive, existingResult, existingActions, profile.user_id)
+    };
+  }
+
+  const arenaConfig = arenaEngine.getArenaConfig(config);
+  const ticketRef = deterministicUuid(`pvp_ticket:${profile.user_id}:${requestId || Date.now()}`);
+  const debit = await economyStore.debitCurrency(db, {
+    userId: profile.user_id,
+    currency: "RC",
+    amount: arenaConfig.ticketCostRc,
+    reason: "pvp_ticket_spend",
+    refEventId: ticketRef,
+    meta: {
+      source: source || "webapp",
+      request_id: requestId || null
+    }
+  });
+  if (!debit.applied) {
+    return {
+      ok: false,
+      error: debit.reason === "insufficient_balance" ? "insufficient_rc" : "pvp_ticket_error"
+    };
+  }
+
+  let waitingSelf = await arenaStore.getWaitingQueueEntry(db, profile.user_id, { forUpdate: true });
+  if (!waitingSelf) {
+    waitingSelf = await arenaStore.createQueueEntry(db, {
+      userId: profile.user_id,
+      queueRef: deterministicUuid(`pvp_queue:${profile.user_id}:${requestId || Date.now()}`),
+      desiredMode: String(modeSuggested || "balanced").toLowerCase(),
+      ticketCostRc: arenaConfig.ticketCostRc,
+      ttlSec: 90,
+      metaJson: { source: source || "webapp" }
+    });
+    waitingSelf = await arenaStore.getWaitingQueueEntry(db, profile.user_id, { forUpdate: true });
+  }
+
+  let candidate = await arenaStore.findQueueCandidate(db, profile.user_id, { forUpdate: true });
+  let opponentType = "shadow";
+  let userRightId = null;
+  if (candidate) {
+    const candidateActive = await arenaStore.getActivePvpSession(db, candidate.user_id, { forUpdate: true });
+    if (candidateActive) {
+      await arenaStore.markQueueEntry(db, candidate.id, "cancelled", {
+        cancel_reason: "already_in_session"
+      });
+      candidate = null;
+    } else {
+      opponentType = "live";
+      userRightId = Number(candidate.user_id || 0);
+      await arenaStore.markQueueEntry(db, candidate.id, "matched", {
+        matched_with_user_id: profile.user_id
+      });
+      if (waitingSelf) {
+        await arenaStore.markQueueEntry(db, waitingSelf.id, "matched", {
+          matched_with_user_id: userRightId
+        });
+      }
+    }
+  }
+  if (!candidate && waitingSelf) {
+    await arenaStore.markQueueEntry(db, waitingSelf.id, "cancelled", {
+      cancel_reason: "shadow_fallback"
+    });
+  }
+
+  const season = seasonStore.getSeasonInfo(config);
+  const mode = arenaEngine.getRaidMode(String(modeSuggested || "balanced").toLowerCase());
+  const sessionRef = buildRunNonce(profile.user_id, requestId || `pvp:${Date.now()}`);
+  const requestRef = requestId ? `pvp:${profile.user_id}:${requestId}` : null;
+  const tickMs = 1000;
+  const actionWindowMs = 800;
+  const transport = wsEnabled && String(transportHint || "").toLowerCase() === "ws" ? "ws" : "poll";
+  const stateJson = {
+    phase: "combat",
+    server_tick: 0,
+    last_server_tick: Date.now(),
+    hits_left: 0,
+    misses_left: 0,
+    hits_right: 0,
+    misses_right: 0,
+    next_expected_left: arenaEngine.expectedActionForSequence(`${sessionRef}:left`, 1),
+    next_expected_right: arenaEngine.expectedActionForSequence(`${sessionRef}:right`, 1)
+  };
+  const seedJson = {
+    season_id: season.seasonId,
+    shadow_seed: opponentType === "shadow" ? deterministicUuid(`shadow:${sessionRef}`) : null,
+    source: source || "webapp"
+  };
+  const created = await arenaStore.createPvpSession(db, {
+    sessionRef,
+    requestRef,
+    transport,
+    tickMs,
+    actionWindowMs,
+    userLeftId: profile.user_id,
+    userRightId,
+    opponentType,
+    modeSuggested: mode.key,
+    stateJson,
+    seedJson,
+    ttlSec: 75
+  });
+
+  await riskStore.insertBehaviorEvent(db, profile.user_id, "pvp_session_start", {
+    session_ref: sessionRef,
+    mode_suggested: mode.key,
+    opponent_type: opponentType,
+    transport
+  });
+  await insertWebappEvent(db, {
+    eventRef: deterministicUuid(`webapp:pvp:start:${sessionRef}`),
+    userId: profile.user_id,
+    sessionRef,
+    eventType: "pvp_session_start",
+    eventState: opponentType,
+    meta: {
+      mode_suggested: mode.key,
+      opponent_type: opponentType,
+      transport
+    }
+  });
+  await insertFunnelEvent(db, {
+    userId: profile.user_id,
+    funnelName: "pvp_v33",
+    stepKey: "session_start",
+    stepState: opponentType,
+    meta: { session_ref: sessionRef, mode_suggested: mode.key }
+  });
+
+  return {
+    ok: true,
+    duplicate: false,
+    transport,
+    tick_ms: tickMs,
+    action_window_ms: actionWindowMs,
+    session: toPvpSessionView(created, null, [], profile.user_id)
+  };
+}
+
+async function applyAuthoritativePvpAction(
+  db,
+  { profile, config, sessionRef, actionSeq, inputAction, latencyMs, clientTs, source }
+) {
+  const ready = await arenaStore.hasPvpSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "pvp_session_tables_missing" };
+  }
+
+  await arenaStore.expireStalePvpSessions(db, profile.user_id);
+  const session = await arenaStore.getPvpSessionByRef(db, profile.user_id, sessionRef, { forUpdate: true });
+  if (!session) {
+    return { ok: false, error: "session_not_found" };
+  }
+  if (session.status !== "active") {
+    const result = await arenaStore.getPvpResultBySessionId(db, session.id);
+    const actions = await arenaStore.getPvpActions(db, session.id);
+    return {
+      ok: true,
+      duplicate: true,
+      transport: session.transport || "poll",
+      tick_ms: Number(session.tick_ms || 1000),
+      action_window_ms: Number(session.action_window_ms || 800),
+      session: toPvpSessionView(session, result, actions, profile.user_id)
+    };
+  }
+  if (session.expires_at && new Date(session.expires_at).getTime() <= Date.now()) {
+    await db.query(
+      `UPDATE pvp_sessions
+       SET status = 'expired',
+           updated_at = now()
+       WHERE id = $1;`,
+      [session.id]
+    );
+    return { ok: false, error: "session_expired" };
+  }
+
+  const side = resolvePvpSide(session, profile.user_id);
+  const sessionConfig = arenaEngine.getSessionConfig(config);
+  const seq = Number(actionSeq || 0);
+  if (!Number.isFinite(seq) || seq <= 0 || seq > sessionConfig.maxActions) {
+    return { ok: false, error: "invalid_action_seq" };
+  }
+
+  const state = session.state_json || {};
+  const lastSeq = Number(state[`last_action_seq_${side}`] || 0);
+  if (seq > lastSeq + 1) {
+    return { ok: false, error: "invalid_action_seq" };
+  }
+  if (seq <= lastSeq) {
+    const existing = await arenaStore.getPvpActionBySeq(db, {
+      sessionId: session.id,
+      actorUserId: profile.user_id,
+      actionSeq: seq
+    });
+    if (existing) {
+      const actions = await arenaStore.getPvpActions(db, session.id);
+      return {
+        ok: true,
+        duplicate: true,
+        action: {
+          action_seq: Number(existing.action_seq || seq),
+          accepted: Boolean(existing.accepted),
+          expected_action: String(existing.action_json?.expected_action || ""),
+          score_delta: Number(existing.score_delta || 0)
+        },
+        transport: session.transport || "poll",
+        tick_ms: Number(session.tick_ms || 1000),
+        action_window_ms: Number(session.action_window_ms || 800),
+        session: toPvpSessionView(session, null, actions, profile.user_id)
+      };
+    }
+  }
+
+  const scoreCurrent = Number(side === "left" ? session.score_left || 0 : session.score_right || 0);
+  const comboCurrent = Number(side === "left" ? session.combo_left || 0 : session.combo_right || 0);
+  const actionCountCurrent = Number(side === "left" ? session.action_count_left || 0 : session.action_count_right || 0);
+  const hitsCurrent = Number(state[`hits_${side}`] || 0);
+  const missesCurrent = Number(state[`misses_${side}`] || 0);
+  const evaluation = arenaEngine.evaluateSessionAction(
+    {
+      sessionRef: `${session.session_ref}:${side}`,
+      score: scoreCurrent,
+      combo: comboCurrent,
+      comboMax: comboCurrent,
+      hits: hitsCurrent,
+      misses: missesCurrent,
+      actionCount: actionCountCurrent
+    },
+    {
+      actionSeq: seq,
+      inputAction,
+      latencyMs: Math.max(0, Number(latencyMs || 0))
+    },
+    config
+  );
+
+  if (evaluation.latencyMs > Number(session.action_window_ms || 800)) {
+    evaluation.accepted = false;
+    evaluation.scoreDelta = -Math.max(3, Math.round(evaluation.latencyMs / 500));
+    evaluation.comboAfter = 0;
+    evaluation.hitsAfter = hitsCurrent;
+    evaluation.missesAfter = missesCurrent + 1;
+    evaluation.actionCount = actionCountCurrent + 1;
+    evaluation.scoreAfter = Math.max(0, scoreCurrent + evaluation.scoreDelta);
+    evaluation.comboMax = Math.max(comboCurrent, 0);
+  }
+
+  const actionRow = await arenaStore.upsertPvpAction(db, {
+    sessionId: session.id,
+    actorUserId: profile.user_id,
+    actionSeq: seq,
+    inputAction: evaluation.inputAction || "guard",
+    latencyMs: evaluation.latencyMs,
+    accepted: evaluation.accepted,
+    scoreDelta: evaluation.scoreDelta,
+    actionJson: {
+      expected_action: evaluation.expectedAction,
+      side,
+      client_ts: Number(clientTs || 0),
+      source: source || "webapp"
+    }
+  });
+  const duplicate = !Boolean(actionRow?.inserted);
+  if (!duplicate) {
+    const statePatch = {
+      [`hits_${side}`]: evaluation.hitsAfter,
+      [`misses_${side}`]: evaluation.missesAfter,
+      [`combo_${side}`]: evaluation.comboAfter,
+      [`action_count_${side}`]: evaluation.actionCount,
+      [`last_action_seq_${side}`]: seq,
+      [`last_latency_ms_${side}`]: evaluation.latencyMs,
+      [`next_expected_${side}`]: arenaEngine.expectedActionForSequence(`${session.session_ref}:${side}`, seq + 1),
+      last_server_tick: Date.now(),
+      server_tick: Number(state.server_tick || 0) + 1
+    };
+    await arenaStore.updatePvpSessionProgress(db, {
+      sessionId: session.id,
+      side,
+      score: evaluation.scoreAfter,
+      combo: evaluation.comboAfter,
+      actionCount: evaluation.actionCount,
+      stateJson: statePatch
+    });
+    await riskStore.insertBehaviorEvent(db, profile.user_id, "pvp_session_action", {
+      session_ref: sessionRef,
+      side,
+      action_seq: seq,
+      input_action: evaluation.inputAction,
+      accepted: evaluation.accepted,
+      latency_ms: evaluation.latencyMs
+    });
+    await insertWebappEvent(db, {
+      eventRef: deterministicUuid(`webapp:pvp:action:${sessionRef}:${profile.user_id}:${seq}`),
+      userId: profile.user_id,
+      sessionRef,
+      eventType: "pvp_session_action",
+      eventState: evaluation.accepted ? "ok" : "miss",
+      latencyMs: evaluation.latencyMs,
+      meta: {
+        side,
+        action_seq: seq,
+        input_action: evaluation.inputAction,
+        expected_action: evaluation.expectedAction
+      }
+    });
+  }
+
+  const refreshed = await arenaStore.getPvpSessionByRef(db, profile.user_id, sessionRef);
+  const actions = await arenaStore.getPvpActions(db, session.id);
+  return {
+    ok: true,
+    duplicate,
+    transport: refreshed?.transport || session.transport || "poll",
+    tick_ms: Number(refreshed?.tick_ms || session.tick_ms || 1000),
+    action_window_ms: Number(refreshed?.action_window_ms || session.action_window_ms || 800),
+    action: {
+      action_seq: seq,
+      accepted: evaluation.accepted,
+      expected_action: evaluation.expectedAction,
+      score_delta: evaluation.scoreDelta,
+      score_after: Number(
+        side === "left" ? refreshed?.score_left || evaluation.scoreAfter : refreshed?.score_right || evaluation.scoreAfter
+      ),
+      combo_after: evaluation.comboAfter
+    },
+    session: toPvpSessionView(refreshed || session, null, actions, profile.user_id)
+  };
+}
+
+async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef, source }) {
+  const ready = await arenaStore.hasPvpSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "pvp_session_tables_missing" };
+  }
+  await arenaStore.expireStalePvpSessions(db, profile.user_id);
+  const session = await arenaStore.getPvpSessionByRef(db, profile.user_id, sessionRef, { forUpdate: true });
+  if (!session) {
+    return { ok: false, error: "session_not_found" };
+  }
+  const existingResult = await arenaStore.getPvpResultBySessionId(db, session.id);
+  if (existingResult) {
+    const actions = await arenaStore.getPvpActions(db, session.id);
+    return {
+      ok: true,
+      duplicate: true,
+      transport: session.transport || "poll",
+      tick_ms: Number(session.tick_ms || 1000),
+      action_window_ms: Number(session.action_window_ms || 800),
+      session: toPvpSessionView(session, existingResult, actions, profile.user_id)
+    };
+  }
+  if (session.status !== "active") {
+    return { ok: false, error: "session_not_active" };
+  }
+  if (session.expires_at && new Date(session.expires_at).getTime() <= Date.now()) {
+    await db.query(
+      `UPDATE pvp_sessions
+       SET status = 'expired',
+           updated_at = now()
+       WHERE id = $1;`,
+      [session.id]
+    );
+    return { ok: false, error: "session_expired" };
+  }
+
+  const minActions = Math.max(4, Math.min(12, Number(arenaEngine.getSessionConfig(config).resolveMinActions || 6)));
+  const leftActions = Number(session.action_count_left || 0);
+  const rightActions = Number(session.action_count_right || 0);
+  if (leftActions < minActions || (session.opponent_type === "live" && rightActions < minActions)) {
+    return {
+      ok: false,
+      error: "session_not_ready",
+      min_actions: minActions,
+      action_count: {
+        left: leftActions,
+        right: rightActions
+      }
+    };
+  }
+
+  let scoreLeft = Number(session.score_left || 0);
+  let scoreRight = Number(session.score_right || 0);
+  if (session.opponent_type === "shadow" && Number(session.user_right_id || 0) === 0) {
+    scoreRight = computePvpShadowScore(session.session_ref, scoreLeft, leftActions);
+  }
+  const diff = scoreLeft - scoreRight;
+  const winnerSide = Math.abs(diff) <= 6 ? "draw" : diff > 0 ? "left" : "right";
+  const mode = arenaEngine.resolveSessionModeByScore(Math.max(scoreLeft, scoreRight));
+  const season = seasonStore.getSeasonInfo(config);
+  const anomaly = nexusEventEngine.resolveDailyAnomaly(config, { seasonId: season.seasonId });
+  const contract = nexusContractEngine.resolveDailyContract(config, {
+    seasonId: season.seasonId,
+    anomalyId: anomaly.id
+  });
+
+  const participantRows = [
+    {
+      side: "left",
+      userId: Number(session.user_left_id || 0),
+      score: scoreLeft,
+      combo: Number(session.combo_left || 0),
+      actionCount: leftActions,
+      hits: Number(session.state_json?.hits_left || 0),
+      misses: Number(session.state_json?.misses_left || 0)
+    }
+  ];
+  if (Number(session.user_right_id || 0) > 0) {
+    participantRows.push({
+      side: "right",
+      userId: Number(session.user_right_id || 0),
+      score: scoreRight,
+      combo: Number(session.combo_right || 0),
+      actionCount: rightActions,
+      hits: Number(session.state_json?.hits_right || 0),
+      misses: Number(session.state_json?.misses_right || 0)
+    });
+  }
+
+  const rewardsBySide = {};
+  const ratingsBySide = {};
+  let winnerUserId = null;
+  for (const row of participantRows) {
+    const participantProfile =
+      Number(row.userId || 0) === Number(profile.user_id || 0)
+        ? profile
+        : await getIdentityProfileSnapshot(db, row.userId);
+    if (!participantProfile) {
+      continue;
+    }
+    const participantOutcomeRaw = pvpOutcomeForSide(winnerSide, row.side);
+    const participantOutcome = participantOutcomeRaw === "draw" ? "near" : participantOutcomeRaw;
+    const riskState = await riskStore.getRiskState(db, row.userId);
+    const arenaConfig = arenaEngine.getArenaConfig(config);
+    const arenaState = await arenaStore.getArenaState(db, row.userId, arenaConfig.baseRating);
+    const rewardInfo = arenaEngine.computeSessionReward(config, {
+      mode,
+      outcome: participantOutcome,
+      score: row.score,
+      hits: row.hits,
+      misses: row.misses,
+      risk: Number(riskState.riskScore || 0),
+      kingdomTier: Number(participantProfile.kingdom_tier || 0),
+      streak: Number(participantProfile.current_streak || 0),
+      rating: Number(arenaState?.rating || arenaConfig.baseRating)
+    });
+    const activeEffects = await shopStore.getActiveEffects(db, row.userId);
+    const boostedReward = shopStore.applyEffectsToReward(rewardInfo.reward, activeEffects);
+    const anomalyAdjusted = nexusEventEngine.applyAnomalyToReward(boostedReward, anomaly, { modeKey: mode });
+    const contractEval = nexusContractEngine.evaluateAttempt(contract, {
+      modeKey: mode,
+      family: "duel",
+      result: normalizeOutcomeForContract(participantOutcome),
+      combo: row.combo
+    });
+    const reward = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval).reward;
+    const ratingDelta = computeSessionRatingDelta(config, mode, participantOutcome, row.score);
+    const rewardRefs = {
+      SC: deterministicUuid(`pvp_session:${session.id}:${row.side}:SC`),
+      HC: deterministicUuid(`pvp_session:${session.id}:${row.side}:HC`),
+      RC: deterministicUuid(`pvp_session:${session.id}:${row.side}:RC`)
+    };
+    await economyStore.creditReward(db, {
+      userId: row.userId,
+      reward,
+      reason: `pvp_session_resolve_${participantOutcome}`,
+      meta: {
+        session_ref: sessionRef,
+        side: row.side,
+        mode,
+        outcome: participantOutcome,
+        source: source || "webapp"
+      },
+      refEventIds: rewardRefs
+    });
+    const nextArena = await arenaStore.applyArenaOutcome(db, {
+      userId: row.userId,
+      ratingDelta,
+      outcome: participantOutcome
+    });
+    const seasonPoints = Math.max(
+      0,
+      Math.round(
+        Number(reward.rc || 0) * 2 +
+          Number(reward.sc || 0) +
+          Number(reward.hc || 0) * 8 +
+          (participantOutcome === "win" ? 5 : participantOutcome === "near" ? 2 : 0)
+      )
+    );
+    await seasonStore.addSeasonPoints(db, {
+      userId: row.userId,
+      seasonId: season.seasonId,
+      points: seasonPoints
+    });
+    await seasonStore.syncIdentitySeasonRank(db, {
+      userId: row.userId,
+      seasonId: season.seasonId
+    });
+    const warDelta = Math.max(1, Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 3));
+    await globalStore.incrementCounter(db, `war_pool_s${season.seasonId}`, warDelta);
+    await userStore.touchStreakOnAction(db, {
+      userId: row.userId,
+      decayPerDay: Number(config.loops?.meso?.streak_decay_per_day || 1)
+    });
+    await userStore.addReputation(db, {
+      userId: row.userId,
+      points: Number(reward.rc || 0) + (participantOutcome === "win" ? 3 : participantOutcome === "near" ? 1 : 0),
+      thresholds: config.kingdom?.thresholds
+    });
+    await arenaStore.insertPvpRatingHistory(db, {
+      userId: row.userId,
+      sessionId: session.id,
+      ratingBefore: Number(arenaState?.rating || arenaConfig.baseRating),
+      ratingDelta,
+      ratingAfter: Number(nextArena?.rating || arenaConfig.baseRating),
+      outcome: participantOutcomeRaw,
+      metaJson: {
+        session_ref: sessionRef,
+        side: row.side,
+        score: row.score,
+        mode,
+        outcome: participantOutcomeRaw
+      }
+    });
+    await antiAbuseEngine.applyRiskEvent(db, riskStore, config, {
+      userId: row.userId,
+      eventType: "arena_pvp",
+      context: {
+        session_ref: sessionRef,
+        side: row.side,
+        outcome: participantOutcomeRaw,
+        mode,
+        rating_delta: ratingDelta
+      }
+    });
+    await riskStore.insertBehaviorEvent(db, row.userId, "pvp_session_resolve", {
+      session_ref: sessionRef,
+      side: row.side,
+      mode,
+      outcome: participantOutcomeRaw,
+      reward,
+      rating_delta: ratingDelta
+    });
+    rewardsBySide[row.side] = {
+      sc: Number(reward.sc || 0),
+      hc: Number(reward.hc || 0),
+      rc: Number(reward.rc || 0),
+      outcome: participantOutcomeRaw
+    };
+    ratingsBySide[row.side] = {
+      delta: Number(ratingDelta || 0),
+      after: Number(nextArena?.rating || 0)
+    };
+    if (winnerSide === row.side) {
+      winnerUserId = row.userId;
+    }
+  }
+
+  await arenaStore.markPvpSessionResolved(db, {
+    sessionId: session.id,
+    modeFinal: mode,
+    winnerSide,
+    scoreLeft,
+    scoreRight,
+    stateJson: {
+      resolved_outcome: winnerSide === "draw" ? "draw" : winnerSide === "left" ? "left_win" : "right_win",
+      last_server_tick: Date.now(),
+      server_tick: Number(session.state_json?.server_tick || 0) + 1
+    }
+  });
+
+  const leftOutcome = pvpOutcomeForSide(winnerSide, "left");
+  const leftReward = rewardsBySide.left || { sc: 0, hc: 0, rc: 0 };
+  const leftRating = ratingsBySide.left || { delta: 0 };
+  const result = await arenaStore.createPvpResult(db, {
+    sessionId: session.id,
+    resultRef: deterministicUuid(`pvp_session_result:${session.id}`),
+    winnerUserId,
+    mode,
+    outcome: leftOutcome === "draw" ? "draw" : leftOutcome === "win" ? "win" : "loss",
+    scoreLeft,
+    scoreRight,
+    rewardSc: Number(leftReward.sc || 0),
+    rewardHc: Number(leftReward.hc || 0),
+    rewardRc: Number(leftReward.rc || 0),
+    ratingDelta: Number(leftRating.delta || 0),
+    resolvedJson: {
+      winner_side: winnerSide,
+      transport: session.transport || "poll",
+      tick_ms: Number(session.tick_ms || 1000),
+      action_window_ms: Number(session.action_window_ms || 800),
+      rewards_by_side: rewardsBySide,
+      ratings_by_side: ratingsBySide,
+      anomaly_id: anomaly.id,
+      anomaly_title: anomaly.title,
+      contract_id: contract.id,
+      contract_title: contract.title
+    }
+  });
+
+  await insertWebappEvent(db, {
+    eventRef: deterministicUuid(`webapp:pvp:resolve:${sessionRef}`),
+    userId: profile.user_id,
+    sessionRef,
+    eventType: "pvp_session_resolve",
+    eventState: winnerSide,
+    meta: {
+      winner_side: winnerSide,
+      score_left: scoreLeft,
+      score_right: scoreRight
+    }
+  });
+  await insertFunnelEvent(db, {
+    userId: profile.user_id,
+    funnelName: "pvp_v33",
+    stepKey: "session_resolve",
+    stepState: winnerSide,
+    meta: { session_ref: sessionRef, mode, winner_side: winnerSide }
+  });
+
+  const refreshed = await arenaStore.getPvpSessionByRef(db, profile.user_id, sessionRef);
+  const actions = await arenaStore.getPvpActions(db, session.id);
+  return {
+    ok: true,
+    duplicate: false,
+    transport: session.transport || "poll",
+    tick_ms: Number(session.tick_ms || 1000),
+    action_window_ms: Number(session.action_window_ms || 800),
+    winner_side: winnerSide,
+    session: toPvpSessionView(refreshed || session, result, actions, profile.user_id)
+  };
+}
+
+async function getAuthoritativePvpSessionState(db, { profile, sessionRef }) {
+  const ready = await arenaStore.hasPvpSessionTables(db);
+  if (!ready) {
+    return { ok: false, error: "pvp_session_tables_missing" };
+  }
+  await arenaStore.expireStalePvpQueue(db, profile.user_id);
+  await arenaStore.expireStalePvpSessions(db, profile.user_id);
+
+  let sessionBundle = null;
+  if (sessionRef) {
+    sessionBundle = await arenaStore.getPvpSessionWithResult(db, profile.user_id, sessionRef);
+  } else {
+    const active = await arenaStore.getActivePvpSession(db, profile.user_id);
+    if (active) {
+      const result = await arenaStore.getPvpResultBySessionId(db, active.id);
+      const actions = await arenaStore.getPvpActions(db, active.id);
+      sessionBundle = { session: active, result, actions };
+    } else {
+      const latest = await arenaStore.getLatestResolvedPvpSession(db, profile.user_id, 180);
+      if (latest) {
+        const session = await arenaStore.getPvpSessionByRef(db, profile.user_id, latest.session_ref);
+        const result = await arenaStore.getPvpResultBySessionId(db, latest.id);
+        const actions = await arenaStore.getPvpActions(db, latest.id, 80);
+        sessionBundle = { session, result, actions };
+      }
+    }
+  }
+  if (!sessionBundle || !sessionBundle.session) {
+    return { ok: true, session: null };
+  }
+  return {
+    ok: true,
+    transport: sessionBundle.session.transport || "poll",
+    tick_ms: Number(sessionBundle.session.tick_ms || 1000),
+    action_window_ms: Number(sessionBundle.session.action_window_ms || 800),
+    session: toPvpSessionView(sessionBundle.session, sessionBundle.result, sessionBundle.actions, profile.user_id)
+  };
+}
+
+async function getPvpLiveLeaderboard(db, { limit = 25 } = {}) {
+  const leaders = await arenaStore.getPvpLeaderboardLive(db, limit);
+  return {
+    ok: true,
+    leaderboard: (leaders || []).map((row, idx) => ({
+      rank: idx + 1,
+      user_id: Number(row.user_id || 0),
+      public_name: row.public_name || `u${row.user_id}`,
+      rating: Number(row.rating || 1000),
+      matches_total: Number(row.matches_total || 0),
+      matches_24h: Number(row.matches_24h || 0),
+      last_match_at: row.last_match_at || null
+    }))
+  };
+}
+
 module.exports = {
   runArenaRaid,
   buildRunNonce,
@@ -1617,5 +2481,10 @@ module.exports = {
   applyAuthoritativeRaidAction,
   resolveAuthoritativeRaidSession,
   getAuthoritativeRaidSessionState,
+  startAuthoritativePvpSession,
+  applyAuthoritativePvpAction,
+  resolveAuthoritativePvpSession,
+  getAuthoritativePvpSessionState,
+  getPvpLiveLeaderboard,
   buildDirectorView
 };

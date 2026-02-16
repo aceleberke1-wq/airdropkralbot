@@ -67,6 +67,16 @@ const FLAG_DEFAULTS = Object.freeze({
   WEBAPP_V3_ENABLED: process.env.WEBAPP_V3_ENABLED === "1",
   WEBAPP_TS_BUNDLE_ENABLED: process.env.WEBAPP_TS_BUNDLE_ENABLED === "1"
 });
+const CRITICAL_ENV_LOCKED_FLAGS = new Set([
+  "ARENA_AUTH_ENABLED",
+  "RAID_AUTH_ENABLED",
+  "WEBAPP_V3_ENABLED",
+  "WEBAPP_TS_BUNDLE_ENABLED",
+  "TOKEN_CURVE_ENABLED",
+  "TOKEN_AUTO_APPROVE_ENABLED"
+]);
+const FLAG_SOURCE_MODES = new Set(["env_locked", "db_override"]);
+const FLAG_SOURCE_MODE_ENV = String(process.env.FLAG_SOURCE_MODE || "").trim().toLowerCase();
 const RELEASE_ENV = String(process.env.RELEASE_ENV || process.env.NODE_ENV || "production");
 const RELEASE_GIT_REVISION = String(
   process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || process.env.RELEASE_GIT_REVISION || "local"
@@ -74,6 +84,7 @@ const RELEASE_GIT_REVISION = String(
 const RELEASE_DEPLOY_ID = String(
   process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_DEPLOY_ID || ""
 ).trim();
+const PVP_WS_ENABLED = process.env.PVP_WS_ENABLED === "1";
 
 if (!ADMIN_API_TOKEN) {
   throw new Error("Missing required env: ADMIN_API_TOKEN");
@@ -540,24 +551,91 @@ function normalizeFlagKey(value) {
     .toUpperCase();
 }
 
-async function loadFeatureFlags(db) {
-  const flags = { ...FLAG_DEFAULTS };
+function normalizeFlagSourceMode(value, fallback = "env_locked") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (FLAG_SOURCE_MODES.has(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+async function readFlagSourceState(db) {
+  const envMode = normalizeFlagSourceMode(FLAG_SOURCE_MODE_ENV, "env_locked");
   try {
     const result = await db.query(
-      `SELECT flag_key, is_enabled
+      `SELECT source_mode, source_json
+       FROM flag_source_state
+       WHERE source_key = 'global'
+       LIMIT 1;`
+    );
+    const row = result.rows[0] || {};
+    const dbMode = normalizeFlagSourceMode(row.source_mode, envMode);
+    const effectiveMode = FLAG_SOURCE_MODES.has(FLAG_SOURCE_MODE_ENV) ? envMode : dbMode;
+    return {
+      source_mode: effectiveMode,
+      source_json: row.source_json || {},
+      env_forced: FLAG_SOURCE_MODES.has(FLAG_SOURCE_MODE_ENV)
+    };
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+    return {
+      source_mode: envMode,
+      source_json: {},
+      env_forced: FLAG_SOURCE_MODES.has(FLAG_SOURCE_MODE_ENV)
+    };
+  }
+}
+
+async function loadFeatureFlags(db, opts = {}) {
+  const flags = { ...FLAG_DEFAULTS };
+  const withMeta = Boolean(opts.withMeta);
+  const sourceState = await readFlagSourceState(db);
+  const sourceMode = normalizeFlagSourceMode(opts.sourceMode, sourceState.source_mode || "env_locked");
+  const dbRows = [];
+  try {
+    const result = await db.query(
+      `SELECT flag_key, is_enabled, value_json, note, updated_at, updated_by
        FROM feature_flags;`
     );
     for (const row of result.rows) {
       const key = normalizeFlagKey(row.flag_key);
       if (!key) continue;
-      flags[key] = Boolean(row.is_enabled);
+      dbRows.push({
+        flag_key: key,
+        is_enabled: Boolean(row.is_enabled),
+        value_json: row.value_json || {},
+        note: String(row.note || ""),
+        updated_at: row.updated_at || null,
+        updated_by: Number(row.updated_by || 0)
+      });
     }
   } catch (err) {
     if (err.code !== "42P01") {
       throw err;
     }
   }
-  return flags;
+
+  for (const row of dbRows) {
+    if (sourceMode === "env_locked" && CRITICAL_ENV_LOCKED_FLAGS.has(row.flag_key)) {
+      continue;
+    }
+    flags[row.flag_key] = Boolean(row.is_enabled);
+  }
+
+  if (!withMeta) {
+    return flags;
+  }
+  return {
+    flags,
+    source_mode: sourceMode,
+    source_json: sourceState.source_json || {},
+    env_forced: Boolean(sourceState.env_forced),
+    db_flags: dbRows
+  };
 }
 
 function isFeatureEnabled(flags, key) {
@@ -566,8 +644,53 @@ function isFeatureEnabled(flags, key) {
   return Boolean(flags?.[normalizedKey]);
 }
 
+async function insertFeatureFlagAudit(db, payload) {
+  try {
+    await db.query(
+      `INSERT INTO feature_flag_audit (
+         flag_key,
+         previous_enabled,
+         next_enabled,
+         previous_value_json,
+         next_value_json,
+         note,
+         source_mode,
+         changed_by
+       )
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8);`,
+      [
+        normalizeFlagKey(payload.flagKey),
+        payload.previousEnabled === null ? null : Boolean(payload.previousEnabled),
+        Boolean(payload.nextEnabled),
+        JSON.stringify(payload.previousValueJson || {}),
+        JSON.stringify(payload.nextValueJson || {}),
+        String(payload.note || ""),
+        normalizeFlagSourceMode(payload.sourceMode, "db_override"),
+        Number(payload.changedBy || 0)
+      ]
+    );
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+}
+
 async function upsertFeatureFlag(db, { flagKey, enabled, updatedBy, note }) {
   const normalized = normalizeFlagKey(flagKey);
+  const previous = await db
+    .query(
+      `SELECT flag_key, is_enabled, value_json
+       FROM feature_flags
+       WHERE flag_key = $1
+       LIMIT 1;`,
+      [normalized]
+    )
+    .then((res) => res.rows[0] || null)
+    .catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
   const result = await db.query(
     `INSERT INTO feature_flags (flag_key, is_enabled, note, updated_by)
      VALUES ($1, $2, $3, $4)
@@ -580,7 +703,19 @@ async function upsertFeatureFlag(db, { flagKey, enabled, updatedBy, note }) {
      RETURNING flag_key, is_enabled, note, updated_at, updated_by;`,
     [normalized, Boolean(enabled), String(note || ""), Number(updatedBy || 0)]
   );
-  return result.rows[0] || null;
+  const next = result.rows[0] || null;
+  const sourceState = await readFlagSourceState(db);
+  await insertFeatureFlagAudit(db, {
+    flagKey: normalized,
+    previousEnabled: previous ? Boolean(previous.is_enabled) : null,
+    nextEnabled: Boolean(next?.is_enabled),
+    previousValueJson: previous?.value_json || {},
+    nextValueJson: {},
+    note: String(note || ""),
+    sourceMode: sourceState.source_mode,
+    changedBy: Number(updatedBy || 0)
+  });
+  return next;
 }
 
 async function resolveWebAppVariant(db) {
@@ -604,6 +739,170 @@ async function resolveWebAppVariant(db) {
     assetsDir: WEBAPP_ASSETS_DIR,
     indexPath: path.join(WEBAPP_DIR, "index.html")
   };
+}
+
+function assertStartupGuards() {
+  const tsBundleEnabled = FLAG_DEFAULTS.WEBAPP_TS_BUNDLE_ENABLED;
+  if (tsBundleEnabled) {
+    const distIndex = path.join(WEBAPP_DIST_DIR, "index.html");
+    const distVite = path.join(WEBAPP_DIST_DIR, "index.vite.html");
+    if (!fs.existsSync(distIndex) && !fs.existsSync(distVite)) {
+      throw new Error(
+        "Startup guard failed: WEBAPP_TS_BUNDLE_ENABLED=1 but apps/webapp/dist/index(.vite).html is missing"
+      );
+    }
+  }
+
+  const botEnabled = String(process.env.BOT_ENABLED || "1").trim() === "1";
+  if (botEnabled && !String(process.env.BOT_INSTANCE_LOCK_KEY || "").trim()) {
+    throw new Error("Startup guard failed: BOT_ENABLED=1 requires BOT_INSTANCE_LOCK_KEY");
+  }
+}
+
+async function upsertFlagSourceMode(db, { sourceMode, sourceJson, updatedBy }) {
+  const normalized = normalizeFlagSourceMode(sourceMode, "env_locked");
+  const payload = sourceJson && typeof sourceJson === "object" ? sourceJson : {};
+  const result = await db.query(
+    `INSERT INTO flag_source_state (source_key, source_mode, source_json, updated_by)
+     VALUES ('global', $1, $2::jsonb, $3)
+     ON CONFLICT (source_key)
+     DO UPDATE SET
+       source_mode = EXCLUDED.source_mode,
+       source_json = EXCLUDED.source_json,
+       updated_at = now(),
+       updated_by = EXCLUDED.updated_by
+     RETURNING source_key, source_mode, source_json, updated_at, updated_by;`,
+    [normalized, JSON.stringify(payload), Number(updatedBy || 0)]
+  );
+  return result.rows[0] || null;
+}
+
+function readAssetManifest() {
+  const manifestPath = path.join(WEBAPP_ASSETS_DIR, "manifest.json");
+  const fallback = { version: 0, models: {}, notes: "manifest_missing" };
+  if (!fs.existsSync(manifestPath)) {
+    return { manifestPath, manifest: fallback };
+  }
+  try {
+    const raw = fs.readFileSync(manifestPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return {
+      manifestPath,
+      manifest: parsed && typeof parsed === "object" ? parsed : fallback
+    };
+  } catch {
+    return { manifestPath, manifest: fallback };
+  }
+}
+
+function resolveManifestAssetPath(assetWebPath = "") {
+  const normalized = String(assetWebPath || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  const cleaned = normalized.replace(/^\/+/, "");
+  const parts = cleaned.split("/");
+  if (parts.length >= 3 && parts[0] === "webapp" && parts[1] === "assets") {
+    return path.join(WEBAPP_ASSETS_DIR, parts.slice(2).join(path.sep));
+  }
+  return path.join(WEBAPP_ASSETS_DIR, path.basename(cleaned));
+}
+
+function buildAssetStatusRows() {
+  const { manifestPath, manifest } = readAssetManifest();
+  const models = manifest?.models && typeof manifest.models === "object" ? manifest.models : {};
+  const rows = Object.entries(models).map(([assetKey, value]) => {
+    const filePath = resolveManifestAssetPath(value?.path || "");
+    const exists = filePath ? fs.existsSync(filePath) : false;
+    const stats = exists ? fs.statSync(filePath) : null;
+    return {
+      asset_key: String(assetKey || ""),
+      web_path: String(value?.path || ""),
+      file_path: filePath,
+      exists,
+      size_bytes: exists ? Number(stats?.size || 0) : 0,
+      updated_at: exists ? stats?.mtime?.toISOString?.() || null : null
+    };
+  });
+  return {
+    manifest_path: manifestPath,
+    manifest_version: Number(manifest?.version || 0),
+    manifest_notes: String(manifest?.notes || ""),
+    rows
+  };
+}
+
+async function persistAssetRegistry(db, rows, updatedBy = 0) {
+  for (const row of rows) {
+    await db.query(
+      `INSERT INTO webapp_asset_registry (
+         asset_key, manifest_path, file_path, file_hash, bytes_size, load_status, meta_json, updated_by
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+       ON CONFLICT (asset_key)
+       DO UPDATE SET
+         manifest_path = EXCLUDED.manifest_path,
+         file_path = EXCLUDED.file_path,
+         file_hash = EXCLUDED.file_hash,
+         bytes_size = EXCLUDED.bytes_size,
+         load_status = EXCLUDED.load_status,
+         meta_json = EXCLUDED.meta_json,
+         updated_at = now(),
+         updated_by = EXCLUDED.updated_by;`,
+      [
+        row.asset_key,
+        row.web_path,
+        row.file_path,
+        "",
+        Number(row.size_bytes || 0),
+        row.exists ? "ready" : "missing",
+        JSON.stringify({
+          exists: Boolean(row.exists),
+          updated_at: row.updated_at || null
+        }),
+        Number(updatedBy || 0)
+      ]
+    );
+    await db.query(
+      `INSERT INTO webapp_asset_load_events (
+         asset_key, event_type, event_state, event_json
+       )
+       VALUES ($1, 'reload', $2, $3::jsonb);`,
+      [
+        row.asset_key,
+        row.exists ? "ok" : "missing",
+        JSON.stringify({
+          size_bytes: Number(row.size_bytes || 0),
+          file_path: row.file_path
+        })
+      ]
+    );
+  }
+}
+
+async function persistAssetManifestState(db, summary, updatedBy = 0) {
+  const revision = `v${Number(summary?.manifest_version || 0)}`;
+  await db.query(
+    `INSERT INTO webapp_asset_manifest_state (state_key, manifest_revision, state_json, updated_by)
+     VALUES ('active', $1, $2::jsonb, $3)
+     ON CONFLICT (state_key)
+     DO UPDATE SET
+       manifest_revision = EXCLUDED.manifest_revision,
+       state_json = EXCLUDED.state_json,
+       updated_at = now(),
+       updated_by = EXCLUDED.updated_by;`,
+    [
+      revision,
+      JSON.stringify({
+        manifest_path: String(summary?.manifest_path || ""),
+        manifest_version: Number(summary?.manifest_version || 0),
+        manifest_notes: String(summary?.manifest_notes || ""),
+        total_assets: Array.isArray(summary?.rows) ? summary.rows.length : 0,
+        ready_assets: Array.isArray(summary?.rows) ? summary.rows.filter((row) => row.exists).length : 0
+      }),
+      Number(updatedBy || 0)
+    ]
+  );
 }
 
 const PLAY_MODES = {
@@ -1225,11 +1524,15 @@ async function dependencyHealth() {
 
   let arenaSessionTables = false;
   let raidSessionTables = false;
+  let pvpSessionTables = false;
   let tokenMarketTables = false;
   let queueTables = false;
   let webappPerfTables = false;
   let oracleTables = false;
   let guardrailTables = false;
+  let assetRegistryTables = false;
+  let runtimeFlagTables = false;
+  let treasuryOpsTables = false;
   let releaseMarkersTable = false;
   try {
     const check = await pool.query(
@@ -1240,26 +1543,53 @@ async function dependencyHealth() {
          to_regclass('public.raid_sessions') IS NOT NULL AS raid_sessions,
          to_regclass('public.raid_actions') IS NOT NULL AS raid_actions,
          to_regclass('public.raid_results') IS NOT NULL AS raid_results,
+         to_regclass('public.pvp_sessions') IS NOT NULL AS pvp_sessions,
+         to_regclass('public.pvp_session_actions') IS NOT NULL AS pvp_session_actions,
+         to_regclass('public.pvp_session_results') IS NOT NULL AS pvp_session_results,
+         to_regclass('public.pvp_matchmaking_queue') IS NOT NULL AS pvp_matchmaking_queue,
          to_regclass('public.token_market_state') IS NOT NULL AS token_market_state,
          to_regclass('public.token_auto_decisions') IS NOT NULL AS token_auto_decisions,
          to_regclass('public.user_ui_prefs') IS NOT NULL AS user_ui_prefs,
          to_regclass('public.device_perf_profiles') IS NOT NULL AS device_perf_profiles,
          to_regclass('public.render_quality_snapshots') IS NOT NULL AS render_quality_snapshots,
+         to_regclass('public.combat_frame_stats') IS NOT NULL AS combat_frame_stats,
+         to_regclass('public.combat_net_stats') IS NOT NULL AS combat_net_stats,
+         to_regclass('public.ui_interaction_events') IS NOT NULL AS ui_interaction_events,
+         to_regclass('public.webapp_asset_registry') IS NOT NULL AS webapp_asset_registry,
+         to_regclass('public.webapp_asset_load_events') IS NOT NULL AS webapp_asset_load_events,
          to_regclass('public.price_oracle_snapshots') IS NOT NULL AS price_oracle_snapshots,
          to_regclass('public.external_api_health') IS NOT NULL AS external_api_health,
          to_regclass('public.treasury_guardrails') IS NOT NULL AS treasury_guardrails,
          to_regclass('public.velocity_buckets') IS NOT NULL AS velocity_buckets,
+         to_regclass('public.feature_flag_audit') IS NOT NULL AS feature_flag_audit,
+         to_regclass('public.flag_source_state') IS NOT NULL AS flag_source_state,
+         to_regclass('public.treasury_policy_history') IS NOT NULL AS treasury_policy_history,
+         to_regclass('public.payout_gate_snapshots') IS NOT NULL AS payout_gate_snapshots,
+         to_regclass('public.token_quote_traces') IS NOT NULL AS token_quote_traces,
          to_regclass('public.feature_flags') IS NOT NULL AS feature_flags,
          to_regclass('public.release_markers') IS NOT NULL AS release_markers;`
     );
     const row = check.rows[0] || {};
     arenaSessionTables = Boolean(row.arena_sessions && row.arena_session_actions && row.arena_session_results);
     raidSessionTables = Boolean(row.raid_sessions && row.raid_actions && row.raid_results);
+    pvpSessionTables = Boolean(
+      row.pvp_sessions && row.pvp_session_actions && row.pvp_session_results && row.pvp_matchmaking_queue
+    );
     tokenMarketTables = Boolean(row.token_market_state);
     queueTables = Boolean(row.token_auto_decisions && row.feature_flags);
-    webappPerfTables = Boolean(row.user_ui_prefs && row.device_perf_profiles && row.render_quality_snapshots);
+    webappPerfTables = Boolean(
+      row.user_ui_prefs &&
+        row.device_perf_profiles &&
+        row.render_quality_snapshots &&
+        row.combat_frame_stats &&
+        row.combat_net_stats &&
+        row.ui_interaction_events
+    );
     oracleTables = Boolean(row.price_oracle_snapshots && row.external_api_health);
     guardrailTables = Boolean(row.treasury_guardrails && row.velocity_buckets);
+    assetRegistryTables = Boolean(row.webapp_asset_registry && row.webapp_asset_load_events);
+    runtimeFlagTables = Boolean(row.feature_flag_audit && row.flag_source_state);
+    treasuryOpsTables = Boolean(row.treasury_policy_history && row.payout_gate_snapshots && row.token_quote_traces);
     releaseMarkersTable = Boolean(row.release_markers);
   } catch (err) {
     if (!reason) {
@@ -1274,11 +1604,15 @@ async function dependencyHealth() {
     dependencies: {
       arena_session_tables: arenaSessionTables,
       raid_session_tables: raidSessionTables,
+      pvp_session_tables: pvpSessionTables,
       token_market_tables: tokenMarketTables,
       queue_tables: queueTables,
       webapp_perf_tables: webappPerfTables,
+      webapp_asset_registry_tables: assetRegistryTables,
       oracle_tables: oracleTables,
       guardrail_tables: guardrailTables,
+      runtime_flag_tables: runtimeFlagTables,
+      treasury_ops_tables: treasuryOpsTables,
       release_markers: releaseMarkersTable
     }
   };
@@ -1307,7 +1641,7 @@ function arenaSessionErrorCode(error) {
   if (key === "freeze_mode") {
     return 409;
   }
-  if (["arena_session_tables_missing", "raid_session_tables_missing"].includes(key)) {
+  if (["arena_session_tables_missing", "raid_session_tables_missing", "pvp_session_tables_missing"].includes(key)) {
     return 503;
   }
   return 400;
@@ -1484,7 +1818,7 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       if (err.code === "42P01") return null;
       throw err;
     });
-    const featureFlags = await loadFeatureFlags(client);
+    const featureFlags = await loadFeatureFlags(client, { withMeta: true });
     const isAdmin = isAdminTelegramId(auth.uid);
     const adminSummary = isAdmin ? await buildAdminSummary(client, runtimeConfig) : null;
 
@@ -1518,7 +1852,12 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         events: live.events,
         token,
         director,
-        feature_flags: featureFlags,
+        feature_flags: featureFlags.flags,
+        feature_flag_runtime: {
+          source_mode: featureFlags.source_mode,
+          source_json: featureFlags.source_json || {},
+          env_forced: Boolean(featureFlags.env_forced)
+        },
         perf_profile: perfProfile,
         ui_prefs:
           uiPrefs || {
@@ -1687,6 +2026,68 @@ fastify.post(
           profile_json: request.body.profile_json || {}
         }
       });
+      await webappStore
+        .insertCombatFrameStat(client, {
+          userId: profile.user_id,
+          sessionRef: String(request.body.profile_json?.session_ref || ""),
+          mode: String(request.body.profile_json?.mode || "combat"),
+          deviceHash,
+          fpsAvg: Number(request.body.fps_avg || 0),
+          frameTimeMs: Number(request.body.frame_time_ms || 0),
+          droppedFrames: Number(request.body.dropped_frames || 0),
+          gpuTimeMs: Number(request.body.gpu_time_ms || 0),
+          cpuTimeMs: Number(request.body.cpu_time_ms || 0),
+          statsJson: {
+            quality_mode: qualityMode,
+            perf_tier: request.body.profile_json?.perf_tier || "normal"
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+      await webappStore
+        .insertCombatNetStat(client, {
+          userId: profile.user_id,
+          sessionRef: String(request.body.profile_json?.session_ref || ""),
+          mode: String(request.body.profile_json?.mode || "combat"),
+          transport: String(request.body.profile_json?.transport || "poll"),
+          tickMs: Number(request.body.profile_json?.tick_ms || 1000),
+          actionWindowMs: Number(request.body.profile_json?.action_window_ms || 800),
+          rttMs: Number(request.body.latency_avg_ms || 0),
+          jitterMs: Number(request.body.profile_json?.jitter_ms || 0),
+          packetLossPct: Number(request.body.profile_json?.packet_loss_pct || 0),
+          acceptedActions: Number(request.body.profile_json?.accepted_actions || 0),
+          rejectedActions: Number(request.body.profile_json?.rejected_actions || 0),
+          statsJson: {
+            source: "perf_profile_post"
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+      await webappStore
+        .insertUiInteractionEvent(client, {
+          userId: profile.user_id,
+          eventKey: "perf_profile_post",
+          eventName: "perf_profile_post",
+          eventScope: "webapp",
+          eventValue: qualityMode,
+          eventJson: {
+            device_hash: deviceHash,
+            ui_mode: uiMode,
+            reduced_motion: Boolean(request.body.reduced_motion),
+            large_text: Boolean(request.body.large_text)
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       await client.query("COMMIT");
       reply.send({
         success: true,
@@ -3378,6 +3779,371 @@ fastify.get("/webapp/api/arena/leaderboard", async (request, reply) => {
   }
 });
 
+fastify.post(
+  "/webapp/api/pvp/session/start",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          request_id: { type: "string", minLength: 6, maxLength: 96 },
+          mode_suggested: { type: "string", enum: ["safe", "balanced", "aggressive"] },
+          transport: { type: "string", enum: ["poll", "ws"] }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, {
+        profile,
+        config: runtimeConfig
+      });
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const started = await arenaService.startAuthoritativePvpSession(client, {
+        profile,
+        config: runtimeConfig,
+        requestId: String(request.body.request_id || `pvp:${Date.now()}`),
+        modeSuggested: request.body.mode_suggested,
+        transportHint: request.body.transport || "poll",
+        wsEnabled: PVP_WS_ENABLED,
+        source: "webapp"
+      });
+      if (!started.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(started.error)).send({
+          success: false,
+          error: started.error
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...started,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          perf_profile: perfProfile,
+          server_tick: Date.now(),
+          idempotency_key: started.session?.session_ref || null
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/pvp/session/action",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref", "action_seq", "input_action"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 },
+          action_seq: { type: "integer", minimum: 1 },
+          input_action: { type: "string", enum: arenaEngine.SESSION_ACTIONS },
+          latency_ms: { type: "integer", minimum: 0 },
+          client_ts: { type: "integer", minimum: 0 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, {
+        profile,
+        config: runtimeConfig
+      });
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const acted = await arenaService.applyAuthoritativePvpAction(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        actionSeq: Number(request.body.action_seq || 0),
+        inputAction: String(request.body.input_action || ""),
+        latencyMs: Number(request.body.latency_ms || 0),
+        clientTs: Number(request.body.client_ts || 0),
+        source: "webapp"
+      });
+      if (!acted.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(acted.error)).send({
+          success: false,
+          error: acted.error,
+          min_actions: acted.min_actions || 0,
+          action_count: acted.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...acted,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          perf_profile: perfProfile,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:${Number(request.body.action_seq || 0)}`
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.post(
+  "/webapp/api/pvp/session/resolve",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig", "session_ref"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          session_ref: { type: "string", minLength: 8, maxLength: 128 }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const flags = await loadFeatureFlags(client);
+      if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+        return;
+      }
+      const freeze = await getFreezeState(client);
+      if (freeze.freeze) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
+        return;
+      }
+      const runtimeConfig = await configService.getEconomyConfig(client);
+      const directorPayload = await arenaService.buildDirectorView(client, {
+        profile,
+        config: runtimeConfig
+      });
+      const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+      const resolved = await arenaService.resolveAuthoritativePvpSession(client, {
+        profile,
+        config: runtimeConfig,
+        sessionRef: String(request.body.session_ref || ""),
+        source: "webapp"
+      });
+      if (!resolved.ok) {
+        await client.query("ROLLBACK");
+        reply.code(arenaSessionErrorCode(resolved.error)).send({
+          success: false,
+          error: resolved.error,
+          min_actions: resolved.min_actions || 0,
+          action_count: resolved.action_count || 0
+        });
+        return;
+      }
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          ...resolved,
+          contract: directorPayload?.contract || null,
+          anomaly: directorPayload?.anomaly || null,
+          director: directorPayload?.director || null,
+          perf_profile: perfProfile,
+          server_tick: Date.now(),
+          idempotency_key: `${String(request.body.session_ref || "")}:resolve`
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/pvp/session/state", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+      reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const directorPayload = await arenaService.buildDirectorView(client, {
+      profile,
+      config: runtimeConfig
+    });
+    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id, "").catch(() => null);
+    const statePayload = await arenaService.getAuthoritativePvpSessionState(client, {
+      profile,
+      sessionRef: String(request.query.session_ref || "")
+    });
+    if (!statePayload.ok) {
+      reply.code(arenaSessionErrorCode(statePayload.error)).send({
+        success: false,
+        error: statePayload.error
+      });
+      return;
+    }
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        ...statePayload,
+        transport: statePayload.transport || "poll",
+        tick_ms: Number(statePayload.tick_ms || 1000),
+        action_window_ms: Number(statePayload.action_window_ms || 800),
+        contract: directorPayload?.contract || null,
+        anomaly: directorPayload?.anomaly || null,
+        director: directorPayload?.director || null,
+        perf_profile: perfProfile,
+        server_tick: Date.now(),
+        idempotency_key: statePayload?.session?.session_ref ? `${statePayload.session.session_ref}:state` : null
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/pvp/leaderboard/live", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+      reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+      return;
+    }
+    const limit = Math.max(5, Math.min(100, Number(request.query.limit || 25)));
+    const board = await arenaService.getPvpLiveLeaderboard(client, { limit });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        ...board,
+        transport: PVP_WS_ENABLED ? "ws" : "poll",
+        server_tick: Date.now()
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
 fastify.get("/webapp/api/token/summary", async (request, reply) => {
   const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
   if (!auth.ok) {
@@ -3485,6 +4251,60 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
       return;
     }
     const gate = computeTokenMarketCapGate(tokenConfig, supply.total, priceUsd);
+    const velocityPerHour = await tokenStore.countRecentTokenVelocity(client, profile.user_id, 60).catch((err) => {
+      if (err.code === "42P01") return 0;
+      throw err;
+    });
+    const riskState = await riskStore.getRiskState(client, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return { riskScore: 0 };
+      throw err;
+    });
+    await tokenStore
+      .insertTokenQuoteTrace(client, {
+        requestId: request.query.request_id ? Number(request.query.request_id) || null : null,
+        userId: profile.user_id,
+        tokenSymbol: tokenConfig.symbol,
+        chain: chainConfig.chain,
+        usdAmount: Number(quote.usdAmount || 0),
+        tokenAmount: Number(quote.tokenAmount || 0),
+        priceUsd: Number(priceUsd || 0),
+        curveEnabled: Boolean(curveEnabled),
+        gateOpen: Boolean(gate.allowed),
+        riskScore: Number(riskState.riskScore || 0),
+        velocityPerHour,
+        traceJson: {
+          quote,
+          curve: curveQuote,
+          guardrail: guardrail || null,
+          external_api: oracleProbe
+        }
+      })
+      .catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
+    await tokenStore
+      .insertPayoutGateSnapshot(client, {
+        tokenSymbol: tokenConfig.symbol,
+        gateOpen: Boolean(gate.allowed),
+        marketCapUsd: Number(gate.current_market_cap_usd || 0),
+        minMarketCapUsd: Number(gate.min_market_cap_usd || 0),
+        targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+        snapshotJson: {
+          source: "token_quote",
+          user_id: profile.user_id,
+          chain: chainConfig.chain,
+          velocity_per_hour: Number(velocityPerHour || 0),
+          risk_score: Number(riskState.riskScore || 0)
+        },
+        createdBy: Number(auth.uid || 0)
+      })
+      .catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
     reply.send({
       success: true,
       session: issueWebAppSession(auth.uid),
@@ -3924,6 +4744,26 @@ fastify.post(
             throw err;
           }
         });
+      await tokenStore
+        .insertPayoutGateSnapshot(client, {
+          tokenSymbol: tokenConfig.symbol,
+          gateOpen: Boolean(marketGate.allowed),
+          marketCapUsd: Number(marketGate.current_market_cap_usd || 0),
+          minMarketCapUsd: Number(marketGate.min_market_cap_usd || 0),
+          targetMarketCapMaxUsd: Number(tokenConfig.payout_gate?.target_band_max_usd || 0),
+          snapshotJson: {
+            source: "token_submit_tx",
+            request_id: requestId,
+            tx_hash: txCheck.formatCheck.normalizedHash,
+            reason: marketGate.allowed ? "gate_open" : "gate_closed"
+          },
+          createdBy: Number(auth.uid || 0)
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       const autoPolicyEnabled = Boolean(
         isFeatureEnabled(featureFlags, "TOKEN_AUTO_APPROVE_ENABLED") && curveState.autoPolicy.enabled
       );
@@ -4071,6 +4911,254 @@ fastify.get("/webapp/api/admin/summary", async (request, reply) => {
     client.release();
   }
 });
+
+fastify.get("/webapp/api/admin/runtime/flags", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const payload = await loadFeatureFlags(client, { withMeta: true });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        source_mode: payload.source_mode,
+        source_json: payload.source_json || {},
+        env_forced: Boolean(payload.env_forced),
+        critical_env_locked_keys: Array.from(CRITICAL_ENV_LOCKED_FLAGS.values()),
+        env_defaults: FLAG_DEFAULTS,
+        effective_flags: payload.flags,
+        db_flags: payload.db_flags || []
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/admin/runtime/flags",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          source_mode: { type: "string", enum: ["env_locked", "db_override"] },
+          source_json: { type: "object" },
+          flags: {
+            type: "object",
+            additionalProperties: { type: "boolean" }
+          }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+      if (request.body.source_mode) {
+        await upsertFlagSourceMode(client, {
+          sourceMode: request.body.source_mode,
+          sourceJson: request.body.source_json || {},
+          updatedBy: Number(auth.uid)
+        });
+      }
+      const incomingFlags =
+        request.body.flags && typeof request.body.flags === "object" ? request.body.flags : {};
+      for (const [rawKey, rawValue] of Object.entries(incomingFlags)) {
+        const key = normalizeFlagKey(rawKey);
+        if (!key) {
+          continue;
+        }
+        await upsertFeatureFlag(client, {
+          flagKey: key,
+          enabled: Boolean(rawValue),
+          updatedBy: Number(auth.uid),
+          note: "updated via /webapp/api/admin/runtime/flags"
+        });
+      }
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'runtime_flags_update', 'feature_flags', $2::jsonb);`,
+        [
+          Number(auth.uid),
+          JSON.stringify({
+            source_mode: request.body.source_mode || null,
+            flag_count: Object.keys(incomingFlags).length
+          })
+        ]
+      );
+      const payload = await loadFeatureFlags(client, { withMeta: true });
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          source_mode: payload.source_mode,
+          source_json: payload.source_json || {},
+          env_forced: Boolean(payload.env_forced),
+          effective_flags: payload.flags,
+          db_flags: payload.db_flags || []
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "runtime_flag_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/admin/assets/status", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const local = buildAssetStatusRows();
+    const dbRows = await client
+      .query(
+        `SELECT asset_key, manifest_path, file_path, bytes_size, load_status, meta_json, updated_at, updated_by
+         FROM webapp_asset_registry
+         ORDER BY asset_key ASC;`
+      )
+      .then((res) => res.rows)
+      .catch((err) => {
+        if (err.code === "42P01") return [];
+        throw err;
+      });
+    const manifestState = await client
+      .query(
+        `SELECT state_key, manifest_revision, state_json, updated_at, updated_by
+         FROM webapp_asset_manifest_state
+         WHERE state_key = 'active'
+         LIMIT 1;`
+      )
+      .then((res) => res.rows[0] || null)
+      .catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        local_manifest: local,
+        db_registry: dbRows,
+        active_manifest: manifestState,
+        summary: {
+          total_assets: local.rows.length,
+          ready_assets: local.rows.filter((row) => row.exists).length,
+          missing_assets: local.rows.filter((row) => !row.exists).length
+        }
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/admin/assets/reload",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        return;
+      }
+      const local = buildAssetStatusRows();
+      await persistAssetRegistry(client, local.rows, Number(auth.uid));
+      await persistAssetManifestState(client, local, Number(auth.uid));
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, 'webapp_assets_reload', 'webapp_asset_registry', $2::jsonb);`,
+        [
+          Number(auth.uid),
+          JSON.stringify({
+            total_assets: local.rows.length,
+            ready_assets: local.rows.filter((row) => row.exists).length
+          })
+        ]
+      );
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          local_manifest: local,
+          summary: {
+            total_assets: local.rows.length,
+            ready_assets: local.rows.filter((row) => row.exists).length,
+            missing_assets: local.rows.filter((row) => !row.exists).length
+          }
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "asset_registry_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
 
 fastify.get("/webapp/api/admin/metrics", async (request, reply) => {
   const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
@@ -4349,6 +5437,13 @@ fastify.post(
         throw err;
       });
       const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const previousPolicyJson = {
+        enabled: Boolean(normalized.autoPolicy?.enabled),
+        auto_usd_limit: Number(normalized.autoPolicy?.autoUsdLimit || 10),
+        risk_threshold: Number(normalized.autoPolicy?.riskThreshold || 0.35),
+        velocity_per_hour: Number(normalized.autoPolicy?.velocityPerHour || 8),
+        require_onchain_verified: Boolean(normalized.autoPolicy?.requireOnchainVerified)
+      };
       const nextPolicy = {
         ...normalized.autoPolicy
       };
@@ -4385,6 +5480,26 @@ fastify.post(
         },
         updatedBy: Number(auth.uid)
       });
+      await tokenStore
+        .insertTreasuryPolicyHistory(client, {
+          tokenSymbol: tokenConfig.symbol,
+          source: "webapp_admin_auto_policy",
+          actorId: Number(auth.uid),
+          previousPolicyJson,
+          nextPolicyJson: {
+            enabled: Boolean(nextPolicy.enabled),
+            auto_usd_limit: Number(nextPolicy.autoUsdLimit || 10),
+            risk_threshold: Number(nextPolicy.riskThreshold || 0.35),
+            velocity_per_hour: Number(nextPolicy.velocityPerHour || 8),
+            require_onchain_verified: Boolean(nextPolicy.requireOnchainVerified)
+          },
+          reason: "webapp_auto_policy_update"
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       await tokenStore
         .upsertTreasuryGuardrail(client, {
           tokenSymbol: tokenConfig.symbol,
@@ -4499,6 +5614,14 @@ fastify.post(
         throw err;
       });
       const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const previousCurveJson = {
+        admin_floor_usd: Number(normalized.adminFloorUsd || 0),
+        base_usd: Number(normalized.curveBaseUsd || 0),
+        k: Number(normalized.curveK || 0),
+        supply_norm_divisor: Number(normalized.supplyNormDivisor || 1),
+        demand_factor: Number(normalized.demandFactor || 1),
+        volatility_dampen: Number(normalized.volatilityDampen || 0)
+      };
       const next = {
         adminFloorUsd: normalized.adminFloorUsd,
         curveBaseUsd: normalized.curveBaseUsd,
@@ -4538,6 +5661,27 @@ fastify.post(
         autoPolicy: normalized.autoPolicy,
         updatedBy: Number(auth.uid)
       });
+      await tokenStore
+        .insertTreasuryPolicyHistory(client, {
+          tokenSymbol: tokenConfig.symbol,
+          source: "webapp_admin_curve",
+          actorId: Number(auth.uid),
+          previousPolicyJson: previousCurveJson,
+          nextPolicyJson: {
+            admin_floor_usd: Number(next.adminFloorUsd || 0),
+            base_usd: Number(next.curveBaseUsd || 0),
+            k: Number(next.curveK || 0),
+            supply_norm_divisor: Number(next.supplyNormDivisor || 1),
+            demand_factor: Number(next.demandFactor || 1),
+            volatility_dampen: Number(next.volatilityDampen || 0)
+          },
+          reason: "webapp_curve_update"
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       await tokenStore
         .upsertTreasuryGuardrail(client, {
           tokenSymbol: tokenConfig.symbol,
@@ -5294,6 +6438,13 @@ fastify.post(
         throw err;
       });
       const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const previousPolicyJson = {
+        enabled: Boolean(normalized.autoPolicy?.enabled),
+        auto_usd_limit: Number(normalized.autoPolicy?.autoUsdLimit || 10),
+        risk_threshold: Number(normalized.autoPolicy?.riskThreshold || 0.35),
+        velocity_per_hour: Number(normalized.autoPolicy?.velocityPerHour || 8),
+        require_onchain_verified: Boolean(normalized.autoPolicy?.requireOnchainVerified)
+      };
       const nextPolicy = {
         ...normalized.autoPolicy
       };
@@ -5331,6 +6482,26 @@ fastify.post(
         },
         updatedBy: adminId
       });
+      await tokenStore
+        .insertTreasuryPolicyHistory(client, {
+          tokenSymbol: tokenConfig.symbol,
+          source: "admin_auto_policy",
+          actorId: adminId,
+          previousPolicyJson,
+          nextPolicyJson: {
+            enabled: Boolean(nextPolicy.enabled),
+            auto_usd_limit: Number(nextPolicy.autoUsdLimit || 10),
+            risk_threshold: Number(nextPolicy.riskThreshold || 0.35),
+            velocity_per_hour: Number(nextPolicy.velocityPerHour || 8),
+            require_onchain_verified: Boolean(nextPolicy.requireOnchainVerified)
+          },
+          reason: "admin_auto_policy_update"
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       await tokenStore
         .upsertTreasuryGuardrail(client, {
           tokenSymbol: tokenConfig.symbol,
@@ -5427,6 +6598,14 @@ fastify.post(
         throw err;
       });
       const normalized = tokenEngine.normalizeCurveState(tokenConfig, currentMarketState);
+      const previousCurveJson = {
+        admin_floor_usd: Number(normalized.adminFloorUsd || 0),
+        base_usd: Number(normalized.curveBaseUsd || 0),
+        k: Number(normalized.curveK || 0),
+        supply_norm_divisor: Number(normalized.supplyNormDivisor || 1),
+        demand_factor: Number(normalized.demandFactor || 1),
+        volatility_dampen: Number(normalized.volatilityDampen || 0)
+      };
       const next = {
         adminFloorUsd: normalized.adminFloorUsd,
         curveBaseUsd: normalized.curveBaseUsd,
@@ -5466,6 +6645,27 @@ fastify.post(
         autoPolicy: normalized.autoPolicy,
         updatedBy: adminId
       });
+      await tokenStore
+        .insertTreasuryPolicyHistory(client, {
+          tokenSymbol: tokenConfig.symbol,
+          source: "admin_curve",
+          actorId: adminId,
+          previousPolicyJson: previousCurveJson,
+          nextPolicyJson: {
+            admin_floor_usd: Number(next.adminFloorUsd || 0),
+            base_usd: Number(next.curveBaseUsd || 0),
+            k: Number(next.curveK || 0),
+            supply_norm_divisor: Number(next.supplyNormDivisor || 1),
+            demand_factor: Number(next.demandFactor || 1),
+            volatility_dampen: Number(next.volatilityDampen || 0)
+          },
+          reason: "admin_curve_update"
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
       await tokenStore
         .upsertTreasuryGuardrail(client, {
           tokenSymbol: tokenConfig.symbol,
@@ -6120,6 +7320,8 @@ fastify.post(
 fastify.addHook("onClose", async () => {
   await pool.end();
 });
+
+assertStartupGuards();
 
 fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
   if (err) {

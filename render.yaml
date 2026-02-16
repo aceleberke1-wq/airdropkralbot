@@ -11,6 +11,10 @@ services:
         value: production
       - key: LOOP_V2_ENABLED
         value: "1"
+      - key: ADMIN_TELEGRAM_ID
+        value: "1995400205"
+      - key: BOT_USERNAME
+        value: "airdropkral_2026_bot"
       - key: BOT_DRY_RUN
         value: "0"
       - key: BOT_ENABLED
@@ -21,10 +25,14 @@ services:
         value: "1"
       - key: BOT_INSTANCE_LOCK_KEY
         value: "7262026"
+      - key: FLAG_SOURCE_MODE
+        value: env_locked
       - key: ADMIN_API_PORT
         value: "10000"
       - key: PORT
         value: "10000"
+      - key: WEBAPP_PUBLIC_URL
+        value: https://webapp.k99-exchange.xyz/webapp?v=20260213-1
       - key: DATABASE_SSL
         value: "1"
       - key: TOKEN_TX_VERIFY
@@ -35,6 +43,8 @@ services:
         value: "1"
       - key: RAID_AUTH_ENABLED
         value: "1"
+      - key: PVP_WS_ENABLED
+        value: "0"
       - key: TOKEN_CURVE_ENABLED
         value: "1"
       - key: TOKEN_AUTO_APPROVE_ENABLED

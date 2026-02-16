@@ -1,6 +1,7 @@
 param(
   [string]$WebAppHost = "webapp.k99-exchange.xyz",
   [string]$DnsTarget = "airdropkral-admin.onrender.com",
+  [string]$WebAppVersion = "20260213-1",
   [string]$EnvPath = ".env"
 )
 
@@ -67,7 +68,7 @@ if ([string]::IsNullOrWhiteSpace($secret) -or $secret -match "^GENERATE_WITH_") 
   $secret = [Convert]::ToHexString((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
 }
 
-$publicUrl = "https://$WebAppHost/webapp"
+$publicUrl = "https://$WebAppHost/webapp?v=$WebAppVersion"
 Set-EnvValue -Path $EnvPath -Key "WEBAPP_PUBLIC_URL" -Value $publicUrl
 Set-EnvValue -Path $EnvPath -Key "WEBAPP_HMAC_SECRET" -Value $secret
 
