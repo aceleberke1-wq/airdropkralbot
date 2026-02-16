@@ -3,7 +3,7 @@ services:
     name: airdropkral-admin
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build:webapp
+    buildCommand: npm install --workspaces --include=dev && npm run build:webapp
     startCommand: npm run start:all
     autoDeploy: true
     envVars:
