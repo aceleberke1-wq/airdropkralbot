@@ -77,8 +77,12 @@ function loadConfig() {
   const hcToBtcRate = Number(process.env.HC_TO_BTC_RATE || 0.00001);
   const payoutCooldownHours = Number(process.env.PAYOUT_COOLDOWN_HOURS || 72);
   const webappPublicUrl = requireEnv("WEBAPP_PUBLIC_URL", { optional: true }) || "";
+  const webappVersionOverride = requireEnv("WEBAPP_VERSION_OVERRIDE", { optional: true }) || "";
   const webappHmacSecret = requireEnv("WEBAPP_HMAC_SECRET", { optional: true }) || "";
   const botUsername = requireEnv("BOT_USERNAME", { optional: true }) || "airdropkral_2026_bot";
+  const releaseGitRevision = String(
+    process.env.RELEASE_GIT_REVISION || process.env.GIT_COMMIT || process.env.RENDER_GIT_COMMIT || ""
+  ).trim();
   const tokenTxVerifyEnabled = process.env.TOKEN_TX_VERIFY === "1";
   const tokenTxVerifyStrict = process.env.TOKEN_TX_VERIFY_STRICT === "1";
   const botInstanceLockKey = Number(process.env.BOT_INSTANCE_LOCK_KEY || 7262026);
@@ -104,8 +108,10 @@ function loadConfig() {
     hcToBtcRate,
     payoutCooldownHours,
     webappPublicUrl,
+    webappVersionOverride,
     webappHmacSecret,
     botUsername,
+    releaseGitRevision,
     tokenTxVerifyEnabled,
     tokenTxVerifyStrict,
     botInstanceLockKey
@@ -115,6 +121,16 @@ function loadConfig() {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+const WEBAPP_VERSION_STARTUP_TS = String(Date.now());
+const WEBAPP_VERSION_CACHE_TTL_MS = 60_000;
+const WEBAPP_BOOTSTRAP_CACHE_TTL_MS = 45_000;
+const WEBAPP_VERSION_CACHE = {
+  value: "",
+  source: "",
+  expiresAt: 0
+};
+const WEBAPP_BOOTSTRAP_CACHE = new Map();
 
 function normalizePublicName(ctx) {
   if (ctx.from?.username) {
@@ -138,12 +154,152 @@ function signWebAppPayload(uid, ts, secret) {
   return crypto.createHmac("sha256", String(secret)).update(`${uid}.${ts}`).digest("hex");
 }
 
-function buildSignedWebAppUrl(appConfig, telegramId) {
+function sanitizeWebAppVersion(rawValue) {
+  return String(rawValue || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .slice(0, 40);
+}
+
+function buildVersionedWebAppUrl(baseUrl, version) {
+  const base = String(baseUrl || "").trim();
+  const safeVersion = sanitizeWebAppVersion(version) || sanitizeWebAppVersion(WEBAPP_VERSION_STARTUP_TS) || "startup";
+  if (!base) {
+    return "";
+  }
+  try {
+    const url = new URL(base);
+    url.searchParams.set("v", safeVersion);
+    return url.toString();
+  } catch {
+    const separator = base.includes("?") ? "&" : "?";
+    return `${base}${separator}v=${encodeURIComponent(safeVersion)}`;
+  }
+}
+
+async function resolveLocalWebAppVersion(pool, appConfig) {
+  const overrideVersion = sanitizeWebAppVersion(appConfig.webappVersionOverride);
+  if (overrideVersion) {
+    return { version: overrideVersion, source: "env_override" };
+  }
+
+  const now = Date.now();
+  if (WEBAPP_VERSION_CACHE.value && now < WEBAPP_VERSION_CACHE.expiresAt) {
+    return { version: WEBAPP_VERSION_CACHE.value, source: WEBAPP_VERSION_CACHE.source || "cache" };
+  }
+
+  const dbVersion = await withTransaction(pool, async (db) => {
+    const hasTable = await db
+      .query(`SELECT to_regclass('public.release_markers') IS NOT NULL AS ok;`)
+      .then((res) => Boolean(res.rows?.[0]?.ok))
+      .catch(() => false);
+    if (!hasTable) {
+      return "";
+    }
+    const row = await db
+      .query(
+        `SELECT git_revision
+         FROM release_markers
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1;`
+      )
+      .then((res) => res.rows?.[0] || null)
+      .catch(() => null);
+    return sanitizeWebAppVersion(row?.git_revision || "");
+  }).catch((err) => {
+    logEvent("webapp_version_db_failed", { error: String(err?.message || err) });
+    return "";
+  });
+  if (dbVersion) {
+    WEBAPP_VERSION_CACHE.value = dbVersion;
+    WEBAPP_VERSION_CACHE.source = "release_marker";
+    WEBAPP_VERSION_CACHE.expiresAt = now + WEBAPP_VERSION_CACHE_TTL_MS;
+    return { version: dbVersion, source: "release_marker" };
+  }
+
+  const releaseVersion = sanitizeWebAppVersion(appConfig.releaseGitRevision);
+  if (releaseVersion) {
+    return { version: releaseVersion, source: "release_env" };
+  }
+
+  return {
+    version: sanitizeWebAppVersion(WEBAPP_VERSION_STARTUP_TS) || "startup",
+    source: "startup_timestamp"
+  };
+}
+
+async function fetchBootstrapWebAppUrl(appConfig, telegramId) {
   if (!appConfig.webappPublicUrl || !appConfig.webappHmacSecret) {
+    return "";
+  }
+  const uid = String(telegramId || "").trim();
+  if (!uid) {
+    return "";
+  }
+  let origin;
+  try {
+    origin = new URL(appConfig.webappPublicUrl).origin;
+  } catch {
+    return "";
+  }
+  const cacheKey = `${origin}:${uid}`;
+  const cached = WEBAPP_BOOTSTRAP_CACHE.get(cacheKey);
+  if (cached && Date.now() < Number(cached.expiresAt || 0)) {
+    return String(cached.url || "");
+  }
+
+  const ts = Date.now().toString();
+  const sig = signWebAppPayload(uid, ts, appConfig.webappHmacSecret);
+  const endpoint = new URL("/webapp/api/bootstrap", origin);
+  endpoint.searchParams.set("uid", uid);
+  endpoint.searchParams.set("ts", ts);
+  endpoint.searchParams.set("sig", sig);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2200);
+  try {
+    const res = await fetch(endpoint.toString(), {
+      method: "GET",
+      headers: { accept: "application/json" },
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      return "";
+    }
+    const body = await res.json().catch(() => null);
+    const launchUrl = String(body?.data?.webapp_launch_url || body?.webapp_launch_url || "").trim();
+    if (!launchUrl) {
+      return "";
+    }
+    WEBAPP_BOOTSTRAP_CACHE.set(cacheKey, {
+      url: launchUrl,
+      expiresAt: Date.now() + WEBAPP_BOOTSTRAP_CACHE_TTL_MS
+    });
+    return launchUrl;
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId) {
+  const bootstrapUrl = await fetchBootstrapWebAppUrl(appConfig, telegramId);
+  if (bootstrapUrl) {
+    return bootstrapUrl;
+  }
+  const versionState = await resolveLocalWebAppVersion(pool, appConfig);
+  const versioned = buildVersionedWebAppUrl(appConfig.webappPublicUrl, versionState.version);
+  return versioned || String(appConfig.webappPublicUrl || "").trim();
+}
+
+function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "") {
+  const baseUrl = String(baseUrlOverride || appConfig.webappPublicUrl || "").trim();
+  if (!baseUrl || !appConfig.webappHmacSecret) {
     return null;
   }
   try {
-    const url = new URL(appConfig.webappPublicUrl);
+    const url = new URL(baseUrl);
     const ts = Date.now().toString();
     const uid = String(telegramId);
     const sig = signWebAppPayload(uid, ts, appConfig.webappHmacSecret);
@@ -152,7 +308,7 @@ function buildSignedWebAppUrl(appConfig, telegramId) {
     url.searchParams.set("sig", sig);
     url.searchParams.set("bot", String(appConfig.botUsername || "airdropkral_2026_bot"));
     return url.toString();
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -2995,7 +3151,8 @@ async function sendOnboard(ctx, pool, appConfig) {
 
 async function sendPlay(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
-  const url = buildSignedWebAppUrl(appConfig, ctx.from?.id);
+  const launchBaseUrl = await resolveWebAppLaunchBaseUrl(pool, appConfig, ctx.from?.id);
+  const url = buildSignedWebAppUrl(appConfig, ctx.from?.id, launchBaseUrl);
   if (!url) {
     await ctx.replyWithMarkdown(
       "*Arena 3D Hazir Degil*\nWEBAPP_PUBLIC_URL veya WEBAPP_HMAC_SECRET eksik."

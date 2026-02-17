@@ -137,31 +137,32 @@ Note: free tunnel URL changes on each restart. Re-run script when it changes.
 2. Create Blueprint in Render from this repo.
 3. Set required secrets:
 `BOT_TOKEN`, `BOT_USERNAME`, `ADMIN_TELEGRAM_ID`, payout addresses, `DATABASE_URL`, `ADMIN_API_TOKEN`, `WEBAPP_HMAC_SECRET`, `WEBAPP_PUBLIC_URL`.
-4. Keep `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1`.
-5. Add custom domain `webapp.k99-exchange.xyz` to the admin web service.
-6. DNS:
+4. Keep `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp` (query yok).
+5. Optional: `WEBAPP_VERSION_OVERRIDE=` (bos ise runtime release marker SHA kullanilir).
+6. Add custom domain `webapp.k99-exchange.xyz` to the admin web service.
+7. DNS:
 if NS is Vercel -> add CNAME in Vercel DNS (`webapp -> airdropkral-admin.onrender.com`).
 if NS is Namecheap -> add the same CNAME in Namecheap Advanced DNS.
-7. Start command should be `npm run start:all`.
-8. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
-9. `DATABASE_URL` must be cloud DB URL (Neon/Render DB). Do not use `localhost`.
-10. Free plan recommended flags:
+8. Start command should be `npm run start:all`.
+9. If free web service sleeps, configure an external uptime ping to `/health` every 5 minutes.
+10. `DATABASE_URL` must be cloud DB URL (Neon/Render DB). Do not use `localhost`.
+11. Free plan recommended flags:
 `BOT_ENABLED=1`, `BOT_AUTO_RESTART=1`, `KEEP_ADMIN_ON_BOT_EXIT=1`, `BOT_INSTANCE_LOCK_KEY=7262026`
 V3 feature flags:
 `ARENA_AUTH_ENABLED=1`, `RAID_AUTH_ENABLED=1`, `TOKEN_CURVE_ENABLED=1`, `TOKEN_AUTO_APPROVE_ENABLED=1`, `WEBAPP_V3_ENABLED=1`, `WEBAPP_TS_BUNDLE_ENABLED=0|1`
 Runtime source:
 `FLAG_SOURCE_MODE=env_locked`
 Run only one polling instance per token. If local and Render use same DB lock key, duplicate instance auto-stops.
-11. Validate local `.env` before copying to Render:
+12. Validate local `.env` before copying to Render:
 `powershell -ExecutionPolicy Bypass -File scripts/check_render_env.ps1`
-11.1 Render paneline girecegin key/value listesini lokal `.env`'den export et:
+12.1 Render paneline girecegin key/value listesini lokal `.env`'den export et:
 `powershell -ExecutionPolicy Bypass -File scripts/export_render_env.ps1`
-12. Run release gate before pushing `main`:
+13. Run release gate before pushing `main`:
 `npm run check:release`
-13. If admin commands fail, run `/whoami` in Telegram and set the exact value as `ADMIN_TELEGRAM_ID`.
-14. Optional strict release check with explicit admin ID:
+14. If admin commands fail, run `/whoami` in Telegram and set the exact value as `ADMIN_TELEGRAM_ID`.
+15. Optional strict release check with explicit admin ID:
 `powershell -ExecutionPolicy Bypass -File scripts/check_release_readiness.ps1 -ExpectedAdminTelegramId <whoami_id>`
-15. Optional chain verification flags:
+16. Optional chain verification flags:
 `TOKEN_TX_VERIFY=1` enables explorer/RPC lookup on tx submission.
 `TOKEN_TX_VERIFY_STRICT=1` rejects tx hashes not found on-chain.
 
@@ -176,7 +177,7 @@ Run only one polling instance per token. If local and Render use same DB lock ke
 6. Redeploy service.
 7. Validate:
 `https://airdropkral-admin.onrender.com/health`
-`https://webapp.k99-exchange.xyz/webapp?v=20260213-1`
+`https://webapp.k99-exchange.xyz/webapp` (bot runtime'da `?v=<release_sha>` ekler)
 
 ### Why this matters
 - Telegram allows only one polling consumer for the same bot token.

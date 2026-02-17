@@ -2,7 +2,7 @@ param(
   [string]$EnvPath = ".env",
   [switch]$Strict,
   [string]$ExpectedAdminTelegramId = "1995400205",
-  [string]$ExpectedWebAppPublicUrl = "https://webapp.k99-exchange.xyz/webapp?v=20260213-1"
+  [string]$ExpectedWebAppPublicUrl = "https://webapp.k99-exchange.xyz/webapp"
 )
 
 $ErrorActionPreference = "Stop"
@@ -144,7 +144,18 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedAdminTelegramId)) {
 $web = [string]$envMap["WEBAPP_PUBLIC_URL"]
 if ($web) {
   if (Is-ValidUrl -Value $web -RequireHttps) {
+    $uri = [Uri]$web
     Write-Host "[OK] WEBAPP_PUBLIC_URL is HTTPS." -ForegroundColor Green
+    if ($uri.AbsolutePath.TrimEnd("/") -eq "/webapp") {
+      Write-Host "[OK] WEBAPP_PUBLIC_URL path is /webapp." -ForegroundColor Green
+    } else {
+      Write-Host ("[WARN] WEBAPP_PUBLIC_URL path should end with /webapp. Current: " + $uri.AbsolutePath) -ForegroundColor Yellow
+      if ($Strict) { $criticalIssues += 1 }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($uri.Query)) {
+      Write-Host "[WARN] WEBAPP_PUBLIC_URL should be query-less. Runtime adds ?v= automatically." -ForegroundColor Yellow
+      if ($Strict) { $criticalIssues += 1 }
+    }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedWebAppPublicUrl)) {
       if ($web.Trim() -eq $ExpectedWebAppPublicUrl.Trim()) {
         Write-Host "[OK] WEBAPP_PUBLIC_URL matches expected production URL." -ForegroundColor Green
@@ -193,7 +204,8 @@ Write-Host "  TOKEN_CURVE_ENABLED=1"
 Write-Host "  TOKEN_AUTO_APPROVE_ENABLED=1"
 Write-Host "  WEBAPP_V3_ENABLED=1"
 Write-Host "  WEBAPP_TS_BUNDLE_ENABLED=1"
-Write-Host "  WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1"
+Write-Host "  WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp"
+Write-Host "  WEBAPP_VERSION_OVERRIDE="
 Write-Host ""
 Write-Host "If you also run local bot, stop one side to avoid 409 polling conflict."
 Write-Host ""

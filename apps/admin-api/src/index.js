@@ -52,6 +52,11 @@ const ADMIN_TELEGRAM_ID = parseTelegramId(process.env.ADMIN_TELEGRAM_ID || "", "
 const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_SSL = process.env.DATABASE_SSL === "1";
 const PORT = Number(process.env.PORT || process.env.ADMIN_API_PORT || 4000);
+const WEBAPP_PUBLIC_URL = String(process.env.WEBAPP_PUBLIC_URL || "").trim();
+const WEBAPP_VERSION_OVERRIDE = String(process.env.WEBAPP_VERSION_OVERRIDE || "").trim();
+const RENDER_GIT_COMMIT = String(process.env.RENDER_GIT_COMMIT || "").trim();
+const RELEASE_GIT_REVISION_ENV = String(process.env.RELEASE_GIT_REVISION || process.env.GIT_COMMIT || "").trim();
+const WEBAPP_STARTUP_TIMESTAMP = String(Date.now());
 const WEBAPP_HMAC_SECRET = process.env.WEBAPP_HMAC_SECRET || "";
 const WEBAPP_AUTH_TTL_SEC = Number(process.env.WEBAPP_AUTH_TTL_SEC || 900);
 const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
@@ -78,9 +83,7 @@ const CRITICAL_ENV_LOCKED_FLAGS = new Set([
 const FLAG_SOURCE_MODES = new Set(["env_locked", "db_override"]);
 const FLAG_SOURCE_MODE_ENV = String(process.env.FLAG_SOURCE_MODE || "").trim().toLowerCase();
 const RELEASE_ENV = String(process.env.RELEASE_ENV || process.env.NODE_ENV || "production");
-const RELEASE_GIT_REVISION = String(
-  process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || process.env.RELEASE_GIT_REVISION || "local"
-).trim();
+const RELEASE_GIT_REVISION = String(RENDER_GIT_COMMIT || RELEASE_GIT_REVISION_ENV || "local").trim();
 const RELEASE_DEPLOY_ID = String(
   process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_DEPLOY_ID || ""
 ).trim();
@@ -351,6 +354,71 @@ async function captureReleaseMarker(db, payload = {}) {
     notes: payload.notes,
     createdBy: payload.createdBy
   });
+}
+
+function sanitizeWebAppVersion(rawValue) {
+  const cleaned = String(rawValue || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .slice(0, 40);
+  return cleaned;
+}
+
+function buildVersionedWebAppUrl(baseUrl, version) {
+  const base = String(baseUrl || "").trim();
+  const safeVersion = sanitizeWebAppVersion(version) || sanitizeWebAppVersion(WEBAPP_STARTUP_TIMESTAMP) || "startup";
+  if (!base) {
+    return "";
+  }
+  try {
+    const parsed = new URL(base);
+    parsed.searchParams.set("v", safeVersion);
+    return parsed.toString();
+  } catch (err) {
+    fastify.log.error(
+      { err: String(err?.message || err), webapp_public_url: base },
+      "Failed to parse WEBAPP_PUBLIC_URL while building versioned launch URL"
+    );
+    const separator = base.includes("?") ? "&" : "?";
+    return `${base}${separator}v=${encodeURIComponent(safeVersion)}`;
+  }
+}
+
+async function resolveWebAppVersion(db) {
+  const overrideVersion = sanitizeWebAppVersion(WEBAPP_VERSION_OVERRIDE);
+  if (overrideVersion) {
+    return { version: overrideVersion, source: "env_override" };
+  }
+
+  if (db) {
+    try {
+      const hasTable = await hasReleaseMarkersTable(db);
+      if (hasTable) {
+        const marker = await readLatestReleaseMarker(db);
+        const markerVersion = sanitizeWebAppVersion(marker?.git_revision || "");
+        if (markerVersion) {
+          return { version: markerVersion, source: "release_marker" };
+        }
+      }
+    } catch (err) {
+      if (err.code !== "42P01") {
+        fastify.log.warn({ err: String(err?.message || err) }, "Failed to read release marker for webapp version");
+      }
+    }
+  }
+
+  const releaseVersion = sanitizeWebAppVersion(RELEASE_GIT_REVISION_ENV);
+  if (releaseVersion) {
+    return { version: releaseVersion, source: "release_env" };
+  }
+
+  const renderCommitVersion = sanitizeWebAppVersion(RENDER_GIT_COMMIT);
+  if (renderCommitVersion) {
+    return { version: renderCommitVersion, source: "render_git_commit" };
+  }
+
+  const startupVersion = sanitizeWebAppVersion(WEBAPP_STARTUP_TIMESTAMP) || "startup";
+  return { version: startupVersion, source: "startup_timestamp" };
 }
 
 function signWebAppPayload(uid, ts) {
@@ -1821,6 +1889,8 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     const featureFlags = await loadFeatureFlags(client, { withMeta: true });
     const isAdmin = isAdminTelegramId(auth.uid);
     const adminSummary = isAdmin ? await buildAdminSummary(client, runtimeConfig) : null;
+    const webappVersionState = await resolveWebAppVersion(client);
+    const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
 
     const missionReady = missions.filter((m) => m.completed && !m.claimed).length;
     const missionOpen = missions.filter((m) => !m.claimed).length;
@@ -1828,6 +1898,8 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     reply.send({
       success: true,
       session: issueWebAppSession(auth.uid),
+      webapp_version: webappVersionState.version,
+      webapp_launch_url: webappLaunchUrl,
       data: {
         profile,
         balances,
@@ -1858,6 +1930,9 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
           source_json: featureFlags.source_json || {},
           env_forced: Boolean(featureFlags.env_forced)
         },
+        webapp_version: webappVersionState.version,
+        webapp_launch_url: webappLaunchUrl,
+        webapp_version_source: webappVersionState.source,
         perf_profile: perfProfile,
         ui_prefs:
           uiPrefs || {

@@ -46,6 +46,7 @@ $required = @(
   "DATABASE_URL",
   "DATABASE_SSL",
   "WEBAPP_PUBLIC_URL",
+  "WEBAPP_VERSION_OVERRIDE",
   "WEBAPP_HMAC_SECRET",
   "ADMIN_API_TOKEN",
   "BOT_DRY_RUN",
@@ -70,6 +71,15 @@ Write-Host "Render env export ($EnvPath)" -ForegroundColor Cyan
 Write-Host ""
 foreach ($key in $required) {
   $value = [string]$envMap[$key]
+  if ($key -eq "WEBAPP_VERSION_OVERRIDE") {
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      Write-Host ($key + "=")
+    } else {
+      Write-Host ($key + "=" + $value)
+    }
+    continue
+  }
+
   if ([string]::IsNullOrWhiteSpace($value)) {
     $missing += $key
     Write-Host ("[MISSING] " + $key) -ForegroundColor Red

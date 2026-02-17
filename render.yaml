@@ -32,7 +32,9 @@ services:
       - key: PORT
         value: "10000"
       - key: WEBAPP_PUBLIC_URL
-        value: https://webapp.k99-exchange.xyz/webapp?v=20260213-1
+        value: https://webapp.k99-exchange.xyz/webapp
+      - key: WEBAPP_VERSION_OVERRIDE
+        value: ""
       - key: DATABASE_SSL
         value: "1"
       - key: TOKEN_TX_VERIFY

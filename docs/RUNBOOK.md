@@ -22,7 +22,8 @@
 5. `WEBAPP_V3_ENABLED=1`
 6. `WEBAPP_TS_BUNDLE_ENABLED=0|1` (`1` icin once `npm run build:webapp`)
 7. Degisimlerden sonra Render redeploy yap.
-8. `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp?v=20260213-1`
+8. `WEBAPP_PUBLIC_URL=https://webapp.k99-exchange.xyz/webapp`
+9. `WEBAPP_VERSION_OVERRIDE=` (normalde bos birak; runtime release marker SHA kullanir)
 
 ## Health checks
 1. `/healthz` -> proses sagligi
