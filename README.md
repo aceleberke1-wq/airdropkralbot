@@ -51,22 +51,23 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 25. `/whoami` current telegram id + admin match check
 26. `/admin` admin panel
 27. `/admin_live` canli queue + gate + freeze ozeti
-28. `/admin_payouts` payout queue quick view
-29. `/admin_tokens` token queue quick view
-30. `/admin_freeze on|off [reason]` freeze control
-31. `/admin_config` active economy/token config summary
-32. `/admin_token_price <usd>` token spot update
-33. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
-34. `/admin_metrics` 24 saatlik operasyon metrikleri
-35. `/pay <requestId> <txHash>` mark payout paid
-36. `/reject_payout <requestId> <reason>` reject payout
-37. `/approve_token <requestId> [note]` approve token buy request
-38. `/reject_token <requestId> <reason>` reject token buy request
-39. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`, `kontrat`
-40. Admin lock rule: `/whoami` Telegram ID must exactly match `ADMIN_TELEGRAM_ID` (local + Render env)
-41. `/raid_contract` canli raid kontrat + bonus paketi
-42. `/ui_mode` son UI preference + kalite ozeti
-43. `/perf` fps/latency + provider health ozeti
+28. `/menu` launcher kisayol menusu (Arena 3D + hizli akis)
+29. `/admin_payouts` payout queue quick view
+30. `/admin_tokens` token queue quick view
+31. `/admin_freeze on|off [reason]` freeze control
+32. `/admin_config` active economy/token config summary
+33. `/admin_token_price <usd>` token spot update
+34. `/admin_token_gate <minCapUsd> [targetMaxUsd]` payout gate update
+35. `/admin_metrics` 24 saatlik operasyon metrikleri
+36. `/pay <requestId> <txHash>` mark payout paid
+37. `/reject_payout <requestId> <reason>` reject payout
+38. `/approve_token <requestId> [note]` approve token buy request
+39. `/reject_token <requestId> <reason>` reject token buy request
+40. Slashsiz intent fallback: `gorev`, `bitir dengeli`, `reveal`, `raid aggressive`, `arena 3d`, `kontrat`
+41. Admin lock rule: `/whoami` Telegram ID must exactly match `ADMIN_TELEGRAM_ID` (local + Render env)
+42. `/raid_contract` canli raid kontrat + bonus paketi
+43. `/ui_mode` son UI preference + kalite ozeti
+44. `/perf` fps/latency + provider health ozeti
 
 ## Micro Loop Extras
 1. Task panel includes `Panel Yenile (1 RC)` sink for fresh lineup.

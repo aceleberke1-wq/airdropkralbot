@@ -10,7 +10,8 @@
     data: null,
     admin: {
       isAdmin: false,
-      summary: null
+      summary: null,
+      runtime: null
     },
     suggestion: null,
     arena: null,
@@ -1601,6 +1602,7 @@
 
     panel.classList.remove("hidden");
     const summary = info.summary || {};
+    const runtime = summary.bot_runtime || state.admin.runtime || null;
     const metrics = summary.metrics || {};
     const queues = summary.queues || {};
     const manualTokenQueue = Array.isArray(queues.token_manual_queue) ? queues.token_manual_queue.length : 0;
@@ -1619,6 +1621,8 @@
     byId("adminQueue").textContent =
       `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}` +
       ` | manual ${manualTokenQueue} | auto ${autoDecisions}`;
+    state.admin.runtime = runtime || null;
+    renderAdminRuntime(runtime);
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
@@ -1645,6 +1649,50 @@
     byId("adminAutoVelocityInput").value = autoVelocity > 0 ? String(Math.floor(autoVelocity)) : "";
   }
 
+  function formatRuntimeTime(value) {
+    if (!value) {
+      return "-";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+    return date.toISOString().slice(11, 19);
+  }
+
+  function renderAdminRuntime(runtimeData) {
+    const line = byId("adminRuntimeLine");
+    const eventsLine = byId("adminRuntimeEvents");
+    if (!line || !eventsLine) {
+      return;
+    }
+
+    const runtime = runtimeData && typeof runtimeData === "object" ? runtimeData : {};
+    const health = runtime.health || {};
+    const stateRow = runtime.state || runtime.runtime_state || {};
+    const events = Array.isArray(runtime.events)
+      ? runtime.events
+      : Array.isArray(runtime.recent_events)
+        ? runtime.recent_events
+        : [];
+
+    const mode = String(stateRow.mode || "unknown");
+    const alive = health.alive === true || stateRow.alive === true;
+    const lock = health.lock_acquired === true || stateRow.lock_acquired === true;
+    const hb = formatRuntimeTime(health.last_heartbeat_at || stateRow.last_heartbeat_at);
+    line.textContent = `Bot Runtime: ${alive ? "ON" : "OFF"} | ${lock ? "LOCK" : "NOLOCK"} | ${mode} | hb ${hb}`;
+
+    if (events.length === 0) {
+      eventsLine.textContent = "Runtime events: kayit yok";
+      return;
+    }
+    const preview = events
+      .slice(0, 3)
+      .map((event) => String(event.event_type || event.type || "runtime"))
+      .join(" | ");
+    eventsLine.textContent = `Runtime events: ${preview}`;
+  }
+
   async function fetchAdminSummary() {
     const query = new URLSearchParams(state.auth).toString();
     const res = await fetch(`/webapp/api/admin/summary?${query}`);
@@ -1661,6 +1709,13 @@
       const queues = await fetchAdminQueues();
       if (state.admin.summary && typeof state.admin.summary === "object") {
         state.admin.summary.queues = queues;
+        renderAdmin({ is_admin: true, summary: state.admin.summary });
+      }
+    } catch (_) {}
+    try {
+      const runtime = await fetchAdminRuntime();
+      if (state.admin.summary && typeof state.admin.summary === "object") {
+        state.admin.summary.bot_runtime = runtime;
         renderAdmin({ is_admin: true, summary: state.admin.summary });
       }
     } catch (_) {}
@@ -1691,6 +1746,36 @@
       renderAdmin({ is_admin: true, summary: state.admin.summary });
     }
     return payload.data || {};
+  }
+
+  async function fetchAdminRuntime(limit = 20) {
+    const query = new URLSearchParams({
+      ...state.auth,
+      limit: String(Math.max(1, Math.min(100, Number(limit || 20))))
+    }).toString();
+    const res = await fetch(`/webapp/api/admin/runtime/bot?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_runtime_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    state.admin.runtime = payload.data || null;
+    renderAdminRuntime(state.admin.runtime);
+    return state.admin.runtime;
+  }
+
+  async function reconcileAdminRuntime(reason, forceStop = false) {
+    const payload = await postAdmin("/webapp/api/admin/runtime/bot/reconcile", {
+      reason: reason || "manual_runtime_reconcile",
+      force_stop: Boolean(forceStop)
+    });
+    state.admin.runtime = {
+      health: payload.health_after || {},
+      runtime_state: payload.runtime_state || null,
+      recent_events: payload.recent_events || []
+    };
+    renderAdminRuntime(state.admin.runtime);
+    return payload;
   }
 
   async function postAdmin(path, extraBody = {}) {
@@ -2181,6 +2266,19 @@
     byId("adminMetricsBtn").addEventListener("click", () => {
       fetchAdminMetrics()
         .then(() => showToast("Admin metrikleri yenilendi"))
+        .catch(showError);
+    });
+    byId("adminRuntimeRefreshBtn").addEventListener("click", () => {
+      fetchAdminRuntime()
+        .then(() => showToast("Runtime yenilendi"))
+        .catch(showError);
+    });
+    byId("adminRuntimeReconcileBtn").addEventListener("click", () => {
+      const reason = String(byId("adminRuntimeReason").value || "").trim() || "manual_runtime_reconcile";
+      reconcileAdminRuntime(reason, false)
+        .then((data) => {
+          showToast(`Runtime reconcile: ${String(data.reconcile_status || "ok")}`);
+        })
         .catch(showError);
     });
     byId("adminFreezeOnBtn").addEventListener("click", () => {

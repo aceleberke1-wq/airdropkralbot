@@ -2099,7 +2099,17 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
     });
     const featureFlags = await loadFeatureFlags(client, { withMeta: true });
     const isAdmin = isAdminTelegramId(auth.uid);
-    const adminSummary = isAdmin ? await buildAdminSummary(client, runtimeConfig) : null;
+    let adminSummary = null;
+    if (isAdmin) {
+      adminSummary = await buildAdminSummary(client, runtimeConfig);
+      const botRuntime = await readBotRuntimeState(client, { stateKey: botRuntimeStore.DEFAULT_STATE_KEY, limit: 15 });
+      adminSummary.bot_runtime = {
+        state_key: botRuntime.state_key || botRuntimeStore.DEFAULT_STATE_KEY,
+        health: projectBotRuntimeHealth(botRuntime),
+        state: botRuntime.state || null,
+        events: botRuntime.events || []
+      };
+    }
     const webappVersionState = await resolveWebAppVersion(client);
     const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
 

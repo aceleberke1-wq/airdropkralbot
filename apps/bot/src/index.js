@@ -735,22 +735,24 @@ function buildTaskKeyboard(offers) {
 function buildStartKeyboard() {
   return Markup.inlineKeyboard(
     [
-      Markup.button.callback("Onboard", "OPEN_ONBOARD"),
-      Markup.button.callback("Hizli Rehber", "OPEN_GUIDE"),
-      Markup.button.callback("Gorevleri Ac", "OPEN_TASKS"),
-      Markup.button.callback("Cuzdani Goster", "OPEN_WALLET"),
-      Markup.button.callback("Sezon", "OPEN_SEASON"),
-      Markup.button.callback("Dukkan", "OPEN_SHOP"),
-      Markup.button.callback("Misyonlar", "OPEN_MISSIONS"),
-      Markup.button.callback("Gunluk", "OPEN_DAILY"),
-      Markup.button.callback("Nexus", "OPEN_NEXUS"),
-      Markup.button.callback("Kingdom", "OPEN_KINGDOM"),
-      Markup.button.callback("Arena 3D", "OPEN_PLAY"),
-      Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"),
-      Markup.button.callback("Token", "OPEN_TOKEN"),
-      Markup.button.callback("War Room", "OPEN_WAR"),
-      Markup.button.callback("Cekim", "OPEN_PAYOUT"),
-      Markup.button.callback("Durum", "OPEN_STATUS")
+      [Markup.button.callback("Arena 3D Ac", "OPEN_PLAY")],
+      [Markup.button.callback("Onboard", "OPEN_ONBOARD"), Markup.button.callback("Gorev Al", "OPEN_TASKS")],
+      [Markup.button.callback("Cuzdan", "OPEN_WALLET"), Markup.button.callback("Durum", "OPEN_STATUS")],
+      [Markup.button.callback("Daha Fazla", "OPEN_MORE_MENU"), Markup.button.callback("Hizli Rehber", "OPEN_GUIDE")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildMoreMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("Misyonlar", "OPEN_MISSIONS"), Markup.button.callback("Gunluk", "OPEN_DAILY")],
+      [Markup.button.callback("Kingdom", "OPEN_KINGDOM"), Markup.button.callback("Nexus", "OPEN_NEXUS")],
+      [Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"), Markup.button.callback("War Room", "OPEN_WAR")],
+      [Markup.button.callback("Sezon", "OPEN_SEASON"), Markup.button.callback("Dukkan", "OPEN_SHOP")],
+      [Markup.button.callback("Token", "OPEN_TOKEN"), Markup.button.callback("Cekim", "OPEN_PAYOUT")],
+      [Markup.button.callback("Ana Launcher", "OPEN_HOME_MENU")]
     ],
     { columns: 2 }
   );
@@ -2205,9 +2207,13 @@ async function sendAdminLive(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const snapshot = await buildAdminSnapshot(db, appConfig);
     const metrics = await fetchBotAdminMetrics(db);
+    const runtime =
+      (await botRuntimeStore.getRuntimeState(db, appConfig.runtimeStateKey).catch(() => null)) ||
+      (await botRuntimeStore.getRuntimeState(db, botRuntimeStore.DEFAULT_STATE_KEY).catch(() => null));
     return {
       snapshot,
       metrics,
+      runtime,
       webappUrl: appConfig.webappPublicUrl || ""
     };
   });
@@ -4014,6 +4020,11 @@ async function start() {
     await ctx.replyWithMarkdown(messages.formatHelp());
   });
 
+  bot.command("menu", async (ctx) => {
+    await ensureProfile(pool, ctx);
+    await ctx.replyWithMarkdown("*Launcher Menu*\nAna giris paneli:", buildStartKeyboard());
+  });
+
   bot.command("guide", async (ctx) => {
     await sendGuide(ctx, pool);
   });
@@ -4204,6 +4215,16 @@ async function start() {
     await sendOnboard(ctx, pool, appConfig);
   });
 
+  bot.action("OPEN_MORE_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithMarkdown("*Ek Komut Merkezi*\nIleri paneller ve ekonomik islemler:", buildMoreMenuKeyboard());
+  });
+
+  bot.action("OPEN_HOME_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithMarkdown("*Launcher*\nArena 3D girisi ve hizli akislara don:", buildStartKeyboard());
+  });
+
   bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
     await ctx.answerCbQuery();
     await completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced");
@@ -4368,6 +4389,7 @@ async function start() {
   try {
     await bot.telegram.setMyCommands([
       { command: "start", description: "Kontrol panelini ac" },
+      { command: "menu", description: "Launcher kisayol menusu" },
       { command: "onboard", description: "3 adim hizli baslangic" },
       { command: "guide", description: "Hizli baslangic rehberi" },
       { command: "tasks", description: "Gorev havuzunu goster" },

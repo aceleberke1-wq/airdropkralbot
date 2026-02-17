@@ -26,21 +26,17 @@ function formatStart(profile, balances, season, anomaly, contract) {
     ? `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
     : "";
   return (
-    `*AirdropKralBot // Kingdom Console*\n` +
+    `*AirdropKralBot // Launcher*\n` +
     `Kral: *${publicName}*\n` +
     `Kingdom: *Tier ${profile.kingdom_tier}*\n` +
     `Streak: *${profile.current_streak} gun*\n` +
     `Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}${anomalyLine}${contractLine}\n\n` +
-    `*3 Adimlik Hizli Baslangic*\n` +
-    `1) /tasks ile gorev sec ve deneme ac\n` +
-    `2) /finish dengeli ile denemeyi kapat\n` +
-    `3) /reveal ile dropu al, /wallet ile verimi kontrol et\n\n` +
-    `*Neden bu dongu?*\n` +
-    `Micro: gorev -> bitir -> reveal\n` +
-    `Meso: gunluk cap + streak zinciri\n` +
-    `Macro: sezon puani + arena rank\n\n` +
+    `*Hizli Giris*\n` +
+    `1) Arena 3D Ac\n` +
+    `2) Gorev Al -> Bitir -> Reveal\n` +
+    `3) Cuzdan + Token panelinden ekonomiyi takip et\n\n` +
     `Hud: ${progressBar(profile.current_streak, 14, 14)}\n` +
-    `Aksiyon: /tasks -> /shop -> /leaderboard`
+    `Kisayol: /play | /onboard | /tasks | /wallet`
   );
 }
 
@@ -717,6 +713,7 @@ function formatNexusPulse(payload) {
 function formatHelp() {
   return (
     `*Komutlar*\n` +
+    `/menu - Launcher menusu\n` +
     `/onboard - 3 adim hizli giris\n` +
     `/guide - Hizli baslangic rehberi\n` +
     `/tasks - Gorev havuzu\n` +
@@ -890,6 +887,7 @@ function formatAdminActionResult(title, details) {
 function formatAdminLive(payload = {}) {
   const snapshot = payload.snapshot || {};
   const metrics = payload.metrics || {};
+  const runtime = payload.runtime || {};
   const webappUrl = String(payload.webappUrl || "");
   const freeze = snapshot.freeze || {};
   const token = snapshot.token || {};
@@ -904,6 +902,12 @@ function formatAdminLive(payload = {}) {
     payoutQueue + tokenQueue > 0
       ? `Payout ${payoutQueue} | Token ${tokenQueue}`
       : "Queue temiz";
+  const hb = runtime.last_heartbeat_at
+    ? new Date(runtime.last_heartbeat_at).toISOString().slice(11, 19)
+    : "-";
+  const runtimeMode = String(runtime.mode || "unknown");
+  const runtimeAlive = runtime.alive ? "ON" : "OFF";
+  const runtimeLock = runtime.lock_acquired ? "LOCK" : "NOLOCK";
 
   return (
     `*Admin Live*\n` +
@@ -916,6 +920,7 @@ function formatAdminLive(payload = {}) {
       token.marketCapUsd || 0
     ).toFixed(2)}*\n` +
     `Gate: *${gate.allowed ? "OPEN" : "LOCKED"}* (${Number(gate.current || 0).toFixed(2)} / ${Number(gate.min || 0).toFixed(2)})\n\n` +
+    `Bot Runtime: *${runtimeAlive}* | *${runtimeLock}* | *${escapeMarkdown(runtimeMode)}* | HB *${escapeMarkdown(hb)}*\n` +
     `24s: users *${Number(metrics.users_active_24h || 0)}* | reveal *${Number(metrics.reveals_24h || 0)}* | token *$${Number(
       metrics.token_usd_volume_24h || 0
     ).toFixed(2)}*\n\n` +

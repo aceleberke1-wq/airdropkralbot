@@ -227,6 +227,8 @@
               <p id="adminMeta" class="value">-</p>
               <p id="adminTokenCap" class="micro">Market cap -</p>
               <p id="adminMetrics" class="micro">24s metrikler -</p>
+              <p id="adminRuntimeLine" class="micro">Bot runtime -</p>
+              <p id="adminRuntimeEvents" class="micro">Runtime events -</p>
             </div>
           </div>
           <div class="tokenActions">
@@ -321,6 +323,14 @@
             <div class="modeGrid">
               <button id="adminPayoutPayBtn" class="mode reveal">Payout Paid</button>
               <button id="adminPayoutRejectBtn" class="mode aggressive">Payout Reddet</button>
+            </div>
+            <div class="tokenRow">
+              <label for="adminRuntimeReason" class="label">Runtime Reconcile Sebep</label>
+              <input id="adminRuntimeReason" type="text" placeholder="stale lock recovery" />
+            </div>
+            <div class="modeGrid">
+              <button id="adminRuntimeRefreshBtn" class="mode safe">Runtime Yenile</button>
+              <button id="adminRuntimeReconcileBtn" class="mode aggressive">Runtime Reconcile</button>
             </div>
             <button id="adminRefreshBtn" class="mode balanced">Admin Yenile</button>
             <button id="adminMetricsBtn" class="mode safe">Metrik Yenile</button>
