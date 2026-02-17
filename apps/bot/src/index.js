@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const dotenv = require("dotenv");
 const { Telegraf, Markup } = require("telegraf");
@@ -17,6 +18,7 @@ const payoutStore = require("./stores/payoutStore");
 const arenaStore = require("./stores/arenaStore");
 const tokenStore = require("./stores/tokenStore");
 const webappStore = require("./stores/webappStore");
+const botRuntimeStore = require("./stores/botRuntimeStore");
 const taskCatalog = require("./taskCatalog");
 const messages = require("./messages");
 const configService = require("./services/configService");
@@ -86,6 +88,11 @@ function loadConfig() {
   const tokenTxVerifyEnabled = process.env.TOKEN_TX_VERIFY === "1";
   const tokenTxVerifyStrict = process.env.TOKEN_TX_VERIFY_STRICT === "1";
   const botInstanceLockKey = Number(process.env.BOT_INSTANCE_LOCK_KEY || 7262026);
+  const botEnabled = process.env.BOT_ENABLED !== "0";
+  const runtimeStateKey = String(process.env.BOT_RUNTIME_STATE_KEY || botRuntimeStore.DEFAULT_STATE_KEY).trim() || "primary";
+  const instanceRef = String(
+    process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_GIT_REVISION || process.pid
+  ).trim();
 
   const isProd = (process.env.NODE_ENV || "").toLowerCase() === "production";
   if (isProd && /(localhost|127\.0\.0\.1|::1)/i.test(databaseUrl)) {
@@ -114,7 +121,10 @@ function loadConfig() {
     releaseGitRevision,
     tokenTxVerifyEnabled,
     tokenTxVerifyStrict,
-    botInstanceLockKey
+    botInstanceLockKey,
+    botEnabled,
+    runtimeStateKey,
+    instanceRef
   };
 }
 
@@ -445,6 +455,90 @@ async function releaseInstanceLock(lock) {
   } catch {}
   try {
     lock.client.release();
+  } catch {}
+}
+
+async function upsertBotRuntimeState(pool, payload) {
+  try {
+    return await withTransaction(pool, async (db) => {
+      const hasTables = await botRuntimeStore.hasBotRuntimeTables(db);
+      if (!hasTables) {
+        return null;
+      }
+      return botRuntimeStore.upsertRuntimeState(db, payload);
+    });
+  } catch (err) {
+    if (err?.code === "42P01") {
+      return null;
+    }
+    logEvent("bot_runtime_state_failed", { error: String(err?.message || err) });
+    return null;
+  }
+}
+
+async function appendBotRuntimeEvent(pool, payload) {
+  try {
+    return await withTransaction(pool, async (db) => {
+      const hasTables = await botRuntimeStore.hasBotRuntimeTables(db);
+      if (!hasTables) {
+        return null;
+      }
+      return botRuntimeStore.insertRuntimeEvent(db, payload);
+    });
+  } catch (err) {
+    if (err?.code === "42P01") {
+      return null;
+    }
+    logEvent("bot_runtime_event_failed", { error: String(err?.message || err), event_type: payload?.eventType });
+    return null;
+  }
+}
+
+async function captureStartupFailure(err, extra = {}) {
+  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  if (!databaseUrl) {
+    return;
+  }
+  const runtimePool = createPool({ databaseUrl, ssl: process.env.DATABASE_SSL === "1" });
+  const adminRaw = String(process.env.ADMIN_TELEGRAM_ID || "").trim();
+  const adminId = /^\d+$/.test(adminRaw) ? Number(adminRaw) : 0;
+  const runtimeIdentity = {
+    stateKey: String(process.env.BOT_RUNTIME_STATE_KEY || botRuntimeStore.DEFAULT_STATE_KEY).trim() || "primary",
+    serviceName: "airdropkral-bot",
+    lockKey: Number(process.env.BOT_INSTANCE_LOCK_KEY || 7262026),
+    instanceRef: String(
+      process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_GIT_REVISION || process.pid
+    ).trim(),
+    pid: process.pid,
+    hostname: os.hostname(),
+    serviceEnv: String(process.env.NODE_ENV || "development"),
+    updatedBy: Number.isSafeInteger(adminId) ? adminId : 0
+  };
+  try {
+    await upsertBotRuntimeState(runtimePool, {
+      ...runtimeIdentity,
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      stoppedAt: new Date(),
+      lastHeartbeatAt: new Date(),
+      lastError: String(err?.message || err || "startup_failed"),
+      stateJson: {
+        phase: "startup_failed",
+        ...extra
+      }
+    });
+    await appendBotRuntimeEvent(runtimePool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "startup_failed",
+      eventJson: {
+        error: String(err?.message || err || "startup_failed"),
+        ...extra
+      }
+    });
+  } catch {}
+  try {
+    await runtimePool.end();
   } catch {}
 }
 
@@ -3595,14 +3689,93 @@ async function handleBuyOffer(ctx, pool) {
 async function start() {
   const appConfig = loadConfig();
   const pool = createPool({ databaseUrl: appConfig.databaseUrl, ssl: appConfig.databaseSsl });
+  const runtimeIdentity = {
+    stateKey: appConfig.runtimeStateKey,
+    serviceName: "airdropkral-bot",
+    lockKey: appConfig.botInstanceLockKey,
+    instanceRef: appConfig.instanceRef,
+    pid: process.pid,
+    hostname: os.hostname(),
+    serviceEnv: appConfig.nodeEnv,
+    updatedBy: Number(appConfig.adminTelegramId || 0)
+  };
   let lock = null;
+  let heartbeatTimer = null;
 
   await ping(pool);
   console.log("Database connection OK");
   logEvent("boot", { loop_v2_enabled: appConfig.loopV2Enabled });
+  await upsertBotRuntimeState(pool, {
+    ...runtimeIdentity,
+    mode: "disabled",
+    alive: false,
+    lockAcquired: false,
+    startedAt: new Date(),
+    stoppedAt: null,
+    lastError: "",
+    stateJson: {
+      phase: "startup",
+      bot_enabled: appConfig.botEnabled,
+      dry_run: appConfig.dryRun
+    }
+  });
+  await appendBotRuntimeEvent(pool, {
+    stateKey: runtimeIdentity.stateKey,
+    eventType: "startup_begin",
+    eventJson: {
+      node_env: appConfig.nodeEnv,
+      lock_key: appConfig.botInstanceLockKey,
+      bot_enabled: appConfig.botEnabled,
+      dry_run: appConfig.dryRun
+    }
+  });
+
+  if (!appConfig.botEnabled) {
+    console.log("BOT_ENABLED=0, bot process disabled.");
+    await upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      stoppedAt: new Date(),
+      lastError: "",
+      stateJson: {
+        phase: "disabled",
+        reason: "BOT_ENABLED=0"
+      }
+    });
+    await appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "startup_disabled",
+      eventJson: {
+        reason: "BOT_ENABLED=0"
+      }
+    });
+    await pool.end();
+    return;
+  }
 
   if (appConfig.dryRun) {
     console.log("BOT_DRY_RUN=1, Telegram baglantisi atlandi.");
+    await upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      stoppedAt: new Date(),
+      lastError: "",
+      stateJson: {
+        phase: "dry_run",
+        reason: "BOT_DRY_RUN=1"
+      }
+    });
+    await appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "startup_dry_run",
+      eventJson: {
+        reason: "BOT_DRY_RUN=1"
+      }
+    });
     await pool.end();
     return;
   }
@@ -3613,9 +3786,50 @@ async function start() {
       "Bot startup skipped: another instance likely running (instance lock not acquired). " +
         "Ayni BOT_TOKEN ile birden fazla polling instance calistirma."
     );
+    await upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      stoppedAt: new Date(),
+      lastError: lock.reason || "lock_not_acquired",
+      stateJson: {
+        phase: "lock_failed",
+        lock_reason: lock.reason || "lock_not_acquired"
+      }
+    });
+    await appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "lock_not_acquired",
+      eventJson: {
+        reason: lock.reason || "lock_not_acquired",
+        lock_key: appConfig.botInstanceLockKey
+      }
+    });
     await pool.end();
     return;
   }
+
+  await upsertBotRuntimeState(pool, {
+    ...runtimeIdentity,
+    mode: "polling",
+    alive: true,
+    lockAcquired: true,
+    startedAt: new Date(),
+    lastHeartbeatAt: new Date(),
+    stoppedAt: null,
+    lastError: "",
+    stateJson: {
+      phase: "lock_acquired"
+    }
+  });
+  await appendBotRuntimeEvent(pool, {
+    stateKey: runtimeIdentity.stateKey,
+    eventType: "lock_acquired",
+    eventJson: {
+      lock_key: appConfig.botInstanceLockKey
+    }
+  });
 
   const bot = new Telegraf(appConfig.botToken);
 
@@ -4131,6 +4345,24 @@ async function start() {
 
   bot.catch((err) => {
     console.error("Bot error", err);
+    appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "polling_error",
+      eventJson: {
+        error: String(err?.message || err)
+      }
+    }).catch(() => {});
+    upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "polling",
+      alive: true,
+      lockAcquired: true,
+      lastHeartbeatAt: new Date(),
+      lastError: String(err?.message || "polling_error"),
+      stateJson: {
+        phase: "polling_error"
+      }
+    }).catch(() => {});
   });
 
   try {
@@ -4173,6 +4405,39 @@ async function start() {
 
   bot.launch();
   console.log("Bot running...");
+  await appendBotRuntimeEvent(pool, {
+    stateKey: runtimeIdentity.stateKey,
+    eventType: "polling_start",
+    eventJson: {
+      lock_key: appConfig.botInstanceLockKey
+    }
+  });
+  await upsertBotRuntimeState(pool, {
+    ...runtimeIdentity,
+    mode: "polling",
+    alive: true,
+    lockAcquired: true,
+    lastHeartbeatAt: new Date(),
+    lastError: "",
+    stateJson: {
+      phase: "polling_active"
+    }
+  });
+
+  heartbeatTimer = setInterval(() => {
+    upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "polling",
+      alive: true,
+      lockAcquired: true,
+      lastHeartbeatAt: new Date(),
+      lastError: "",
+      stateJson: {
+        phase: "heartbeat"
+      }
+    }).catch(() => {});
+  }, 10000);
+  heartbeatTimer.unref?.();
 
   let shuttingDown = false;
   async function shutdown(signal) {
@@ -4181,11 +4446,44 @@ async function start() {
     }
     shuttingDown = true;
     try {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+    } catch {}
+    await appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "shutdown_begin",
+      eventJson: {
+        signal: String(signal || "")
+      }
+    }).catch(() => {});
+    try {
       bot.stop(signal);
     } catch {}
     try {
       await releaseInstanceLock(lock);
     } catch {}
+    await upsertBotRuntimeState(pool, {
+      ...runtimeIdentity,
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      stoppedAt: new Date(),
+      lastHeartbeatAt: new Date(),
+      lastError: "",
+      stateJson: {
+        phase: "stopped",
+        signal: String(signal || "")
+      }
+    }).catch(() => {});
+    await appendBotRuntimeEvent(pool, {
+      stateKey: runtimeIdentity.stateKey,
+      eventType: "shutdown_complete",
+      eventJson: {
+        signal: String(signal || "")
+      }
+    }).catch(() => {});
     try {
       await pool.end();
     } catch {}
@@ -4203,12 +4501,21 @@ start().catch((err) => {
   const errorCode = Number(err?.response?.error_code || 0);
   const description = String(err?.response?.description || "");
   if (errorCode === 409 && description.toLowerCase().includes("getupdates")) {
+    captureStartupFailure(err, {
+      phase: "startup_conflict",
+      error_code: 409,
+      reason: "telegram_getupdates_conflict"
+    }).catch(() => {});
     console.error(
       "Startup failed: Telegram 409 conflict. Ayni BOT_TOKEN ile birden fazla bot instance calisiyor. Digerini kapatip yeniden baslatin."
     );
     process.exit(1);
     return;
   }
+  captureStartupFailure(err, {
+    phase: "startup_error",
+    error_code: errorCode || 0
+  }).catch(() => {});
   console.error("Startup failed", err);
   process.exit(1);
 });

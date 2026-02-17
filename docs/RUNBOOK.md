@@ -29,6 +29,14 @@
 1. `/healthz` -> proses sagligi
 2. `/health` -> DB + V3 tablo bagimliliklari
 3. Beklenen: `ok=true`, dependency bayraklari `true`.
+4. Bot runtime zorunlu alanlar:
+- `bot_runtime.alive`
+- `bot_runtime.lock_acquired`
+- `bot_runtime.last_heartbeat_at`
+- `bot_runtime.mode` (`polling|disabled`)
+5. Admin runtime endpointleri:
+- `GET /admin/runtime/bot`
+- `POST /admin/runtime/bot/reconcile` (stale state toparlama / force stop kaydi)
 
 ## Release readiness gate
 1. Release oncesi:
@@ -40,6 +48,8 @@
 - `npm run migrate:node`
 - `.env` vs `.env.example` key diff
 - `/healthz`, `/health`, `/webapp` smoke
+- `/admin/runtime/bot` smoke
+- bot runtime alanlari (`alive`, `lock_acquired`, `mode`) kontrolu
 3. `/whoami` id'si sabitse ek kontrol:
 `powershell -ExecutionPolicy Bypass -File scripts/check_release_readiness.ps1 -ExpectedAdminTelegramId <whoami_id>`
 

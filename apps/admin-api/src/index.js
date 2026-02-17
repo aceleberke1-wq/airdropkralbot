@@ -16,6 +16,7 @@ const userStore = require("../../bot/src/stores/userStore");
 const arenaStore = require("../../bot/src/stores/arenaStore");
 const tokenStore = require("../../bot/src/stores/tokenStore");
 const webappStore = require("../../bot/src/stores/webappStore");
+const botRuntimeStore = require("../../bot/src/stores/botRuntimeStore");
 const payoutStore = require("../../bot/src/stores/payoutStore");
 const configService = require("../../bot/src/services/configService");
 const economyEngine = require("../../bot/src/services/economyEngine");
@@ -1570,6 +1571,195 @@ async function buildActionSnapshot(db, profile, runtimeConfig) {
   };
 }
 
+async function readBotRuntimeState(db, opts = {}) {
+  const stateKey = String(opts.stateKey || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+  const limit = Math.max(1, Math.min(200, Number(opts.limit || 25)));
+  try {
+    const hasTables = await botRuntimeStore.hasBotRuntimeTables(db);
+    if (!hasTables) {
+      return {
+        available: false,
+        state: null,
+        events: [],
+        state_key: stateKey
+      };
+    }
+    const state = await botRuntimeStore.getRuntimeState(db, stateKey);
+    const events = await botRuntimeStore.getRecentRuntimeEvents(db, stateKey, limit);
+    return {
+      available: true,
+      state,
+      events,
+      state_key: stateKey
+    };
+  } catch (err) {
+    if (err?.code === "42P01") {
+      return {
+        available: false,
+        state: null,
+        events: [],
+        state_key: stateKey
+      };
+    }
+    throw err;
+  }
+}
+
+function projectBotRuntimeHealth(runtimeState) {
+  const state = runtimeState?.state || null;
+  if (!state) {
+    return {
+      available: Boolean(runtimeState?.available),
+      alive: false,
+      lock_acquired: false,
+      mode: "disabled",
+      last_heartbeat_at: null,
+      heartbeat_lag_sec: null,
+      stale: true,
+      reason: runtimeState?.available ? "state_missing" : "tables_missing"
+    };
+  }
+  const heartbeatAt = state.last_heartbeat_at ? new Date(state.last_heartbeat_at).getTime() : 0;
+  const now = Date.now();
+  const lagSec = heartbeatAt ? Math.max(0, Math.floor((now - heartbeatAt) / 1000)) : null;
+  const stale = lagSec !== null ? lagSec > 45 : true;
+  return {
+    available: true,
+    alive: Boolean(state.alive),
+    lock_acquired: Boolean(state.lock_acquired),
+    mode: String(state.mode || "disabled"),
+    last_heartbeat_at: state.last_heartbeat_at || null,
+    heartbeat_lag_sec: lagSec,
+    stale,
+    instance_ref: state.instance_ref || "",
+    lock_key: Number(state.lock_key || 0),
+    last_error: state.last_error || "",
+    updated_at: state.updated_at || null
+  };
+}
+
+async function reconcileBotRuntimeState(db, opts = {}) {
+  const stateKey = String(opts.stateKey || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+  const forceStop = Boolean(opts.forceStop);
+  const updatedBy = Number(opts.updatedBy || 0);
+  const note = String(opts.reason || "manual_reconcile").trim().slice(0, 300) || "manual_reconcile";
+
+  const before = await readBotRuntimeState(db, { stateKey, limit: 30 });
+  if (!before.available) {
+    return {
+      status: "tables_missing",
+      state_key: stateKey,
+      before,
+      after: before,
+      health_before: projectBotRuntimeHealth(before),
+      health_after: projectBotRuntimeHealth(before)
+    };
+  }
+
+  const now = new Date();
+  const healthBefore = projectBotRuntimeHealth(before);
+  const current = before.state || null;
+
+  let status = "noop";
+  if (!current) {
+    status = "created_disabled_state";
+    await botRuntimeStore.upsertRuntimeState(db, {
+      stateKey,
+      serviceName: "airdropkral-bot",
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      lockKey: Number(process.env.BOT_INSTANCE_LOCK_KEY || 0),
+      instanceRef: String(RELEASE_GIT_REVISION || RELEASE_DEPLOY_ID || ""),
+      pid: 0,
+      hostname: "",
+      serviceEnv: process.env.NODE_ENV || "production",
+      startedAt: null,
+      lastHeartbeatAt: now,
+      stoppedAt: now,
+      lastError: "runtime_state_was_missing",
+      stateJson: {
+        phase: "reconciled_missing_state",
+        note
+      },
+      updatedBy
+    });
+  } else if (forceStop || healthBefore.stale) {
+    status = forceStop ? "forced_stop" : "stale_stop";
+    const mergedStateJson = {
+      ...(current.state_json || {}),
+      phase: "reconciled_stop",
+      stale_before: Boolean(healthBefore.stale),
+      forced: Boolean(forceStop),
+      note
+    };
+    await botRuntimeStore.upsertRuntimeState(db, {
+      stateKey,
+      serviceName: current.service_name || "airdropkral-bot",
+      mode: "disabled",
+      alive: false,
+      lockAcquired: false,
+      lockKey: Number(current.lock_key || process.env.BOT_INSTANCE_LOCK_KEY || 0),
+      instanceRef: String(current.instance_ref || ""),
+      pid: Number(current.pid || 0),
+      hostname: String(current.hostname || ""),
+      serviceEnv: String(current.service_env || process.env.NODE_ENV || "production"),
+      startedAt: current.started_at || null,
+      lastHeartbeatAt: now,
+      stoppedAt: now,
+      lastError: forceStop ? "manual_reconcile_forced_stop" : "manual_reconcile_stale_stop",
+      stateJson: mergedStateJson,
+      updatedBy
+    });
+  } else {
+    status = "heartbeat_refreshed";
+    const mergedStateJson = {
+      ...(current.state_json || {}),
+      phase: "reconciled_heartbeat",
+      note
+    };
+    await botRuntimeStore.upsertRuntimeState(db, {
+      stateKey,
+      serviceName: current.service_name || "airdropkral-bot",
+      mode: String(current.mode || "disabled"),
+      alive: Boolean(current.alive),
+      lockAcquired: Boolean(current.lock_acquired),
+      lockKey: Number(current.lock_key || process.env.BOT_INSTANCE_LOCK_KEY || 0),
+      instanceRef: String(current.instance_ref || ""),
+      pid: Number(current.pid || 0),
+      hostname: String(current.hostname || ""),
+      serviceEnv: String(current.service_env || process.env.NODE_ENV || "production"),
+      startedAt: current.started_at || null,
+      lastHeartbeatAt: now,
+      stoppedAt: current.stopped_at || null,
+      lastError: String(current.last_error || ""),
+      stateJson: mergedStateJson,
+      updatedBy
+    });
+  }
+
+  await botRuntimeStore.insertRuntimeEvent(db, {
+    stateKey,
+    eventType: "runtime_reconcile",
+    eventJson: {
+      status,
+      forced: forceStop,
+      note,
+      health_before: healthBefore
+    }
+  });
+
+  const after = await readBotRuntimeState(db, { stateKey, limit: 30 });
+  return {
+    status,
+    state_key: stateKey,
+    before,
+    after,
+    health_before: healthBefore,
+    health_after: projectBotRuntimeHealth(after)
+  };
+}
+
 function dbPingWithTimeout(ms) {
   return Promise.race([
     pool.query("SELECT 1 AS ok;"),
@@ -1602,6 +1792,17 @@ async function dependencyHealth() {
   let runtimeFlagTables = false;
   let treasuryOpsTables = false;
   let releaseMarkersTable = false;
+  let botRuntimeTables = false;
+  let botRuntime = {
+    available: false,
+    alive: false,
+    lock_acquired: false,
+    mode: "disabled",
+    last_heartbeat_at: null,
+    heartbeat_lag_sec: null,
+    stale: true,
+    reason: "tables_missing"
+  };
   try {
     const check = await pool.query(
       `SELECT
@@ -1631,6 +1832,8 @@ async function dependencyHealth() {
          to_regclass('public.velocity_buckets') IS NOT NULL AS velocity_buckets,
          to_regclass('public.feature_flag_audit') IS NOT NULL AS feature_flag_audit,
          to_regclass('public.flag_source_state') IS NOT NULL AS flag_source_state,
+         to_regclass('public.bot_runtime_state') IS NOT NULL AS bot_runtime_state,
+         to_regclass('public.bot_runtime_events') IS NOT NULL AS bot_runtime_events,
          to_regclass('public.treasury_policy_history') IS NOT NULL AS treasury_policy_history,
          to_regclass('public.payout_gate_snapshots') IS NOT NULL AS payout_gate_snapshots,
          to_regclass('public.token_quote_traces') IS NOT NULL AS token_quote_traces,
@@ -1657,8 +1860,13 @@ async function dependencyHealth() {
     guardrailTables = Boolean(row.treasury_guardrails && row.velocity_buckets);
     assetRegistryTables = Boolean(row.webapp_asset_registry && row.webapp_asset_load_events);
     runtimeFlagTables = Boolean(row.feature_flag_audit && row.flag_source_state);
+    botRuntimeTables = Boolean(row.bot_runtime_state && row.bot_runtime_events);
     treasuryOpsTables = Boolean(row.treasury_policy_history && row.payout_gate_snapshots && row.token_quote_traces);
     releaseMarkersTable = Boolean(row.release_markers);
+    if (botRuntimeTables) {
+      const runtimeState = await readBotRuntimeState(pool);
+      botRuntime = projectBotRuntimeHealth(runtimeState);
+    }
   } catch (err) {
     if (!reason) {
       reason = err?.message || "dependency_check_failed";
@@ -1680,9 +1888,11 @@ async function dependencyHealth() {
       oracle_tables: oracleTables,
       guardrail_tables: guardrailTables,
       runtime_flag_tables: runtimeFlagTables,
+      bot_runtime_tables: botRuntimeTables,
       treasury_ops_tables: treasuryOpsTables,
       release_markers: releaseMarkersTable
-    }
+    },
+    bot_runtime: botRuntime
   };
 }
 
@@ -1721,7 +1931,8 @@ fastify.get("/healthz", async () => {
     ok: health.ok,
     service: "up",
     db: health.db,
-    dependencies: health.dependencies
+    dependencies: health.dependencies,
+    bot_runtime: health.bot_runtime
   };
 });
 
@@ -4977,15 +5188,120 @@ fastify.get("/webapp/api/admin/summary", async (request, reply) => {
     }
     const runtimeConfig = await configService.getEconomyConfig(client);
     const summary = await buildAdminSummary(client, runtimeConfig);
+    const botRuntime = await readBotRuntimeState(client, { stateKey: botRuntimeStore.DEFAULT_STATE_KEY, limit: 15 });
     reply.send({
       success: true,
       session: issueWebAppSession(auth.uid),
-      data: summary
+      data: {
+        ...summary,
+        bot_runtime: {
+          state_key: botRuntime.state_key || botRuntimeStore.DEFAULT_STATE_KEY,
+          health: projectBotRuntimeHealth(botRuntime),
+          state: botRuntime.state || null,
+          events: botRuntime.events || []
+        }
+      }
     });
   } finally {
     client.release();
   }
 });
+
+fastify.get("/webapp/api/admin/runtime/bot", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const stateKey = String(request.query.state_key || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+  const limit = Math.max(1, Math.min(100, Number(request.query.limit || 30)));
+  const client = await pool.connect();
+  try {
+    const profile = await requireWebAppAdmin(client, reply, auth.uid);
+    if (!profile) {
+      return;
+    }
+    const runtime = await readBotRuntimeState(client, { stateKey, limit });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        state_key: runtime.state_key || stateKey,
+        health: projectBotRuntimeHealth(runtime),
+        runtime_state: runtime.state || null,
+        recent_events: runtime.events || []
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/admin/runtime/bot/reconcile",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          state_key: { type: "string", minLength: 1, maxLength: 80 },
+          reason: { type: "string", maxLength: 300 },
+          force_stop: { type: "boolean" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const stateKey = String(request.body.state_key || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+    const forceStop = Boolean(request.body.force_stop);
+    const reason = String(request.body.reason || "webapp_admin_reconcile");
+    const client = await pool.connect();
+    try {
+      const profile = await requireWebAppAdmin(client, reply, auth.uid);
+      if (!profile) {
+        return;
+      }
+      await client.query("BEGIN");
+      const result = await reconcileBotRuntimeState(client, {
+        stateKey,
+        forceStop,
+        reason,
+        updatedBy: Number(profile.telegram_id || 0)
+      });
+      await client.query("COMMIT");
+      if (result.status === "tables_missing") {
+        reply.code(503).send({ success: false, error: "bot_runtime_tables_missing" });
+        return;
+      }
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          reconcile_status: result.status,
+          state_key: result.state_key,
+          health_before: result.health_before,
+          health_after: result.health_after,
+          runtime_state: result.after?.state || null,
+          recent_events: result.after?.events || []
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
 
 fastify.get("/webapp/api/admin/runtime/flags", async (request, reply) => {
   const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
@@ -6239,6 +6555,96 @@ fastify.get("/admin/whoami", async (request, reply) => {
     }
   });
 });
+
+fastify.get("/admin/runtime/bot", async (request, reply) => {
+  const stateKey = String(request.query?.state_key || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+  const limit = Math.max(1, Math.min(100, Number(request.query?.limit || 30)));
+  const client = await pool.connect();
+  try {
+    const runtime = await readBotRuntimeState(client, { stateKey, limit });
+    const health = projectBotRuntimeHealth(runtime);
+    const actorId = parseAdminId(request);
+    reply.send({
+      success: true,
+      data: {
+        actor_admin_id: Number(actorId || 0),
+        configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+        is_admin: isAdminTelegramId(actorId),
+        state_key: runtime.state_key || stateKey,
+        health,
+        runtime_state: runtime.state,
+        recent_events: runtime.events,
+        env: {
+          bot_enabled: String(process.env.BOT_ENABLED || "1") === "1",
+          bot_auto_restart: String(process.env.BOT_AUTO_RESTART || "1") === "1",
+          keep_admin_on_bot_exit: String(process.env.KEEP_ADMIN_ON_BOT_EXIT || "1") === "1",
+          bot_instance_lock_key: Number(process.env.BOT_INSTANCE_LOCK_KEY || 0)
+        }
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/admin/runtime/bot/reconcile",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          state_key: { type: "string", minLength: 1, maxLength: 80 },
+          reason: { type: "string", maxLength: 300 },
+          force_stop: { type: "boolean" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const body = request.body || {};
+    const stateKey = String(body.state_key || botRuntimeStore.DEFAULT_STATE_KEY).trim() || botRuntimeStore.DEFAULT_STATE_KEY;
+    const forceStop = Boolean(body.force_stop);
+    const reason = String(body.reason || "manual_reconcile");
+    const actorId = parseAdminId(request);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await reconcileBotRuntimeState(client, {
+        stateKey,
+        forceStop,
+        reason,
+        updatedBy: actorId
+      });
+      await client.query("COMMIT");
+
+      if (result.status === "tables_missing") {
+        reply.code(503).send({ success: false, error: "bot_runtime_tables_missing" });
+        return;
+      }
+
+      reply.send({
+        success: true,
+        data: {
+          actor_admin_id: Number(actorId || 0),
+          configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+          is_admin: isAdminTelegramId(actorId),
+          reconcile_status: result.status,
+          state_key: result.state_key,
+          health_before: result.health_before,
+          health_after: result.health_after,
+          runtime_state: result.after?.state || null,
+          recent_events: result.after?.events || []
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
 
 fastify.get("/admin/release/latest", async (request, reply) => {
   const exists = await hasReleaseMarkersTable(pool);

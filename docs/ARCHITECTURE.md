@@ -19,6 +19,15 @@ This repository runs AirdropKralBot as a single-service production stack.
 8. Device perf/ui preference tables (`V021`)
 9. External API health + oracle snapshots (`V022`)
 10. Treasury guardrails + payout gate events (`V023`)
+11. Runtime flag control + audit (`V024`)
+12. PvP realtime session core (`V025`)
+13. WebApp asset registry (`V026`)
+14. Combat telemetry (`V027`)
+15. Treasury ops traces (`V028`)
+16. Bot runtime state/events (`V029`)
+17. PvP duel core hardening (`V030`)
+18. WebApp perf + asset profile hardening (`V031`)
+19. Treasury runtime guardrail events (`V032`)
 
 ## Authoritative game loop
 1. WebApp starts session: `/webapp/api/arena/session/start`
@@ -48,4 +57,8 @@ This repository runs AirdropKralBot as a single-service production stack.
 ## Reliability
 1. `/healthz` for process liveness
 2. `/health` for DB/dependency checks (arena/token/queue/release marker tables)
-3. Single-instance polling protection via DB lock key
+3. `/health` also exposes `bot_runtime`:
+   `alive`, `lock_acquired`, `mode`, `last_heartbeat_at`
+4. Admin runtime endpoints:
+   `/admin/runtime/bot`, `/admin/runtime/bot/reconcile`
+5. Single-instance polling protection via DB lock key

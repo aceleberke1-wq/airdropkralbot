@@ -230,6 +230,29 @@ try {
         throw "/health payload not healthy"
       }
 
+      $botRuntime = $healthPayload.bot_runtime
+      if ($null -eq $botRuntime) {
+        throw "/health missing bot_runtime payload"
+      }
+      foreach ($key in @("alive", "lock_acquired", "last_heartbeat_at", "mode")) {
+        if ($null -eq $botRuntime.$key) {
+          throw ("/health bot_runtime missing key: " + $key)
+        }
+      }
+
+      $botEnabled = [string]$envMap["BOT_ENABLED"]
+      if ($botEnabled -eq "1") {
+        if (-not [bool]$botRuntime.alive) {
+          throw "/health bot_runtime.alive=false while BOT_ENABLED=1"
+        }
+        if (-not [bool]$botRuntime.lock_acquired) {
+          throw "/health bot_runtime.lock_acquired=false while BOT_ENABLED=1 (possible polling conflict)"
+        }
+        if ([string]$botRuntime.mode -ne "polling") {
+          throw ("/health bot_runtime.mode expected 'polling' but got '" + [string]$botRuntime.mode + "'")
+        }
+      }
+
       $webapp = Invoke-WebRequestWithRetry -Uri ($base + "/webapp")
       if ($webapp.StatusCode -ne 200) {
         throw "/webapp status " + $webapp.StatusCode
@@ -248,6 +271,16 @@ try {
         throw "ADMIN_API_TOKEN is required for release marker check."
       }
       $adminBase = Resolve-AdminBaseUrl -BaseUrl $resolvedBaseUrl
+
+      $runtimeRes = Invoke-WebRequestWithRetry -Uri ($adminBase + "/runtime/bot") -Headers @{ Authorization = "Bearer $token" }
+      if ($runtimeRes.StatusCode -ne 200) {
+        throw "/admin/runtime/bot status " + $runtimeRes.StatusCode
+      }
+      $runtimePayload = Parse-JsonSafely -Raw $runtimeRes.Content
+      if (-not $runtimePayload -or -not $runtimePayload.success) {
+        throw "/admin/runtime/bot payload invalid"
+      }
+
       $uri = $adminBase + "/release/latest"
       $res = Invoke-WebRequestWithRetry -Uri $uri -Headers @{ Authorization = "Bearer $token" }
       if ($res.StatusCode -ne 200) {
