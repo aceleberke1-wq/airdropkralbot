@@ -173,6 +173,44 @@
           </div>
         </article>
 
+        <article class="panel pvpPanel">
+          <div class="panelHead">
+            <h3>Duel Nexus (PvP)</h3>
+            <span id="pvpStatus" class="badge info">Duel Hazir</span>
+          </div>
+          <div class="attemptStack">
+            <div class="attemptCard">
+              <p class="label">Realtime Profil</p>
+              <p id="pvpTransport" class="value">POLL</p>
+              <p id="pvpTick" class="micro">1000 ms</p>
+              <p id="pvpWindow" class="micro">800 ms</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Session</p>
+              <p id="pvpSessionLine" class="value">Session yok</p>
+              <p id="pvpExpected" class="micro">-</p>
+              <p id="pvpQueueLine" class="micro">Input Queue 0</p>
+            </div>
+            <div class="attemptCard">
+              <p class="label">Duel Telemetri</p>
+              <p id="pvpStats" class="value">Skor 0-0 | Combo 0-0 | Hamle 0-0</p>
+              <p id="pvpLastOutcome" class="micro">Sonuc bekleniyor</p>
+            </div>
+          </div>
+          <div class="modeGrid">
+            <button id="pvpStartBtn" class="mode aggressive">Duel Baslat</button>
+            <button id="pvpRefreshBtn" class="mode balanced">Duel Yenile</button>
+            <button id="pvpResolveBtn" class="mode reveal">Dueli Coz</button>
+            <button id="pvpBoardBtn" class="mode safe">PvP Top</button>
+          </div>
+          <div class="simActions">
+            <button id="pvpStrikeBtn" class="mode aggressive">Strike</button>
+            <button id="pvpGuardBtn" class="mode safe">Guard</button>
+            <button id="pvpChargeBtn" class="mode balanced">Charge</button>
+          </div>
+          <ul id="pvpBoardList" class="pvpBoard"></ul>
+        </article>
+
         <article class="panel tokenPanel">
           <div class="panelHead">
             <h3>Token Treasury</h3>
@@ -352,6 +390,7 @@
             <button class="cmd" data-action="open_contract">Kontrat</button>
             <button class="cmd" data-action="open_missions">Misyon</button>
             <button class="cmd" data-action="open_leaderboard">Liderlik</button>
+            <button class="cmd" data-action="open_pvp">PvP Duel</button>
             <button class="cmd" data-action="open_play">Arena 3D</button>
             <button class="cmd" data-action="open_status">Durum</button>
             <button class="cmd" data-action="open_payout">Cekim</button>

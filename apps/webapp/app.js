@@ -37,6 +37,14 @@
       raidDraining: false,
       raidAuthAvailable: null,
       arenaAuthAvailable: null,
+      pvpSession: null,
+      pvpQueue: [],
+      pvpDraining: false,
+      pvpAuthAvailable: null,
+      pvpTransport: "poll",
+      pvpTickMs: 1000,
+      pvpActionWindowMs: 800,
+      pvpLeaderboard: [],
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -774,6 +782,7 @@
     if (action === "open_contract") return "/contract";
     if (action === "open_missions") return "/missions";
     if (action === "open_leaderboard") return "/leaderboard";
+    if (action === "open_pvp") return "/play";
     if (action === "open_play") return "/play";
     if (action === "open_status") return "/status";
     if (action === "open_payout") return "/payout";
@@ -1162,6 +1171,312 @@
     triggerArenaPulse(mode);
     await loadBootstrap();
     return resolved;
+  }
+
+  function updatePvpQueueLine() {
+    const line = byId("pvpQueueLine");
+    if (!line) {
+      return;
+    }
+    line.textContent = `Input Queue ${state.v3.pvpQueue.length}`;
+  }
+
+  function renderPvpLeaderboard(list = []) {
+    const host = byId("pvpBoardList");
+    if (!host) {
+      return;
+    }
+    const rows = Array.isArray(list) ? list : [];
+    if (!rows.length) {
+      host.innerHTML = `<li class="muted">Liderlik verisi henuz yok.</li>`;
+      return;
+    }
+    host.innerHTML = rows
+      .slice(0, 8)
+      .map((row) => {
+        const rank = asNum(row.rank || 0) || "-";
+        const name = String(row.public_name || `u${asNum(row.user_id || 0)}`);
+        const rating = asNum(row.rating || 1000);
+        const total = asNum(row.matches_total || 0);
+        const last = formatTime(row.last_match_at);
+        return `
+          <li class="pvpBoardRow">
+            <strong>#${rank} ${name}</strong>
+            <span class="time">R ${rating}</span>
+            <span class="time">${total} mac</span>
+            <span class="time">${last}</span>
+          </li>
+        `;
+      })
+      .join("");
+  }
+
+  function syncPvpSessionUi(session, meta = {}) {
+    state.v3.pvpSession = session || null;
+    const statusBadge = byId("pvpStatus");
+    if (!statusBadge) {
+      return;
+    }
+    const transport = String((session && session.transport) || meta.transport || state.v3.pvpTransport || "poll");
+    const tickMs = asNum((session && session.tick_ms) || meta.tick_ms || state.v3.pvpTickMs || 1000);
+    const actionWindowMs = asNum(
+      (session && session.action_window_ms) || meta.action_window_ms || state.v3.pvpActionWindowMs || 800
+    );
+    state.v3.pvpTransport = transport || "poll";
+    state.v3.pvpTickMs = tickMs || 1000;
+    state.v3.pvpActionWindowMs = actionWindowMs || 800;
+
+    byId("pvpTransport").textContent = String(state.v3.pvpTransport || "poll").toUpperCase();
+    byId("pvpTick").textContent = `${asNum(state.v3.pvpTickMs)} ms`;
+    byId("pvpWindow").textContent = `${asNum(state.v3.pvpActionWindowMs)} ms`;
+    updatePvpQueueLine();
+
+    const startBtn = byId("pvpStartBtn");
+    const refreshBtn = byId("pvpRefreshBtn");
+    const resolveBtn = byId("pvpResolveBtn");
+    const strikeBtn = byId("pvpStrikeBtn");
+    const guardBtn = byId("pvpGuardBtn");
+    const chargeBtn = byId("pvpChargeBtn");
+
+    if (!session) {
+      statusBadge.textContent = "Duel Hazir";
+      statusBadge.className = "badge info";
+      byId("pvpSessionLine").textContent = "Session yok";
+      byId("pvpExpected").textContent = "-";
+      byId("pvpStats").textContent = "Skor 0-0 | Combo 0-0 | Hamle 0-0";
+      byId("pvpLastOutcome").textContent = "Sonuc bekleniyor";
+      if (startBtn) startBtn.disabled = false;
+      if (refreshBtn) refreshBtn.disabled = false;
+      if (resolveBtn) resolveBtn.disabled = true;
+      if (strikeBtn) strikeBtn.disabled = true;
+      if (guardBtn) guardBtn.disabled = true;
+      if (chargeBtn) chargeBtn.disabled = true;
+      return;
+    }
+
+    const status = String(session.status || "active").toLowerCase();
+    const outcome = String(session.result?.outcome_for_viewer || "").toLowerCase();
+    if (status === "resolved") {
+      statusBadge.textContent = outcome ? `Duel ${outcome.toUpperCase()}` : "Duel Cozuldu";
+      statusBadge.className = outcome === "win" ? "badge" : outcome === "loss" ? "badge warn" : "badge info";
+    } else if (status === "active") {
+      statusBadge.textContent = "Duel Aktif";
+      statusBadge.className = "badge warn";
+    } else if (status === "expired") {
+      statusBadge.textContent = "Session Expired";
+      statusBadge.className = "badge warn";
+    } else {
+      statusBadge.textContent = status.toUpperCase();
+      statusBadge.className = "badge info";
+    }
+
+    const viewerSide = String(session.viewer_side || "left").toUpperCase();
+    const sessionRef = String(session.session_ref || "");
+    byId("pvpSessionLine").textContent = `#${asNum(session.session_id)} | ${viewerSide} | ${sessionRef.slice(0, 14) || "-"}`;
+    byId("pvpExpected").textContent = String(session.next_expected_action || "-").toUpperCase();
+    byId("pvpStats").textContent =
+      `Skor ${asNum(session.score?.self)}-${asNum(session.score?.opponent)} | ` +
+      `Combo ${asNum(session.combo?.self)}-${asNum(session.combo?.opponent)} | ` +
+      `Hamle ${asNum(session.action_count?.self)}-${asNum(session.action_count?.opponent)}`;
+
+    const reward = session.result?.reward || {};
+    if (status === "resolved") {
+      byId("pvpLastOutcome").textContent =
+        `Sonuc ${String(session.result?.outcome_for_viewer || session.result?.outcome || "-").toUpperCase()} | ` +
+        `+${asNum(reward.sc)} SC +${asNum(reward.rc)} RC | Rating ${asNum(session.result?.rating_delta) >= 0 ? "+" : ""}${asNum(
+          session.result?.rating_delta
+        )}`;
+    } else {
+      byId("pvpLastOutcome").textContent = `TTL ${asNum(session.ttl_sec_left)}s | Opp ${String(session.opponent_type || "shadow")}`;
+    }
+
+    const canInput = status === "active";
+    if (startBtn) startBtn.disabled = canInput;
+    if (refreshBtn) refreshBtn.disabled = false;
+    if (resolveBtn) {
+      resolveBtn.disabled = !canInput || asNum(session.action_count?.self) < 6;
+      resolveBtn.textContent = canInput
+        ? `Dueli Coz (${Math.max(0, 6 - asNum(session.action_count?.self))})`
+        : "Dueli Coz";
+    }
+    if (strikeBtn) strikeBtn.disabled = !canInput;
+    if (guardBtn) guardBtn.disabled = !canInput;
+    if (chargeBtn) chargeBtn.disabled = !canInput;
+  }
+
+  async function fetchPvpSessionState(sessionRef = "") {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig
+    });
+    if (sessionRef) {
+      query.set("session_ref", sessionRef);
+    }
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/pvp/session/state?${query.toString()}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_session_state_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.pvpAuthAvailable = true;
+    const data = payload.data || {};
+    const session = data.session || null;
+    syncPvpSessionUi(session, data);
+    return session;
+  }
+
+  async function startPvpSession(modeSuggested = "balanced") {
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/pvp/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        request_id: `webapp_pvp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        mode_suggested: modeSuggested,
+        transport: "poll"
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_session_start_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.pvpAuthAvailable = true;
+    const data = payload.data || {};
+    const session = data.session || null;
+    syncPvpSessionUi(session, data);
+    return session;
+  }
+
+  async function postPvpSessionAction(inputAction, queuedAt) {
+    const session = state.v3.pvpSession;
+    if (!session || !session.session_ref) {
+      throw new Error("pvp_session_not_found");
+    }
+    const actionSeq = asNum(session.action_count?.self) + 1;
+    const latencyMs = Math.max(0, Date.now() - Number(queuedAt || Date.now()));
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/pvp/session/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref,
+        action_seq: actionSeq,
+        input_action: String(inputAction || "").toLowerCase(),
+        latency_ms: latencyMs,
+        client_ts: Date.now()
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_session_action_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.pvpAuthAvailable = true;
+    const data = payload.data || {};
+    syncPvpSessionUi(data.session || null, data);
+    return data;
+  }
+
+  async function drainPvpQueue() {
+    if (state.v3.pvpDraining) {
+      return;
+    }
+    state.v3.pvpDraining = true;
+    try {
+      while (state.v3.pvpQueue.length > 0) {
+        const next = state.v3.pvpQueue.shift();
+        updatePvpQueueLine();
+        await postPvpSessionAction(next.action, next.queuedAt);
+      }
+    } finally {
+      state.v3.pvpDraining = false;
+      updatePvpQueueLine();
+    }
+  }
+
+  async function enqueuePvpAction(action) {
+    const session = state.v3.pvpSession;
+    if (!session || !session.session_ref) {
+      throw new Error("pvp_session_not_found");
+    }
+    state.v3.pvpQueue.push({
+      action: String(action || "").toLowerCase(),
+      queuedAt: Date.now()
+    });
+    updatePvpQueueLine();
+    await drainPvpQueue();
+  }
+
+  async function resolvePvpSession() {
+    const session = state.v3.pvpSession;
+    if (!session || !session.session_ref) {
+      throw new Error("pvp_session_not_found");
+    }
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/pvp/session/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        session_ref: session.session_ref
+      })
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_session_resolve_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.pvpAuthAvailable = true;
+    const data = payload.data || {};
+    syncPvpSessionUi(data.session || null, data);
+    return data;
+  }
+
+  async function loadPvpLeaderboard() {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      limit: "10"
+    }).toString();
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/pvp/leaderboard/live?${query}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_leaderboard_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    const data = payload.data || {};
+    const list = Array.isArray(data.leaderboard) ? data.leaderboard : [];
+    state.v3.pvpLeaderboard = list;
+    renderPvpLeaderboard(list);
+    return list;
   }
 
   function triggerArenaPulse(tone) {
@@ -2045,6 +2360,26 @@
     byId("raidBalancedBtn").disabled = !arenaReady || rcLow;
     byId("raidAggressiveBtn").disabled = !arenaReady || rcLow;
     byId("arenaBoardBtn").disabled = !arenaReady;
+    const pvpFeatureEnabled = Boolean(state.v3.featureFlags?.ARENA_AUTH_ENABLED);
+    const pvpStartBtn = byId("pvpStartBtn");
+    const pvpRefreshBtn = byId("pvpRefreshBtn");
+    const pvpResolveBtn = byId("pvpResolveBtn");
+    if (pvpStartBtn) {
+      pvpStartBtn.disabled = !pvpFeatureEnabled || rcLow;
+    }
+    if (pvpRefreshBtn) {
+      pvpRefreshBtn.disabled = !pvpFeatureEnabled;
+    }
+    if (pvpResolveBtn && !state.v3.pvpSession) {
+      pvpResolveBtn.disabled = true;
+    }
+    if (!pvpFeatureEnabled) {
+      const pvpStatus = byId("pvpStatus");
+      if (pvpStatus) {
+        pvpStatus.textContent = "PvP Kapali";
+        pvpStatus.className = "badge warn";
+      }
+    }
     updateArenaStatus(hasReveal ? "Reveal Hazir" : hasActive ? "Deneme Suruyor" : "Yeni Gorev Sec", hasReveal ? "" : "warn");
 
     if (state.arena) {
@@ -2114,6 +2449,35 @@
       ) {
         state.v3.raidAuthAvailable = false;
         syncRaidSessionUi(null);
+      } else {
+        throw err;
+      }
+    }
+    try {
+      await fetchPvpSessionState();
+    } catch (err) {
+      const message = String(err?.message || "");
+      if (
+        message.includes("arena_auth_disabled") ||
+        message.includes("pvp_session_tables_missing") ||
+        message.includes("user_not_started")
+      ) {
+        state.v3.pvpAuthAvailable = false;
+        syncPvpSessionUi(null, { transport: "poll", tick_ms: 1000, action_window_ms: 800 });
+      } else {
+        throw err;
+      }
+    }
+    try {
+      await loadPvpLeaderboard();
+    } catch (err) {
+      const message = String(err?.message || "");
+      if (
+        message.includes("arena_auth_disabled") ||
+        message.includes("pvp_session_tables_missing") ||
+        message.includes("user_not_started")
+      ) {
+        renderPvpLeaderboard([]);
       } else {
         throw err;
       }
@@ -2233,6 +2597,63 @@
     });
     byId("arenaBoardBtn").addEventListener("click", () => {
       loadArenaLeaderboard().catch(showError);
+    });
+    byId("pvpStartBtn").addEventListener("click", () => {
+      const mode = chooseModeByRisk(asNum(state.data?.risk_score || 0));
+      startPvpSession(mode)
+        .then((session) => {
+          const score = session?.score?.self;
+          showToast(`PvP session acildi | ${String(mode).toUpperCase()} | Skor ${asNum(score)}`);
+          triggerArenaPulse("aggressive");
+        })
+        .catch(showError);
+    });
+    byId("pvpRefreshBtn").addEventListener("click", () => {
+      Promise.all([fetchPvpSessionState().catch(() => null), loadPvpLeaderboard().catch(() => [])])
+        .then(() => showToast("PvP paneli guncellendi"))
+        .catch(showError);
+    });
+    byId("pvpResolveBtn").addEventListener("click", () => {
+      resolvePvpSession()
+        .then((resolved) => {
+          const outcome = String(
+            resolved?.session?.result?.outcome_for_viewer || resolved?.session?.result?.outcome || "resolved"
+          ).toUpperCase();
+          showToast(`PvP resolve: ${outcome}`);
+          triggerArenaPulse("reveal");
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("pvpStrikeBtn").addEventListener("click", () => {
+      enqueuePvpAction("strike")
+        .then(() => triggerArenaPulse("aggressive"))
+        .catch(showError);
+    });
+    byId("pvpGuardBtn").addEventListener("click", () => {
+      enqueuePvpAction("guard")
+        .then(() => triggerArenaPulse("safe"))
+        .catch(showError);
+    });
+    byId("pvpChargeBtn").addEventListener("click", () => {
+      enqueuePvpAction("charge")
+        .then(() => triggerArenaPulse("balanced"))
+        .catch(showError);
+    });
+    byId("pvpBoardBtn").addEventListener("click", () => {
+      loadPvpLeaderboard()
+        .then((rows) => {
+          if (rows.length > 0) {
+            const top = rows
+              .slice(0, 3)
+              .map((x) => `#${asNum(x.rank)} ${String(x.public_name || `u${asNum(x.user_id || 0)}`)} ${asNum(x.rating)}`)
+              .join(" | ");
+            showToast(`PvP Top: ${top}`);
+          } else {
+            showToast("PvP liderlik bos.");
+          }
+        })
+        .catch(showError);
     });
     byId("tokenMintBtn").addEventListener("click", () => {
       performAction("mint_token").catch(showError);
@@ -2687,11 +3108,19 @@
       insufficient_rc: "RC yetersiz, arena ticket alinmadi.",
       arena_cooldown: "Arena cooldown aktif, biraz bekle.",
       arena_tables_missing: "Arena tablolari migration bekliyor.",
+      pvp_session_tables_missing: "PvP tablolari migration bekliyor.",
+      pvp_session_not_found: "PvP oturumu bulunamadi.",
+      pvp_ticket_error: "PvP ticket yazilamadi, tekrar dene.",
       raid_session_tables_missing: "Raid tablolari migration bekliyor.",
       raid_session_not_found: "Raid oturumu bulunamadi.",
       raid_auth_disabled: "Raid authoritative mod kapali.",
       raid_session_expired: "Raid oturumu zaman asimina ugradi.",
       raid_session_resolved: "Raid oturumu zaten cozuldu.",
+      session_not_found: "Session bulunamadi, yeni duel baslat.",
+      session_not_ready: "Resolve icin yeterli aksiyon yok.",
+      session_not_active: "Session aktif degil.",
+      invalid_action_seq: "Aksiyon sirasi gecersiz, paneli yenile.",
+      session_expired: "Session suresi doldu, yeni duel ac.",
       token_tables_missing: "Token migration eksik, DB migrate calistir.",
       token_disabled: "Token sistemi su an kapali.",
       purchase_below_min: "USD miktari min sinirin altinda.",
