@@ -26,5 +26,10 @@
       "scale": [2.2, 2.2, 2.2]
     }
   },
-  "notes": "Place licensed .glb files under apps/webapp/assets and keep paths updated. Missing assets automatically fall back to procedural visuals."
+  "source": {
+    "provider": "KhronosGroup glTF-Sample-Models",
+    "url": "https://github.com/KhronosGroup/glTF-Sample-Models",
+    "license": "See upstream model licenses in source repository"
+  },
+  "notes": "Missing assets automatically fall back to procedural visuals."
 }

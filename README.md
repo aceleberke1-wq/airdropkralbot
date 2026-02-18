@@ -92,19 +92,26 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 `GET /webapp/api/token/summary`, `POST /webapp/api/token/mint`,
 `POST /webapp/api/token/buy_intent`, `POST /webapp/api/token/submit_tx`,
 `GET /webapp/api/token/quote`,
-`GET /webapp/api/telemetry/perf-profile`, `POST /webapp/api/telemetry/perf-profile`.
+`GET /webapp/api/telemetry/perf-profile`, `POST /webapp/api/telemetry/perf-profile`,
+`GET /webapp/api/scene/profile`, `POST /webapp/api/scene/profile`,
+`GET /webapp/api/assets/manifest/active`,
+`GET /webapp/api/pvp/match/tick`.
 Admin WebApp endpoints:
 `GET /webapp/api/admin/summary`, `GET /webapp/api/admin/metrics`,
 `POST /webapp/api/admin/freeze`, `POST /webapp/api/admin/token/config`,
 `GET /webapp/api/admin/queues`, `POST /webapp/api/admin/token/curve`,
 `POST /webapp/api/admin/token/auto_policy`,
 `POST /webapp/api/admin/token/approve`, `POST /webapp/api/admin/token/reject`,
-`POST /webapp/api/admin/payout/pay`, `POST /webapp/api/admin/payout/reject`.
+`POST /webapp/api/admin/payout/pay`, `POST /webapp/api/admin/payout/reject`,
+`GET /webapp/api/admin/assets/status`, `POST /webapp/api/admin/assets/reload`,
+`GET /webapp/api/admin/runtime/flags`, `POST /webapp/api/admin/runtime/flags`.
 5. Arena flow in WebApp can now run end-to-end (accept, complete, reveal) without leaving the WebApp.
 6. Telegram `web_app` button requires `https://`. If `WEBAPP_PUBLIC_URL` is `http://localhost...`, bot now falls back to normal URL button (local test mode).
 7. Real 3D asset pipeline is enabled:
 `apps/webapp/assets/manifest.json` -> `models.arena_core` path (GLB).  
 If model exists, GLTF animations auto-play. If not, procedural fallback scene stays active.
+Generate/update bundled GLB set with:
+`npm run assets:webapp`
 8. WebApp now includes adaptive performance controls (Auto/High/Low), reduced-motion mode, and large typography mode.
 9. WebApp TS bundle (Vite) optional rollout:
 `npm run build:webapp` then set `WEBAPP_TS_BUNDLE_ENABLED=1`.

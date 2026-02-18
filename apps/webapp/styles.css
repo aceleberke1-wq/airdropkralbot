@@ -44,6 +44,26 @@ body.quality-high #bg3d {
   opacity: 0.82;
 }
 
+body.scene-lite #bg3d {
+  opacity: 0.56;
+  filter: saturate(0.8) contrast(0.95);
+}
+
+body.scene-cinematic #bg3d {
+  opacity: 0.9;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+body.scene-minimal #bg3d {
+  opacity: 0.42;
+  filter: saturate(0.65) contrast(0.88);
+}
+
+body.scene-minimal .scanlines,
+body.scene-minimal .noise {
+  opacity: 0.04;
+}
+
 body.reduced-motion *,
 body.reduced-motion *::before,
 body.reduced-motion *::after {

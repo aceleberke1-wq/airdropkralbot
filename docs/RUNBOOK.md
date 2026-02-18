@@ -37,6 +37,10 @@
 5. Admin runtime endpointleri:
 - `GET /admin/runtime/bot`
 - `POST /admin/runtime/bot/reconcile` (stale state toparlama / force stop kaydi)
+- `GET /admin/runtime/flags/effective` (env/db effective bayraklar)
+- `GET /admin/runtime/deploy/status` (release + lock + launch URL snapshot)
+- `GET /webapp/api/admin/assets/status` (GLB manifest + registry durumu)
+- `POST /webapp/api/admin/assets/reload` (asset registry/manifest cache yenile)
 
 ## Release readiness gate
 1. Release oncesi:

@@ -28,6 +28,11 @@ This repository runs AirdropKralBot as a single-service production stack.
 17. PvP duel core hardening (`V030`)
 18. WebApp perf + asset profile hardening (`V031`)
 19. Treasury runtime guardrail events (`V032`)
+20. Scene profiles + user UI preferences v2 (`V033`)
+21. Asset manifest revisions + integrity entries (`V034`)
+22. PvP tick/event telemetry (`V035`)
+23. Quote quorum + provider health (`V036`)
+24. Runtime deploy guard snapshots (`V037`)
 
 ## Authoritative game loop
 1. WebApp starts session: `/webapp/api/arena/session/start`
@@ -53,6 +58,12 @@ This repository runs AirdropKralBot as a single-service production stack.
    `TOKEN_AUTO_APPROVE_ENABLED`, `WEBAPP_V3_ENABLED`, `WEBAPP_TS_BUNDLE_ENABLED`
 3. Immutable `admin_audit` trail for sensitive operations
 4. Release traceability via `release_markers` (`/admin/release/mark`, `/admin/release/latest`)
+5. Runtime deploy and asset operations:
+   `/admin/runtime/deploy/status`,
+   `/webapp/api/admin/assets/status`,
+   `/webapp/api/admin/assets/reload`
+6. WebApp bootstrap always includes versioned launcher URL:
+   `webapp_version`, `webapp_launch_url`
 
 ## Reliability
 1. `/healthz` for process liveness

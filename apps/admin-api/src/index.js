@@ -2348,6 +2348,10 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       if (err.code === "42P01") return null;
       throw err;
     });
+    const sceneProfile = await readSceneProfile(client, profile.user_id, "nexus_arena").catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
     const featureFlags = await loadFeatureFlags(client, { withMeta: true });
     const isAdmin = isAdminTelegramId(auth.uid);
     let adminSummary = null;
@@ -2405,6 +2409,12 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         webapp_version: webappVersionState.version,
         webapp_launch_url: webappLaunchUrl,
         webapp_version_source: webappVersionState.source,
+        scene_profile: sceneProfile || buildDefaultSceneProfile({ userId: profile.user_id, sceneKey: "nexus_arena" }),
+        scene_mode:
+          String(
+            (sceneProfile && sceneProfile.scene_mode) ||
+              (uiPrefs?.ui_mode === "minimal" ? "minimal" : uiPrefs?.ui_mode === "standard" ? "lite" : "pro")
+          ).toLowerCase(),
         perf_profile: perfProfile,
         ui_prefs:
           uiPrefs || {

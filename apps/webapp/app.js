@@ -11,7 +11,8 @@
     admin: {
       isAdmin: false,
       summary: null,
-      runtime: null
+      runtime: null,
+      assets: null
     },
     suggestion: null,
     arena: null,
@@ -59,7 +60,9 @@
       gpuTimeMs: 0,
       cpuTimeMs: 0,
       perfTimer: null,
-      lastPerfPostAt: 0
+      sceneTimer: null,
+      lastPerfPostAt: 0,
+      lastScenePostAt: 0
     },
     intro: {
       seenKey: "airdropkral_intro_seen_v2",
@@ -68,10 +71,12 @@
     ui: {
       qualityMode: "auto",
       autoQualityMode: "normal",
+      sceneMode: "pro",
       reducedMotion: false,
       largeText: false,
       storageKeys: {
         quality: "airdropkral_ui_quality_v1",
+        sceneMode: "airdropkral_ui_scene_mode_v1",
         reducedMotion: "airdropkral_ui_reduced_motion_v1",
         largeText: "airdropkral_ui_large_text_v1"
       }
@@ -115,6 +120,8 @@
       cameraDrift: 1.05
     }
   });
+
+  const SCENE_MODE_VALUES = Object.freeze(["pro", "lite", "cinematic", "minimal"]);
 
   function byId(id) {
     return document.getElementById(id);
@@ -190,9 +197,42 @@
     return state.ui.autoQualityMode || "normal";
   }
 
+  function sceneModeLabel(mode = state.ui.sceneMode) {
+    const key = String(mode || "pro").toLowerCase();
+    if (key === "lite") return "LITE";
+    if (key === "cinematic") return "CINEMATIC";
+    if (key === "minimal") return "MINIMAL";
+    return "PRO";
+  }
+
   function getQualityProfile(modeKey = null) {
     const key = String(modeKey || getEffectiveQualityMode() || "normal").toLowerCase();
-    return QUALITY_PROFILES[key] || QUALITY_PROFILES.normal;
+    const base = QUALITY_PROFILES[key] || QUALITY_PROFILES.normal;
+    const sceneMode = String(state.ui.sceneMode || "pro").toLowerCase();
+    if (sceneMode === "minimal") {
+      return { ...QUALITY_PROFILES.low, key: `${base.key}_minimal`, enableShards: false, cameraDrift: 0.35 };
+    }
+    if (sceneMode === "lite") {
+      return {
+        ...base,
+        key: `${base.key}_lite`,
+        starCount: Math.max(600, Math.round(base.starCount * 0.65)),
+        starSize: Math.max(0.018, base.starSize * 0.85),
+        enableShards: Boolean(base.enableShards && base.key !== "low"),
+        cameraDrift: base.cameraDrift * 0.82
+      };
+    }
+    if (sceneMode === "cinematic") {
+      return {
+        ...base,
+        key: `${base.key}_cinematic`,
+        starCount: Math.round(base.starCount * 1.15),
+        starSize: base.starSize * 1.08,
+        pointerLerp: Math.max(0.01, base.pointerLerp * 0.9),
+        cameraDrift: base.cameraDrift * 1.2
+      };
+    }
+    return base;
   }
 
   function qualityButtonLabel() {
@@ -205,11 +245,16 @@
   function applyUiClasses() {
     const body = document.body;
     const effective = getEffectiveQualityMode();
+    const sceneMode = String(state.ui.sceneMode || "pro").toLowerCase();
     body.classList.toggle("reduced-motion", state.ui.reducedMotion);
     body.classList.toggle("large-type", state.ui.largeText);
     body.classList.toggle("quality-low", effective === "low");
     body.classList.toggle("quality-high", effective === "high");
     body.classList.toggle("quality-normal", effective === "normal");
+    body.classList.toggle("scene-pro", sceneMode === "pro");
+    body.classList.toggle("scene-lite", sceneMode === "lite");
+    body.classList.toggle("scene-cinematic", sceneMode === "cinematic");
+    body.classList.toggle("scene-minimal", sceneMode === "minimal");
 
     const qualityBtn = byId("qualityToggleBtn");
     if (qualityBtn) {
@@ -226,10 +271,20 @@
       typeBtn.textContent = state.ui.largeText ? "Yazi: Buyuk" : "Yazi: Normal";
       typeBtn.dataset.active = state.ui.largeText ? "1" : "0";
     }
+    const sceneBtn = byId("sceneModeToggleBtn");
+    if (sceneBtn) {
+      sceneBtn.textContent = `Scene: ${sceneModeLabel(sceneMode)}`;
+      sceneBtn.dataset.active = sceneMode;
+    }
+    const sceneLine = byId("sceneModeLine");
+    if (sceneLine) {
+      sceneLine.textContent = `Scene: ${sceneModeLabel(sceneMode)}`;
+    }
   }
 
   function persistUiPrefs() {
     writeStorage(state.ui.storageKeys.quality, state.ui.qualityMode);
+    writeStorage(state.ui.storageKeys.sceneMode, state.ui.sceneMode);
     writeStorage(state.ui.storageKeys.reducedMotion, state.ui.reducedMotion ? "1" : "0");
     writeStorage(state.ui.storageKeys.largeText, state.ui.largeText ? "1" : "0");
   }
@@ -238,6 +293,10 @@
     const quality = String(readStorage(state.ui.storageKeys.quality, "auto") || "auto").toLowerCase();
     if (["auto", "high", "low", "normal"].includes(quality)) {
       state.ui.qualityMode = quality === "normal" ? "auto" : quality;
+    }
+    const sceneMode = String(readStorage(state.ui.storageKeys.sceneMode, "pro") || "pro").toLowerCase();
+    if (SCENE_MODE_VALUES.includes(sceneMode)) {
+      state.ui.sceneMode = sceneMode;
     }
     state.ui.reducedMotion = readStorage(state.ui.storageKeys.reducedMotion, "0") === "1";
     state.ui.largeText = readStorage(state.ui.storageKeys.largeText, "0") === "1";
@@ -281,11 +340,24 @@
     showToast(`Performans modu: ${qualityButtonLabel()}`);
   }
 
+  function cycleSceneMode() {
+    const current = String(state.ui.sceneMode || "pro").toLowerCase();
+    const idx = Math.max(0, SCENE_MODE_VALUES.indexOf(current));
+    const next = SCENE_MODE_VALUES[(idx + 1) % SCENE_MODE_VALUES.length];
+    state.ui.sceneMode = next;
+    persistUiPrefs();
+    applyArenaQualityProfile();
+    schedulePerfProfile(true);
+    scheduleSceneProfileSync(true);
+    showToast(`Scene modu: ${sceneModeLabel(next)}`);
+  }
+
   function toggleMotion() {
     state.ui.reducedMotion = !state.ui.reducedMotion;
     persistUiPrefs();
     applyArenaQualityProfile();
     schedulePerfProfile(true);
+    scheduleSceneProfileSync(true);
     showToast(state.ui.reducedMotion ? "Motion azaltildi" : "Motion acildi");
   }
 
@@ -294,6 +366,7 @@
     persistUiPrefs();
     applyUiClasses();
     schedulePerfProfile(true);
+    scheduleSceneProfileSync(true);
     showToast(state.ui.largeText ? "Buyuk yazi modu acik" : "Yazi boyutu normale dondu");
   }
 
@@ -349,6 +422,77 @@
     });
   }
 
+  function sceneModeProfile(sceneMode = state.ui.sceneMode) {
+    const key = String(sceneMode || "pro").toLowerCase();
+    if (key === "minimal") {
+      return { motionIntensity: 0.45, postfxLevel: 0.2, hudDensity: "compact" };
+    }
+    if (key === "lite") {
+      return { motionIntensity: 0.72, postfxLevel: 0.55, hudDensity: "compact" };
+    }
+    if (key === "cinematic") {
+      return { motionIntensity: 1.25, postfxLevel: 1.2, hudDensity: "extended" };
+    }
+    return { motionIntensity: 1, postfxLevel: 0.9, hudDensity: "full" };
+  }
+
+  async function postSceneProfile(force = false) {
+    const now = Date.now();
+    const intervalMs = 55_000;
+    if (!force && now - state.telemetry.lastScenePostAt < intervalMs) {
+      return;
+    }
+    if (!state.auth.uid || !state.auth.ts || !state.auth.sig) {
+      return;
+    }
+    state.telemetry.lastScenePostAt = now;
+    const sceneProfile = sceneModeProfile(state.ui.sceneMode);
+    const perfProfile = String(getEffectiveQualityMode() || "normal").toLowerCase();
+    const qualityMode = String(state.ui.qualityMode || "auto").toLowerCase();
+    const payload = {
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      scene_key: "nexus_arena",
+      scene_mode: String(state.ui.sceneMode || "pro"),
+      perf_profile: ["low", "normal", "high"].includes(perfProfile) ? perfProfile : "normal",
+      quality_mode: ["auto", "low", "normal", "high"].includes(qualityMode) ? qualityMode : "auto",
+      reduced_motion: Boolean(state.ui.reducedMotion),
+      large_text: Boolean(state.ui.largeText),
+      motion_intensity: sceneProfile.motionIntensity,
+      postfx_level: sceneProfile.postfxLevel,
+      hud_density: sceneProfile.hudDensity,
+      prefs_json: {
+        auto_quality_mode: state.ui.autoQualityMode,
+        perf_tier: state.telemetry.perfTier,
+        source: "webapp_v35"
+      }
+    };
+    const t0 = performance.now();
+    const res = await fetch("/webapp/api/scene/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    markLatency(performance.now() - t0);
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body?.success) {
+      throw new Error(body?.error || `scene_profile_post_failed:${res.status}`);
+    }
+    renewAuth(body);
+  }
+
+  function scheduleSceneProfileSync(force = false) {
+    if (state.telemetry.sceneTimer) {
+      clearTimeout(state.telemetry.sceneTimer);
+      state.telemetry.sceneTimer = null;
+    }
+    const delay = force ? 280 : 950;
+    state.telemetry.sceneTimer = setTimeout(() => {
+      postSceneProfile(force).catch(() => {});
+    }, delay);
+  }
+
   function schedulePerfProfile(force = false) {
     if (state.telemetry.perfTimer) {
       clearTimeout(state.telemetry.perfTimer);
@@ -357,6 +501,7 @@
     const delay = force ? 300 : 1200;
     state.telemetry.perfTimer = setTimeout(() => {
       postPerfProfile(force).catch(() => {});
+      scheduleSceneProfileSync(false);
     }, delay);
   }
 
@@ -1938,6 +2083,7 @@
       ` | manual ${manualTokenQueue} | auto ${autoDecisions}`;
     state.admin.runtime = runtime || null;
     renderAdminRuntime(runtime);
+    renderAdminAssetStatus(state.admin.assets);
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
@@ -2008,6 +2154,26 @@
     eventsLine.textContent = `Runtime events: ${preview}`;
   }
 
+  function renderAdminAssetStatus(assetsData) {
+    const summaryLine = byId("adminAssetSummary");
+    const revisionLine = byId("adminManifestRevision");
+    if (!summaryLine || !revisionLine) {
+      return;
+    }
+
+    const payload = assetsData && typeof assetsData === "object" ? assetsData : {};
+    const summary = payload.summary || {};
+    const total = asNum(summary.total_assets);
+    const ready = asNum(summary.ready_assets);
+    const missing = asNum(summary.missing_assets);
+    summaryLine.textContent = `Assets: ready ${ready}/${total} | missing ${missing}`;
+
+    const manifest = payload.active_manifest || payload.local_manifest || {};
+    const revision = String(manifest.manifest_revision || manifest.revision || "local");
+    const updatedAt = formatRuntimeTime(manifest.updated_at || manifest.generated_at);
+    revisionLine.textContent = `Manifest: ${revision} | updated ${updatedAt}`;
+  }
+
   async function fetchAdminSummary() {
     const query = new URLSearchParams(state.auth).toString();
     const res = await fetch(`/webapp/api/admin/summary?${query}`);
@@ -2031,6 +2197,12 @@
       const runtime = await fetchAdminRuntime();
       if (state.admin.summary && typeof state.admin.summary === "object") {
         state.admin.summary.bot_runtime = runtime;
+        renderAdmin({ is_admin: true, summary: state.admin.summary });
+      }
+    } catch (_) {}
+    try {
+      await fetchAdminAssetStatus();
+      if (state.admin.summary && typeof state.admin.summary === "object") {
         renderAdmin({ is_admin: true, summary: state.admin.summary });
       }
     } catch (_) {}
@@ -2077,6 +2249,26 @@
     state.admin.runtime = payload.data || null;
     renderAdminRuntime(state.admin.runtime);
     return state.admin.runtime;
+  }
+
+  async function fetchAdminAssetStatus() {
+    const query = new URLSearchParams(state.auth).toString();
+    const res = await fetch(`/webapp/api/admin/assets/status?${query}`);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || `admin_assets_status_failed:${res.status}`);
+    }
+    renewAuth(payload);
+    state.admin.assets = payload.data || null;
+    renderAdminAssetStatus(state.admin.assets);
+    return state.admin.assets;
+  }
+
+  async function reloadAdminAssets() {
+    const payload = await postAdmin("/webapp/api/admin/assets/reload");
+    state.admin.assets = payload || null;
+    renderAdminAssetStatus(state.admin.assets);
+    return state.admin.assets;
   }
 
   async function reconcileAdminRuntime(reason, forceStop = false) {
@@ -2409,6 +2601,21 @@
       state.telemetry.latencyAvgMs = asNum(perf.latency_avg_ms || perf.latencyAvgMs || state.telemetry.latencyAvgMs);
       state.telemetry.perfTier = String(perf.gpu_tier || perf.gpuTier || state.telemetry.perfTier || "normal");
     }
+    if (payload.data?.scene_profile) {
+      const scene = payload.data.scene_profile;
+      const sceneMode = String(scene.scene_mode || state.ui.sceneMode || "pro").toLowerCase();
+      if (SCENE_MODE_VALUES.includes(sceneMode)) {
+        state.ui.sceneMode = sceneMode;
+      }
+      const perfProfile = String(scene.perf_profile || "").toLowerCase();
+      if (["low", "normal", "high"].includes(perfProfile)) {
+        state.ui.autoQualityMode = perfProfile;
+      }
+      const quality = String(scene.quality_mode || "").toLowerCase();
+      if (["auto", "high", "normal", "low"].includes(quality)) {
+        state.ui.qualityMode = quality === "normal" ? "auto" : quality;
+      }
+    }
     if (payload.data?.ui_prefs) {
       const prefs = payload.data.ui_prefs;
       const nextReduced = Boolean(prefs.reduced_motion);
@@ -2483,6 +2690,7 @@
       }
     }
     schedulePerfProfile(true);
+    scheduleSceneProfileSync(true);
   }
 
   async function rerollTasks() {
@@ -2546,6 +2754,9 @@
     byId("rerollBtn").addEventListener("click", () => rerollTasks().catch(showError));
     byId("qualityToggleBtn").addEventListener("click", () => {
       cycleQualityMode();
+    });
+    byId("sceneModeToggleBtn").addEventListener("click", () => {
+      cycleSceneMode();
     });
     byId("motionToggleBtn").addEventListener("click", () => {
       toggleMotion();
@@ -2687,6 +2898,22 @@
     byId("adminMetricsBtn").addEventListener("click", () => {
       fetchAdminMetrics()
         .then(() => showToast("Admin metrikleri yenilendi"))
+        .catch(showError);
+    });
+    byId("adminAssetsRefreshBtn").addEventListener("click", () => {
+      fetchAdminAssetStatus()
+        .then((data) => {
+          const summary = data?.summary || {};
+          showToast(`Asset durum: ${asNum(summary.ready_assets)}/${asNum(summary.total_assets)} ready`);
+        })
+        .catch(showError);
+    });
+    byId("adminAssetsReloadBtn").addEventListener("click", () => {
+      reloadAdminAssets()
+        .then((data) => {
+          const summary = data?.summary || {};
+          showToast(`Asset reload: ${asNum(summary.ready_assets)}/${asNum(summary.total_assets)} ready`);
+        })
         .catch(showError);
     });
     byId("adminRuntimeRefreshBtn").addEventListener("click", () => {
