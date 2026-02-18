@@ -1,6 +1,10 @@
 param(
   [string]$EnvPath = ".env",
   [string]$HealthBaseUrl = "",
+  [int]$HealthTimeoutSec = 35,
+  [int]$HealthMaxAttempts = 8,
+  [int]$HealthDelaySec = 8,
+  [int]$WarmupWaitSec = 12,
   [switch]$SkipTests,
   [switch]$SkipWebAppBuild,
   [switch]$SkipMigrate,
@@ -116,6 +120,28 @@ function Invoke-WebRequestWithRetry {
   throw $lastError.Exception
 }
 
+function Warmup-RemoteService {
+  param(
+    [Parameter(Mandatory = $true)][string]$BaseUrl,
+    [int]$TimeoutSec = 35,
+    [int]$MaxAttempts = 3,
+    [int]$DelaySec = 6
+  )
+
+  $targets = @(
+    ($BaseUrl.TrimEnd("/") + "/webapp"),
+    ($BaseUrl.TrimEnd("/") + "/healthz")
+  )
+
+  foreach ($target in $targets) {
+    try {
+      Invoke-WebRequestWithRetry -Uri $target -TimeoutSec $TimeoutSec -MaxAttempts $MaxAttempts -DelaySec $DelaySec | Out-Null
+    } catch {
+      Write-Host ("[warmup] " + $target + " not ready yet: " + $_.Exception.Message) -ForegroundColor Yellow
+    }
+  }
+}
+
 function Compare-EnvKeys {
   param(
     [hashtable]$CurrentMap,
@@ -211,8 +237,11 @@ try {
         throw "HealthBaseUrl could not be resolved. Set WEBAPP_PUBLIC_URL or pass -HealthBaseUrl."
       }
       Write-Host ("Base URL: " + $base)
+      Write-Host ("[warmup] sleeping " + $WarmupWaitSec + "s for free-tier spin up...")
+      Start-Sleep -Seconds $WarmupWaitSec
+      Warmup-RemoteService -BaseUrl $base -TimeoutSec $HealthTimeoutSec -MaxAttempts 3 -DelaySec ([Math]::Max(4, [Math]::Floor($HealthDelaySec / 2)))
 
-      $healthz = Invoke-WebRequestWithRetry -Uri ($base + "/healthz")
+      $healthz = Invoke-WebRequestWithRetry -Uri ($base + "/healthz") -TimeoutSec $HealthTimeoutSec -MaxAttempts $HealthMaxAttempts -DelaySec $HealthDelaySec
       if ($healthz.StatusCode -ne 200) {
         throw "/healthz status " + $healthz.StatusCode
       }
@@ -221,7 +250,7 @@ try {
         throw "/healthz payload not healthy"
       }
 
-      $health = Invoke-WebRequestWithRetry -Uri ($base + "/health")
+      $health = Invoke-WebRequestWithRetry -Uri ($base + "/health") -TimeoutSec $HealthTimeoutSec -MaxAttempts $HealthMaxAttempts -DelaySec $HealthDelaySec
       if ($health.StatusCode -ne 200) {
         throw "/health status " + $health.StatusCode
       }
@@ -253,7 +282,7 @@ try {
         }
       }
 
-      $webapp = Invoke-WebRequestWithRetry -Uri ($base + "/webapp")
+      $webapp = Invoke-WebRequestWithRetry -Uri ($base + "/webapp") -TimeoutSec $HealthTimeoutSec -MaxAttempts $HealthMaxAttempts -DelaySec $HealthDelaySec
       if ($webapp.StatusCode -ne 200) {
         throw "/webapp status " + $webapp.StatusCode
       }
