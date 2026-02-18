@@ -45,6 +45,9 @@
       pvpTransport: "poll",
       pvpTickMs: 1000,
       pvpActionWindowMs: 800,
+      pvpTickMeta: null,
+      pvpLiveTimer: null,
+      pvpLiveErrors: 0,
       pvpLeaderboard: [],
       tokenQuote: null,
       quoteTimer: null,
@@ -525,6 +528,74 @@
   }
 
   async function loadAssetManifest() {
+    const parseVec3 = (value, fallback) => {
+      if (!Array.isArray(value) || value.length !== 3) {
+        return fallback.slice();
+      }
+      return value.map((item, index) => {
+        const parsed = Number(item);
+        if (!Number.isFinite(parsed)) {
+          return fallback[index];
+        }
+        return parsed;
+      });
+    };
+
+    const normalizeFromRegistry = (payload) => {
+      if (!payload || typeof payload !== "object") {
+        return null;
+      }
+      const entries = Array.isArray(payload.entries) ? payload.entries : [];
+      if (!entries.length) {
+        return null;
+      }
+      const models = {};
+      for (const entry of entries) {
+        const key = String(entry.asset_key || "").trim();
+        if (!key) {
+          continue;
+        }
+        const meta = entry.meta_json && typeof entry.meta_json === "object" ? entry.meta_json : {};
+        const path = String(entry.asset_path || entry.fallback_path || "").trim();
+        if (!path) {
+          continue;
+        }
+        models[key] = {
+          path,
+          position: parseVec3(meta.position, [0, 0, 0]),
+          rotation: parseVec3(meta.rotation, [0, 0, 0]),
+          scale: parseVec3(meta.scale, [1, 1, 1])
+        };
+      }
+      if (!Object.keys(models).length) {
+        return null;
+      }
+      return {
+        version: 1,
+        models,
+        source: {
+          provider: "asset_registry",
+          revision: String(payload.active_revision?.manifest_revision || "db")
+        }
+      };
+    };
+
+    const query = new URLSearchParams(state.auth || {}).toString();
+    if (query) {
+      try {
+        const res = await fetch(`/webapp/api/assets/manifest/active?${query}`, { cache: "no-store" });
+        if (res.ok) {
+          const payload = await res.json();
+          if (payload?.success) {
+            const normalized = normalizeFromRegistry(payload.data);
+            if (normalized) {
+              return normalized;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     try {
       const res = await fetch("/webapp/assets/manifest.json", { cache: "no-store" });
       if (!res.ok) {
@@ -1326,6 +1397,105 @@
     line.textContent = `Input Queue ${state.v3.pvpQueue.length}`;
   }
 
+  function renderPvpTickLine(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const line = byId("pvpTickLive");
+    if (!line) {
+      return;
+    }
+    if (!session || !tickMeta) {
+      line.textContent = "Tick: bekleniyor";
+      line.classList.remove("live");
+      return;
+    }
+    const phase = String(tickMeta.phase || session.status || "combat").toUpperCase();
+    const seq = asNum(tickMeta.tick_seq || 0);
+    const transport = String(tickMeta.transport || state.v3.pvpTransport || "poll").toUpperCase();
+    line.textContent = `Tick #${seq} | ${phase} | ${transport}`;
+    if (String(session.status || "").toLowerCase() === "active") {
+      line.classList.add("live");
+    } else {
+      line.classList.remove("live");
+    }
+  }
+
+  function stopPvpLiveLoop() {
+    if (state.v3.pvpLiveTimer) {
+      clearTimeout(state.v3.pvpLiveTimer);
+      state.v3.pvpLiveTimer = null;
+    }
+  }
+
+  function queuePvpLiveLoop(delayMs = 900) {
+    stopPvpLiveLoop();
+    const delay = Math.max(450, Math.min(2200, asNum(delayMs || 900)));
+    state.v3.pvpLiveTimer = setTimeout(async () => {
+      state.v3.pvpLiveTimer = null;
+      const session = state.v3.pvpSession;
+      if (!session || String(session.status || "").toLowerCase() !== "active" || !session.session_ref) {
+        renderPvpTickLine(session, state.v3.pvpTickMeta);
+        return;
+      }
+      try {
+        await fetchPvpMatchTick(String(session.session_ref || ""));
+        state.v3.pvpLiveErrors = 0;
+      } catch (err) {
+        state.v3.pvpLiveErrors += 1;
+        if (state.v3.pvpLiveErrors >= 2) {
+          try {
+            await fetchPvpSessionState(String(session.session_ref || ""));
+            state.v3.pvpLiveErrors = 0;
+          } catch (_) {}
+        }
+      } finally {
+        const nextSession = state.v3.pvpSession;
+        if (nextSession && String(nextSession.status || "").toLowerCase() === "active") {
+          queuePvpLiveLoop(state.v3.pvpTickMs || 1000);
+        }
+      }
+    }, delay);
+  }
+
+  function ensurePvpLiveLoop() {
+    const session = state.v3.pvpSession;
+    if (session && String(session.status || "").toLowerCase() === "active" && session.session_ref) {
+      queuePvpLiveLoop(state.v3.pvpTickMs || 1000);
+      return;
+    }
+    stopPvpLiveLoop();
+  }
+
+  function stopTransientTimers() {
+    stopPvpLiveLoop();
+    if (state.v3.quoteTimer) {
+      clearTimeout(state.v3.quoteTimer);
+      state.v3.quoteTimer = null;
+    }
+    if (state.telemetry.perfTimer) {
+      clearTimeout(state.telemetry.perfTimer);
+      state.telemetry.perfTimer = null;
+    }
+    if (state.telemetry.sceneTimer) {
+      clearTimeout(state.telemetry.sceneTimer);
+      state.telemetry.sceneTimer = null;
+    }
+  }
+
+  function bindPageLifecycle() {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        stopPvpLiveLoop();
+        return;
+      }
+      ensurePvpLiveLoop();
+      if (state.v3.pvpSession?.session_ref) {
+        fetchPvpSessionState(String(state.v3.pvpSession.session_ref)).catch(() => {});
+      }
+    });
+    window.addEventListener("beforeunload", () => {
+      stopTransientTimers();
+    });
+  }
+
   function renderPvpLeaderboard(list = []) {
     const host = byId("pvpBoardList");
     if (!host) {
@@ -1358,6 +1528,7 @@
 
   function syncPvpSessionUi(session, meta = {}) {
     state.v3.pvpSession = session || null;
+    state.v3.pvpTickMeta = meta && meta.tick ? meta.tick : state.v3.pvpTickMeta;
     const statusBadge = byId("pvpStatus");
     if (!statusBadge) {
       return;
@@ -1384,6 +1555,7 @@
     const chargeBtn = byId("pvpChargeBtn");
 
     if (!session) {
+      state.v3.pvpTickMeta = null;
       statusBadge.textContent = "Duel Hazir";
       statusBadge.className = "badge info";
       byId("pvpSessionLine").textContent = "Session yok";
@@ -1396,6 +1568,8 @@
       if (strikeBtn) strikeBtn.disabled = true;
       if (guardBtn) guardBtn.disabled = true;
       if (chargeBtn) chargeBtn.disabled = true;
+      renderPvpTickLine(null, null);
+      ensurePvpLiveLoop();
       return;
     }
 
@@ -1447,6 +1621,8 @@
     if (strikeBtn) strikeBtn.disabled = !canInput;
     if (guardBtn) guardBtn.disabled = !canInput;
     if (chargeBtn) chargeBtn.disabled = !canInput;
+    renderPvpTickLine(session, state.v3.pvpTickMeta);
+    ensurePvpLiveLoop();
   }
 
   async function fetchPvpSessionState(sessionRef = "") {
@@ -1473,6 +1649,33 @@
     const session = data.session || null;
     syncPvpSessionUi(session, data);
     return session;
+  }
+
+  async function fetchPvpMatchTick(sessionRef) {
+    const cleanSessionRef = String(sessionRef || "").trim();
+    if (!cleanSessionRef) {
+      throw new Error("session_ref_required");
+    }
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      session_ref: cleanSessionRef
+    }).toString();
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/pvp/match/tick?${query}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json();
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `pvp_match_tick_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    const data = payload.data || {};
+    state.v3.pvpTickMeta = data.tick || null;
+    syncPvpSessionUi(data.session || null, data);
+    return data;
   }
 
   async function startPvpSession(modeSuggested = "balanced") {
@@ -2571,6 +2774,8 @@
         pvpStatus.textContent = "PvP Kapali";
         pvpStatus.className = "badge warn";
       }
+      stopPvpLiveLoop();
+      renderPvpTickLine(null, null);
     }
     updateArenaStatus(hasReveal ? "Reveal Hazir" : hasActive ? "Deneme Suruyor" : "Yeni Gorev Sec", hasReveal ? "" : "warn");
 
@@ -3373,6 +3578,7 @@
     loadUiPrefs();
     await initThree();
     bindUi();
+    bindPageLifecycle();
     if (window.gsap && !state.ui.reducedMotion) {
       gsap.from(".card, .panel", { y: 18, opacity: 0, stagger: 0.05, duration: 0.38, ease: "power2.out" });
     }

@@ -337,6 +337,16 @@ h3 {
   font-size: 16px;
 }
 
+.pvpTickLine {
+  margin-top: 4px;
+  color: rgba(178, 201, 255, 0.92);
+}
+
+.pvpTickLine.live {
+  color: #9effd6;
+  text-shadow: 0 0 10px rgba(61, 248, 194, 0.34);
+}
+
 .feed {
   grid-column: span 2;
 }
