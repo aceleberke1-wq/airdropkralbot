@@ -130,6 +130,14 @@
     return document.getElementById(id);
   }
 
+  function setAssetModeLine(text) {
+    const el = byId("assetModeLine");
+    if (!el) {
+      return;
+    }
+    el.textContent = String(text || "Assets: -");
+  }
+
   function getPerfBridge() {
     const bridge = window.__AKR_V32_PERF__;
     if (!bridge || typeof bridge !== "object") {
@@ -3320,6 +3328,7 @@
     if (!window.THREE) {
       return;
     }
+    setAssetModeLine("Assets: loading...");
     const canvas = byId("bg3d");
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     const scene = new THREE.Scene();
@@ -3364,6 +3373,8 @@
       node.rotation.set(asNum(rot[0]), asNum(rot[1]), asNum(rot[2]));
       node.scale.set(asNum(scl[0]), asNum(scl[1]), asNum(scl[2]));
     };
+    const requestedKeys = ["arena_core", "enemy_rig", "reward_crate", "ambient_fx"];
+    let loadedAssetCount = 0;
     const coreEntry = resolveModelEntry("arena_core");
     if (coreEntry?.path) {
       const model = await tryLoadArenaModel(scene, String(coreEntry.path));
@@ -3371,6 +3382,7 @@
         modelRoot = model.root;
         applyTransform(modelRoot, coreEntry, { scale: [2, 2, 2] });
         mixers.push(...model.mixers);
+        loadedAssetCount += 1;
       }
     }
     for (const key of ["enemy_rig", "reward_crate", "ambient_fx"]) {
@@ -3383,8 +3395,13 @@
         applyTransform(model.root, entry, { scale: [1.6, 1.6, 1.6] });
         sideModels.push(model.root);
         mixers.push(...model.mixers);
+        loadedAssetCount += 1;
       }
     }
+    const expectedAssetCount = requestedKeys.filter((key) => Boolean(resolveModelEntry(key)?.path)).length;
+    const effectiveExpectedCount = Math.max(1, expectedAssetCount);
+    const sceneMode = loadedAssetCount >= Math.max(2, expectedAssetCount) ? "PRO" : "LITE";
+    setAssetModeLine(`Assets: ${loadedAssetCount}/${effectiveExpectedCount} ${sceneMode}`);
 
     const starsMaterial = new THREE.PointsMaterial({ color: 0xb2d5ff, size: profile.starSize });
     const stars = new THREE.Points(new THREE.BufferGeometry(), starsMaterial);
