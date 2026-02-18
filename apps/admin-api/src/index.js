@@ -974,6 +974,257 @@ async function persistAssetManifestState(db, summary, updatedBy = 0) {
   );
 }
 
+const SCENE_MODE_VALUES = new Set(["pro", "lite", "cinematic", "minimal"]);
+const PERF_PROFILE_VALUES = new Set(["low", "normal", "high"]);
+const QUALITY_MODE_VALUES = new Set(["auto", "low", "normal", "high"]);
+const HUD_DENSITY_VALUES = new Set(["compact", "full", "extended"]);
+
+function normalizeSceneEnum(rawValue, allowed, fallback) {
+  const normalized = String(rawValue || "")
+    .trim()
+    .toLowerCase();
+  if (allowed.has(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+function clampNumber(rawValue, minValue, maxValue, fallback) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(minValue, Math.min(maxValue, parsed));
+}
+
+function buildDefaultSceneProfile({ sceneKey = "nexus_arena", uiPrefs = null, perfProfile = null } = {}) {
+  const uiMode = String(uiPrefs?.ui_mode || "hardcore").toLowerCase();
+  const qualityModeRaw = String(uiPrefs?.quality_mode || "auto").toLowerCase();
+  let sceneMode = "pro";
+  if (uiMode === "minimal") {
+    sceneMode = "minimal";
+  } else if (uiMode === "standard") {
+    sceneMode = "lite";
+  }
+  const perfTier = String(perfProfile?.quality_tier || perfProfile?.profile_json?.perf_tier || "normal").toLowerCase();
+  const perf = PERF_PROFILE_VALUES.has(perfTier) ? perfTier : "normal";
+  const qualityMode = QUALITY_MODE_VALUES.has(qualityModeRaw) ? qualityModeRaw : "auto";
+  return {
+    scene_key: String(sceneKey || "nexus_arena"),
+    scene_mode: sceneMode,
+    perf_profile: perf,
+    quality_mode: qualityMode,
+    reduced_motion: Boolean(uiPrefs?.reduced_motion),
+    large_text: Boolean(uiPrefs?.large_text),
+    motion_intensity: Boolean(uiPrefs?.reduced_motion) ? 0.7 : 1,
+    postfx_level: qualityMode === "low" ? 0.45 : qualityMode === "high" ? 1.1 : 0.8,
+    hud_density: Boolean(uiPrefs?.large_text) ? "compact" : "full",
+    prefs_json: uiPrefs?.prefs_json || {},
+    source: "default",
+    updated_at: null
+  };
+}
+
+async function readSceneProfile(db, userId, sceneKey = "nexus_arena") {
+  const key = String(sceneKey || "nexus_arena").trim() || "nexus_arena";
+  const basePrefs = await webappStore.getUserUiPrefs(db, userId).catch((err) => {
+    if (err.code === "42P01") return null;
+    throw err;
+  });
+  const basePerf = await webappStore.getLatestPerfProfile(db, userId).catch((err) => {
+    if (err.code === "42P01") return null;
+    throw err;
+  });
+  const fallback = buildDefaultSceneProfile({
+    sceneKey: key,
+    uiPrefs: basePrefs,
+    perfProfile: basePerf
+  });
+  try {
+    const result = await db.query(
+      `SELECT
+         user_id,
+         scene_key,
+         scene_mode,
+         perf_profile,
+         quality_mode,
+         reduced_motion,
+         large_text,
+         motion_intensity,
+         postfx_level,
+         hud_density,
+         prefs_json,
+         updated_at
+       FROM webapp_scene_profiles_v2
+       WHERE user_id = $1
+         AND scene_key = $2
+       LIMIT 1;`,
+      [userId, key]
+    );
+    const row = result.rows?.[0];
+    if (!row) {
+      return fallback;
+    }
+    return {
+      scene_key: String(row.scene_key || key),
+      scene_mode: normalizeSceneEnum(row.scene_mode, SCENE_MODE_VALUES, fallback.scene_mode),
+      perf_profile: normalizeSceneEnum(row.perf_profile, PERF_PROFILE_VALUES, fallback.perf_profile),
+      quality_mode: normalizeSceneEnum(row.quality_mode, QUALITY_MODE_VALUES, fallback.quality_mode),
+      reduced_motion: Boolean(row.reduced_motion),
+      large_text: Boolean(row.large_text),
+      motion_intensity: clampNumber(row.motion_intensity, 0.25, 2, fallback.motion_intensity),
+      postfx_level: clampNumber(row.postfx_level, 0, 2.5, fallback.postfx_level),
+      hud_density: normalizeSceneEnum(row.hud_density, HUD_DENSITY_VALUES, fallback.hud_density),
+      prefs_json: row.prefs_json || {},
+      source: "db",
+      updated_at: row.updated_at || null
+    };
+  } catch (err) {
+    if (err.code === "42P01") {
+      return fallback;
+    }
+    throw err;
+  }
+}
+
+async function upsertSceneProfile(db, payload) {
+  const prefsJson = payload?.prefs_json && typeof payload.prefs_json === "object" ? payload.prefs_json : {};
+  const result = await db.query(
+    `INSERT INTO webapp_scene_profiles_v2 (
+       user_id,
+       scene_key,
+       scene_mode,
+       perf_profile,
+       quality_mode,
+       reduced_motion,
+       large_text,
+       motion_intensity,
+       postfx_level,
+       hud_density,
+       prefs_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+     ON CONFLICT (user_id, scene_key)
+     DO UPDATE SET
+       scene_mode = EXCLUDED.scene_mode,
+       perf_profile = EXCLUDED.perf_profile,
+       quality_mode = EXCLUDED.quality_mode,
+       reduced_motion = EXCLUDED.reduced_motion,
+       large_text = EXCLUDED.large_text,
+       motion_intensity = EXCLUDED.motion_intensity,
+       postfx_level = EXCLUDED.postfx_level,
+       hud_density = EXCLUDED.hud_density,
+       prefs_json = webapp_scene_profiles_v2.prefs_json || EXCLUDED.prefs_json,
+       updated_at = now()
+     RETURNING
+       user_id,
+       scene_key,
+       scene_mode,
+       perf_profile,
+       quality_mode,
+       reduced_motion,
+       large_text,
+       motion_intensity,
+       postfx_level,
+       hud_density,
+       prefs_json,
+       updated_at;`,
+    [
+      Number(payload.user_id || 0),
+      String(payload.scene_key || "nexus_arena"),
+      normalizeSceneEnum(payload.scene_mode, SCENE_MODE_VALUES, "pro"),
+      normalizeSceneEnum(payload.perf_profile, PERF_PROFILE_VALUES, "normal"),
+      normalizeSceneEnum(payload.quality_mode, QUALITY_MODE_VALUES, "auto"),
+      Boolean(payload.reduced_motion),
+      Boolean(payload.large_text),
+      clampNumber(payload.motion_intensity, 0.25, 2, 1),
+      clampNumber(payload.postfx_level, 0, 2.5, 0.8),
+      normalizeSceneEnum(payload.hud_density, HUD_DENSITY_VALUES, "full"),
+      JSON.stringify(prefsJson)
+    ]
+  );
+  return result.rows?.[0] || null;
+}
+
+async function readActiveAssetManifest(db, opts = {}) {
+  const includeEntries = opts.includeEntries !== false;
+  const entryLimit = Math.max(1, Math.min(800, Number(opts.entryLimit || 400)));
+  try {
+    const revisionRow = await db
+      .query(
+        `SELECT
+           r.id,
+           r.manifest_revision,
+           r.manifest_hash,
+           r.source,
+           r.is_active,
+           r.manifest_json,
+           r.activated_at,
+           r.created_at
+         FROM asset_manifest_revisions r
+         WHERE r.is_active = TRUE
+         ORDER BY r.activated_at DESC NULLS LAST, r.created_at DESC, r.id DESC
+         LIMIT 1;`
+      )
+      .then((res) => res.rows?.[0] || null);
+    if (!revisionRow) {
+      return {
+        available: false,
+        active_revision: null,
+        entries: []
+      };
+    }
+    let entries = [];
+    if (includeEntries) {
+      entries = await db
+        .query(
+          `SELECT
+             asset_key,
+             asset_path,
+             fallback_path,
+             asset_hash,
+             bytes_size,
+             integrity_status,
+             exists_local,
+             meta_json,
+             updated_at
+           FROM asset_manifest_entries
+           WHERE revision_id = $1
+           ORDER BY asset_key ASC
+           LIMIT $2;`,
+          [Number(revisionRow.id || 0), entryLimit]
+        )
+        .then((res) => res.rows || []);
+    }
+    return {
+      available: true,
+      active_revision: revisionRow,
+      entries
+    };
+  } catch (err) {
+    if (err.code === "42P01") {
+      const fallbackState = await db
+        .query(
+          `SELECT state_key, manifest_revision, state_json, updated_at, updated_by
+           FROM webapp_asset_manifest_state
+           WHERE state_key = 'active'
+           LIMIT 1;`
+        )
+        .then((res) => res.rows?.[0] || null)
+        .catch((innerErr) => {
+          if (innerErr.code === "42P01") return null;
+          throw innerErr;
+        });
+      return {
+        available: false,
+        active_revision: fallbackState,
+        entries: []
+      };
+    }
+    throw err;
+  }
+}
+
 const PLAY_MODES = {
   safe: {
     key: "safe",
@@ -2405,6 +2656,191 @@ fastify.post(
     }
   }
 );
+
+fastify.get("/webapp/api/scene/profile", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const sceneKey = String(request.query.scene_key || "nexus_arena").trim() || "nexus_arena";
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const sceneProfile = await readSceneProfile(client, profile.user_id, sceneKey);
+    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const uiPrefs = await webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        scene_profile: sceneProfile,
+        perf_profile: perfProfile,
+        ui_prefs: uiPrefs
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.post(
+  "/webapp/api/scene/profile",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["uid", "ts", "sig"],
+        properties: {
+          uid: { type: "string" },
+          ts: { type: "string" },
+          sig: { type: "string" },
+          scene_key: { type: "string", minLength: 3, maxLength: 80 },
+          scene_mode: { type: "string", enum: ["pro", "lite", "cinematic", "minimal"] },
+          perf_profile: { type: "string", enum: ["low", "normal", "high"] },
+          quality_mode: { type: "string", enum: ["auto", "low", "normal", "high"] },
+          reduced_motion: { type: "boolean" },
+          large_text: { type: "boolean" },
+          motion_intensity: { type: "number", minimum: 0.25, maximum: 2 },
+          postfx_level: { type: "number", minimum: 0, maximum: 2.5 },
+          hud_density: { type: "string", enum: ["compact", "full", "extended"] },
+          prefs_json: { type: "object" }
+        }
+      }
+    }
+  },
+  async (request, reply) => {
+    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
+    if (!auth.ok) {
+      reply.code(401).send({ success: false, error: auth.reason });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        await client.query("ROLLBACK");
+        reply.code(404).send({ success: false, error: "user_not_started" });
+        return;
+      }
+      const sceneKey = String(request.body.scene_key || "nexus_arena").trim() || "nexus_arena";
+      const current = await readSceneProfile(client, profile.user_id, sceneKey);
+      const next = {
+        user_id: profile.user_id,
+        scene_key: sceneKey,
+        scene_mode: request.body.scene_mode || current.scene_mode,
+        perf_profile: request.body.perf_profile || current.perf_profile,
+        quality_mode: request.body.quality_mode || current.quality_mode,
+        reduced_motion:
+          typeof request.body.reduced_motion === "boolean" ? request.body.reduced_motion : current.reduced_motion,
+        large_text: typeof request.body.large_text === "boolean" ? request.body.large_text : current.large_text,
+        motion_intensity:
+          Number.isFinite(Number(request.body.motion_intensity))
+            ? Number(request.body.motion_intensity)
+            : current.motion_intensity,
+        postfx_level:
+          Number.isFinite(Number(request.body.postfx_level)) ? Number(request.body.postfx_level) : current.postfx_level,
+        hud_density: request.body.hud_density || current.hud_density,
+        prefs_json: request.body.prefs_json || {}
+      };
+      const saved = await upsertSceneProfile(client, next);
+      await webappStore
+        .upsertUserUiPrefs(client, {
+          userId: profile.user_id,
+          uiMode:
+            saved.scene_mode === "minimal" ? "minimal" : saved.scene_mode === "lite" ? "standard" : "hardcore",
+          qualityMode: saved.quality_mode,
+          reducedMotion: Boolean(saved.reduced_motion),
+          largeText: Boolean(saved.large_text),
+          soundEnabled: true,
+          prefsJson: {
+            scene_key: saved.scene_key,
+            source: "scene_profile_post"
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+      await webappStore
+        .insertUiInteractionEvent(client, {
+          userId: profile.user_id,
+          eventKey: "scene_profile_update",
+          eventName: "scene_profile_update",
+          eventScope: "webapp",
+          eventValue: saved.scene_mode,
+          eventJson: {
+            scene_key: saved.scene_key,
+            perf_profile: saved.perf_profile,
+            quality_mode: saved.quality_mode
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          scene_profile: {
+            ...saved,
+            source: "db"
+          }
+        }
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "42P01") {
+        reply.code(503).send({ success: false, error: "scene_profile_tables_missing" });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+fastify.get("/webapp/api/assets/manifest/active", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const includeEntries = String(request.query.include_entries || "1") !== "0";
+  const entryLimit = Math.max(1, Math.min(800, Number(request.query.limit || 400)));
+  const client = await pool.connect();
+  try {
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const manifest = await readActiveAssetManifest(client, { includeEntries, entryLimit });
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: manifest
+    });
+  } finally {
+    client.release();
+  }
+});
 
 fastify.post(
   "/webapp/api/tasks/reroll",
@@ -4401,6 +4837,179 @@ fastify.get("/webapp/api/pvp/session/state", async (request, reply) => {
         idempotency_key: statePayload?.session?.session_ref ? `${statePayload.session.session_ref}:state` : null
       }
     });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
+  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
+  if (!auth.ok) {
+    reply.code(401).send({ success: false, error: auth.reason });
+    return;
+  }
+  const sessionRef = String(request.query.session_ref || "").trim();
+  if (!sessionRef) {
+    reply.code(400).send({ success: false, error: "session_ref_required" });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const profile = await getProfileByTelegram(client, auth.uid);
+    if (!profile) {
+      await client.query("ROLLBACK");
+      reply.code(404).send({ success: false, error: "user_not_started" });
+      return;
+    }
+    const flags = await loadFeatureFlags(client);
+    if (!isFeatureEnabled(flags, "ARENA_AUTH_ENABLED")) {
+      await client.query("ROLLBACK");
+      reply.code(409).send({ success: false, error: "arena_auth_disabled" });
+      return;
+    }
+    const runtimeConfig = await configService.getEconomyConfig(client);
+    const directorPayload = await arenaService.buildDirectorView(client, {
+      profile,
+      config: runtimeConfig
+    });
+    const statePayload = await arenaService.getAuthoritativePvpSessionState(client, {
+      profile,
+      sessionRef
+    });
+    if (!statePayload.ok) {
+      await client.query("ROLLBACK");
+      reply.code(arenaSessionErrorCode(statePayload.error)).send({
+        success: false,
+        error: statePayload.error
+      });
+      return;
+    }
+    if (!statePayload.session) {
+      await client.query("COMMIT");
+      reply.send({
+        success: true,
+        session: issueWebAppSession(auth.uid),
+        data: {
+          session: null,
+          tick: null,
+          transport: "poll",
+          tick_ms: 1000,
+          action_window_ms: 800
+        }
+      });
+      return;
+    }
+
+    const now = Date.now();
+    const tickMs = Math.max(250, Number(statePayload.tick_ms || 1000));
+    const actionWindowMs = Math.max(250, Number(statePayload.action_window_ms || 800));
+    const sessionState = statePayload.session.state || {};
+    const currentTick = Math.max(0, Number(sessionState.server_tick || 0));
+    const tickSeq = Math.max(1, currentTick + 1);
+    const tickPayload = {
+      session_id: Number(statePayload.session.session_id || 0),
+      session_ref: String(statePayload.session.session_ref || sessionRef),
+      tick_seq: tickSeq,
+      server_tick: now,
+      tick_ms: tickMs,
+      action_window_ms: actionWindowMs,
+      transport: String(statePayload.transport || statePayload.session.transport || "poll"),
+      phase:
+        statePayload.session.status === "resolved"
+          ? "resolve"
+          : statePayload.session.status === "active"
+            ? "combat"
+            : "expired",
+      state_json: {
+        score: statePayload.session.score || {},
+        combo: statePayload.session.combo || {},
+        action_count: statePayload.session.action_count || {},
+        mode_final: statePayload.session.mode_final || null
+      }
+    };
+
+    await client.query(
+      `INSERT INTO pvp_match_ticks (
+         session_id,
+         session_ref,
+         tick_seq,
+         server_tick,
+         tick_ms,
+         action_window_ms,
+         transport,
+         phase,
+         state_json
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+       ON CONFLICT (session_id, tick_seq)
+       DO UPDATE SET
+         server_tick = EXCLUDED.server_tick,
+         tick_ms = EXCLUDED.tick_ms,
+         action_window_ms = EXCLUDED.action_window_ms,
+         transport = EXCLUDED.transport,
+         phase = EXCLUDED.phase,
+         state_json = EXCLUDED.state_json;`,
+      [
+        tickPayload.session_id,
+        tickPayload.session_ref,
+        tickPayload.tick_seq,
+        tickPayload.server_tick,
+        tickPayload.tick_ms,
+        tickPayload.action_window_ms,
+        tickPayload.transport,
+        tickPayload.phase,
+        JSON.stringify(tickPayload.state_json || {})
+      ]
+    );
+    await client.query(
+      `INSERT INTO pvp_match_events (
+         session_id,
+         session_ref,
+         actor_user_id,
+         event_key,
+         event_name,
+         event_scope,
+         event_value,
+         event_json
+       )
+       VALUES ($1, $2, $3, 'tick', 'pvp_tick', 'pvp', $4, $5::jsonb);`,
+      [
+        tickPayload.session_id,
+        tickPayload.session_ref,
+        Number(profile.user_id || 0),
+        tickPayload.phase,
+        JSON.stringify({
+          tick_seq: tickPayload.tick_seq,
+          server_tick: tickPayload.server_tick,
+          tick_ms: tickPayload.tick_ms,
+          action_window_ms: tickPayload.action_window_ms
+        })
+      ]
+    );
+    await client.query("COMMIT");
+    reply.send({
+      success: true,
+      session: issueWebAppSession(auth.uid),
+      data: {
+        session: statePayload.session,
+        tick: tickPayload,
+        transport: tickPayload.transport,
+        tick_ms: tickPayload.tick_ms,
+        action_window_ms: tickPayload.action_window_ms,
+        contract: directorPayload?.contract || null,
+        anomaly: directorPayload?.anomaly || null,
+        director: directorPayload?.director || null,
+        idempotency_key: `${tickPayload.session_ref}:tick:${tickPayload.tick_seq}`
+      }
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    if (err.code === "42P01") {
+      reply.code(503).send({ success: false, error: "pvp_tick_tables_missing" });
+      return;
+    }
+    throw err;
   } finally {
     client.release();
   }
@@ -6655,6 +7264,200 @@ fastify.post(
     }
   }
 );
+
+fastify.get("/admin/runtime/flags/effective", async (request, reply) => {
+  const actorId = parseAdminId(request);
+  const client = await pool.connect();
+  try {
+    const payload = await loadFeatureFlags(client, { withMeta: true });
+    reply.send({
+      success: true,
+      data: {
+        actor_admin_id: Number(actorId || 0),
+        configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+        is_admin: isAdminTelegramId(actorId),
+        source_mode: payload.source_mode,
+        source_json: payload.source_json || {},
+        env_forced: Boolean(payload.env_forced),
+        env_defaults: FLAG_DEFAULTS,
+        critical_env_locked_keys: Array.from(CRITICAL_ENV_LOCKED_FLAGS.values()),
+        effective_flags: payload.flags,
+        db_flags: payload.db_flags || []
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
+
+fastify.get("/admin/runtime/deploy/status", async (request, reply) => {
+  const actorId = parseAdminId(request);
+  const client = await pool.connect();
+  try {
+    const runtime = await readBotRuntimeState(client, { stateKey: botRuntimeStore.DEFAULT_STATE_KEY, limit: 20 });
+    const runtimeHealth = projectBotRuntimeHealth(runtime);
+    const flags = await loadFeatureFlags(client, { withMeta: true });
+    const releaseLatest = await readLatestReleaseMarker(client).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const webappVersionState = await resolveWebAppVersion(client);
+    const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
+    const dependency = await dependencyHealth();
+    const activeState = await client
+      .query(
+        `SELECT
+           state_key,
+           release_ref,
+           git_revision,
+           deploy_id,
+           environment,
+           webapp_version,
+           webapp_launch_url,
+           flag_source_mode,
+           bot_enabled,
+           bot_alive,
+           bot_lock_acquired,
+           lock_key,
+           deploy_health_ok,
+           state_json,
+           updated_at,
+           updated_by
+         FROM runtime_deploy_state
+         WHERE state_key = 'active'
+         LIMIT 1;`
+      )
+      .then((res) => res.rows?.[0] || null)
+      .catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+
+    if (activeState) {
+      await client
+        .query(
+          `UPDATE runtime_deploy_state
+           SET release_ref = $2,
+               git_revision = $3,
+               deploy_id = $4,
+               environment = $5,
+               webapp_version = $6,
+               webapp_launch_url = $7,
+               flag_source_mode = $8,
+               bot_enabled = $9,
+               bot_alive = $10,
+               bot_lock_acquired = $11,
+               lock_key = $12,
+               deploy_health_ok = $13,
+               state_json = $14::jsonb,
+               updated_at = now(),
+               updated_by = $15
+           WHERE state_key = $1;`,
+          [
+            "active",
+            String(releaseLatest?.release_ref || ""),
+            String(releaseLatest?.git_revision || RELEASE_GIT_REVISION || ""),
+            String(releaseLatest?.deploy_id || RELEASE_DEPLOY_ID || ""),
+            String(releaseLatest?.environment || RELEASE_ENV || "production"),
+            String(webappVersionState.version || ""),
+            String(webappLaunchUrl || ""),
+            String(flags.source_mode || "env_locked"),
+            String(process.env.BOT_ENABLED || "1") === "1",
+            Boolean(runtimeHealth.alive),
+            Boolean(runtimeHealth.lock_acquired),
+            Number(runtimeHealth.lock_key || 0),
+            Boolean(dependency.ok),
+            JSON.stringify({
+              webapp_version_source: webappVersionState.source,
+              dependency: dependency.dependencies || {},
+              bot_runtime: runtimeHealth
+            }),
+            Number(actorId || 0)
+          ]
+        )
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+      await client
+        .query(
+          `INSERT INTO runtime_deploy_events (state_key, event_type, event_json, created_by)
+           VALUES ('active', 'runtime_status_refresh', $1::jsonb, $2);`,
+          [
+            JSON.stringify({
+              git_revision: String(releaseLatest?.git_revision || RELEASE_GIT_REVISION || ""),
+              lock_acquired: Boolean(runtimeHealth.lock_acquired),
+              health_ok: Boolean(dependency.ok)
+            }),
+            Number(actorId || 0)
+          ]
+        )
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+    }
+
+    const refreshedState = await client
+      .query(
+        `SELECT
+           state_key,
+           release_ref,
+           git_revision,
+           deploy_id,
+           environment,
+           webapp_version,
+           webapp_launch_url,
+           flag_source_mode,
+           bot_enabled,
+           bot_alive,
+           bot_lock_acquired,
+           lock_key,
+           deploy_health_ok,
+           state_json,
+           updated_at,
+           updated_by
+         FROM runtime_deploy_state
+         WHERE state_key = 'active'
+         LIMIT 1;`
+      )
+      .then((res) => res.rows?.[0] || null)
+      .catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      });
+
+    reply.send({
+      success: true,
+      data: {
+        actor_admin_id: Number(actorId || 0),
+        configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+        is_admin: isAdminTelegramId(actorId),
+        release_latest: releaseLatest,
+        webapp_version: webappVersionState.version,
+        webapp_version_source: webappVersionState.source,
+        webapp_launch_url: webappLaunchUrl,
+        runtime_flags: {
+          source_mode: flags.source_mode,
+          env_forced: Boolean(flags.env_forced),
+          effective_flags: flags.flags
+        },
+        bot_runtime: {
+          state_key: runtime.state_key || botRuntimeStore.DEFAULT_STATE_KEY,
+          health: runtimeHealth,
+          state: runtime.state || null,
+          events: runtime.events || []
+        },
+        dependency_health: dependency,
+        runtime_deploy_state: refreshedState
+      }
+    });
+  } finally {
+    client.release();
+  }
+});
 
 fastify.get("/admin/release/latest", async (request, reply) => {
   const exists = await hasReleaseMarkersTable(pool);
