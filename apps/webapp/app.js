@@ -86,7 +86,8 @@
         sceneMode: "airdropkral_ui_scene_mode_v1",
         reducedMotion: "airdropkral_ui_reduced_motion_v1",
         largeText: "airdropkral_ui_large_text_v1"
-      }
+      },
+      pulseTimer: null
     }
   };
 
@@ -145,6 +146,17 @@
   function getPerfBridge() {
     const bridge = window.__AKR_V32_PERF__;
     if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getTelemetryDeckBridge() {
+    const bridge = window.__AKR_TELEMETRY_DECK__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
       return null;
     }
     return bridge;
@@ -1478,6 +1490,10 @@
 
   function stopTransientTimers() {
     stopPvpLiveLoop();
+    if (state.ui.pulseTimer) {
+      clearTimeout(state.ui.pulseTimer);
+      state.ui.pulseTimer = null;
+    }
     if (state.v3.quoteTimer) {
       clearTimeout(state.v3.quoteTimer);
       state.v3.quoteTimer = null;
@@ -1841,6 +1857,23 @@
     return list;
   }
 
+  function setHudPulseTone(tone = "info") {
+    const body = document.body;
+    if (!body) {
+      return;
+    }
+    body.classList.remove("pulse-safe", "pulse-balanced", "pulse-aggressive", "pulse-reveal", "pulse-info");
+    body.classList.add(`pulse-${tone}`);
+    if (state.ui.pulseTimer) {
+      clearTimeout(state.ui.pulseTimer);
+      state.ui.pulseTimer = null;
+    }
+    state.ui.pulseTimer = setTimeout(() => {
+      body.classList.remove("pulse-safe", "pulse-balanced", "pulse-aggressive", "pulse-reveal", "pulse-info");
+      state.ui.pulseTimer = null;
+    }, 560);
+  }
+
   function triggerArenaPulse(tone) {
     if (!state.arena) return;
     const palette = {
@@ -1878,6 +1911,21 @@
         { x: 1.08, y: 1.08, z: 1.08, yoyo: true, repeat: 1, duration: 0.28, ease: "power2.out" }
       );
     }
+    if (!state.ui.reducedMotion && state.arena.camera) {
+      const camera = state.arena.camera;
+      const baseX = camera.position.x;
+      const baseY = camera.position.y;
+      const shake = tone === "aggressive" ? 0.14 : tone === "reveal" ? 0.1 : 0.06;
+      gsap.to(camera.position, {
+        x: baseX + (Math.random() - 0.5) * shake,
+        y: baseY + (Math.random() - 0.5) * shake,
+        duration: 0.08,
+        yoyo: true,
+        repeat: 1,
+        ease: "power1.inOut"
+      });
+    }
+    setHudPulseTone(tone || "info");
   }
 
   async function fallbackToCommand(action, payload = {}) {
@@ -2827,6 +2875,21 @@
     const threat = computeThreatRatio(safe);
     const heatPct = Math.round(heat * 100);
     const threatPct = Math.round(threat * 100);
+
+    const deckBridge = getTelemetryDeckBridge();
+    if (deckBridge) {
+      deckBridge.render({
+        fps,
+        frameTimeMs: frame,
+        latencyMs: latency,
+        transport,
+        tickMs,
+        qualityMode: String(getEffectiveQualityMode() || "normal"),
+        heat,
+        threat
+      });
+      return;
+    }
 
     pushTelemetrySeries(state.telemetry.fpsHistory, fps);
     pushTelemetrySeries(state.telemetry.latencyHistory, latency);
