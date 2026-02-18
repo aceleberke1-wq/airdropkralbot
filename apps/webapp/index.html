@@ -63,6 +63,34 @@
         </div>
       </section>
 
+      <section class="telemetryDeck card">
+        <div class="panelHead">
+          <h3>Nexus Telemetry Deck</h3>
+          <span id="telemetryBadge" class="badge info">LIVE</span>
+        </div>
+        <div class="telemetryGrid">
+          <div class="directorBox">
+            <p class="label">Combat Heat</p>
+            <p id="combatHeatLine" class="value">0%</p>
+            <div class="meter"><span id="combatHeatMeter"></span></div>
+            <p id="combatHeatHint" class="micro">Ritim bekleniyor</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Runtime</p>
+            <p id="runtimePerfLine" class="value">FPS 0 | 0ms</p>
+            <p id="runtimeLatencyLine" class="micro">Net 0ms</p>
+            <p id="runtimeModeLine" class="micro">Transport POLL | Tick 1000ms</p>
+          </div>
+          <div class="directorBox">
+            <p class="label">Threat Radar</p>
+            <p id="threatLine" class="value">Risk 0%</p>
+            <div class="meter"><span id="threatMeter"></span></div>
+            <p id="threatHint" class="micro">Stabil pencere</p>
+          </div>
+        </div>
+        <canvas id="telemetryCanvas" class="telemetryCanvas" width="1080" height="132"></canvas>
+      </section>
+
       <section class="director card">
         <div class="panelHead">
           <h3>Taktik Yonlendirme</h3>

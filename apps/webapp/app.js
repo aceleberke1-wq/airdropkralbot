@@ -62,6 +62,10 @@
       droppedFrames: 0,
       gpuTimeMs: 0,
       cpuTimeMs: 0,
+      fpsHistory: [],
+      latencyHistory: [],
+      heatHistory: [],
+      threatHistory: [],
       perfTimer: null,
       sceneTimer: null,
       lastPerfPostAt: 0,
@@ -1578,6 +1582,7 @@
       if (chargeBtn) chargeBtn.disabled = true;
       renderPvpTickLine(null, null);
       ensurePvpLiveLoop();
+      renderTelemetryDeck(state.data || {});
       return;
     }
 
@@ -1631,6 +1636,7 @@
     if (chargeBtn) chargeBtn.disabled = !canInput;
     renderPvpTickLine(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
+    renderTelemetryDeck(state.data || {});
   }
 
   async function fetchPvpSessionState(sessionRef = "") {
@@ -2691,6 +2697,195 @@
     )} War`;
   }
 
+  function pushTelemetrySeries(series, value, maxLen = 84) {
+    if (!Array.isArray(series)) {
+      return [];
+    }
+    const num = asNum(value);
+    series.push(Number.isFinite(num) ? num : 0);
+    if (series.length > maxLen) {
+      series.splice(0, series.length - maxLen);
+    }
+    return series;
+  }
+
+  function computeCombatHeat(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const attempts = safe.attempts || {};
+    const riskScore = clamp(asNum(safe.risk_score || 0), 0, 1);
+    const pvpCombo = asNum(state.v3.pvpSession?.combo?.self || 0);
+    const simCombo = asNum(state.sim.combo || 0);
+    const activeLoad = attempts.active ? 0.26 : 0.04;
+    const revealBoost = attempts.revealable ? 0.22 : 0.02;
+    const queuePressure = clamp(asNum(state.v3.pvpQueue.length) / 8, 0, 1) * 0.16;
+    const comboPressure = clamp(Math.max(pvpCombo, simCombo) / 9, 0, 1) * 0.24;
+    return clamp(riskScore * 0.32 + activeLoad + revealBoost + comboPressure + queuePressure, 0, 1);
+  }
+
+  function computeThreatRatio(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const riskScore = clamp(asNum(safe.risk_score || 0), 0, 1);
+    const nexusPressure = clamp(asNum(safe.nexus?.pressure_pct || 0) / 100, 0, 1);
+    const freeze = Boolean(safe.admin?.summary?.freeze?.freeze) ? 0.35 : 0;
+    const pvpStatus = String(state.v3.pvpSession?.status || "").toLowerCase();
+    const pvpWeight = pvpStatus === "active" ? 0.16 : pvpStatus === "resolved" ? 0.08 : 0.02;
+    return clamp(riskScore * 0.54 + nexusPressure * 0.26 + pvpWeight + freeze, 0, 1);
+  }
+
+  function drawTelemetrySeries(ctx, values, color, maxValue, chartHeight, chartWidth, offsetTop) {
+    if (!Array.isArray(values) || values.length === 0) {
+      return;
+    }
+    const maxSafe = Math.max(1, asNum(maxValue));
+    const stepX = values.length > 1 ? chartWidth / (values.length - 1) : chartWidth;
+    ctx.beginPath();
+    values.forEach((value, index) => {
+      const x = index * stepX;
+      const ratio = clamp(asNum(value) / maxSafe, 0, 1);
+      const y = offsetTop + chartHeight - ratio * chartHeight;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawTelemetryCanvas() {
+    const canvas = byId("telemetryCanvas");
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const hostWidth = Math.max(320, Math.floor(canvas.clientWidth || canvas.width || 960));
+    const hostHeight = Math.max(96, Math.floor(canvas.clientHeight || canvas.height || 132));
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    const targetW = Math.floor(hostWidth * dpr);
+    const targetH = Math.floor(hostHeight * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, hostWidth, hostHeight);
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, hostHeight);
+    gradient.addColorStop(0, "rgba(12, 26, 58, 0.96)");
+    gradient.addColorStop(1, "rgba(8, 15, 34, 0.64)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, hostWidth, hostHeight);
+
+    const chartLeft = 14;
+    const chartTop = 12;
+    const chartWidth = hostWidth - 28;
+    const chartHeight = hostHeight - 24;
+
+    ctx.strokeStyle = "rgba(150, 175, 236, 0.18)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i += 1) {
+      const y = chartTop + (chartHeight / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(chartLeft, y);
+      ctx.lineTo(chartLeft + chartWidth, y);
+      ctx.stroke();
+    }
+
+    const fpsValues = state.telemetry.fpsHistory || [];
+    const latencyValues = state.telemetry.latencyHistory || [];
+    const heatValues = state.telemetry.heatHistory || [];
+    const threatValues = state.telemetry.threatHistory || [];
+    drawTelemetrySeries(ctx, fpsValues, "#49f7bf", 90, chartHeight, chartWidth, chartTop);
+    drawTelemetrySeries(ctx, latencyValues, "#7ca8ff", 220, chartHeight, chartWidth, chartTop);
+    drawTelemetrySeries(ctx, heatValues.map((v) => v * 100), "#ffbf59", 100, chartHeight, chartWidth, chartTop);
+    drawTelemetrySeries(ctx, threatValues.map((v) => v * 100), "#ff5d84", 100, chartHeight, chartWidth, chartTop);
+
+    ctx.fillStyle = "rgba(189, 207, 255, 0.75)";
+    ctx.font = '11px "IBM Plex Mono", monospace';
+    ctx.fillText("FPS", chartLeft + 2, chartTop + 10);
+    ctx.fillText("LAT", chartLeft + 42, chartTop + 10);
+    ctx.fillText("HEAT", chartLeft + 82, chartTop + 10);
+    ctx.fillText("THREAT", chartLeft + 128, chartTop + 10);
+  }
+
+  function renderTelemetryDeck(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const fps = asNum(state.telemetry.fpsAvg || 0);
+    const latency = asNum(state.telemetry.latencyAvgMs || 0);
+    const frame = asNum(state.telemetry.frameTimeMs || 0);
+    const transport = String(state.v3.pvpTransport || "poll").toUpperCase();
+    const tickMs = asNum(state.v3.pvpTickMs || 1000);
+    const heat = computeCombatHeat(safe);
+    const threat = computeThreatRatio(safe);
+    const heatPct = Math.round(heat * 100);
+    const threatPct = Math.round(threat * 100);
+
+    pushTelemetrySeries(state.telemetry.fpsHistory, fps);
+    pushTelemetrySeries(state.telemetry.latencyHistory, latency);
+    pushTelemetrySeries(state.telemetry.heatHistory, heat);
+    pushTelemetrySeries(state.telemetry.threatHistory, threat);
+
+    const modeLine = byId("runtimeModeLine");
+    if (modeLine) {
+      modeLine.textContent = `Transport ${transport} | Tick ${tickMs}ms`;
+    }
+    const perfLine = byId("runtimePerfLine");
+    if (perfLine) {
+      perfLine.textContent = `FPS ${Math.round(fps)} | ${Math.round(frame)}ms`;
+    }
+    const latencyLine = byId("runtimeLatencyLine");
+    if (latencyLine) {
+      latencyLine.textContent = `Net ${Math.round(latency)}ms | Perf ${String(getEffectiveQualityMode()).toUpperCase()}`;
+    }
+    const heatLine = byId("combatHeatLine");
+    if (heatLine) {
+      heatLine.textContent = `${heatPct}%`;
+    }
+    const heatHint = byId("combatHeatHint");
+    if (heatHint) {
+      heatHint.textContent = heatPct >= 75 ? "Momentum penceresi acik" : heatPct >= 45 ? "Denge modu korunuyor" : "Ritim toplaniyor";
+    }
+    const heatMeter = byId("combatHeatMeter");
+    if (heatMeter) {
+      heatMeter.style.width = `${heatPct}%`;
+    }
+    const threatLine = byId("threatLine");
+    if (threatLine) {
+      threatLine.textContent = `Risk ${threatPct}%`;
+    }
+    const threatHint = byId("threatHint");
+    if (threatHint) {
+      threatHint.textContent =
+        threatPct >= 78 ? "Kritik anomali: SAFE cizgisine don" : threatPct >= 45 ? "Kontrat baskisi yukseliyor" : "Stabil pencere";
+    }
+    const threatMeter = byId("threatMeter");
+    if (threatMeter) {
+      threatMeter.style.width = `${threatPct}%`;
+    }
+    const badge = byId("telemetryBadge");
+    if (badge) {
+      if (threatPct >= 78) {
+        badge.textContent = "CRITICAL";
+        badge.className = "badge warn";
+      } else if (heatPct >= 68) {
+        badge.textContent = "PRESSURE";
+        badge.className = "badge";
+      } else {
+        badge.textContent = "LIVE";
+        badge.className = "badge info";
+      }
+    }
+    drawTelemetryCanvas();
+  }
+
   async function runSuggestedAction() {
     const suggestion = state.suggestion;
     if (!suggestion) {
@@ -2746,6 +2941,7 @@
     renderToken(data.token || {});
     renderAdmin(data.admin || {});
     renderDirector(data);
+    renderTelemetryDeck(data);
 
     renderOffers(data.offers || []);
     renderMissions(missions || { list: [], ready: 0 });
@@ -3427,6 +3623,7 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      drawTelemetryCanvas();
     }
     resize();
     window.addEventListener("resize", resize);
