@@ -10,6 +10,8 @@
   --gold: #ffb85c;
   --danger: #ff5679;
   --ok: #70ffa0;
+  --hud-heat: 0;
+  --hud-threat: 0;
 }
 
 * {
@@ -66,6 +68,26 @@ body.pulse-info::before {
   opacity: 0.26;
 }
 
+body[data-scene-mood="idle"] .shell {
+  filter: saturate(0.96);
+}
+
+body[data-scene-mood="safe"] .shell {
+  filter: saturate(1.04) contrast(1.01);
+}
+
+body[data-scene-mood="balanced"] .shell {
+  filter: saturate(1.08) contrast(1.02);
+}
+
+body[data-scene-mood="aggressive"] .shell {
+  filter: saturate(1.14) contrast(1.05);
+}
+
+body[data-scene-mood="critical"] .shell {
+  filter: saturate(1.18) contrast(1.08);
+}
+
 body.quality-low #bg3d {
   opacity: 0.48;
 }
@@ -114,6 +136,39 @@ body.large-type .micro,
 body.large-type .muted,
 body.large-type .cmd {
   font-size: 13px;
+}
+
+body.hud-compact .telemetryDeck,
+body.hud-compact .director,
+body.hud-compact .contract,
+body.hud-compact .panel {
+  padding: 10px;
+}
+
+body.hud-compact .micro {
+  font-size: 11px;
+}
+
+body.hud-compact .directorGrid,
+body.hud-compact .contractGrid,
+body.hud-compact .telemetryGrid {
+  gap: 8px;
+}
+
+body.hud-extended .telemetryDeck,
+body.hud-extended .director,
+body.hud-extended .contract {
+  padding: 16px;
+}
+
+body.hud-extended .directorGrid,
+body.hud-extended .contractGrid,
+body.hud-extended .telemetryGrid {
+  gap: 12px;
+}
+
+body.hud-extended .value {
+  letter-spacing: 0.01em;
 }
 
 #bg3d {
@@ -208,6 +263,11 @@ h3 {
   font-family: "IBM Plex Mono", monospace;
 }
 
+#sceneProfileLine,
+#runtimeSceneLine {
+  color: #8fdcff;
+}
+
 .headerActions {
   display: flex;
   gap: 8px;
@@ -241,6 +301,13 @@ h3 {
   gap: 10px;
   border-color: rgba(112, 255, 160, 0.25);
   box-shadow: inset 0 0 26px rgba(61, 248, 194, 0.08), 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
+.directorMetaLine {
+  color: #9ec5ff;
+  border-left: 2px solid rgba(124, 168, 255, 0.35);
+  padding-left: 8px;
+  letter-spacing: 0.01em;
 }
 
 .contract {
@@ -300,6 +367,144 @@ body.pulse-reveal .telemetryDeck {
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(12, 26, 58, 0.85), rgba(8, 15, 34, 0.55));
   box-shadow: inset 0 0 26px rgba(71, 208, 255, 0.08);
+}
+
+.combatStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.combatCell {
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(7, 12, 30, 0.52);
+  display: grid;
+  gap: 6px;
+}
+
+.combatCell .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#anomalyPulseLine[data-tone="stable"] {
+  color: #9de4be;
+}
+
+#anomalyPulseLine[data-tone="volatile"] {
+  color: #ffd08b;
+}
+
+#anomalyPulseLine[data-tone="critical"] {
+  color: #ff8aa5;
+}
+
+.combatEventTicker {
+  margin: 0;
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+  background: rgba(8, 15, 36, 0.78);
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.combatEventTicker.live {
+  transform: translateY(-1px);
+}
+
+.combatEventTicker[data-tone="safe"] {
+  border-color: rgba(112, 255, 160, 0.45);
+  color: #b6ffd0;
+}
+
+.combatEventTicker[data-tone="balanced"] {
+  border-color: rgba(61, 248, 194, 0.45);
+  color: #a7ffe7;
+}
+
+.combatEventTicker[data-tone="aggressive"] {
+  border-color: rgba(255, 86, 121, 0.5);
+  color: #ffc0cf;
+}
+
+.combatEventTicker[data-tone="reveal"] {
+  border-color: rgba(255, 184, 92, 0.52);
+  color: #ffe1b4;
+}
+
+.combatEventTicker[data-tone="info"],
+.combatEventTicker[data-tone="idle"] {
+  border-color: rgba(162, 186, 255, 0.35);
+  color: #dbe5ff;
+}
+
+.fxBurstLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.fxBurst {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid rgba(166, 195, 255, 0.75);
+  background: radial-gradient(circle, rgba(166, 195, 255, 0.25) 0%, rgba(7, 12, 30, 0) 72%);
+  box-shadow: 0 0 26px rgba(166, 195, 255, 0.4);
+}
+
+.fxBurst.safe {
+  border-color: rgba(112, 255, 160, 0.76);
+  box-shadow: 0 0 24px rgba(112, 255, 160, 0.45);
+}
+
+.fxBurst.balanced {
+  border-color: rgba(61, 248, 194, 0.82);
+  box-shadow: 0 0 24px rgba(61, 248, 194, 0.5);
+}
+
+.fxBurst.aggressive {
+  border-color: rgba(255, 86, 121, 0.84);
+  box-shadow: 0 0 24px rgba(255, 86, 121, 0.5);
+}
+
+.fxBurst.reveal {
+  border-color: rgba(255, 184, 92, 0.84);
+  box-shadow: 0 0 24px rgba(255, 184, 92, 0.5);
+}
+
+.fxLabel {
+  position: absolute;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  font-family: "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  color: #d9e5ff;
+  text-shadow: 0 0 8px rgba(7, 12, 30, 0.92);
+}
+
+.fxLabel.safe {
+  color: #bfffd7;
+}
+
+.fxLabel.balanced {
+  color: #9efee6;
+}
+
+.fxLabel.aggressive {
+  color: #ffbdcd;
+}
+
+.fxLabel.reveal {
+  color: #ffe3b8;
 }
 
 .directorGrid {
@@ -812,6 +1017,22 @@ body.pulse-reveal .telemetryDeck {
   display: block;
   background: linear-gradient(90deg, var(--accent), var(--gold));
   box-shadow: 0 0 14px rgba(61, 248, 194, 0.42);
+  transition: width 180ms ease-out, filter 180ms ease-out, box-shadow 180ms ease-out;
+  filter: saturate(calc(0.92 + var(--hud-heat) * 0.75));
+}
+
+body[data-scene-mood="safe"] .meter > span {
+  background: linear-gradient(90deg, #70ffa0, #3df8c2);
+}
+
+body[data-scene-mood="aggressive"] .meter > span {
+  background: linear-gradient(90deg, #ff5679, #ffb85c);
+  box-shadow: 0 0 16px rgba(255, 86, 121, 0.46);
+}
+
+body[data-scene-mood="critical"] .meter > span {
+  background: linear-gradient(90deg, #ff416d, #ffc266);
+  box-shadow: 0 0 18px rgba(255, 65, 109, 0.5);
 }
 
 .btn,
@@ -927,6 +1148,10 @@ body.pulse-reveal .telemetryDeck {
     grid-template-columns: 1fr;
   }
 
+  .combatStrip {
+    grid-template-columns: 1fr;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
@@ -971,5 +1196,9 @@ body.pulse-reveal .telemetryDeck {
   .telemetryCanvas {
     min-height: 102px;
     height: 112px;
+  }
+
+  .combatCell .value {
+    font-size: 12px;
   }
 }

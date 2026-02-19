@@ -25,6 +25,7 @@
           <p id="seasonLine" class="micro">S0 - 0 gun</p>
           <p id="sceneModeLine" class="micro">Scene: PRO</p>
           <p id="assetModeLine" class="micro">Assets: init...</p>
+          <p id="sceneProfileLine" class="micro">Profile: hud full | postfx 0.90</p>
         </div>
         <div class="headerActions">
           <button id="refreshBtn" class="btn ghost">Yenile</button>
@@ -80,6 +81,7 @@
             <p id="runtimePerfLine" class="value">FPS 0 | 0ms</p>
             <p id="runtimeLatencyLine" class="micro">Net 0ms</p>
             <p id="runtimeModeLine" class="micro">Transport POLL | Tick 1000ms</p>
+            <p id="runtimeSceneLine" class="micro">HUD full | PostFX 0.90</p>
           </div>
           <div class="directorBox">
             <p class="label">Threat Radar</p>
@@ -89,6 +91,24 @@
           </div>
         </div>
         <canvas id="telemetryCanvas" class="telemetryCanvas" width="1080" height="132"></canvas>
+        <div class="combatStrip">
+          <div class="combatCell">
+            <p class="label">Combo Heat</p>
+            <p id="comboHeatLine" class="value">0% | Combo 0</p>
+            <div class="meter"><span id="comboHeatMeter"></span></div>
+          </div>
+          <div class="combatCell">
+            <p class="label">Window Pressure</p>
+            <p id="windowPressureLine" class="value">0% | Tick 1000ms</p>
+            <div class="meter"><span id="windowPressureMeter"></span></div>
+          </div>
+          <div class="combatCell">
+            <p class="label">Anomaly Pulse</p>
+            <p id="anomalyPulseLine" class="value" data-tone="stable">STABLE | Risk 0%</p>
+            <div class="meter"><span id="anomalyPulseMeter"></span></div>
+          </div>
+        </div>
+        <p id="combatEventTicker" class="combatEventTicker" data-tone="idle">Nexus telemetry aktif.</p>
       </section>
 
       <section class="director card">
@@ -97,6 +117,8 @@
           <span id="directorState" class="badge info">Taraniyor</span>
         </div>
         <p id="directorSummary" class="muted">Nexus akisindan sonra en dogru hamle burada cikar.</p>
+        <p id="directorScenarioLine" class="micro directorMetaLine">Senaryo: dengeli rota</p>
+        <p id="directorMechanicLine" class="micro directorMetaLine">Mekanik: BALANCED | SUCCESS_OR_NEAR</p>
         <div class="directorGrid">
           <div class="directorBox">
             <p class="label">Mikro Loop</p>
@@ -490,9 +512,16 @@
     </div>
 
     <div id="toast" class="toast"></div>
+    <div id="fxBurstLayer" class="fxBurstLayer" aria-hidden="true"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/shaders/RGBShiftShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="module" src="/src/main.ts"></script>

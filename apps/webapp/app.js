@@ -69,6 +69,13 @@
       latencyHistory: [],
       heatHistory: [],
       threatHistory: [],
+      combatHeat: 0,
+      threatRatio: 0,
+      sceneMood: "balanced",
+      scenePostFxLevel: 0.9,
+      sceneHudDensity: "full",
+      manifestRevision: "local",
+      manifestProvider: "fallback",
       perfTimer: null,
       sceneTimer: null,
       lastPerfPostAt: 0,
@@ -82,15 +89,22 @@
       qualityMode: "auto",
       autoQualityMode: "normal",
       sceneMode: "pro",
+      hudDensity: "full",
       reducedMotion: false,
       largeText: false,
       storageKeys: {
         quality: "airdropkral_ui_quality_v1",
         sceneMode: "airdropkral_ui_scene_mode_v1",
+        hudDensity: "airdropkral_ui_hud_density_v1",
         reducedMotion: "airdropkral_ui_reduced_motion_v1",
         largeText: "airdropkral_ui_large_text_v1"
       },
       pulseTimer: null
+    },
+    audio: {
+      enabled: true,
+      ready: false,
+      cues: {}
     }
   };
 
@@ -133,6 +147,7 @@
   });
 
   const SCENE_MODE_VALUES = Object.freeze(["pro", "lite", "cinematic", "minimal"]);
+  const HUD_DENSITY_VALUES = Object.freeze(["compact", "full", "extended"]);
   const PVP_TIMELINE_LIMIT = 32;
   const PVP_REPLAY_LIMIT = 14;
 
@@ -178,6 +193,44 @@
     state.telemetry.perfTier = String(bridge.perfTier || "normal");
   }
 
+  function initAudioBank() {
+    const HowlCtor = window.Howl;
+    if (typeof HowlCtor !== "function") {
+      state.audio.ready = false;
+      return;
+    }
+    const base = {
+      html5: false,
+      volume: 0.24
+    };
+    try {
+      state.audio.cues = {
+        safe: new HowlCtor({ ...base, src: ["https://cdn.jsdelivr.net/gh/jshawl/AudioFX@master/sounds/sfx/confirm.mp3"] }),
+        balanced: new HowlCtor({ ...base, src: ["https://cdn.jsdelivr.net/gh/jshawl/AudioFX@master/sounds/sfx/select.mp3"] }),
+        aggressive: new HowlCtor({ ...base, src: ["https://cdn.jsdelivr.net/gh/jshawl/AudioFX@master/sounds/sfx/error.mp3"] }),
+        reveal: new HowlCtor({ ...base, src: ["https://cdn.jsdelivr.net/gh/jshawl/AudioFX@master/sounds/sfx/powerup.mp3"] }),
+        info: new HowlCtor({ ...base, src: ["https://cdn.jsdelivr.net/gh/jshawl/AudioFX@master/sounds/sfx/tick.mp3"] })
+      };
+      state.audio.ready = true;
+    } catch (_) {
+      state.audio.ready = false;
+      state.audio.cues = {};
+    }
+  }
+
+  function playAudioCue(tone = "info") {
+    if (!state.audio.enabled || !state.audio.ready || state.ui.reducedMotion) {
+      return;
+    }
+    const cue = state.audio.cues[tone] || state.audio.cues.info;
+    if (!cue || typeof cue.play !== "function") {
+      return;
+    }
+    try {
+      cue.play();
+    } catch (_) {}
+  }
+
   function asNum(value) {
     const n = Number(value || 0);
     return Number.isFinite(n) ? n : 0;
@@ -185,6 +238,61 @@
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function getGsap() {
+    if (window.gsap && typeof window.gsap.to === "function") {
+      return window.gsap;
+    }
+    return null;
+  }
+
+  function animateMeterWidth(element, pct, duration = 0.42) {
+    if (!element) {
+      return;
+    }
+    const value = clamp(asNum(pct), 0, 100);
+    const gsap = getGsap();
+    if (!gsap || state.ui.reducedMotion) {
+      element.style.width = `${value}%`;
+      return;
+    }
+    gsap.killTweensOf(element);
+    gsap.to(element, {
+      width: `${value}%`,
+      duration,
+      ease: "power2.out"
+    });
+  }
+
+  function animateTextSwap(element, text) {
+    if (!element) {
+      return;
+    }
+    const next = String(text || "");
+    if (element.textContent === next) {
+      return;
+    }
+    const gsap = getGsap();
+    if (!gsap || state.ui.reducedMotion) {
+      element.textContent = next;
+      return;
+    }
+    gsap.killTweensOf(element);
+    gsap.to(element, {
+      opacity: 0.24,
+      y: 3,
+      duration: 0.08,
+      onComplete: () => {
+        element.textContent = next;
+        gsap.to(element, {
+          opacity: 1,
+          y: 0,
+          duration: 0.16,
+          ease: "power2.out"
+        });
+      }
+    });
   }
 
   function pct(value, max) {
@@ -237,6 +345,14 @@
     return "PRO";
   }
 
+  function normalizeHudDensity(value, fallback = "full") {
+    const key = String(value || fallback || "full").toLowerCase();
+    if (HUD_DENSITY_VALUES.includes(key)) {
+      return key;
+    }
+    return String(fallback || "full").toLowerCase();
+  }
+
   function getQualityProfile(modeKey = null) {
     const key = String(modeKey || getEffectiveQualityMode() || "normal").toLowerCase();
     const base = QUALITY_PROFILES[key] || QUALITY_PROFILES.normal;
@@ -278,6 +394,9 @@
     const body = document.body;
     const effective = getEffectiveQualityMode();
     const sceneMode = String(state.ui.sceneMode || "pro").toLowerCase();
+    const hudDensity = normalizeHudDensity(state.ui.hudDensity, "full");
+    state.ui.hudDensity = hudDensity;
+    state.telemetry.sceneHudDensity = hudDensity;
     body.classList.toggle("reduced-motion", state.ui.reducedMotion);
     body.classList.toggle("large-type", state.ui.largeText);
     body.classList.toggle("quality-low", effective === "low");
@@ -287,6 +406,9 @@
     body.classList.toggle("scene-lite", sceneMode === "lite");
     body.classList.toggle("scene-cinematic", sceneMode === "cinematic");
     body.classList.toggle("scene-minimal", sceneMode === "minimal");
+    body.classList.toggle("hud-compact", hudDensity === "compact");
+    body.classList.toggle("hud-full", hudDensity === "full");
+    body.classList.toggle("hud-extended", hudDensity === "extended");
 
     const qualityBtn = byId("qualityToggleBtn");
     if (qualityBtn) {
@@ -312,11 +434,24 @@
     if (sceneLine) {
       sceneLine.textContent = `Scene: ${sceneModeLabel(sceneMode)}`;
     }
+    const sceneProfileLine = byId("sceneProfileLine");
+    if (sceneProfileLine) {
+      sceneProfileLine.textContent = `Profile: hud ${hudDensity} | postfx ${Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(2)} | ${String(
+        state.telemetry.manifestRevision || "local"
+      )}`;
+    }
+    const runtimeSceneLine = byId("runtimeSceneLine");
+    if (runtimeSceneLine) {
+      runtimeSceneLine.textContent = `HUD ${hudDensity} | PostFX ${Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(
+        2
+      )} | ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+    }
   }
 
   function persistUiPrefs() {
     writeStorage(state.ui.storageKeys.quality, state.ui.qualityMode);
     writeStorage(state.ui.storageKeys.sceneMode, state.ui.sceneMode);
+    writeStorage(state.ui.storageKeys.hudDensity, normalizeHudDensity(state.ui.hudDensity, "full"));
     writeStorage(state.ui.storageKeys.reducedMotion, state.ui.reducedMotion ? "1" : "0");
     writeStorage(state.ui.storageKeys.largeText, state.ui.largeText ? "1" : "0");
   }
@@ -330,6 +465,9 @@
     if (SCENE_MODE_VALUES.includes(sceneMode)) {
       state.ui.sceneMode = sceneMode;
     }
+    const hudDensity = normalizeHudDensity(readStorage(state.ui.storageKeys.hudDensity, "full"), "full");
+    state.ui.hudDensity = hudDensity;
+    state.telemetry.sceneHudDensity = hudDensity;
     state.ui.reducedMotion = readStorage(state.ui.storageKeys.reducedMotion, "0") === "1";
     state.ui.largeText = readStorage(state.ui.storageKeys.largeText, "0") === "1";
     applyUiClasses();
@@ -352,6 +490,20 @@
     }
     if (arena.shards) {
       arena.shards.visible = Boolean(nextProfile.enableShards && !state.ui.reducedMotion);
+    }
+    if (Array.isArray(arena.drones)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? 4
+          : nextProfile.key === "normal"
+            ? Math.min(8, arena.drones.length)
+            : arena.drones.length;
+      arena.drones.forEach((drone, index) => {
+        if (!drone) {
+          return;
+        }
+        drone.visible = index < maxVisible;
+      });
     }
     applyUiClasses();
   }
@@ -556,6 +708,91 @@
     }, 1800);
   }
 
+  function pushCombatTicker(message, tone = "info") {
+    const line = byId("combatEventTicker");
+    if (!line) {
+      return;
+    }
+    const text = String(message || "").trim();
+    if (!text) {
+      return;
+    }
+    line.textContent = text;
+    line.dataset.tone = String(tone || "info");
+    line.classList.add("live");
+    if (pushCombatTicker._timer) {
+      clearTimeout(pushCombatTicker._timer);
+      pushCombatTicker._timer = null;
+    }
+    pushCombatTicker._timer = setTimeout(() => {
+      line.classList.remove("live");
+      line.dataset.tone = "idle";
+    }, 1100);
+  }
+
+  function spawnHudBurst(tone = "info", label = "") {
+    const layer = byId("fxBurstLayer");
+    if (!layer || state.ui.reducedMotion) {
+      return;
+    }
+    const pulseTone = String(tone || "info");
+    const burst = document.createElement("div");
+    burst.className = `fxBurst ${pulseTone}`;
+    const w = window.innerWidth || 1280;
+    const h = window.innerHeight || 720;
+    const px = 24 + Math.random() * Math.max(80, w - 48);
+    const py = 26 + Math.random() * Math.max(80, h - 52);
+    burst.style.left = `${px}px`;
+    burst.style.top = `${py}px`;
+    layer.appendChild(burst);
+
+    if (label) {
+      const txt = document.createElement("span");
+      txt.className = `fxLabel ${pulseTone}`;
+      txt.textContent = String(label || "").slice(0, 28);
+      txt.style.left = `${px + 8}px`;
+      txt.style.top = `${py + 8}px`;
+      layer.appendChild(txt);
+      const gsap = getGsap();
+      if (gsap) {
+        gsap.fromTo(
+          txt,
+          { opacity: 0, y: 0, scale: 0.92 },
+          { opacity: 1, y: -12, scale: 1, duration: 0.18, ease: "power2.out" }
+        );
+        gsap.to(txt, {
+          opacity: 0,
+          y: -34,
+          duration: 0.56,
+          ease: "power2.in",
+          delay: 0.24,
+          onComplete: () => txt.remove()
+        });
+      } else {
+        setTimeout(() => txt.remove(), 700);
+      }
+    }
+
+    const gsap = getGsap();
+    if (gsap) {
+      gsap.fromTo(
+        burst,
+        { opacity: 0, scale: 0.2, rotate: -8 },
+        { opacity: 1, scale: 1.05, rotate: 0, duration: 0.18, ease: "power2.out" }
+      );
+      gsap.to(burst, {
+        opacity: 0,
+        scale: 1.48,
+        duration: 0.52,
+        ease: "power2.in",
+        delay: 0.14,
+        onComplete: () => burst.remove()
+      });
+    } else {
+      setTimeout(() => burst.remove(), 700);
+    }
+  }
+
   async function loadAssetManifest() {
     const parseVec3 = (value, fallback) => {
       if (!Array.isArray(value) || value.length !== 3) {
@@ -716,7 +953,60 @@
     shards.instanceMatrix.needsUpdate = true;
     scene.add(shards);
 
-    return { ring, ringOuter, core, glow, pulseShell, shards, shardMeta, shardDummy: dummy };
+    const droneGeo = new THREE.OctahedronGeometry(0.22, 0);
+    const droneMat = new THREE.MeshStandardMaterial({
+      color: 0xbfe6ff,
+      emissive: 0x10254c,
+      roughness: 0.32,
+      metalness: 0.74
+    });
+    const droneCount = 12;
+    const drones = [];
+    const droneMeta = [];
+    for (let i = 0; i < droneCount; i += 1) {
+      const drone = new THREE.Mesh(droneGeo, droneMat.clone());
+      const radius = 3.6 + Math.random() * 3.4;
+      const offset = Math.random() * Math.PI * 2;
+      const altitude = -0.7 + Math.random() * 2.4;
+      const speed = 0.35 + Math.random() * 0.95;
+      drone.position.set(Math.cos(offset) * radius, altitude, Math.sin(offset) * radius);
+      drone.scale.setScalar(0.75 + Math.random() * 0.55);
+      scene.add(drone);
+      drones.push(drone);
+      droneMeta.push({ radius, offset, altitude, speed });
+    }
+
+    const pulseWaves = [];
+    for (let i = 0; i < 6; i += 1) {
+      const wave = new THREE.Mesh(
+        new THREE.TorusGeometry(3.8 + i * 0.36, 0.04, 14, 130),
+        new THREE.MeshBasicMaterial({
+          color: 0x9bc0ff,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide
+        })
+      );
+      wave.rotation.x = Math.PI / 2;
+      wave.visible = false;
+      scene.add(wave);
+      pulseWaves.push(wave);
+    }
+
+    return {
+      ring,
+      ringOuter,
+      core,
+      glow,
+      pulseShell,
+      shards,
+      shardMeta,
+      shardDummy: dummy,
+      drones,
+      droneMeta,
+      pulseWaves,
+      pulseWaveCursor: 0
+    };
   }
 
   async function tryLoadArenaModel(scene, targetPath) {
@@ -1498,7 +1788,7 @@
       }
       return;
     }
-    timeline.slice(0, PVP_TIMELINE_LIMIT).forEach((row) => {
+    timeline.slice(0, PVP_TIMELINE_LIMIT).forEach((row, index) => {
       const item = document.createElement("li");
       const tone = String(row.tone || "tick");
       item.className = `pvpTimelineRow ${tone}`;
@@ -1510,6 +1800,16 @@
       item.appendChild(title);
       item.appendChild(meta);
       host.appendChild(item);
+      if (index === 0) {
+        const gsap = getGsap();
+        if (gsap && !state.ui.reducedMotion) {
+          gsap.fromTo(
+            item,
+            { opacity: 0, y: -8, scale: 0.98 },
+            { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "power2.out" }
+          );
+        }
+      }
     });
     if (badge) {
       const latest = timeline[0];
@@ -1538,6 +1838,11 @@
       state.v3.pvpTimeline.splice(PVP_TIMELINE_LIMIT);
     }
     renderPvpTimeline();
+    const tickerMeta = String(row.meta || "-").split("|")[0].trim();
+    pushCombatTicker(
+      `${row.label} - ${tickerMeta}`,
+      row.tone === "reject" ? "aggressive" : row.tone === "resolve" ? "reveal" : "info"
+    );
   }
 
   function pushPvpReplayEntry(entry) {
@@ -2128,7 +2433,21 @@
   }
 
   function triggerArenaPulse(tone) {
-    if (!state.arena) return;
+    const pulseTone = tone || "info";
+    playAudioCue(pulseTone);
+    const burstLabels = {
+      safe: "SAFE WINDOW",
+      balanced: "BALANCE LOCK",
+      aggressive: "PRESSURE SPIKE",
+      reveal: "REVEAL SURGE",
+      info: "NEXUS PING"
+    };
+    spawnHudBurst(pulseTone, burstLabels[pulseTone] || burstLabels.info);
+    pushCombatTicker(`Nexus pulse: ${(burstLabels[pulseTone] || "NEXUS").toLowerCase()}`, pulseTone);
+    if (!state.arena) {
+      setHudPulseTone(pulseTone);
+      return;
+    }
     const palette = {
       safe: 0x70ffa0,
       balanced: 0x3df8c2,
@@ -2136,7 +2455,7 @@
       reveal: 0xffb85c,
       info: 0xa6c3ff
     };
-    const color = palette[tone] || palette.info;
+    const color = palette[pulseTone] || palette.info;
     if (state.arena.glow && state.arena.glow.material) {
       state.arena.glow.material.color.setHex(color);
       state.arena.glow.material.opacity = 0.95;
@@ -2151,6 +2470,29 @@
         { x: 1.2, y: 1.2, z: 1.2, duration: 0.45, ease: "power2.out", yoyo: true, repeat: 1 }
       );
       gsap.to(state.arena.pulseShell.material, { opacity: 0.08, duration: 0.8, ease: "power2.out" });
+    }
+
+    const pulseWaves = Array.isArray(state.arena.pulseWaves) ? state.arena.pulseWaves : [];
+    if (pulseWaves.length) {
+      const cursor = Number(state.arena.pulseWaveCursor || 0) % pulseWaves.length;
+      const wave = pulseWaves[cursor];
+      state.arena.pulseWaveCursor = (cursor + 1) % pulseWaves.length;
+      if (wave && wave.material) {
+        wave.visible = true;
+        wave.material.color.setHex(color);
+        wave.material.opacity = 0.72;
+        wave.scale.setScalar(0.88);
+        gsap.to(wave.scale, { x: 1.42, y: 1.42, z: 1.42, duration: 0.5, ease: "power2.out" });
+        gsap.to(wave.material, {
+          opacity: 0,
+          duration: 0.56,
+          ease: "power2.in",
+          onComplete: () => {
+            wave.visible = false;
+            wave.scale.setScalar(1);
+          }
+        });
+      }
     }
     gsap.fromTo(
       state.arena.ring.scale,
@@ -2168,7 +2510,7 @@
       const camera = state.arena.camera;
       const baseX = camera.position.x;
       const baseY = camera.position.y;
-      const shake = tone === "aggressive" ? 0.14 : tone === "reveal" ? 0.1 : 0.06;
+      const shake = pulseTone === "aggressive" ? 0.14 : pulseTone === "reveal" ? 0.1 : 0.06;
       gsap.to(camera.position, {
         x: baseX + (Math.random() - 0.5) * shake,
         y: baseY + (Math.random() - 0.5) * shake,
@@ -2178,7 +2520,25 @@
         ease: "power1.inOut"
       });
     }
-    setHudPulseTone(tone || "info");
+    if (Array.isArray(state.arena.drones) && !state.ui.reducedMotion) {
+      state.arena.drones.forEach((drone, index) => {
+        if (!drone) {
+          return;
+        }
+        const delay = index * 0.01;
+        gsap.to(drone.scale, {
+          x: drone.scale.x * 1.14,
+          y: drone.scale.y * 1.14,
+          z: drone.scale.z * 1.14,
+          duration: 0.14,
+          yoyo: true,
+          repeat: 1,
+          delay,
+          ease: "power1.out"
+        });
+      });
+    }
+    setHudPulseTone(pulseTone);
   }
 
   async function fallbackToCommand(action, payload = {}) {
@@ -2958,14 +3318,38 @@
     const attempts = data.attempts || {};
     const offers = data.offers || [];
 
-    byId("directorState").textContent = suggestion.stateLabel;
-    byId("directorState").className = `badge ${suggestion.style || "info"}`.trim();
-    byId("directorSummary").textContent = nexus.title
+    const directorState = byId("directorState");
+    const directorSummary = byId("directorSummary");
+    const directorScenario = byId("directorScenarioLine");
+    const directorMechanic = byId("directorMechanicLine");
+    const runSuggestedBtn = byId("runSuggestedBtn");
+
+    animateTextSwap(directorState, suggestion.stateLabel);
+    if (directorState) {
+      directorState.className = `badge ${suggestion.style || "info"}`.trim();
+    }
+
+    const summaryText = nexus.title
       ? `${suggestion.summary} | ${nexus.title}: ${String(nexus.subtitle || "").trim() || "pulse aktif"} | Kontrat ${String(
           contract.title || "-"
         )}`
       : suggestion.summary;
-    byId("runSuggestedBtn").textContent = suggestion.label;
+    animateTextSwap(directorSummary, summaryText);
+    animateTextSwap(runSuggestedBtn, suggestion.label);
+
+    const scenario =
+      state.telemetry.sceneMood === "critical"
+        ? "Senaryo: kritik baski. SAFE ve GUARD penceresine don."
+        : state.telemetry.sceneMood === "aggressive"
+          ? "Senaryo: yuksek tempo. Strike + Charge ritmini koru."
+          : state.telemetry.sceneMood === "safe"
+            ? "Senaryo: kontrollu ilerleme. Kontrat stabil kazanci zorla."
+            : "Senaryo: dengeli rota. Reveal penceresini optimize et.";
+    const mechanic = `Mekanik: ${String(contract.required_mode || "balanced").toUpperCase()} | ${String(
+      contract.require_result || "success_or_near"
+    ).toUpperCase()} | Risk ${(asNum(data.risk_score || 0) * 100).toFixed(0)}%`;
+    animateTextSwap(directorScenario, scenario);
+    animateTextSwap(directorMechanic, mechanic);
 
     const microPct = attempts.revealable ? 100 : attempts.active ? 68 : offers.length > 0 ? 24 : 6;
     const mesoPct = pct(asNum(daily.tasks_done), asNum(daily.daily_cap));
@@ -2976,9 +3360,9 @@
     byId("loopMesoLine").textContent = `${asNum(daily.tasks_done)}/${asNum(daily.daily_cap)} gunluk`;
     byId("loopMacroLine").textContent = `S${season.season_id || 0} | ${asNum(season.points)} SP`;
 
-    byId("loopMicroMeter").style.width = `${microPct}%`;
-    byId("loopMesoMeter").style.width = `${mesoPct}%`;
-    byId("loopMacroMeter").style.width = `${macroPct}%`;
+    animateMeterWidth(byId("loopMicroMeter"), microPct, 0.3);
+    animateMeterWidth(byId("loopMesoMeter"), mesoPct, 0.35);
+    animateMeterWidth(byId("loopMacroMeter"), macroPct, 0.4);
   }
 
   function renderContract(contract) {
@@ -3031,6 +3415,46 @@
     const pvpStatus = String(state.v3.pvpSession?.status || "").toLowerCase();
     const pvpWeight = pvpStatus === "active" ? 0.16 : pvpStatus === "resolved" ? 0.08 : 0.02;
     return clamp(riskScore * 0.54 + nexusPressure * 0.26 + pvpWeight + freeze, 0, 1);
+  }
+
+  function resolveSceneMood(data, heat, threat) {
+    const safe = data && typeof data === "object" ? data : {};
+    const requiredMode = String(safe.contract?.required_mode || "").toLowerCase();
+    if (threat >= 0.78) {
+      return "critical";
+    }
+    if (heat >= 0.72 || requiredMode === "aggressive") {
+      return "aggressive";
+    }
+    if (requiredMode === "safe") {
+      return "safe";
+    }
+    if (heat >= 0.4 || threat >= 0.42) {
+      return "balanced";
+    }
+    return "idle";
+  }
+
+  function applySceneMood(data, heat, threat) {
+    const mood = resolveSceneMood(data, heat, threat);
+    state.telemetry.combatHeat = clamp(heat, 0, 1);
+    state.telemetry.threatRatio = clamp(threat, 0, 1);
+    state.telemetry.sceneMood = mood;
+    const postFxBase = asNum(state.telemetry.scenePostFxLevel || 0.9);
+    const moodBoost = mood === "critical" ? 0.42 : mood === "aggressive" ? 0.26 : mood === "balanced" ? 0.14 : mood === "safe" ? -0.08 : -0.16;
+    const targetPostFx = clamp(postFxBase + moodBoost + state.telemetry.threatRatio * 0.18, 0.15, 2.35);
+    if (state.arena) {
+      const arena = state.arena;
+      arena.moodTarget = mood;
+      arena.targetPostFx = targetPostFx;
+      arena.targetHeat = state.telemetry.combatHeat;
+      arena.targetThreat = state.telemetry.threatRatio;
+    }
+
+    const root = document.documentElement;
+    root.style.setProperty("--hud-heat", String(state.telemetry.combatHeat.toFixed(3)));
+    root.style.setProperty("--hud-threat", String(state.telemetry.threatRatio.toFixed(3)));
+    document.body.dataset.sceneMood = mood;
   }
 
   function drawTelemetrySeries(ctx, values, color, maxValue, chartHeight, chartWidth, offsetTop) {
@@ -3117,6 +3541,56 @@
     ctx.fillText("THREAT", chartLeft + 128, chartTop + 10);
   }
 
+  function renderCombatHudStrip(data, heat, threat) {
+    const safe = data && typeof data === "object" ? data : {};
+    const session = state.v3.pvpSession || {};
+    const simCombo = asNum(state.sim.combo || 0);
+    const pvpCombo = asNum(session?.combo?.self || 0);
+    const comboPeak = Math.max(simCombo, pvpCombo);
+    const comboHeat = clamp(comboPeak / 10, 0, 1);
+    const queuePressure = clamp(asNum(state.v3.pvpQueue.length) / 10, 0, 1);
+    const tickMs = Math.max(1, asNum(state.v3.pvpTickMs || 1000));
+    const latency = asNum(state.telemetry.latencyAvgMs || 0);
+    const actionWindowMs = Math.max(1, asNum(state.v3.pvpActionWindowMs || 800));
+    const windowRatio = clamp((actionWindowMs - latency) / actionWindowMs, 0, 1);
+    const anomaly = clamp((threat * 0.68 + queuePressure * 0.22 + (1 - windowRatio) * 0.3), 0, 1);
+
+    const comboLine = byId("comboHeatLine");
+    if (comboLine) {
+      comboLine.textContent = `${Math.round(comboHeat * 100)}% | Combo ${comboPeak}`;
+    }
+    const comboMeter = byId("comboHeatMeter");
+    if (comboMeter) {
+      animateMeterWidth(comboMeter, comboHeat * 100, 0.28);
+    }
+
+    const windowLine = byId("windowPressureLine");
+    if (windowLine) {
+      windowLine.textContent = `${Math.round(windowRatio * 100)}% | Tick ${tickMs}ms`;
+    }
+    const windowMeter = byId("windowPressureMeter");
+    if (windowMeter) {
+      animateMeterWidth(windowMeter, windowRatio * 100, 0.3);
+    }
+
+    const anomalyLine = byId("anomalyPulseLine");
+    if (anomalyLine) {
+      const anomalyTone = anomaly >= 0.78 ? "CRITICAL" : anomaly >= 0.48 ? "VOLATILE" : "STABLE";
+      anomalyLine.textContent = `${anomalyTone} | Risk ${Math.round(threat * 100)}%`;
+      anomalyLine.dataset.tone = anomalyTone.toLowerCase();
+    }
+    const anomalyMeter = byId("anomalyPulseMeter");
+    if (anomalyMeter) {
+      animateMeterWidth(anomalyMeter, anomaly * 100, 0.34);
+    }
+
+    if (anomaly >= 0.78) {
+      pushCombatTicker("Anomali yuksek: SAFE cikis onerildi", "aggressive");
+    } else if (comboHeat >= 0.72 && heat >= 0.55) {
+      pushCombatTicker("Combo penceresi acildi: REVEAL/RUSH sinyali", "balanced");
+    }
+  }
+
   function renderTelemetryDeck(data) {
     const safe = data && typeof data === "object" ? data : {};
     const fps = asNum(state.telemetry.fpsAvg || 0);
@@ -3128,6 +3602,8 @@
     const threat = computeThreatRatio(safe);
     const heatPct = Math.round(heat * 100);
     const threatPct = Math.round(threat * 100);
+    applySceneMood(safe, heat, threat);
+    renderCombatHudStrip(safe, heat, threat);
 
     const deckBridge = getTelemetryDeckBridge();
     if (deckBridge) {
@@ -3141,6 +3617,12 @@
         heat,
         threat
       });
+      const runtimeSceneLine = byId("runtimeSceneLine");
+      if (runtimeSceneLine) {
+        runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
+          state.telemetry.scenePostFxLevel || 0.9
+        ).toFixed(2)} | Mood ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+      }
       return;
     }
 
@@ -3161,6 +3643,12 @@
     if (latencyLine) {
       latencyLine.textContent = `Net ${Math.round(latency)}ms | Perf ${String(getEffectiveQualityMode()).toUpperCase()}`;
     }
+    const runtimeSceneLine = byId("runtimeSceneLine");
+    if (runtimeSceneLine) {
+      runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
+        state.telemetry.scenePostFxLevel || 0.9
+      ).toFixed(2)} | Mood ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+    }
     const heatLine = byId("combatHeatLine");
     if (heatLine) {
       heatLine.textContent = `${heatPct}%`;
@@ -3171,7 +3659,7 @@
     }
     const heatMeter = byId("combatHeatMeter");
     if (heatMeter) {
-      heatMeter.style.width = `${heatPct}%`;
+      animateMeterWidth(heatMeter, heatPct, 0.34);
     }
     const threatLine = byId("threatLine");
     if (threatLine) {
@@ -3184,7 +3672,7 @@
     }
     const threatMeter = byId("threatMeter");
     if (threatMeter) {
-      threatMeter.style.width = `${threatPct}%`;
+      animateMeterWidth(threatMeter, threatPct, 0.36);
     }
     const badge = byId("telemetryBadge");
     if (badge) {
@@ -3843,6 +4331,7 @@
     setAssetModeLine("Assets: loading...");
     const canvas = byId("bg3d");
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x070b1f, 12, 45);
 
@@ -3855,6 +4344,39 @@
     pointA.position.set(4, 2, 7);
     pointB.position.set(-5, -2, 6);
     scene.add(ambient, pointA, pointB);
+
+    const postFxReady = Boolean(
+      THREE.EffectComposer &&
+        THREE.RenderPass &&
+        THREE.UnrealBloomPass &&
+        THREE.ShaderPass &&
+        THREE.RGBShiftShader &&
+        window.innerWidth > 420
+    );
+    let composer = null;
+    let bloomPass = null;
+    let rgbShiftPass = null;
+    if (postFxReady) {
+      try {
+        composer = new THREE.EffectComposer(renderer);
+        const renderPass = new THREE.RenderPass(scene, camera);
+        bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.38, 0.65, 0.55);
+        bloomPass.strength = 0.38;
+        bloomPass.radius = 0.65;
+        bloomPass.threshold = 0.55;
+        rgbShiftPass = new THREE.ShaderPass(THREE.RGBShiftShader);
+        if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
+          rgbShiftPass.uniforms.amount.value = 0.0007;
+        }
+        composer.addPass(renderPass);
+        composer.addPass(bloomPass);
+        composer.addPass(rgbShiftPass);
+      } catch (err) {
+        composer = null;
+        bloomPass = null;
+        rgbShiftPass = null;
+      }
+    }
 
     const fallback = createFallbackArena(scene);
     let modelRoot = null;
@@ -3938,7 +4460,13 @@
       applyArenaQualityProfile();
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
+      const pixelRatioCap = asNum(state.arena?.qualityProfile?.pixelRatioCap || profile.pixelRatioCap || 1.5);
+      const targetDpr = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
+      renderer.setPixelRatio(Math.max(1, targetDpr));
       renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer && typeof composer.setSize === "function") {
+        composer.setSize(window.innerWidth, window.innerHeight);
+      }
       drawTelemetryCanvas();
     }
     resize();
@@ -3960,6 +4488,36 @@
       fallback.pulseShell.rotation.y = t * 0.05;
       stars.rotation.y = t * 0.02;
 
+      const mood = String(state.arena?.moodTarget || "balanced");
+      const heat = clamp(asNum(state.arena?.targetHeat || state.telemetry.combatHeat || 0), 0, 1);
+      const threat = clamp(asNum(state.arena?.targetThreat || state.telemetry.threatRatio || 0), 0, 1);
+      const postFxTarget = clamp(asNum(state.arena?.targetPostFx || state.telemetry.scenePostFxLevel || 0.9), 0.15, 2.5);
+      const moodHueMap = {
+        idle: 212,
+        safe: 154,
+        balanced: 186,
+        aggressive: 338,
+        critical: 356
+      };
+      const moodHue = moodHueMap[mood] ?? 186;
+      const hue = (moodHue + Math.sin(t * 0.23 + threat * 2.4) * 8 + heat * 10) % 360;
+      const fogColor = new THREE.Color().setHSL(hue / 360, 0.46 + heat * 0.18, 0.12 + (1 - threat) * 0.05);
+      scene.fog.color.lerp(fogColor, 0.08);
+      ambient.color.setHSL((hue + 42) / 360, 0.58, 0.62 + heat * 0.08);
+      ambient.intensity += ((0.64 + heat * 0.52 - threat * 0.24) - ambient.intensity) * 0.06;
+      pointA.color.setHSL((hue + 24) / 360, 0.82, 0.56);
+      pointB.color.setHSL((hue + 196) / 360, 0.78, 0.56);
+      pointA.intensity += ((1.08 + heat * 0.62) - pointA.intensity) * 0.09;
+      pointB.intensity += ((0.95 + threat * 0.7) - pointB.intensity) * 0.09;
+      if (state.arena?.core?.material?.emissive && typeof state.arena.core.material.emissive.setHSL === "function") {
+        state.arena.core.material.emissive.setHSL((hue + 14) / 360, 0.68, 0.22 + heat * 0.24);
+      }
+      if (!state.ui.reducedMotion && state.arena?.core) {
+        state.arena.core.scale.setScalar(1 + Math.sin(t * 2.1) * 0.015 * (1 + heat * 1.3));
+      } else if (state.arena?.core) {
+        state.arena.core.scale.setScalar(1);
+      }
+
       if (activeProfile.enableShards && !state.ui.reducedMotion && fallback.shards && fallback.shardMeta && fallback.shardDummy) {
         const dummy = fallback.shardDummy;
         for (let i = 0; i < fallback.shardMeta.length; i += 1) {
@@ -3974,11 +4532,35 @@
         fallback.shards.instanceMatrix.needsUpdate = true;
       }
 
+      if (Array.isArray(fallback.drones) && Array.isArray(fallback.droneMeta)) {
+        for (let i = 0; i < fallback.drones.length; i += 1) {
+          const drone = fallback.drones[i];
+          const meta = fallback.droneMeta[i];
+          if (!drone || !meta) {
+            continue;
+          }
+          const orbit = meta.offset + t * meta.speed;
+          const hover = Math.sin(t * (0.9 + meta.speed * 0.5) + meta.offset) * 0.28;
+          drone.position.x = Math.cos(orbit) * meta.radius;
+          drone.position.z = Math.sin(orbit) * meta.radius;
+          drone.position.y = meta.altitude + hover;
+          drone.rotation.x = t * (0.8 + meta.speed * 0.3);
+          drone.rotation.y = -t * (0.6 + meta.speed * 0.25);
+          drone.rotation.z = t * 0.32;
+          if (drone.material?.emissive) {
+            drone.material.emissive.setHSL((hue + i * 7) / 360, 0.6, 0.12 + heat * 0.3);
+          }
+        }
+      }
+
       if (modelRoot) {
-        modelRoot.rotation.y += dt * 0.35;
+        const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
+        modelRoot.rotation.y += dt * moodRate;
+        modelRoot.position.y += (Math.sin(t * 1.6) * 0.08 - modelRoot.position.y) * 0.06;
       }
       for (const model of sideModels) {
         model.rotation.y += dt * 0.08;
+        model.position.y += (Math.sin(t * 1.5 + model.position.x) * 0.05 - model.position.y) * 0.08;
       }
       for (const mixer of mixers) {
         mixer.update(dt);
@@ -3988,7 +4570,20 @@
       camera.position.x += (cameraTargetX - camera.position.x) * activeProfile.pointerLerp;
       camera.position.y += (cameraTargetY - camera.position.y + 1.5) * activeProfile.pointerLerp;
       camera.lookAt(0, 0, 0);
-      renderer.render(scene, camera);
+      if (composer && bloomPass && rgbShiftPass) {
+        const motionBoost = state.ui.reducedMotion ? 0.5 : 1;
+        bloomPass.strength += ((0.26 + postFxTarget * 0.32 + heat * 0.4) * motionBoost - bloomPass.strength) * 0.08;
+        bloomPass.radius += ((0.45 + postFxTarget * 0.18 + threat * 0.2) * motionBoost - bloomPass.radius) * 0.08;
+        bloomPass.threshold += ((0.62 - heat * 0.16) - bloomPass.threshold) * 0.08;
+        if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
+          const currentAmount = asNum(rgbShiftPass.uniforms.amount.value || 0);
+          const targetAmount = (0.0005 + threat * 0.0016 + heat * 0.0008) * motionBoost;
+          rgbShiftPass.uniforms.amount.value = currentAmount + (targetAmount - currentAmount) * 0.12;
+        }
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
 
       fpsFrames += 1;
       const now = performance.now();
@@ -4039,6 +4634,9 @@
 
     state.arena = {
       renderer,
+      composer,
+      bloomPass,
+      rgbShiftPass,
       scene,
       camera,
       ring: fallback.ring,
@@ -4047,12 +4645,20 @@
       glow: fallback.glow,
       pulseShell: fallback.pulseShell,
       shards: fallback.shards,
+      drones: fallback.drones,
+      droneMeta: fallback.droneMeta,
+      pulseWaves: fallback.pulseWaves,
+      pulseWaveCursor: fallback.pulseWaveCursor,
       stars,
       starsMaterial,
       modelRoot,
       sideModels,
       qualityProfile: profile,
-      mixers
+      mixers,
+      moodTarget: "balanced",
+      targetPostFx: asNum(state.telemetry.scenePostFxLevel || 0.9),
+      targetHeat: 0,
+      targetThreat: 0
     };
     applyArenaQualityProfile(profile);
     tick();
@@ -4106,6 +4712,7 @@
   async function boot() {
     initPerfBridge();
     loadUiPrefs();
+    initAudioBank();
     await initThree();
     bindUi();
     bindPageLifecycle();
