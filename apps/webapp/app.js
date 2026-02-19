@@ -52,6 +52,8 @@
       pvpTimelineSessionRef: "",
       pvpTimeline: [],
       pvpReplay: [],
+      lastRoundAlertKey: "",
+      lastRoundAlertAt: 0,
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -99,7 +101,8 @@
         reducedMotion: "airdropkral_ui_reduced_motion_v1",
         largeText: "airdropkral_ui_large_text_v1"
       },
-      pulseTimer: null
+      pulseTimer: null,
+      lastTimelinePulseAt: 0
     },
     audio: {
       enabled: true,
@@ -521,6 +524,23 @@
         drone.visible = index < maxVisible;
       });
     }
+    if (Array.isArray(arena.pylons)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(4, arena.pylons.length)
+          : nextProfile.key === "normal"
+            ? Math.min(7, arena.pylons.length)
+            : arena.pylons.length;
+      arena.pylons.forEach((pylon, index) => {
+        if (!pylon) {
+          return;
+        }
+        pylon.visible = index < maxVisible;
+      });
+    }
+    if (arena.floorGrid) {
+      arena.floorGrid.visible = nextProfile.key !== "low" || !state.ui.reducedMotion;
+    }
     applyUiClasses();
   }
 
@@ -908,6 +928,19 @@
     ringOuter.rotation.x = 1.27;
     scene.add(ringOuter);
 
+    const floorGrid = new THREE.Mesh(
+      new THREE.RingGeometry(6.8, 15.2, 96, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0x6fa0ff,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide
+      })
+    );
+    floorGrid.rotation.x = -Math.PI / 2;
+    floorGrid.position.y = -1.75;
+    scene.add(floorGrid);
+
     const core = new THREE.Mesh(
       new THREE.IcosahedronGeometry(2.2, 3),
       new THREE.MeshStandardMaterial({
@@ -992,6 +1025,38 @@
       droneMeta.push({ radius, offset, altitude, speed });
     }
 
+    const pylons = [];
+    const pylonMeta = [];
+    const pylonCount = 10;
+    for (let i = 0; i < pylonCount; i += 1) {
+      const angle = (Math.PI * 2 * i) / pylonCount;
+      const radius = 7.9 + (i % 2) * 1.15;
+      const height = 0.9 + Math.random() * 1.9;
+      const pylon = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.14, height, 10, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: 0xaecbff,
+          emissive: 0x133168,
+          roughness: 0.34,
+          metalness: 0.78,
+          transparent: true,
+          opacity: 0.84
+        })
+      );
+      pylon.position.set(Math.cos(angle) * radius, -1.24 + height / 2, Math.sin(angle) * radius);
+      pylon.rotation.y = -angle;
+      scene.add(pylon);
+      pylons.push(pylon);
+      pylonMeta.push({
+        angle,
+        radius,
+        baseY: -1.24 + height / 2,
+        height,
+        pulse: 0.7 + Math.random() * 1.7,
+        drift: Math.random() * Math.PI * 2
+      });
+    }
+
     const pulseWaves = [];
     for (let i = 0; i < 6; i += 1) {
       const wave = new THREE.Mesh(
@@ -1020,6 +1085,9 @@
       shardDummy: dummy,
       drones,
       droneMeta,
+      pylons,
+      pylonMeta,
+      floorGrid,
       pulseWaves,
       pulseWaveCursor: 0
     };
@@ -1859,6 +1927,17 @@
       `${row.label} - ${tickerMeta}`,
       row.tone === "reject" ? "aggressive" : row.tone === "resolve" ? "reveal" : "info"
     );
+    const toneMap = {
+      reject: "aggressive",
+      resolve: "reveal",
+      action: "balanced"
+    };
+    const pulseTone = toneMap[String(row.tone || "").toLowerCase()];
+    const now = Date.now();
+    if (pulseTone && now - asNum(state.ui.lastTimelinePulseAt || 0) > 680) {
+      state.ui.lastTimelinePulseAt = now;
+      triggerArenaPulse(pulseTone);
+    }
   }
 
   function pushPvpReplayEntry(entry) {
@@ -2527,6 +2606,8 @@
       const baseX = camera.position.x;
       const baseY = camera.position.y;
       const shake = pulseTone === "aggressive" ? 0.14 : pulseTone === "reveal" ? 0.1 : 0.06;
+      const impulseBoost = pulseTone === "aggressive" ? 0.52 : pulseTone === "reveal" ? 0.42 : pulseTone === "balanced" ? 0.3 : 0.24;
+      state.arena.cameraImpulse = Math.min(1.6, asNum(state.arena.cameraImpulse || 0) + impulseBoost);
       gsap.to(camera.position, {
         x: baseX + (Math.random() - 0.5) * shake,
         y: baseY + (Math.random() - 0.5) * shake,
@@ -2552,6 +2633,32 @@
           delay,
           ease: "power1.out"
         });
+      });
+    }
+    if (state.arena.floorGrid?.material) {
+      state.arena.floorGrid.material.opacity = Math.max(asNum(state.arena.floorGrid.material.opacity || 0.14), 0.34);
+      gsap.to(state.arena.floorGrid.material, { opacity: 0.14, duration: 0.52, ease: "power2.out" });
+    }
+    if (Array.isArray(state.arena.pylons) && !state.ui.reducedMotion) {
+      state.arena.pylons.forEach((pylon, index) => {
+        if (!pylon) {
+          return;
+        }
+        const delay = index * 0.012;
+        gsap.fromTo(
+          pylon.scale,
+          { x: pylon.scale.x, y: pylon.scale.y, z: pylon.scale.z },
+          {
+            x: pylon.scale.x * 1.08,
+            y: pylon.scale.y * 1.22,
+            z: pylon.scale.z * 1.08,
+            duration: 0.18,
+            yoyo: true,
+            repeat: 1,
+            ease: "power2.out",
+            delay
+          }
+        );
       });
     }
     setHudPulseTone(pulseTone);
@@ -3653,6 +3760,83 @@
     }
   }
 
+  function renderRoundDirectorStrip(data, heat, threat) {
+    const safe = data && typeof data === "object" ? data : {};
+    const session = state.v3.pvpSession || {};
+    const scoreSelf = asNum(session?.score?.self || 0);
+    const scoreOpp = asNum(session?.score?.opponent || 0);
+    const scoreDelta = scoreSelf - scoreOpp;
+    const tickMs = Math.max(1, asNum(state.v3.pvpTickMs || 1000));
+    const latency = Math.max(0, asNum(state.telemetry.latencyAvgMs || 0));
+    const queueSize = Math.max(0, asNum(state.v3.pvpQueue.length || 0));
+    const comboSelf = asNum(session?.combo?.self || 0);
+    const comboOpp = asNum(session?.combo?.opponent || 0);
+    const comboNet = comboSelf - comboOpp;
+    const windowMs = Math.max(1, asNum(state.v3.pvpActionWindowMs || 800));
+    const windowRatio = clamp((windowMs - latency) / windowMs, 0, 1);
+    const tempoRatio = clamp((1100 - tickMs) / 420, 0, 1) * 0.58 + windowRatio * 0.42;
+    const pressure = clamp(threat * 0.6 + (1 - windowRatio) * 0.22 + clamp(queueSize / 8, 0, 1) * 0.18, 0, 1);
+    const dominance = clamp(0.5 + scoreDelta / 12 + comboNet / 18, 0, 1);
+    const roundHeat = clamp(heat * 0.66 + clamp(Math.max(comboSelf, state.sim.combo || 0) / 10, 0, 1) * 0.34, 0, 1);
+    const roundPhase = roundHeat >= 0.82 ? "critical" : roundHeat >= 0.62 ? "overdrive" : roundHeat >= 0.4 ? "engage" : "warmup";
+    const dominanceState = dominance >= 0.62 ? "ahead" : dominance <= 0.38 ? "behind" : "even";
+    const pressureState = pressure >= 0.7 ? "high" : pressure >= 0.4 ? "mid" : "low";
+
+    const heatLine = byId("roundHeatLine");
+    if (heatLine) {
+      heatLine.dataset.phase = roundPhase;
+      heatLine.textContent = `${Math.round(roundHeat * 100)}% | ${roundPhase.toUpperCase()}`;
+    }
+    const heatMeter = byId("roundHeatMeter");
+    if (heatMeter) {
+      animateMeterWidth(heatMeter, roundHeat * 100, 0.3);
+    }
+
+    const tempoLine = byId("roundTempoLine");
+    if (tempoLine) {
+      tempoLine.textContent = `${Math.round(tempoRatio * 100)}% | Tick ${tickMs}ms`;
+    }
+    const tempoMeter = byId("roundTempoMeter");
+    if (tempoMeter) {
+      animateMeterWidth(tempoMeter, tempoRatio * 100, 0.3);
+    }
+
+    const dominanceLine = byId("roundDominanceLine");
+    if (dominanceLine) {
+      dominanceLine.dataset.dominance = dominanceState;
+      const dominanceLabel = dominanceState === "ahead" ? "AHEAD" : dominanceState === "behind" ? "UNDER" : "EVEN";
+      dominanceLine.textContent = `YOU ${scoreSelf} - ${scoreOpp} OPP | ${dominanceLabel}`;
+    }
+    const dominanceMeter = byId("roundDominanceMeter");
+    if (dominanceMeter) {
+      animateMeterWidth(dominanceMeter, dominance * 100, 0.34);
+    }
+
+    const pressureLine = byId("roundPressureLine");
+    if (pressureLine) {
+      pressureLine.dataset.pressure = pressureState;
+      pressureLine.textContent = `${Math.round(pressure * 100)}% | Queue ${queueSize}`;
+    }
+    const pressureMeter = byId("roundPressureMeter");
+    if (pressureMeter) {
+      animateMeterWidth(pressureMeter, pressure * 100, 0.34);
+    }
+
+    const alertKey = `${roundPhase}:${dominanceState}:${pressureState}`;
+    const now = Date.now();
+    if (alertKey !== state.v3.lastRoundAlertKey && now - asNum(state.v3.lastRoundAlertAt || 0) > 3600) {
+      state.v3.lastRoundAlertKey = alertKey;
+      state.v3.lastRoundAlertAt = now;
+      if (pressureState === "high" && dominanceState !== "ahead") {
+        pushCombatTicker("Duel baskisi yuksek: GUARD/SAFE penceresi", "aggressive");
+      } else if (roundPhase === "overdrive" && dominanceState === "ahead") {
+        pushCombatTicker("Overdrive aktif: REVEAL veya RUSH ile kapat", "reveal");
+      } else if (roundPhase === "engage") {
+        pushCombatTicker("Engage fazi: dengeyi koru, combo biriktir", "balanced");
+      }
+    }
+  }
+
   function renderTelemetryDeck(data) {
     const safe = data && typeof data === "object" ? data : {};
     const fps = asNum(state.telemetry.fpsAvg || 0);
@@ -3666,6 +3850,7 @@
     const threatPct = Math.round(threat * 100);
     applySceneMood(safe, heat, threat);
     renderCombatHudStrip(safe, heat, threat);
+    renderRoundDirectorStrip(safe, heat, threat);
 
     const deckBridge = getTelemetryDeckBridge();
     if (deckBridge) {
@@ -4549,11 +4734,18 @@
       fallback.ringOuter.rotation.z = -t * 0.16;
       fallback.pulseShell.rotation.y = t * 0.05;
       stars.rotation.y = t * 0.02;
-
       const mood = String(state.arena?.moodTarget || "balanced");
       const heat = clamp(asNum(state.arena?.targetHeat || state.telemetry.combatHeat || 0), 0, 1);
       const threat = clamp(asNum(state.arena?.targetThreat || state.telemetry.threatRatio || 0), 0, 1);
       const postFxTarget = clamp(asNum(state.arena?.targetPostFx || state.telemetry.scenePostFxLevel || 0.9), 0.15, 2.5);
+      if (fallback.floorGrid?.material) {
+        fallback.floorGrid.rotation.z = t * 0.035;
+        const floorOpacityTarget = 0.1 + heat * 0.16 + (1 - threat) * 0.04;
+        fallback.floorGrid.material.opacity += (floorOpacityTarget - fallback.floorGrid.material.opacity) * 0.06;
+        if (fallback.floorGrid.material.color?.setHSL) {
+          fallback.floorGrid.material.color.setHSL((200 + heat * 56 - threat * 32) / 360, 0.66, 0.62);
+        }
+      }
       const moodHueMap = {
         idle: 212,
         safe: 154,
@@ -4615,6 +4807,27 @@
         }
       }
 
+      if (Array.isArray(fallback.pylons) && Array.isArray(fallback.pylonMeta)) {
+        for (let i = 0; i < fallback.pylons.length; i += 1) {
+          const pylon = fallback.pylons[i];
+          const meta = fallback.pylonMeta[i];
+          if (!pylon || !meta) {
+            continue;
+          }
+          const pulse = Math.sin(t * meta.pulse + meta.drift);
+          const rise = pulse * (0.06 + heat * 0.08);
+          pylon.position.y = meta.baseY + rise;
+          pylon.scale.y = 1 + pulse * (0.04 + threat * 0.1);
+          if (pylon.material?.emissive?.setHSL) {
+            pylon.material.emissive.setHSL((hue + i * 11 + 20) / 360, 0.7, 0.12 + heat * 0.3 + threat * 0.14);
+          }
+          if (pylon.material) {
+            const opacityTarget = 0.65 + heat * 0.3 + threat * 0.15;
+            pylon.material.opacity += (opacityTarget - pylon.material.opacity) * 0.08;
+          }
+        }
+      }
+
       if (modelRoot) {
         const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
         modelRoot.rotation.y += dt * moodRate;
@@ -4631,6 +4844,18 @@
       const cameraTargetY = -pointer.y * (activeProfile.cameraDrift * 0.52);
       camera.position.x += (cameraTargetX - camera.position.x) * activeProfile.pointerLerp;
       camera.position.y += (cameraTargetY - camera.position.y + 1.5) * activeProfile.pointerLerp;
+      const cameraImpulse = asNum(state.arena?.cameraImpulse || 0);
+      if (cameraImpulse > 0.0001 && !state.ui.reducedMotion) {
+        camera.position.x += (Math.random() - 0.5) * cameraImpulse * 0.24;
+        camera.position.y += (Math.random() - 0.5) * cameraImpulse * 0.17;
+        camera.position.z += (Math.random() - 0.5) * cameraImpulse * 0.11;
+        state.arena.cameraImpulse = Math.max(0, cameraImpulse - dt * (0.92 + heat * 0.74));
+      } else if (state.arena?.cameraImpulse) {
+        state.arena.cameraImpulse = 0;
+      }
+      const targetFov = 56 + heat * 3.8 + Math.min(2.8, cameraImpulse * 14);
+      camera.fov += (targetFov - camera.fov) * 0.08;
+      camera.updateProjectionMatrix();
       camera.lookAt(0, 0, 0);
       if (composer && bloomPass && rgbShiftPass) {
         const motionBoost = state.ui.reducedMotion ? 0.5 : 1;
@@ -4709,6 +4934,9 @@
       shards: fallback.shards,
       drones: fallback.drones,
       droneMeta: fallback.droneMeta,
+      pylons: fallback.pylons,
+      pylonMeta: fallback.pylonMeta,
+      floorGrid: fallback.floorGrid,
       pulseWaves: fallback.pulseWaves,
       pulseWaveCursor: fallback.pulseWaveCursor,
       stars,
@@ -4718,6 +4946,7 @@
       qualityProfile: profile,
       mixers,
       moodTarget: "balanced",
+      cameraImpulse: 0,
       targetPostFx: asNum(state.telemetry.scenePostFxLevel || 0.9),
       targetHeat: 0,
       targetThreat: 0

@@ -393,6 +393,67 @@ body.pulse-reveal .telemetryDeck {
   font-weight: 700;
 }
 
+.combatDirectorStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.combatDirectorCell {
+  border: 1px solid rgba(162, 186, 255, 0.22);
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(160deg, rgba(8, 15, 36, 0.86), rgba(4, 10, 26, 0.72));
+  display: grid;
+  gap: 6px;
+  box-shadow: inset 0 0 20px rgba(98, 132, 220, 0.08);
+}
+
+.combatDirectorCell .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#roundHeatLine[data-phase="warmup"] {
+  color: #9cd9ff;
+}
+
+#roundHeatLine[data-phase="engage"] {
+  color: #d7f8b6;
+}
+
+#roundHeatLine[data-phase="overdrive"] {
+  color: #ffe2a9;
+}
+
+#roundHeatLine[data-phase="critical"] {
+  color: #ffb2c3;
+}
+
+#roundDominanceLine[data-dominance="ahead"] {
+  color: #b9ffd8;
+}
+
+#roundDominanceLine[data-dominance="even"] {
+  color: #dbe5ff;
+}
+
+#roundDominanceLine[data-dominance="behind"] {
+  color: #ffc0cf;
+}
+
+#roundPressureLine[data-pressure="high"] {
+  color: #ffb8c8;
+}
+
+#roundPressureLine[data-pressure="mid"] {
+  color: #ffd9a5;
+}
+
+#roundPressureLine[data-pressure="low"] {
+  color: #bde7ff;
+}
+
 #anomalyPulseLine[data-tone="stable"] {
   color: #9de4be;
 }
@@ -1208,6 +1269,10 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: 1fr;
   }
 
+  .combatDirectorStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
@@ -1255,6 +1320,14 @@ body[data-scene-mood="critical"] .meter > span {
   }
 
   .combatCell .value {
+    font-size: 12px;
+  }
+
+  .combatDirectorStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .combatDirectorCell .value {
     font-size: 12px;
   }
 }
