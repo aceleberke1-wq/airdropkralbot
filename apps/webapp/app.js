@@ -157,10 +157,16 @@
 
   function setAssetModeLine(text) {
     const el = byId("assetModeLine");
+    const liteBadge = byId("liteSceneBadge");
     if (!el) {
       return;
     }
-    el.textContent = String(text || "Assets: -");
+    const value = String(text || "Assets: -");
+    el.textContent = value;
+    if (liteBadge) {
+      const isLite = value.toUpperCase().includes("LITE") || value.toLowerCase().includes("fallback");
+      liteBadge.classList.toggle("hidden", !isLite);
+    }
   }
 
   function getPerfBridge() {
@@ -309,6 +315,16 @@
       return "-";
     }
     return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatBytesShort(value) {
+    const bytes = Math.max(0, Number(value || 0));
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "0 B";
+    }
+    if (bytes < 1024) return `${Math.round(bytes)} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
   function tokenDecimals(token) {
@@ -3035,6 +3051,7 @@
   function renderAdminAssetStatus(assetsData) {
     const summaryLine = byId("adminAssetSummary");
     const revisionLine = byId("adminManifestRevision");
+    const list = byId("adminAssetList");
     if (!summaryLine || !revisionLine) {
       return;
     }
@@ -3050,6 +3067,51 @@
     const revision = String(manifest.manifest_revision || manifest.revision || "local");
     const updatedAt = formatRuntimeTime(manifest.updated_at || manifest.generated_at);
     revisionLine.textContent = `Manifest: ${revision} | updated ${updatedAt}`;
+
+    if (!list) {
+      return;
+    }
+    list.innerHTML = "";
+
+    const rows = Array.isArray(payload?.local_manifest?.rows)
+      ? payload.local_manifest.rows
+      : Array.isArray(payload?.db_registry)
+        ? payload.db_registry
+        : [];
+
+    if (!rows.length) {
+      const empty = document.createElement("li");
+      empty.className = "muted";
+      empty.textContent = "Asset kaydi bulunmuyor";
+      list.appendChild(empty);
+      return;
+    }
+
+    rows.slice(0, 12).forEach((row) => {
+      const key = String(row.asset_key || row.key || "asset");
+      const exists = row.exists === true || String(row.load_status || "").toLowerCase() === "ready";
+      const size = formatBytesShort(row.size_bytes || row.bytes_size || 0);
+      const path = String(row.web_path || row.manifest_path || row.asset_path || "").trim();
+      const item = document.createElement("li");
+      item.className = `adminAssetRow ${exists ? "ready" : "missing"}`;
+
+      const body = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = key;
+      const meta = document.createElement("p");
+      meta.className = "adminAssetMeta";
+      meta.textContent = `${size}${path ? ` | ${path}` : ""}`;
+      body.appendChild(title);
+      body.appendChild(meta);
+
+      const stateChip = document.createElement("span");
+      stateChip.className = `adminAssetState ${exists ? "ready" : "missing"}`;
+      stateChip.textContent = exists ? "READY" : "MISSING";
+
+      item.appendChild(body);
+      item.appendChild(stateChip);
+      list.appendChild(item);
+    });
   }
 
   async function fetchAdminSummary() {

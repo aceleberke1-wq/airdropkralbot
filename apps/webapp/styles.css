@@ -268,6 +268,10 @@ h3 {
   color: #8fdcff;
 }
 
+#liteSceneBadge {
+  width: fit-content;
+}
+
 .headerActions {
   display: flex;
   gap: 8px;
@@ -852,6 +856,58 @@ body.pulse-reveal .telemetryDeck {
   color: var(--muted);
   margin-left: 8px;
   font-family: "IBM Plex Mono", monospace;
+}
+
+.adminAssetList {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.adminAssetRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(162, 186, 255, 0.18);
+  border-radius: 10px;
+  padding: 7px 8px;
+  background: rgba(8, 14, 34, 0.68);
+}
+
+.adminAssetRow.missing {
+  border-color: rgba(255, 86, 121, 0.42);
+}
+
+.adminAssetMeta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.adminAssetState {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  color: #dbe5ff;
+  background: rgba(8, 15, 36, 0.88);
+}
+
+.adminAssetState.ready {
+  border-color: rgba(112, 255, 160, 0.45);
+  color: #b6ffd0;
+}
+
+.adminAssetState.missing {
+  border-color: rgba(255, 86, 121, 0.5);
+  color: #ffc0cf;
 }
 
 .pvpBoard {
