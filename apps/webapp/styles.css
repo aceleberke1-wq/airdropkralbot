@@ -671,6 +671,110 @@ body.pulse-reveal .telemetryDeck {
   flex-wrap: wrap;
 }
 
+.pvpTimelineBlock {
+  margin-top: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(8, 14, 34, 0.78);
+  display: grid;
+  gap: 8px;
+}
+
+.pvpTimelineBlock h4 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pvpTimelineList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 156px;
+  overflow: auto;
+}
+
+.pvpTimelineRow {
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 10px;
+  padding: 7px 8px;
+  background: rgba(6, 12, 29, 0.86);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pvpTimelineRow .meta {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pvpTimelineRow.tick {
+  border-color: rgba(162, 186, 255, 0.35);
+}
+
+.pvpTimelineRow.action {
+  border-color: rgba(61, 248, 194, 0.38);
+}
+
+.pvpTimelineRow.resolve {
+  border-color: rgba(255, 184, 92, 0.42);
+}
+
+.pvpTimelineRow.reject {
+  border-color: rgba(255, 86, 121, 0.42);
+}
+
+.replayStripWrap {
+  display: grid;
+  gap: 6px;
+}
+
+.replayStripWrap .micro {
+  margin: 0;
+}
+
+.pvpReplayStrip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.replayChip {
+  flex: 0 0 auto;
+  border: 1px solid rgba(162, 186, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 15, 36, 0.85);
+  color: var(--ink);
+  font-size: 11px;
+  padding: 5px 9px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.replayChip.strike {
+  border-color: rgba(255, 86, 121, 0.55);
+}
+
+.replayChip.guard {
+  border-color: rgba(112, 255, 160, 0.52);
+}
+
+.replayChip.charge {
+  border-color: rgba(61, 248, 194, 0.52);
+}
+
+.replayChip.resolve {
+  border-color: rgba(255, 184, 92, 0.55);
+}
+
 .badge {
   border: 1px solid rgba(61, 248, 194, 0.4);
   background: rgba(61, 248, 194, 0.16);

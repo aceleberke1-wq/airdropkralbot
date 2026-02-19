@@ -49,6 +49,9 @@
       pvpLiveTimer: null,
       pvpLiveErrors: 0,
       pvpLeaderboard: [],
+      pvpTimelineSessionRef: "",
+      pvpTimeline: [],
+      pvpReplay: [],
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -130,6 +133,8 @@
   });
 
   const SCENE_MODE_VALUES = Object.freeze(["pro", "lite", "cinematic", "minimal"]);
+  const PVP_TIMELINE_LIMIT = 32;
+  const PVP_REPLAY_LIMIT = 14;
 
   function byId(id) {
     return document.getElementById(id);
@@ -1413,6 +1418,200 @@
     return resolved;
   }
 
+  function formatTimelineClock(value) {
+    const stamp = Number(value || Date.now());
+    const date = new Date(stamp);
+    if (Number.isNaN(date.getTime())) {
+      return "--:--:--";
+    }
+    return date.toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
+  function normalizePvpInputLabel(value) {
+    const clean = String(value || "").toLowerCase();
+    if (clean === "strike") return "STRIKE";
+    if (clean === "guard") return "GUARD";
+    if (clean === "charge") return "CHARGE";
+    if (clean === "resolve") return "RESOLVE";
+    if (clean === "tick") return "TICK";
+    return clean ? clean.toUpperCase() : "ACTION";
+  }
+
+  function pvpReplayTone(inputAction, accepted = true) {
+    const clean = String(inputAction || "").toLowerCase();
+    if (!accepted) {
+      return "reject";
+    }
+    if (clean === "strike") return "strike";
+    if (clean === "guard") return "guard";
+    if (clean === "charge") return "charge";
+    if (clean === "resolve") return "resolve";
+    return "guard";
+  }
+
+  function renderPvpReplayStrip() {
+    const host = byId("pvpReplayStrip");
+    if (!host) {
+      return;
+    }
+    host.innerHTML = "";
+    const replay = Array.isArray(state.v3.pvpReplay) ? state.v3.pvpReplay : [];
+    if (!replay.length) {
+      const empty = document.createElement("span");
+      empty.className = "replayChip muted";
+      empty.textContent = "Replay bos";
+      host.appendChild(empty);
+      return;
+    }
+    replay.slice(0, PVP_REPLAY_LIMIT).forEach((chip) => {
+      const el = document.createElement("span");
+      const tone = String(chip.tone || "guard");
+      el.className = `replayChip ${tone}`;
+      const scoreDelta = asNum(chip.scoreDelta || 0);
+      const scoreSign = scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`;
+      const suffix = chip.accepted ? ` ${scoreSign}` : " MISS";
+      el.textContent = `${normalizePvpInputLabel(chip.input)} #${asNum(chip.seq || 0)}${suffix}`;
+      host.appendChild(el);
+    });
+  }
+
+  function renderPvpTimeline() {
+    const host = byId("pvpTimelineList");
+    const badge = byId("pvpTimelineBadge");
+    if (!host) {
+      return;
+    }
+    host.innerHTML = "";
+    const timeline = Array.isArray(state.v3.pvpTimeline) ? state.v3.pvpTimeline : [];
+    if (!timeline.length) {
+      const empty = document.createElement("li");
+      empty.className = "muted";
+      empty.textContent = "Timeline bekleniyor";
+      host.appendChild(empty);
+      if (badge) {
+        badge.textContent = "0 event";
+        badge.className = "badge info";
+      }
+      return;
+    }
+    timeline.slice(0, PVP_TIMELINE_LIMIT).forEach((row) => {
+      const item = document.createElement("li");
+      const tone = String(row.tone || "tick");
+      item.className = `pvpTimelineRow ${tone}`;
+      const title = document.createElement("strong");
+      title.textContent = String(row.label || "Event");
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${formatTimelineClock(row.ts)} | ${String(row.meta || "-")}`;
+      item.appendChild(title);
+      item.appendChild(meta);
+      host.appendChild(item);
+    });
+    if (badge) {
+      const latest = timeline[0];
+      badge.textContent = `${timeline.length} event`;
+      badge.className = String(latest?.tone || "") === "reject" ? "badge warn" : "badge info";
+    }
+  }
+
+  function appendPvpTimelineEntry(entry) {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const key = String(entry.key || "");
+    if (key && state.v3.pvpTimeline.some((row) => String(row.key || "") === key)) {
+      return;
+    }
+    const row = {
+      key: key || `row:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+      tone: String(entry.tone || "tick"),
+      label: String(entry.label || "Event"),
+      meta: String(entry.meta || "-"),
+      ts: Number(entry.ts || Date.now())
+    };
+    state.v3.pvpTimeline.unshift(row);
+    if (state.v3.pvpTimeline.length > PVP_TIMELINE_LIMIT) {
+      state.v3.pvpTimeline.splice(PVP_TIMELINE_LIMIT);
+    }
+    renderPvpTimeline();
+  }
+
+  function pushPvpReplayEntry(entry) {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const row = {
+      seq: Number(entry.seq || 0),
+      input: String(entry.input || "guard"),
+      accepted: entry.accepted !== false,
+      scoreDelta: Number(entry.scoreDelta || 0),
+      tone: String(entry.tone || pvpReplayTone(entry.input, entry.accepted !== false))
+    };
+    state.v3.pvpReplay.unshift(row);
+    if (state.v3.pvpReplay.length > PVP_REPLAY_LIMIT) {
+      state.v3.pvpReplay.splice(PVP_REPLAY_LIMIT);
+    }
+    renderPvpReplayStrip();
+  }
+
+  function syncPvpReplayFromSession(session) {
+    const actions = Array.isArray(session?.actions) ? session.actions.slice(-PVP_REPLAY_LIMIT) : [];
+    if (!actions.length) {
+      state.v3.pvpReplay = [];
+      renderPvpReplayStrip();
+      return;
+    }
+    state.v3.pvpReplay = actions
+      .slice()
+      .reverse()
+      .map((action) => ({
+        seq: Number(action.action_seq || 0),
+        input: String(action.input_action || "guard"),
+        accepted: Boolean(action.accepted),
+        scoreDelta: Number(action.score_delta || 0),
+        tone: pvpReplayTone(action.input_action, Boolean(action.accepted))
+      }));
+    renderPvpReplayStrip();
+  }
+
+  function hydratePvpTimelineFromSession(session) {
+    const sessionRef = String(session?.session_ref || "");
+    if (!sessionRef) {
+      return;
+    }
+    const actions = Array.isArray(session?.actions) ? session.actions.slice(-10) : [];
+    actions.forEach((action) => {
+      appendPvpTimelineEntry({
+        key: `${sessionRef}:action:${asNum(action.action_seq || 0)}`,
+        tone: action.accepted ? "action" : "reject",
+        label: `${normalizePvpInputLabel(action.input_action)} ${action.accepted ? "OK" : "MISS"}`,
+        meta: `#${asNum(action.action_seq || 0)} | d${asNum(action.score_delta || 0)} | ${String(action.actor_side || "-").toUpperCase()}`,
+        ts: new Date(action.created_at || Date.now()).getTime()
+      });
+    });
+  }
+
+  function resetPvpTimeline(session) {
+    state.v3.pvpTimeline = [];
+    const sessionRef = String(session?.session_ref || "");
+    state.v3.pvpTimelineSessionRef = sessionRef;
+    if (!sessionRef) {
+      renderPvpTimeline();
+      return;
+    }
+    appendPvpTimelineEntry({
+      key: `${sessionRef}:start`,
+      tone: "tick",
+      label: "SESSION START",
+      meta: `${String(session.transport || "poll").toUpperCase()} | Opp ${String(session.opponent_type || "shadow")}`,
+      ts: Date.now()
+    });
+  }
+
   function updatePvpQueueLine() {
     const line = byId("pvpQueueLine");
     if (!line) {
@@ -1557,6 +1756,15 @@
   function syncPvpSessionUi(session, meta = {}) {
     state.v3.pvpSession = session || null;
     state.v3.pvpTickMeta = meta && meta.tick ? meta.tick : state.v3.pvpTickMeta;
+    const sessionRef = String(session?.session_ref || "");
+    if (sessionRef && sessionRef !== state.v3.pvpTimelineSessionRef) {
+      resetPvpTimeline(session);
+      hydratePvpTimelineFromSession(session);
+    } else if (!sessionRef && state.v3.pvpTimelineSessionRef) {
+      state.v3.pvpTimelineSessionRef = "";
+      state.v3.pvpTimeline = [];
+      state.v3.pvpReplay = [];
+    }
     const statusBadge = byId("pvpStatus");
     if (!statusBadge) {
       return;
@@ -1596,6 +1804,8 @@
       if (strikeBtn) strikeBtn.disabled = true;
       if (guardBtn) guardBtn.disabled = true;
       if (chargeBtn) chargeBtn.disabled = true;
+      renderPvpTimeline();
+      renderPvpReplayStrip();
       renderPvpTickLine(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
@@ -1604,9 +1814,17 @@
 
     const status = String(session.status || "active").toLowerCase();
     const outcome = String(session.result?.outcome_for_viewer || "").toLowerCase();
+    syncPvpReplayFromSession(session);
     if (status === "resolved") {
       statusBadge.textContent = outcome ? `Duel ${outcome.toUpperCase()}` : "Duel Cozuldu";
       statusBadge.className = outcome === "win" ? "badge" : outcome === "loss" ? "badge warn" : "badge info";
+      appendPvpTimelineEntry({
+        key: `${sessionRef}:resolve:${Number(session.result?.id || 0)}`,
+        tone: "resolve",
+        label: `RESOLVE ${String(outcome || session.result?.outcome || "done").toUpperCase()}`,
+        meta: `R ${asNum(session.result?.rating_delta || 0)} | +${asNum(session.result?.reward?.sc || 0)} SC`,
+        ts: Date.now()
+      });
     } else if (status === "active") {
       statusBadge.textContent = "Duel Aktif";
       statusBadge.className = "badge warn";
@@ -1619,7 +1837,6 @@
     }
 
     const viewerSide = String(session.viewer_side || "left").toUpperCase();
-    const sessionRef = String(session.session_ref || "");
     byId("pvpSessionLine").textContent = `#${asNum(session.session_id)} | ${viewerSide} | ${sessionRef.slice(0, 14) || "-"}`;
     byId("pvpExpected").textContent = String(session.next_expected_action || "-").toUpperCase();
     byId("pvpStats").textContent =
@@ -1650,6 +1867,7 @@
     if (strikeBtn) strikeBtn.disabled = !canInput;
     if (guardBtn) guardBtn.disabled = !canInput;
     if (chargeBtn) chargeBtn.disabled = !canInput;
+    renderPvpTimeline();
     renderPvpTickLine(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderTelemetryDeck(state.data || {});
@@ -1705,6 +1923,15 @@
     const data = payload.data || {};
     state.v3.pvpTickMeta = data.tick || null;
     syncPvpSessionUi(data.session || null, data);
+    if (data.tick && data.tick.session_ref) {
+      appendPvpTimelineEntry({
+        key: `${String(data.tick.session_ref)}:tick:${asNum(data.tick.tick_seq || 0)}`,
+        tone: "tick",
+        label: `TICK #${asNum(data.tick.tick_seq || 0)}`,
+        meta: `${String(data.tick.phase || "combat").toUpperCase()} | ${String(data.tick.transport || "poll").toUpperCase()}`,
+        ts: Number(data.tick.server_tick || Date.now())
+      });
+    }
     return data;
   }
 
@@ -1770,6 +1997,23 @@
     state.v3.pvpAuthAvailable = true;
     const data = payload.data || {};
     syncPvpSessionUi(data.session || null, data);
+    if (data.action && !data.duplicate) {
+      appendPvpTimelineEntry({
+        key: `${String(data.session?.session_ref || session.session_ref)}:action:${asNum(data.action.action_seq || 0)}`,
+        tone: data.action.accepted ? "action" : "reject",
+        label: `${normalizePvpInputLabel(inputAction)} ${data.action.accepted ? "OK" : "MISS"}`,
+        meta: `#${asNum(data.action.action_seq || 0)} | d${asNum(data.action.score_delta || 0)} | exp ${String(
+          data.action.expected_action || "-"
+        ).toUpperCase()}`,
+        ts: Date.now()
+      });
+      pushPvpReplayEntry({
+        seq: asNum(data.action.action_seq || 0),
+        input: inputAction,
+        accepted: Boolean(data.action.accepted),
+        scoreDelta: asNum(data.action.score_delta || 0)
+      });
+    }
     return data;
   }
 
@@ -1830,6 +2074,15 @@
     state.v3.pvpAuthAvailable = true;
     const data = payload.data || {};
     syncPvpSessionUi(data.session || null, data);
+    if (data.session?.result) {
+      pushPvpReplayEntry({
+        seq: asNum(data.session?.action_count?.self || 0),
+        input: "resolve",
+        accepted: true,
+        scoreDelta: asNum(data.session?.result?.rating_delta || 0),
+        tone: "resolve"
+      });
+    }
     return data;
   }
 
