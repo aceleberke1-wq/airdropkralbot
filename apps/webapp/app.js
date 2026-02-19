@@ -54,6 +54,7 @@
       pvpReplay: [],
       lastRoundAlertKey: "",
       lastRoundAlertAt: 0,
+      lastPvpObjectiveKey: "",
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -2041,6 +2042,104 @@
     }
   }
 
+  function paintPvpObjectiveCard(card, label, value, meta, tone = "neutral") {
+    if (!card) {
+      return;
+    }
+    const safeTone = ["neutral", "advantage", "warning", "danger"].includes(String(tone)) ? String(tone) : "neutral";
+    card.className = `pvpObjectiveCard ${safeTone}`;
+    const labelEl = card.querySelector(".label");
+    const valueEl = card.querySelector(".value");
+    const metaEl = card.querySelector(".micro");
+    if (labelEl) labelEl.textContent = String(label || "-");
+    if (valueEl) valueEl.textContent = String(value || "-");
+    if (metaEl) metaEl.textContent = String(meta || "-");
+  }
+
+  function renderPvpMomentumAndObjectives(session = state.v3.pvpSession) {
+    const selfLine = byId("pvpMomentumSelfLine");
+    const selfMeter = byId("pvpMomentumSelfMeter");
+    const oppLine = byId("pvpMomentumOppLine");
+    const oppMeter = byId("pvpMomentumOppMeter");
+    const primaryCard = byId("pvpObjectivePrimary");
+    const secondaryCard = byId("pvpObjectiveSecondary");
+    const riskCard = byId("pvpObjectiveRisk");
+
+    if (!session) {
+      if (selfLine) selfLine.textContent = "50% | EVEN";
+      if (oppLine) oppLine.textContent = "50% | EVEN";
+      if (selfMeter) animateMeterWidth(selfMeter, 50, 0.2);
+      if (oppMeter) animateMeterWidth(oppMeter, 50, 0.2);
+      paintPvpObjectiveCard(primaryCard, "Hedef 1", "Pattern Hazir", "Beklenen aksiyonla ritmi tut.", "neutral");
+      paintPvpObjectiveCard(secondaryCard, "Hedef 2", "Resolve Penceresi", "6+ aksiyonla duel cozumunu ac.", "neutral");
+      paintPvpObjectiveCard(riskCard, "Risk Komutu", "Kontrol Modu", "Baski artarsa GUARD ile dengele.", "neutral");
+      return;
+    }
+
+    const scoreSelf = asNum(session.score?.self || 0);
+    const scoreOpp = asNum(session.score?.opponent || 0);
+    const comboSelf = asNum(session.combo?.self || 0);
+    const comboOpp = asNum(session.combo?.opponent || 0);
+    const actionsSelf = asNum(session.action_count?.self || 0);
+    const actionsOpp = asNum(session.action_count?.opponent || 0);
+    const ttl = asNum(session.ttl_sec_left || 0);
+    const scoreDelta = scoreSelf - scoreOpp;
+    const comboDelta = comboSelf - comboOpp;
+    const actionDelta = actionsSelf - actionsOpp;
+    const pressureRatio = clamp(asNum(state.telemetry.threatRatio || 0) * 0.55 + clamp(asNum(state.v3.pvpQueue.length || 0) / 8, 0, 1) * 0.45, 0, 1);
+
+    const momentumSelf = clamp(0.5 + scoreDelta / 14 + comboDelta / 16 + actionDelta / 20 - pressureRatio * 0.16, 0, 1);
+    const momentumOpp = clamp(1 - momentumSelf, 0, 1);
+    const selfState = momentumSelf >= 0.62 ? "AHEAD" : momentumSelf <= 0.38 ? "UNDER" : "EVEN";
+    const oppState = momentumOpp >= 0.62 ? "AHEAD" : momentumOpp <= 0.38 ? "UNDER" : "EVEN";
+
+    if (selfLine) selfLine.textContent = `${Math.round(momentumSelf * 100)}% | ${selfState}`;
+    if (oppLine) oppLine.textContent = `${Math.round(momentumOpp * 100)}% | ${oppState}`;
+    if (selfMeter) animateMeterWidth(selfMeter, momentumSelf * 100, 0.24);
+    if (oppMeter) animateMeterWidth(oppMeter, momentumOpp * 100, 0.24);
+
+    const expected = normalizePvpInputLabel(String(session.next_expected_action || "strike"));
+    const objectivePrimaryTone = expected === "GUARD" ? "advantage" : expected === "CHARGE" ? "warning" : "neutral";
+    paintPvpObjectiveCard(
+      primaryCard,
+      "Hedef 1",
+      `Pattern: ${expected}`,
+      "Beklenen aksiyon penceresinde bonus skor al.",
+      objectivePrimaryTone
+    );
+
+    const actionsToResolve = Math.max(0, 6 - actionsSelf);
+    const resolveTone = actionsToResolve <= 1 ? "advantage" : actionsToResolve <= 3 ? "warning" : "neutral";
+    paintPvpObjectiveCard(
+      secondaryCard,
+      "Hedef 2",
+      actionsToResolve <= 0 ? "Resolve Hazir" : `Resolve icin ${actionsToResolve}`,
+      `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp}`,
+      ttl <= 18 ? "danger" : resolveTone
+    );
+
+    const riskTone = pressureRatio >= 0.72 ? "danger" : pressureRatio >= 0.44 ? "warning" : "advantage";
+    const riskHint =
+      pressureRatio >= 0.72
+        ? "Baski yuksek: GUARD + SAFE resolve pencereye don."
+        : pressureRatio >= 0.44
+          ? "Baski artiyor: tempoyu dengele, queue biriktirme."
+          : "Kontrol sende: STRIKE + CHARGE ile momentum topla.";
+    paintPvpObjectiveCard(riskCard, "Risk Komutu", `Baski ${Math.round(pressureRatio * 100)}%`, riskHint, riskTone);
+
+    const objectiveKey = `${expected}:${actionsToResolve}:${Math.round(pressureRatio * 100)}:${selfState}`;
+    if (objectiveKey !== state.v3.lastPvpObjectiveKey) {
+      state.v3.lastPvpObjectiveKey = objectiveKey;
+      [primaryCard, secondaryCard, riskCard].forEach((card) => {
+        if (!card) {
+          return;
+        }
+        card.classList.add("pulse");
+        setTimeout(() => card.classList.remove("pulse"), 220);
+      });
+    }
+  }
+
   function stopPvpLiveLoop() {
     if (state.v3.pvpLiveTimer) {
       clearTimeout(state.v3.pvpLiveTimer);
@@ -2207,6 +2306,7 @@
       renderPvpTimeline();
       renderPvpReplayStrip();
       renderPvpTickLine(null, null);
+      renderPvpMomentumAndObjectives(null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -2269,6 +2369,7 @@
     if (chargeBtn) chargeBtn.disabled = !canInput;
     renderPvpTimeline();
     renderPvpTickLine(session, state.v3.pvpTickMeta);
+    renderPvpMomentumAndObjectives(session);
     ensurePvpLiveLoop();
     renderTelemetryDeck(state.data || {});
   }
