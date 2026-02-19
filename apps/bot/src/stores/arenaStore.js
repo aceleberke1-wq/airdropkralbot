@@ -1082,7 +1082,17 @@ async function createPvpSession(db, payload) {
 
 async function getPvpActionBySeq(db, { sessionId, actorUserId, actionSeq }) {
   const result = await db.query(
-    `SELECT id, session_id, actor_user_id, action_seq, input_action, latency_ms, accepted, score_delta, action_json, created_at
+    `SELECT id,
+            session_id,
+            actor_user_id,
+            action_seq,
+            input_action,
+            latency_ms,
+            accepted,
+            score_delta,
+            action_json,
+            COALESCE(NULLIF(action_json->>'reject_reason', ''), '') AS reject_reason,
+            created_at
      FROM pvp_session_actions
      WHERE session_id = $1
        AND actor_user_id = $2
@@ -1094,6 +1104,59 @@ async function getPvpActionBySeq(db, { sessionId, actorUserId, actionSeq }) {
 }
 
 async function upsertPvpAction(db, payload) {
+  const paramsWithReject = [
+    payload.sessionId,
+    payload.actorUserId,
+    Number(payload.actionSeq || 0),
+    payload.inputAction,
+    Math.max(0, Number(payload.latencyMs || 0)),
+    Boolean(payload.accepted),
+    Number(payload.scoreDelta || 0),
+    Math.max(0, Number(payload.serverTick || 0)),
+    String(payload.rejectReason || ""),
+    JSON.stringify(payload.actionJson || {})
+  ];
+  try {
+    const result = await db.query(
+      `WITH upsert AS (
+         INSERT INTO pvp_session_actions (
+           session_id,
+           actor_user_id,
+           action_seq,
+           input_action,
+           latency_ms,
+           accepted,
+           score_delta,
+           server_tick,
+           reject_reason,
+           action_json
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+         ON CONFLICT (session_id, actor_user_id, action_seq)
+         DO UPDATE SET action_json = pvp_session_actions.action_json
+         RETURNING id,
+                   session_id,
+                   actor_user_id,
+                   action_seq,
+                   input_action,
+                   latency_ms,
+                   accepted,
+                   score_delta,
+                   action_json,
+                   COALESCE(NULLIF(reject_reason, ''), COALESCE(NULLIF(action_json->>'reject_reason', ''), '')) AS reject_reason,
+                   created_at,
+                   (xmax = 0) AS inserted
+       )
+       SELECT * FROM upsert;`,
+      paramsWithReject
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    if (err.code !== "42703") {
+      throw err;
+    }
+  }
+
   const result = await db.query(
     `WITH upsert AS (
        INSERT INTO pvp_session_actions (
@@ -1109,7 +1172,18 @@ async function upsertPvpAction(db, payload) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
        ON CONFLICT (session_id, actor_user_id, action_seq)
        DO UPDATE SET action_json = pvp_session_actions.action_json
-       RETURNING id, session_id, actor_user_id, action_seq, input_action, latency_ms, accepted, score_delta, action_json, created_at, (xmax = 0) AS inserted
+       RETURNING id,
+                 session_id,
+                 actor_user_id,
+                 action_seq,
+                 input_action,
+                 latency_ms,
+                 accepted,
+                 score_delta,
+                 action_json,
+                 COALESCE(NULLIF(action_json->>'reject_reason', ''), '') AS reject_reason,
+                 created_at,
+                 (xmax = 0) AS inserted
      )
      SELECT * FROM upsert;`,
     [
@@ -1241,7 +1315,17 @@ async function getPvpResultBySessionId(db, sessionId) {
 async function getPvpActions(db, sessionId, limit = 200) {
   const safeLimit = Math.max(1, Math.min(1000, Number(limit || 200)));
   const result = await db.query(
-    `SELECT id, session_id, actor_user_id, action_seq, input_action, latency_ms, accepted, score_delta, action_json, created_at
+    `SELECT id,
+            session_id,
+            actor_user_id,
+            action_seq,
+            input_action,
+            latency_ms,
+            accepted,
+            score_delta,
+            action_json,
+            COALESCE(NULLIF(action_json->>'reject_reason', ''), '') AS reject_reason,
+            created_at
      FROM pvp_session_actions
      WHERE session_id = $1
      ORDER BY action_seq ASC, id ASC
@@ -1279,6 +1363,44 @@ async function getPvpSessionWithResult(db, userId, sessionRef, { forUpdate = fal
     result,
     actions
   };
+}
+
+async function insertPvpActionRejection(db, payload) {
+  try {
+    const result = await db.query(
+      `INSERT INTO pvp_action_rejections (
+         session_id,
+         session_ref,
+         actor_user_id,
+         action_seq,
+         input_action,
+         reason_code,
+         latency_ms,
+         transport,
+         reject_json
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+       ON CONFLICT (session_id, actor_user_id, action_seq, reason_code) DO NOTHING
+       RETURNING id, session_id, actor_user_id, action_seq, reason_code, created_at;`,
+      [
+        Number(payload.sessionId || 0),
+        String(payload.sessionRef || ""),
+        Number(payload.actorUserId || 0),
+        Math.max(0, Number(payload.actionSeq || 0)),
+        String(payload.inputAction || ""),
+        String(payload.reasonCode || "rejected"),
+        Math.max(0, Number(payload.latencyMs || 0)),
+        String(payload.transport || "poll"),
+        JSON.stringify(payload.rejectJson || {})
+      ]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    if (err.code === "42P01" || err.code === "42703") {
+      return null;
+    }
+    throw err;
+  }
 }
 
 async function insertPvpRatingHistory(db, payload) {
@@ -1399,6 +1521,7 @@ module.exports = {
   createPvpSession,
   getPvpActionBySeq,
   upsertPvpAction,
+  insertPvpActionRejection,
   updatePvpSessionProgress,
   markPvpSessionResolved,
   createPvpResult,

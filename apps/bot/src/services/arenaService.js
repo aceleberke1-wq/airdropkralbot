@@ -146,6 +146,66 @@ async function insertFunnelEvent(db, payload) {
   }
 }
 
+function normalizePvpRejectCode(code, fallback = "rejected") {
+  return String(code || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .slice(0, 64) || fallback;
+}
+
+async function logPvpActionRejection(db, payload) {
+  const sessionId = Number(payload.sessionId || 0);
+  const actorUserId = Number(payload.actorUserId || 0);
+  if (!sessionId || !actorUserId) {
+    return;
+  }
+  const reasonCode = normalizePvpRejectCode(payload.reasonCode, "rejected");
+  const sessionRef = String(payload.sessionRef || "");
+  const actionSeq = Math.max(0, Number(payload.actionSeq || 0));
+  const latencyMs = Math.max(0, Number(payload.latencyMs || 0));
+  const inputAction = String(payload.inputAction || "");
+  const transport = String(payload.transport || "poll");
+  const rejectJson = payload.rejectJson && typeof payload.rejectJson === "object" ? payload.rejectJson : {};
+
+  await arenaStore.insertPvpActionRejection(db, {
+    sessionId,
+    sessionRef,
+    actorUserId,
+    actionSeq,
+    inputAction,
+    reasonCode,
+    latencyMs,
+    transport,
+    rejectJson
+  });
+
+  await riskStore.insertBehaviorEvent(db, actorUserId, "pvp_action_reject", {
+    session_ref: sessionRef,
+    action_seq: actionSeq,
+    input_action: inputAction,
+    reason_code: reasonCode,
+    latency_ms: latencyMs,
+    source: String(payload.source || "webapp")
+  });
+
+  await insertWebappEvent(db, {
+    eventRef: deterministicUuid(`webapp:pvp:reject:${sessionRef}:${actorUserId}:${actionSeq}:${reasonCode}`),
+    userId: actorUserId,
+    sessionRef,
+    eventType: "pvp_action_reject",
+    eventState: reasonCode,
+    latencyMs,
+    meta: {
+      action_seq: actionSeq,
+      input_action: inputAction,
+      reason_code: reasonCode,
+      transport,
+      ...(rejectJson || {})
+    }
+  });
+}
+
 async function runArenaRaid(db, { profile, config, modeKey, requestId, source }) {
   const mode = arenaEngine.getRaidMode(modeKey);
   const arenaConfig = arenaEngine.getArenaConfig(config);
@@ -989,6 +1049,7 @@ function toPvpSessionView(session, result = null, actions = [], viewerUserId = n
         actor_side: actorSide,
         input_action: row.input_action,
         accepted: Boolean(row.accepted),
+        reject_reason: String(row.reject_reason || row.action_json?.reject_reason || ""),
         latency_ms: Number(row.latency_ms || 0),
         score_delta: Number(row.score_delta || 0),
         created_at: row.created_at
@@ -1956,6 +2017,21 @@ async function applyAuthoritativePvpAction(
        WHERE id = $1;`,
       [session.id]
     );
+    await logPvpActionRejection(db, {
+      sessionId: Number(session.id || 0),
+      sessionRef: String(session.session_ref || sessionRef || ""),
+      actorUserId: Number(profile.user_id || 0),
+      actionSeq: Number(actionSeq || 0),
+      inputAction: String(inputAction || ""),
+      latencyMs: Number(latencyMs || 0),
+      reasonCode: "session_expired",
+      transport: String(session.transport || "poll"),
+      source,
+      rejectJson: {
+        side: resolvePvpSide(session, profile.user_id),
+        status: String(session.status || "expired")
+      }
+    });
     return { ok: false, error: "session_expired" };
   }
 
@@ -1963,12 +2039,40 @@ async function applyAuthoritativePvpAction(
   const sessionConfig = arenaEngine.getSessionConfig(config);
   const seq = Number(actionSeq || 0);
   if (!Number.isFinite(seq) || seq <= 0 || seq > sessionConfig.maxActions) {
+    await logPvpActionRejection(db, {
+      sessionId: Number(session.id || 0),
+      sessionRef: String(session.session_ref || sessionRef || ""),
+      actorUserId: Number(profile.user_id || 0),
+      actionSeq: seq,
+      inputAction: String(inputAction || ""),
+      latencyMs: Number(latencyMs || 0),
+      reasonCode: "invalid_action_seq_range",
+      transport: String(session.transport || "poll"),
+      source,
+      rejectJson: {
+        max_actions: Number(sessionConfig.maxActions || 0)
+      }
+    });
     return { ok: false, error: "invalid_action_seq" };
   }
 
   const state = session.state_json || {};
   const lastSeq = Number(state[`last_action_seq_${side}`] || 0);
   if (seq > lastSeq + 1) {
+    await logPvpActionRejection(db, {
+      sessionId: Number(session.id || 0),
+      sessionRef: String(session.session_ref || sessionRef || ""),
+      actorUserId: Number(profile.user_id || 0),
+      actionSeq: seq,
+      inputAction: String(inputAction || ""),
+      latencyMs: Number(latencyMs || 0),
+      reasonCode: "invalid_action_seq_gap",
+      transport: String(session.transport || "poll"),
+      source,
+      rejectJson: {
+        last_seq: lastSeq
+      }
+    });
     return { ok: false, error: "invalid_action_seq" };
   }
   if (seq <= lastSeq) {
@@ -1986,7 +2090,8 @@ async function applyAuthoritativePvpAction(
           action_seq: Number(existing.action_seq || seq),
           accepted: Boolean(existing.accepted),
           expected_action: String(existing.action_json?.expected_action || ""),
-          score_delta: Number(existing.score_delta || 0)
+          score_delta: Number(existing.score_delta || 0),
+          reject_reason: String(existing.reject_reason || existing.action_json?.reject_reason || "")
         },
         transport: session.transport || "poll",
         tick_ms: Number(session.tick_ms || 1000),
@@ -2028,6 +2133,18 @@ async function applyAuthoritativePvpAction(
     evaluation.actionCount = actionCountCurrent + 1;
     evaluation.scoreAfter = Math.max(0, scoreCurrent + evaluation.scoreDelta);
     evaluation.comboMax = Math.max(comboCurrent, 0);
+    evaluation.rejectReason = "latency_window_exceeded";
+    evaluation.rejectMeta = {
+      action_window_ms: Number(session.action_window_ms || 800),
+      latency_ms: Number(evaluation.latencyMs || 0)
+    };
+  }
+  if (!evaluation.accepted && !evaluation.rejectReason) {
+    evaluation.rejectReason = "pattern_miss";
+    evaluation.rejectMeta = {
+      expected_action: String(evaluation.expectedAction || ""),
+      input_action: String(evaluation.inputAction || "")
+    };
   }
 
   const actionRow = await arenaStore.upsertPvpAction(db, {
@@ -2038,11 +2155,14 @@ async function applyAuthoritativePvpAction(
     latencyMs: evaluation.latencyMs,
     accepted: evaluation.accepted,
     scoreDelta: evaluation.scoreDelta,
+    serverTick: Number(state.server_tick || 0) + 1,
+    rejectReason: String(evaluation.rejectReason || ""),
     actionJson: {
       expected_action: evaluation.expectedAction,
       side,
       client_ts: Number(clientTs || 0),
-      source: source || "webapp"
+      source: source || "webapp",
+      reject_reason: String(evaluation.rejectReason || "")
     }
   });
   const duplicate = !Boolean(actionRow?.inserted);
@@ -2088,6 +2208,26 @@ async function applyAuthoritativePvpAction(
         expected_action: evaluation.expectedAction
       }
     });
+
+    if (!evaluation.accepted) {
+      await logPvpActionRejection(db, {
+        sessionId: Number(session.id || 0),
+        sessionRef: String(session.session_ref || sessionRef || ""),
+        actorUserId: Number(profile.user_id || 0),
+        actionSeq: seq,
+        inputAction: evaluation.inputAction || "guard",
+        latencyMs: Number(evaluation.latencyMs || 0),
+        reasonCode: String(evaluation.rejectReason || "rejected"),
+        transport: String(session.transport || "poll"),
+        source,
+        rejectJson: {
+          side,
+          expected_action: String(evaluation.expectedAction || ""),
+          score_delta: Number(evaluation.scoreDelta || 0),
+          ...(evaluation.rejectMeta || {})
+        }
+      });
+    }
   }
 
   const refreshed = await arenaStore.getPvpSessionByRef(db, profile.user_id, sessionRef);
@@ -2103,6 +2243,7 @@ async function applyAuthoritativePvpAction(
       accepted: evaluation.accepted,
       expected_action: evaluation.expectedAction,
       score_delta: evaluation.scoreDelta,
+      reject_reason: String(evaluation.rejectReason || ""),
       score_after: Number(
         side === "left" ? refreshed?.score_left || evaluation.scoreAfter : refreshed?.score_right || evaluation.scoreAfter
       ),

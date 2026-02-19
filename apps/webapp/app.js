@@ -1848,7 +1848,8 @@
       el.className = `replayChip ${tone}`;
       const scoreDelta = asNum(chip.scoreDelta || 0);
       const scoreSign = scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`;
-      const suffix = chip.accepted ? ` ${scoreSign}` : " MISS";
+      const reason = String(chip.reason || "").trim().replace(/_/g, " ");
+      const suffix = chip.accepted ? ` ${scoreSign}` : ` MISS${reason ? ` (${reason})` : ""}`;
       el.textContent = `${normalizePvpInputLabel(chip.input)} #${asNum(chip.seq || 0)}${suffix}`;
       host.appendChild(el);
     });
@@ -1974,6 +1975,7 @@
         input: String(action.input_action || "guard"),
         accepted: Boolean(action.accepted),
         scoreDelta: Number(action.score_delta || 0),
+        reason: String(action.reject_reason || action.action_json?.reject_reason || ""),
         tone: pvpReplayTone(action.input_action, Boolean(action.accepted))
       }));
     renderPvpReplayStrip();
@@ -1990,7 +1992,13 @@
         key: `${sessionRef}:action:${asNum(action.action_seq || 0)}`,
         tone: action.accepted ? "action" : "reject",
         label: `${normalizePvpInputLabel(action.input_action)} ${action.accepted ? "OK" : "MISS"}`,
-        meta: `#${asNum(action.action_seq || 0)} | d${asNum(action.score_delta || 0)} | ${String(action.actor_side || "-").toUpperCase()}`,
+        meta: `#${asNum(action.action_seq || 0)} | d${asNum(action.score_delta || 0)} | ${String(action.actor_side || "-").toUpperCase()}${
+          action.accepted
+            ? ""
+            : ` | ${String(action.reject_reason || action.action_json?.reject_reason || "rejected")
+                .replace(/_/g, " ")
+                .toUpperCase()}`
+        }`,
         ts: new Date(action.created_at || Date.now()).getTime()
       });
     });
@@ -2505,14 +2513,19 @@
         label: `${normalizePvpInputLabel(inputAction)} ${data.action.accepted ? "OK" : "MISS"}`,
         meta: `#${asNum(data.action.action_seq || 0)} | d${asNum(data.action.score_delta || 0)} | exp ${String(
           data.action.expected_action || "-"
-        ).toUpperCase()}`,
+        ).toUpperCase()}${
+          data.action.accepted
+            ? ""
+            : ` | ${String(data.action.reject_reason || "rejected").replace(/_/g, " ").toUpperCase()}`
+        }`,
         ts: Date.now()
       });
       pushPvpReplayEntry({
         seq: asNum(data.action.action_seq || 0),
         input: inputAction,
         accepted: Boolean(data.action.accepted),
-        scoreDelta: asNum(data.action.score_delta || 0)
+        scoreDelta: asNum(data.action.score_delta || 0),
+        reason: String(data.action.reject_reason || "")
       });
     }
     return data;
