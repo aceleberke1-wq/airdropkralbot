@@ -1174,6 +1174,29 @@ body.reduced-motion .trailChip.enter {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 10px;
+  box-shadow: inset 0 1px 0 rgba(186, 207, 255, 0.06);
+  transition: border-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.combatHudPanel.pressure-low {
+  border-color: rgba(105, 228, 162, 0.3);
+  box-shadow: inset 0 1px 0 rgba(105, 228, 162, 0.08), 0 0 0 1px rgba(105, 228, 162, 0.08);
+}
+
+.combatHudPanel.pressure-medium {
+  border-color: rgba(127, 208, 255, 0.34);
+  box-shadow: inset 0 1px 0 rgba(127, 208, 255, 0.1), 0 0 0 1px rgba(127, 208, 255, 0.1);
+}
+
+.combatHudPanel.pressure-high {
+  border-color: rgba(255, 184, 92, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 184, 92, 0.16), 0 0 0 1px rgba(255, 184, 92, 0.12), 0 0 18px rgba(255, 184, 92, 0.12);
+}
+
+.combatHudPanel.pressure-critical {
+  border-color: rgba(255, 93, 125, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 93, 125, 0.2), 0 0 0 1px rgba(255, 93, 125, 0.16), 0 0 24px rgba(255, 93, 125, 0.24);
+  animation: combatPressurePulse 1.2s ease-in-out infinite;
 }
 
 .combatHudCell {
@@ -1183,6 +1206,36 @@ body.reduced-motion .trailChip.enter {
   padding: 9px;
   display: grid;
   gap: 6px;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.combatHudPanel[data-urgency="critical"] .combatHudCell {
+  border-color: rgba(255, 93, 125, 0.34);
+}
+
+.pulseStrategyLine {
+  margin: 0;
+  min-height: 16px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: rgba(173, 211, 255, 0.84);
+}
+
+.pulseStrategyLine[data-urgency="steady"] {
+  color: rgba(173, 211, 255, 0.84);
+}
+
+.pulseStrategyLine[data-urgency="watch"] {
+  color: rgba(126, 235, 188, 0.9);
+}
+
+.pulseStrategyLine[data-urgency="spike"] {
+  color: rgba(255, 206, 124, 0.95);
+}
+
+.pulseStrategyLine[data-urgency="critical"] {
+  color: rgba(255, 160, 178, 0.97);
+  text-shadow: 0 0 8px rgba(255, 103, 135, 0.35);
 }
 
 .combatChainTrail {
@@ -1741,6 +1794,18 @@ body[data-scene-mood="critical"] .meter > span {
 
   .combatDirectorCell .value {
     font-size: 12px;
+  }
+}
+
+@keyframes combatPressurePulse {
+  0%,
+  100% {
+    box-shadow: inset 0 1px 0 rgba(255, 93, 125, 0.2), 0 0 0 1px rgba(255, 93, 125, 0.16), 0 0 18px rgba(255, 93, 125, 0.18);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: inset 0 1px 0 rgba(255, 93, 125, 0.24), 0 0 0 1px rgba(255, 93, 125, 0.2), 0 0 30px rgba(255, 93, 125, 0.32);
+    transform: translateY(-1px);
   }
 }
 

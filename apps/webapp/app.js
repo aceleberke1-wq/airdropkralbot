@@ -592,6 +592,34 @@
         }
       });
     }
+    if (Array.isArray(arena.duelBridgeSegments)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(4, arena.duelBridgeSegments.length)
+          : nextProfile.key === "normal"
+            ? Math.min(8, arena.duelBridgeSegments.length)
+            : arena.duelBridgeSegments.length;
+      arena.duelBridgeSegments.forEach((segment, index) => {
+        if (!segment) {
+          return;
+        }
+        segment.visible = index < maxVisible;
+      });
+    }
+    if (Array.isArray(arena.duelBands)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(2, arena.duelBands.length)
+          : nextProfile.key === "normal"
+            ? Math.min(3, arena.duelBands.length)
+            : arena.duelBands.length;
+      arena.duelBands.forEach((band, index) => {
+        if (!band) {
+          return;
+        }
+        band.visible = index < maxVisible;
+      });
+    }
     applyUiClasses();
   }
 
@@ -1167,6 +1195,106 @@
       impactMeta.push({ life: 0, maxLife: 0 });
     }
 
+    const duelCoreGeo = new THREE.SphereGeometry(0.36, 18, 18);
+    const duelCoreSelf = new THREE.Mesh(
+      duelCoreGeo,
+      new THREE.MeshStandardMaterial({
+        color: 0x72d6ff,
+        emissive: 0x153667,
+        roughness: 0.2,
+        metalness: 0.62
+      })
+    );
+    duelCoreSelf.position.set(-3.2, -0.22, 0.84);
+    scene.add(duelCoreSelf);
+
+    const duelCoreOpp = new THREE.Mesh(
+      duelCoreGeo,
+      new THREE.MeshStandardMaterial({
+        color: 0xff7f93,
+        emissive: 0x5b182f,
+        roughness: 0.24,
+        metalness: 0.58
+      })
+    );
+    duelCoreOpp.position.set(3.2, -0.22, 0.84);
+    scene.add(duelCoreOpp);
+
+    const duelHaloGeo = new THREE.TorusGeometry(0.62, 0.024, 12, 82);
+    const duelHaloSelf = new THREE.Mesh(
+      duelHaloGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0x74d8ff,
+        transparent: true,
+        opacity: 0.28
+      })
+    );
+    duelHaloSelf.position.copy(duelCoreSelf.position);
+    duelHaloSelf.rotation.x = Math.PI / 2;
+    scene.add(duelHaloSelf);
+
+    const duelHaloOpp = new THREE.Mesh(
+      duelHaloGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xff91a7,
+        transparent: true,
+        opacity: 0.28
+      })
+    );
+    duelHaloOpp.position.copy(duelCoreOpp.position);
+    duelHaloOpp.rotation.x = Math.PI / 2;
+    scene.add(duelHaloOpp);
+
+    const duelBridgeSegments = [];
+    const duelBridgeMeta = [];
+    const bridgeGeo = new THREE.CylinderGeometry(0.022, 0.022, 1.02, 10, 1, true);
+    const bridgeCount = 11;
+    for (let i = 0; i < bridgeCount; i += 1) {
+      const bridge = new THREE.Mesh(
+        bridgeGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0x96c4ff,
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      const t = bridgeCount <= 1 ? 0 : i / (bridgeCount - 1);
+      const x = -2.78 + t * 5.56;
+      bridge.position.set(x, -0.2, 0.84 + Math.sin(t * Math.PI) * 0.32);
+      bridge.rotation.z = Math.PI / 2;
+      bridge.scale.set(0.85, 0.72 + Math.sin(t * Math.PI) * 0.34, 0.85);
+      bridge.renderOrder = 2;
+      scene.add(bridge);
+      duelBridgeSegments.push(bridge);
+      duelBridgeMeta.push({
+        x,
+        baseY: -0.2,
+        z: bridge.position.z,
+        span: 0.72 + Math.sin(t * Math.PI) * 0.34,
+        drift: Math.random() * Math.PI * 2,
+        tempo: 0.95 + Math.random() * 0.8
+      });
+    }
+
+    const duelBands = [];
+    for (let i = 0; i < 4; i += 1) {
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(2.6 + i * 0.56, 0.035, 12, 136),
+        new THREE.MeshBasicMaterial({
+          color: 0x8db4ff,
+          transparent: true,
+          opacity: 0.08 + i * 0.02,
+          side: THREE.DoubleSide
+        })
+      );
+      band.rotation.x = Math.PI / 2;
+      band.position.y = -0.9 + i * 0.2;
+      scene.add(band);
+      duelBands.push(band);
+    }
+
     return {
       ring,
       ringOuter,
@@ -1190,7 +1318,14 @@
       impactNodes,
       impactMeta,
       impactCursor: 0,
-      impactLimit: impactNodes.length
+      impactLimit: impactNodes.length,
+      duelCoreSelf,
+      duelCoreOpp,
+      duelHaloSelf,
+      duelHaloOpp,
+      duelBridgeSegments,
+      duelBridgeMeta,
+      duelBands
     };
   }
 
@@ -2089,15 +2224,43 @@
   }
 
   function renderCombatHudPanel() {
+    const panelRoot = byId("combatHudPanel") || document.querySelector(".combatHudPanel");
     const chainLine = byId("combatChainLine");
     const chainTrail = byId("combatChainTrail");
     const reactorLine = byId("pulseReactorLine");
     const reactorMeter = byId("pulseReactorMeter");
     const reactorHint = byId("pulseReactorHint");
+    const strategyLine = byId("pulseStrategyLine");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
     const label = String(state.v3.pulseLabel || "NEXUS READY").slice(0, 26);
+    const diagnostics = state.v3.pvpTickMeta?.diagnostics || {};
+    const queuePressure = clamp(asNum(diagnostics.queue_pressure || 0), 0, 1);
+    const urgency = String(diagnostics.urgency || state.arena?.pvpUrgency || "steady").toLowerCase();
+    const recommendation = String(diagnostics.recommendation || state.arena?.pvpRecommendation || "balanced").toUpperCase();
+    const selfMomentum = clamp(asNum(state.arena?.pvpMomentumSelf ?? 0.5), 0, 1);
+    const oppMomentum = clamp(asNum(state.arena?.pvpMomentumOpp ?? 0.5), 0, 1);
+    const syncDelta = Math.round((selfMomentum - oppMomentum) * 100);
+    const pressureRatio = clamp(
+      energy / 100 * 0.42 + asNum(state.telemetry.threatRatio || 0) * 0.32 + queuePressure * 0.26,
+      0,
+      1
+    );
+    if (panelRoot) {
+      panelRoot.classList.remove("pressure-low", "pressure-medium", "pressure-high", "pressure-critical");
+      const pressureClass =
+        pressureRatio >= 0.78
+          ? "pressure-critical"
+          : pressureRatio >= 0.56
+            ? "pressure-high"
+            : pressureRatio >= 0.34
+              ? "pressure-medium"
+              : "pressure-low";
+      panelRoot.classList.add(pressureClass);
+      panelRoot.dataset.urgency = urgency;
+      panelRoot.dataset.recommendation = recommendation.toLowerCase();
+    }
     if (chainLine) {
       const last = chain[0];
       if (!last) {
@@ -2140,6 +2303,12 @@
         info: "Nexus pulse bekleniyor."
       };
       reactorHint.textContent = hintMap[tone] || hintMap.info;
+    }
+    if (strategyLine) {
+      const syncState = syncDelta >= 18 ? "ADV" : syncDelta <= -18 ? "DEF" : "EVEN";
+      strategyLine.textContent = `Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Urgency ${urgency.toUpperCase()} | ${recommendation}`;
+      strategyLine.dataset.urgency = urgency;
+      strategyLine.dataset.recommendation = recommendation.toLowerCase();
     }
   }
 
@@ -2419,6 +2588,13 @@
       paintPvpObjectiveCard(primaryCard, "Hedef 1", "Pattern Hazir", "Beklenen aksiyonla ritmi tut.", "neutral");
       paintPvpObjectiveCard(secondaryCard, "Hedef 2", "Resolve Penceresi", "6+ aksiyonla duel cozumunu ac.", "neutral");
       paintPvpObjectiveCard(riskCard, "Risk Komutu", "Kontrol Modu", "Baski artarsa GUARD ile dengele.", "neutral");
+      if (state.arena) {
+        state.arena.pvpMomentumSelf = 0.5;
+        state.arena.pvpMomentumOpp = 0.5;
+        state.arena.pvpPressure = 0.25;
+        state.arena.pvpUrgency = "steady";
+        state.arena.pvpRecommendation = "balanced";
+      }
       return;
     }
 
@@ -2515,6 +2691,13 @@
         card.classList.add("pulse");
         setTimeout(() => card.classList.remove("pulse"), 220);
       });
+    }
+    if (state.arena) {
+      state.arena.pvpMomentumSelf = momentumSelf;
+      state.arena.pvpMomentumOpp = momentumOpp;
+      state.arena.pvpPressure = pressureRatio;
+      state.arena.pvpUrgency = urgencyKey;
+      state.arena.pvpRecommendation = String(diagnostics.recommendation || "balanced").toLowerCase();
     }
   }
 
@@ -3296,6 +3479,54 @@
             delay
           }
         );
+      });
+    }
+    if (state.arena.duelCoreSelf && state.arena.duelCoreSelf.material) {
+      state.arena.duelCoreSelf.material.color.setHex(pulseTone === "aggressive" ? 0xff6f8c : pulseTone === "reveal" ? 0xffca73 : 0x6fd7ff);
+      gsap.fromTo(
+        state.arena.duelCoreSelf.scale,
+        { x: state.arena.duelCoreSelf.scale.x, y: state.arena.duelCoreSelf.scale.y, z: state.arena.duelCoreSelf.scale.z },
+        {
+          x: state.arena.duelCoreSelf.scale.x * 1.14,
+          y: state.arena.duelCoreSelf.scale.y * 1.14,
+          z: state.arena.duelCoreSelf.scale.z * 1.14,
+          duration: 0.2,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+    }
+    if (state.arena.duelCoreOpp && state.arena.duelCoreOpp.material) {
+      state.arena.duelCoreOpp.material.color.setHex(pulseTone === "safe" ? 0x71ffad : pulseTone === "reveal" ? 0xffca73 : 0xff8ba3);
+      gsap.fromTo(
+        state.arena.duelCoreOpp.scale,
+        { x: state.arena.duelCoreOpp.scale.x, y: state.arena.duelCoreOpp.scale.y, z: state.arena.duelCoreOpp.scale.z },
+        {
+          x: state.arena.duelCoreOpp.scale.x * 1.1,
+          y: state.arena.duelCoreOpp.scale.y * 1.1,
+          z: state.arena.duelCoreOpp.scale.z * 1.1,
+          duration: 0.2,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+    }
+    if (Array.isArray(state.arena.duelBridgeSegments)) {
+      const bridgeFlash = pulseTone === "aggressive" ? 0xff6a8d : pulseTone === "reveal" ? 0xffcc80 : 0x84cbff;
+      state.arena.duelBridgeSegments.forEach((segment, idx) => {
+        if (!segment || !segment.material) {
+          return;
+        }
+        segment.material.color.setHex(bridgeFlash);
+        segment.material.opacity = Math.max(asNum(segment.material.opacity || 0), 0.42);
+        gsap.to(segment.material, {
+          opacity: 0.16,
+          delay: idx * 0.012,
+          duration: 0.34,
+          ease: "power2.out"
+        });
       });
     }
 
@@ -5530,6 +5761,89 @@
         }
       }
 
+      const pvpSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? 0.5), 0, 1);
+      const pvpOpp = clamp(asNum(state.arena?.pvpMomentumOpp ?? 0.5), 0, 1);
+      const pvpPressure = clamp(asNum(state.arena?.pvpPressure ?? 0.25), 0, 1);
+      const pvpUrgency = String(state.arena?.pvpUrgency || "steady").toLowerCase();
+      const momentumDelta = pvpSelf - pvpOpp;
+      const urgencyFactorMap = {
+        steady: 0.16,
+        advantage: 0.3,
+        pressure: 0.56,
+        critical: 0.92
+      };
+      const urgencyFactor = urgencyFactorMap[pvpUrgency] ?? 0.24;
+      const selfScale = 0.92 + pvpSelf * 0.42 + urgencyFactor * 0.12;
+      const oppScale = 0.92 + pvpOpp * 0.42 + urgencyFactor * 0.12;
+      if (fallback.duelCoreSelf) {
+        const sway = state.ui.reducedMotion ? 0 : Math.sin(t * (1.3 + urgencyFactor * 0.8)) * (0.08 + pvpPressure * 0.08);
+        fallback.duelCoreSelf.position.y = -0.22 + sway;
+        fallback.duelCoreSelf.scale.setScalar(selfScale);
+        fallback.duelCoreSelf.rotation.y += dt * (0.8 + pvpSelf * 0.9);
+        if (fallback.duelCoreSelf.material?.emissive?.setHSL) {
+          fallback.duelCoreSelf.material.emissive.setHSL((188 - momentumDelta * 26) / 360, 0.66, 0.18 + pvpSelf * 0.28 + pvpPressure * 0.08);
+        }
+      }
+      if (fallback.duelCoreOpp) {
+        const sway = state.ui.reducedMotion ? 0 : Math.sin(t * (1.22 + urgencyFactor * 0.7) + Math.PI) * (0.08 + pvpPressure * 0.08);
+        fallback.duelCoreOpp.position.y = -0.22 + sway;
+        fallback.duelCoreOpp.scale.setScalar(oppScale);
+        fallback.duelCoreOpp.rotation.y -= dt * (0.8 + pvpOpp * 0.9);
+        if (fallback.duelCoreOpp.material?.emissive?.setHSL) {
+          fallback.duelCoreOpp.material.emissive.setHSL((340 + momentumDelta * 24) / 360, 0.7, 0.14 + pvpOpp * 0.3 + pvpPressure * 0.08);
+        }
+      }
+      if (fallback.duelHaloSelf && fallback.duelCoreSelf) {
+        fallback.duelHaloSelf.position.copy(fallback.duelCoreSelf.position);
+        fallback.duelHaloSelf.rotation.z += dt * (0.64 + pvpSelf * 1.15);
+        fallback.duelHaloSelf.scale.setScalar(1 + pvpSelf * 0.24 + urgencyFactor * 0.08);
+        if (fallback.duelHaloSelf.material) {
+          fallback.duelHaloSelf.material.opacity += ((0.2 + pvpSelf * 0.32 + pvpPressure * 0.1) - fallback.duelHaloSelf.material.opacity) * 0.1;
+        }
+      }
+      if (fallback.duelHaloOpp && fallback.duelCoreOpp) {
+        fallback.duelHaloOpp.position.copy(fallback.duelCoreOpp.position);
+        fallback.duelHaloOpp.rotation.z -= dt * (0.64 + pvpOpp * 1.15);
+        fallback.duelHaloOpp.scale.setScalar(1 + pvpOpp * 0.24 + urgencyFactor * 0.08);
+        if (fallback.duelHaloOpp.material) {
+          fallback.duelHaloOpp.material.opacity += ((0.2 + pvpOpp * 0.32 + pvpPressure * 0.1) - fallback.duelHaloOpp.material.opacity) * 0.1;
+        }
+      }
+      if (Array.isArray(fallback.duelBridgeSegments) && Array.isArray(fallback.duelBridgeMeta)) {
+        for (let i = 0; i < fallback.duelBridgeSegments.length; i += 1) {
+          const bridge = fallback.duelBridgeSegments[i];
+          const meta = fallback.duelBridgeMeta[i];
+          if (!bridge || !meta || !bridge.material) {
+            continue;
+          }
+          const wobble = Math.sin(t * meta.tempo + meta.drift) * (state.ui.reducedMotion ? 0.02 : 0.12);
+          const bias = momentumDelta * 0.18 * (i / Math.max(1, fallback.duelBridgeSegments.length - 1) - 0.5);
+          bridge.position.y = meta.baseY + wobble + bias;
+          const scalePulse = 0.78 + Math.abs(momentumDelta) * 0.5 + pvpPressure * 0.44;
+          bridge.scale.set(0.82 + pvpPressure * 0.24, meta.span * scalePulse, 0.82 + pvpPressure * 0.24);
+          bridge.material.opacity = clamp(0.1 + pvpPressure * 0.34 + (1 - Math.abs(momentumDelta)) * 0.14, 0.08, 0.82);
+          if (bridge.material.color?.setHSL) {
+            bridge.material.color.setHSL((198 + momentumDelta * 44 + i * 2.4) / 360, 0.62, 0.6 - pvpPressure * 0.14);
+          }
+        }
+      }
+      if (Array.isArray(fallback.duelBands)) {
+        for (let i = 0; i < fallback.duelBands.length; i += 1) {
+          const band = fallback.duelBands[i];
+          if (!band || !band.material) {
+            continue;
+          }
+          const direction = i % 2 === 0 ? 1 : -1;
+          band.rotation.z += dt * direction * (0.08 + urgencyFactor * 0.24 + i * 0.03);
+          band.position.y = -0.9 + i * 0.2 + Math.sin(t * (0.8 + i * 0.15) + direction) * (state.ui.reducedMotion ? 0.015 : 0.08);
+          const opacityTarget = 0.06 + pvpPressure * 0.18 + urgencyFactor * 0.08 + (i === 0 ? Math.abs(momentumDelta) * 0.08 : 0);
+          band.material.opacity += (opacityTarget - asNum(band.material.opacity || 0)) * 0.09;
+          if (band.material.color?.setHSL) {
+            band.material.color.setHSL((212 + urgencyFactor * 48 + i * 5) / 360, 0.58, 0.58);
+          }
+        }
+      }
+
       if (Array.isArray(fallback.tracerBeams) && Array.isArray(fallback.tracerMeta)) {
         const tracerLimit = Math.max(0, Math.min(asNum(state.arena?.tracerLimit || fallback.tracerBeams.length), fallback.tracerBeams.length));
         for (let i = 0; i < fallback.tracerBeams.length; i += 1) {
@@ -5718,6 +6032,13 @@
       impactMeta: fallback.impactMeta,
       impactCursor: fallback.impactCursor,
       impactLimit: fallback.impactLimit,
+      duelCoreSelf: fallback.duelCoreSelf,
+      duelCoreOpp: fallback.duelCoreOpp,
+      duelHaloSelf: fallback.duelHaloSelf,
+      duelHaloOpp: fallback.duelHaloOpp,
+      duelBridgeSegments: fallback.duelBridgeSegments,
+      duelBridgeMeta: fallback.duelBridgeMeta,
+      duelBands: fallback.duelBands,
       stars,
       starsMaterial,
       modelRoot,
@@ -5729,7 +6050,12 @@
       cameraImpulse: 0,
       targetPostFx: asNum(state.telemetry.scenePostFxLevel || 0.9),
       targetHeat: 0,
-      targetThreat: 0
+      targetThreat: 0,
+      pvpMomentumSelf: 0.5,
+      pvpMomentumOpp: 0.5,
+      pvpPressure: 0.25,
+      pvpUrgency: "steady",
+      pvpRecommendation: "balanced"
     };
     applyArenaQualityProfile(profile);
     tick();
