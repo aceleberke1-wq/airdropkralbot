@@ -109,7 +109,8 @@
       },
       pulseTimer: null,
       lastTimelinePulseAt: 0,
-      overlayTimer: null
+      overlayTimer: null,
+      combatHudRenderAt: 0
     },
     audio: {
       enabled: true,
@@ -2103,7 +2104,8 @@
         chainLine.textContent = "CHAIN IDLE";
       } else {
         const status = last.accepted === false ? "REJECT" : "LOCKED";
-        chainLine.textContent = `x${chain.length} | ${String(last.action || "pulse").toUpperCase()} ${status}`;
+        const ageSec = Math.max(0, Math.round((Date.now() - asNum(last.ts || Date.now())) / 1000));
+        chainLine.textContent = `x${chain.length} | ${String(last.action || "pulse").toUpperCase()} ${status} | ${ageSec}s`;
       }
     }
     if (chainTrail) {
@@ -2167,6 +2169,36 @@
     const toneKey = combatActionTone(normalizedAction, accepted, tone);
     const delta = energyMap[toneKey] || energyMap.info;
     state.v3.combatEnergy = clamp(asNum(state.v3.combatEnergy || 0) * 0.9 + delta, 0, 100);
+    renderCombatHudPanel();
+  }
+
+  function decayCombatHudState(dt) {
+    const now = Date.now();
+    let changed = false;
+    const pulseAgeMs = now - asNum(state.v3.pulseAt || 0);
+    if (pulseAgeMs > 700) {
+      const decayRate = state.ui.reducedMotion ? 5.2 : 8.4;
+      const nextEnergy = Math.max(0, asNum(state.v3.combatEnergy || 0) - dt * decayRate);
+      if (Math.abs(nextEnergy - asNum(state.v3.combatEnergy || 0)) > 0.05) {
+        state.v3.combatEnergy = nextEnergy;
+        changed = true;
+      }
+    }
+    if (Array.isArray(state.v3.combatChain) && state.v3.combatChain.length) {
+      const ttlMs = state.ui.reducedMotion ? 12_000 : 18_000;
+      const trimmed = state.v3.combatChain.filter((row) => now - asNum(row?.ts || now) <= ttlMs);
+      if (trimmed.length !== state.v3.combatChain.length) {
+        state.v3.combatChain = trimmed;
+        changed = true;
+      }
+    }
+    if (!changed) {
+      return;
+    }
+    if (now - asNum(state.ui.combatHudRenderAt || 0) < 110) {
+      return;
+    }
+    state.ui.combatHudRenderAt = now;
     renderCombatHudPanel();
   }
 
@@ -5502,6 +5534,8 @@
           }
         }
       }
+
+      decayCombatHudState(dt);
 
       if (modelRoot) {
         const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
