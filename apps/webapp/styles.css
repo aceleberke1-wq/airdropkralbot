@@ -1238,6 +1238,14 @@ body.reduced-motion .trailChip.enter {
   text-shadow: 0 0 8px rgba(255, 103, 135, 0.35);
 }
 
+.pulseStrategyLine[data-recommendation="aggressive"] {
+  font-weight: 700;
+}
+
+.pulseStrategyLine[data-recommendation="safe"] {
+  color: rgba(156, 244, 196, 0.94);
+}
+
 .combatChainTrail {
   display: flex;
   flex-wrap: wrap;
@@ -1583,24 +1591,28 @@ body.reduced-motion .trailChip.enter {
   width: 0;
   height: 100%;
   display: block;
-  background: linear-gradient(90deg, var(--accent), var(--gold));
-  box-shadow: 0 0 14px rgba(61, 248, 194, 0.42);
+  background: linear-gradient(90deg, var(--meter-start, var(--accent)), var(--meter-end, var(--gold)));
+  box-shadow: 0 0 14px var(--meter-glow, rgba(61, 248, 194, 0.42));
   transition: width 180ms ease-out, filter 180ms ease-out, box-shadow 180ms ease-out;
   filter: saturate(calc(0.92 + var(--hud-heat) * 0.75));
 }
 
 body[data-scene-mood="safe"] .meter > span {
-  background: linear-gradient(90deg, #70ffa0, #3df8c2);
+  --meter-start: #70ffa0;
+  --meter-end: #3df8c2;
+  --meter-glow: rgba(112, 255, 160, 0.42);
 }
 
 body[data-scene-mood="aggressive"] .meter > span {
-  background: linear-gradient(90deg, #ff5679, #ffb85c);
-  box-shadow: 0 0 16px rgba(255, 86, 121, 0.46);
+  --meter-start: #ff5679;
+  --meter-end: #ffb85c;
+  --meter-glow: rgba(255, 86, 121, 0.46);
 }
 
 body[data-scene-mood="critical"] .meter > span {
-  background: linear-gradient(90deg, #ff416d, #ffc266);
-  box-shadow: 0 0 18px rgba(255, 65, 109, 0.5);
+  --meter-start: #ff416d;
+  --meter-end: #ffc266;
+  --meter-glow: rgba(255, 65, 109, 0.5);
 }
 
 .btn,

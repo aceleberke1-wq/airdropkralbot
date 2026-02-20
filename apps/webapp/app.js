@@ -162,6 +162,33 @@
   const PVP_TIMELINE_LIMIT = 32;
   const PVP_REPLAY_LIMIT = 14;
   const COMBAT_CHAIN_LIMIT = 10;
+  const METER_PALETTES = Object.freeze({
+    neutral: {
+      start: "#3df8c2",
+      end: "#ffb85c",
+      glow: "rgba(61, 248, 194, 0.42)"
+    },
+    safe: {
+      start: "#70ffa0",
+      end: "#3df8c2",
+      glow: "rgba(112, 255, 160, 0.38)"
+    },
+    balanced: {
+      start: "#7fd6ff",
+      end: "#3df8c2",
+      glow: "rgba(127, 214, 255, 0.4)"
+    },
+    aggressive: {
+      start: "#ff5d7d",
+      end: "#ffb85c",
+      glow: "rgba(255, 93, 125, 0.44)"
+    },
+    critical: {
+      start: "#ff416d",
+      end: "#ffc266",
+      glow: "rgba(255, 93, 125, 0.56)"
+    }
+  });
 
   function byId(id) {
     return document.getElementById(id);
@@ -327,6 +354,17 @@
       return "-";
     }
     return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function setMeterPalette(element, paletteKey = "neutral") {
+    if (!element || !element.style) {
+      return;
+    }
+    const key = String(paletteKey || "neutral").toLowerCase();
+    const palette = METER_PALETTES[key] || METER_PALETTES.neutral;
+    element.style.setProperty("--meter-start", String(palette.start || METER_PALETTES.neutral.start));
+    element.style.setProperty("--meter-end", String(palette.end || METER_PALETTES.neutral.end));
+    element.style.setProperty("--meter-glow", String(palette.glow || METER_PALETTES.neutral.glow));
   }
 
   function formatBytesShort(value) {
@@ -2293,6 +2331,23 @@
     }
     if (reactorMeter) {
       reactorMeter.style.width = `${energy}%`;
+      const reactorPalette =
+        tone === "aggressive"
+          ? pressureRatio >= 0.78
+            ? "critical"
+            : "aggressive"
+          : tone === "safe"
+            ? "safe"
+            : tone === "balanced"
+              ? "balanced"
+              : tone === "reveal"
+                ? "critical"
+                : pressureRatio >= 0.72
+                  ? "critical"
+                  : pressureRatio >= 0.52
+                    ? "aggressive"
+                    : "neutral";
+      setMeterPalette(reactorMeter, reactorPalette);
     }
     if (reactorHint) {
       const hintMap = {
@@ -2583,8 +2638,14 @@
     if (!session) {
       if (selfLine) selfLine.textContent = "50% | EVEN";
       if (oppLine) oppLine.textContent = "50% | EVEN";
-      if (selfMeter) animateMeterWidth(selfMeter, 50, 0.2);
-      if (oppMeter) animateMeterWidth(oppMeter, 50, 0.2);
+      if (selfMeter) {
+        animateMeterWidth(selfMeter, 50, 0.2);
+        setMeterPalette(selfMeter, "neutral");
+      }
+      if (oppMeter) {
+        animateMeterWidth(oppMeter, 50, 0.2);
+        setMeterPalette(oppMeter, "neutral");
+      }
       paintPvpObjectiveCard(primaryCard, "Hedef 1", "Pattern Hazir", "Beklenen aksiyonla ritmi tut.", "neutral");
       paintPvpObjectiveCard(secondaryCard, "Hedef 2", "Resolve Penceresi", "6+ aksiyonla duel cozumunu ac.", "neutral");
       paintPvpObjectiveCard(riskCard, "Risk Komutu", "Kontrol Modu", "Baski artarsa GUARD ile dengele.", "neutral");
@@ -2630,8 +2691,14 @@
 
     if (selfLine) selfLine.textContent = `${Math.round(momentumSelf * 100)}% | ${selfState}`;
     if (oppLine) oppLine.textContent = `${Math.round(momentumOpp * 100)}% | ${oppState}`;
-    if (selfMeter) animateMeterWidth(selfMeter, momentumSelf * 100, 0.24);
-    if (oppMeter) animateMeterWidth(oppMeter, momentumOpp * 100, 0.24);
+    if (selfMeter) {
+      animateMeterWidth(selfMeter, momentumSelf * 100, 0.24);
+      setMeterPalette(selfMeter, momentumSelf >= 0.62 ? "safe" : momentumSelf >= 0.45 ? "balanced" : "aggressive");
+    }
+    if (oppMeter) {
+      animateMeterWidth(oppMeter, momentumOpp * 100, 0.24);
+      setMeterPalette(oppMeter, momentumOpp >= 0.62 ? "aggressive" : momentumOpp >= 0.45 ? "balanced" : "safe");
+    }
 
     const expected = normalizePvpInputLabel(String(session.next_expected_action || "strike"));
     const objectivePrimaryTone = expected === "GUARD" ? "advantage" : expected === "CHARGE" ? "warning" : "neutral";
