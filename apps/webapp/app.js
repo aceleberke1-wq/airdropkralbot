@@ -2347,6 +2347,27 @@
       .join("");
   }
 
+  function setPvpPanelState(status = "idle", outcome = "") {
+    const panel = document.querySelector(".pvpPanel");
+    if (!panel) {
+      return;
+    }
+    panel.classList.remove("engaged", "resolved-win", "resolved-loss");
+    const cleanStatus = String(status || "").toLowerCase();
+    const cleanOutcome = String(outcome || "").toLowerCase();
+    if (cleanStatus === "active") {
+      panel.classList.add("engaged");
+      return;
+    }
+    if (cleanStatus === "resolved") {
+      if (cleanOutcome === "win") {
+        panel.classList.add("resolved-win");
+      } else if (cleanOutcome === "loss") {
+        panel.classList.add("resolved-loss");
+      }
+    }
+  }
+
   function syncPvpSessionUi(session, meta = {}) {
     state.v3.pvpSession = session || null;
     state.v3.pvpTickMeta = meta && meta.tick ? meta.tick : state.v3.pvpTickMeta;
@@ -2386,12 +2407,13 @@
 
     if (!session) {
       state.v3.pvpTickMeta = null;
+      setPvpPanelState("idle");
       statusBadge.textContent = "Duel Hazir";
       statusBadge.className = "badge info";
       byId("pvpSessionLine").textContent = "Session yok";
       byId("pvpExpected").textContent = "-";
-      byId("pvpStats").textContent = "Skor 0-0 | Combo 0-0 | Hamle 0-0";
-      byId("pvpLastOutcome").textContent = "Sonuc bekleniyor";
+      animateTextSwap(byId("pvpStats"), "Skor 0-0 | Combo 0-0 | Hamle 0-0");
+      animateTextSwap(byId("pvpLastOutcome"), "Sonuc bekleniyor");
       if (startBtn) startBtn.disabled = false;
       if (refreshBtn) refreshBtn.disabled = false;
       if (resolveBtn) resolveBtn.disabled = true;
@@ -2409,6 +2431,7 @@
 
     const status = String(session.status || "active").toLowerCase();
     const outcome = String(session.result?.outcome_for_viewer || "").toLowerCase();
+    setPvpPanelState(status, outcome);
     syncPvpReplayFromSession(session);
     if (status === "resolved") {
       statusBadge.textContent = outcome ? `Duel ${outcome.toUpperCase()}` : "Duel Cozuldu";
@@ -2434,20 +2457,27 @@
     const viewerSide = String(session.viewer_side || "left").toUpperCase();
     byId("pvpSessionLine").textContent = `#${asNum(session.session_id)} | ${viewerSide} | ${sessionRef.slice(0, 14) || "-"}`;
     byId("pvpExpected").textContent = String(session.next_expected_action || "-").toUpperCase();
-    byId("pvpStats").textContent =
+    animateTextSwap(
+      byId("pvpStats"),
       `Skor ${asNum(session.score?.self)}-${asNum(session.score?.opponent)} | ` +
-      `Combo ${asNum(session.combo?.self)}-${asNum(session.combo?.opponent)} | ` +
-      `Hamle ${asNum(session.action_count?.self)}-${asNum(session.action_count?.opponent)}`;
+        `Combo ${asNum(session.combo?.self)}-${asNum(session.combo?.opponent)} | ` +
+        `Hamle ${asNum(session.action_count?.self)}-${asNum(session.action_count?.opponent)}`
+    );
 
     const reward = session.result?.reward || {};
     if (status === "resolved") {
-      byId("pvpLastOutcome").textContent =
+      animateTextSwap(
+        byId("pvpLastOutcome"),
         `Sonuc ${String(session.result?.outcome_for_viewer || session.result?.outcome || "-").toUpperCase()} | ` +
-        `+${asNum(reward.sc)} SC +${asNum(reward.rc)} RC | Rating ${asNum(session.result?.rating_delta) >= 0 ? "+" : ""}${asNum(
-          session.result?.rating_delta
-        )}`;
+          `+${asNum(reward.sc)} SC +${asNum(reward.rc)} RC | Rating ${
+            asNum(session.result?.rating_delta) >= 0 ? "+" : ""
+          }${asNum(session.result?.rating_delta)}`
+      );
     } else {
-      byId("pvpLastOutcome").textContent = `TTL ${asNum(session.ttl_sec_left)}s | Opp ${String(session.opponent_type || "shadow")}`;
+      animateTextSwap(
+        byId("pvpLastOutcome"),
+        `TTL ${asNum(session.ttl_sec_left)}s | Opp ${String(session.opponent_type || "shadow")}`
+      );
     }
 
     const canInput = status === "active";
