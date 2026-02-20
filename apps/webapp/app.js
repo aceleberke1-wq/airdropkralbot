@@ -103,7 +103,8 @@
         largeText: "airdropkral_ui_large_text_v1"
       },
       pulseTimer: null,
-      lastTimelinePulseAt: 0
+      lastTimelinePulseAt: 0,
+      overlayTimer: null
     },
     audio: {
       enabled: true,
@@ -1204,7 +1205,10 @@
             const resolved = await resolveArenaSession();
             const outcome = String(resolved?.outcome || resolved?.session?.result?.outcome || "near");
             showToast(`Auth resolve: ${outcome.toUpperCase()}`);
-            triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive");
+            triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive", {
+              action,
+              label: `ARENA RESOLVE ${String(outcome || "near").toUpperCase()}`
+            });
             await loadBootstrap();
           }
         })
@@ -1222,7 +1226,10 @@
       state.sim.combo += 1;
       state.sim.score += 8 + Math.min(12, state.sim.combo * 2);
       setSimPrompt(`Perfect ${action.toUpperCase()} +${8 + Math.min(12, state.sim.combo * 2)}`, "ok");
-      triggerArenaPulse(action === "strike" ? "aggressive" : action === "guard" ? "safe" : "balanced");
+      triggerArenaPulse(action === "strike" ? "aggressive" : action === "guard" ? "safe" : "balanced", {
+        action,
+        label: `SIM ${normalizePvpInputLabel(action)}`
+      });
     } else {
       state.sim.misses += 1;
       state.sim.combo = 0;
@@ -1330,7 +1337,9 @@
       const resolved = await resolveArenaSession();
       const outcome = String(resolved?.outcome || resolved?.session?.result?.outcome || "near");
       showToast(`Auth resolve: ${outcome.toUpperCase()}`);
-      triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive");
+      triggerArenaPulse(outcome === "win" ? "reveal" : outcome === "near" ? "balanced" : "aggressive", {
+        label: `SIM RESOLVE ${String(outcome || "near").toUpperCase()}`
+      });
       await loadBootstrap();
       return;
     }
@@ -1340,7 +1349,7 @@
         const suggested = chooseModeByRisk(state.data?.risk_score);
         await startArenaSession(suggested);
         showToast("Auth session basladi");
-        triggerArenaPulse("info");
+        triggerArenaPulse("info", { label: "AUTH SESSION START" });
         return;
       } catch (err) {
         const message = String(err?.message || "");
@@ -1788,7 +1797,9 @@
     const reward = result.reward || {};
     const outcome = String(result.outcome || "resolved");
     showToast(`Raid ${outcome} | +${asNum(reward.sc)} SC +${asNum(reward.rc)} RC`);
-    triggerArenaPulse(mode);
+    triggerArenaPulse(mode, {
+      label: `RAID ${String(outcome || "resolved").toUpperCase()}`
+    });
     await loadBootstrap();
     return resolved;
   }
@@ -1814,6 +1825,15 @@
     if (clean === "resolve") return "RESOLVE";
     if (clean === "tick") return "TICK";
     return clean ? clean.toUpperCase() : "ACTION";
+  }
+
+  function actionToneForInput(value) {
+    const clean = String(value || "").toLowerCase();
+    if (clean === "strike") return "aggressive";
+    if (clean === "guard") return "safe";
+    if (clean === "charge") return "balanced";
+    if (clean === "resolve") return "reveal";
+    return "info";
   }
 
   function pvpReplayTone(inputAction, accepted = true) {
@@ -1938,8 +1958,75 @@
     const now = Date.now();
     if (pulseTone && now - asNum(state.ui.lastTimelinePulseAt || 0) > 680) {
       state.ui.lastTimelinePulseAt = now;
-      triggerArenaPulse(pulseTone);
+      triggerArenaPulse(pulseTone, { label: String(row.label || "PVP EVENT").slice(0, 30) });
     }
+  }
+
+  function normalizePulseTone(value) {
+    const clean = String(value || "info").toLowerCase();
+    if (clean === "safe" || clean === "balanced" || clean === "aggressive" || clean === "reveal") {
+      return clean;
+    }
+    return "info";
+  }
+
+  function activateOverlayPip(action) {
+    const map = {
+      strike: byId("overlayPipStrike"),
+      guard: byId("overlayPipGuard"),
+      charge: byId("overlayPipCharge")
+    };
+    Object.values(map).forEach((node) => {
+      if (node) {
+        node.classList.remove("active");
+      }
+    });
+    const key = String(action || "").toLowerCase();
+    const target = map[key];
+    if (!target) {
+      return;
+    }
+    target.classList.add("active");
+    if (target._deactivateTimer) {
+      clearTimeout(target._deactivateTimer);
+      target._deactivateTimer = null;
+    }
+    target._deactivateTimer = setTimeout(() => {
+      target.classList.remove("active");
+      target._deactivateTimer = null;
+    }, 380);
+  }
+
+  function updateCombatOverlay(tone = "info", label = "", action = "") {
+    const root = byId("combatOverlay");
+    if (!root) {
+      return;
+    }
+    const normalizedTone = normalizePulseTone(tone);
+    root.classList.remove("hidden");
+    root.classList.remove("tone-safe", "tone-balanced", "tone-aggressive", "tone-reveal", "tone-info");
+    root.classList.add(`tone-${normalizedTone}`);
+    root.classList.add("live");
+
+    const labelEl = byId("combatOverlayLabel");
+    if (labelEl) {
+      const nextLabel = String(label || "NEXUS READY")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 34);
+      animateTextSwap(labelEl, nextLabel || "NEXUS READY");
+    }
+
+    activateOverlayPip(action);
+    if (state.ui.overlayTimer) {
+      clearTimeout(state.ui.overlayTimer);
+      state.ui.overlayTimer = null;
+    }
+    const ttl = normalizedTone === "reveal" ? 1400 : 980;
+    state.ui.overlayTimer = setTimeout(() => {
+      root.classList.remove("live");
+      state.ui.overlayTimer = null;
+    }, ttl);
   }
 
   function pushPvpReplayEntry(entry) {
@@ -2527,6 +2614,12 @@
         scoreDelta: asNum(data.action.score_delta || 0),
         reason: String(data.action.reject_reason || "")
       });
+      triggerArenaPulse(data.action.accepted ? actionToneForInput(inputAction) : "aggressive", {
+        action: inputAction,
+        label: data.action.accepted
+          ? `PVP ${normalizePvpInputLabel(inputAction)} +${asNum(data.action.score_delta || 0)}`
+          : `PVP REJECT ${String(data.action.reject_reason || "invalid").replace(/_/g, " ").toUpperCase()}`
+      });
     }
     return data;
   }
@@ -2641,8 +2734,10 @@
     }, 560);
   }
 
-  function triggerArenaPulse(tone) {
-    const pulseTone = tone || "info";
+  function triggerArenaPulse(tone, options = {}) {
+    const pulseTone = normalizePulseTone(tone);
+    const opts = options && typeof options === "object" ? options : {};
+    const action = String(opts.action || "").toLowerCase();
     playAudioCue(pulseTone);
     const burstLabels = {
       safe: "SAFE WINDOW",
@@ -2651,8 +2746,13 @@
       reveal: "REVEAL SURGE",
       info: "NEXUS PING"
     };
-    spawnHudBurst(pulseTone, burstLabels[pulseTone] || burstLabels.info);
-    pushCombatTicker(`Nexus pulse: ${(burstLabels[pulseTone] || "NEXUS").toLowerCase()}`, pulseTone);
+    const burstLabel = String(opts.label || burstLabels[pulseTone] || burstLabels.info)
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 34);
+    spawnHudBurst(pulseTone, burstLabel);
+    pushCombatTicker(`Nexus pulse: ${burstLabel.toLowerCase()}`, pulseTone);
+    updateCombatOverlay(pulseTone, burstLabel, action);
     if (!state.arena) {
       setHudPulseTone(pulseTone);
       return;
@@ -2775,6 +2875,63 @@
         );
       });
     }
+
+    const sideModelMap = state.arena.sideModelMap || {};
+    const enemyRig = sideModelMap.enemy_rig || null;
+    const rewardCrate = sideModelMap.reward_crate || null;
+    const ambientFx = sideModelMap.ambient_fx || null;
+    if (!state.ui.reducedMotion && enemyRig) {
+      const enemyKick = pulseTone === "aggressive" ? 0.2 : pulseTone === "reveal" ? 0.14 : 0.1;
+      gsap.fromTo(
+        enemyRig.rotation,
+        { x: enemyRig.rotation.x, y: enemyRig.rotation.y, z: enemyRig.rotation.z },
+        {
+          x: enemyRig.rotation.x + enemyKick * 0.4,
+          y: enemyRig.rotation.y + enemyKick,
+          z: enemyRig.rotation.z + enemyKick * 0.24,
+          duration: 0.2,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+    }
+    if (!state.ui.reducedMotion && rewardCrate && (pulseTone === "reveal" || action === "charge")) {
+      const yNow = rewardCrate.position.y;
+      gsap.fromTo(
+        rewardCrate.position,
+        { y: yNow },
+        { y: yNow + 0.42, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out" }
+      );
+      gsap.fromTo(
+        rewardCrate.scale,
+        { x: rewardCrate.scale.x, y: rewardCrate.scale.y, z: rewardCrate.scale.z },
+        {
+          x: rewardCrate.scale.x * 1.08,
+          y: rewardCrate.scale.y * 1.08,
+          z: rewardCrate.scale.z * 1.08,
+          duration: 0.18,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+    }
+    if (!state.ui.reducedMotion && ambientFx) {
+      gsap.fromTo(
+        ambientFx.scale,
+        { x: ambientFx.scale.x, y: ambientFx.scale.y, z: ambientFx.scale.z },
+        {
+          x: ambientFx.scale.x * 1.04,
+          y: ambientFx.scale.y * 1.04,
+          z: ambientFx.scale.z * 1.04,
+          duration: 0.22,
+          yoyo: true,
+          repeat: 1,
+          ease: "power1.out"
+        }
+      );
+    }
     setHudPulseTone(pulseTone);
   }
 
@@ -2791,7 +2948,10 @@
     if (tg && typeof tg.sendData === "function") {
       tg.sendData(JSON.stringify(packet));
       showToast("Aksiyon bota gonderildi");
-      triggerArenaPulse(payload.mode || (action === "reveal_latest" ? "reveal" : "info"));
+      triggerArenaPulse(payload.mode || (action === "reveal_latest" ? "reveal" : "info"), {
+        action,
+        label: `BOT ACTION ${String(action || "event").replace(/_/g, " ").toUpperCase()}`
+      });
       setTimeout(() => {
         loadBootstrap().catch(() => {});
       }, 1400);
@@ -2914,7 +3074,10 @@
     try {
       const apiData = await postActionApi(action, payload);
       if (apiData) {
-        triggerArenaPulse(payload.mode || (action === "reveal_latest" ? "reveal" : "info"));
+        triggerArenaPulse(payload.mode || (action === "reveal_latest" ? "reveal" : "info"), {
+          action,
+          label: `ACTION ${String(action || "event").replace(/_/g, " ").toUpperCase()}`
+        });
         showToast(actionToast(action, apiData));
         await loadBootstrap();
         return;
@@ -4286,7 +4449,7 @@
       throw new Error(payload.error || `reroll_failed:${res.status}`);
     }
     renewAuth(payload);
-    triggerArenaPulse("info");
+    triggerArenaPulse("info", { label: "TASK PANEL REFRESH" });
     showToast("Gorev paneli yenilendi");
     await loadBootstrap();
   }
@@ -4389,7 +4552,7 @@
         .then((session) => {
           const score = session?.score?.self;
           showToast(`PvP session acildi | ${String(mode).toUpperCase()} | Skor ${asNum(score)}`);
-          triggerArenaPulse("aggressive");
+          triggerArenaPulse("aggressive", { label: "PVP SESSION START" });
         })
         .catch(showError);
     });
@@ -4405,24 +4568,24 @@
             resolved?.session?.result?.outcome_for_viewer || resolved?.session?.result?.outcome || "resolved"
           ).toUpperCase();
           showToast(`PvP resolve: ${outcome}`);
-          triggerArenaPulse("reveal");
+          triggerArenaPulse("reveal", { label: `PVP RESOLVE ${outcome}` });
           loadBootstrap().catch(() => {});
         })
         .catch(showError);
     });
     byId("pvpStrikeBtn").addEventListener("click", () => {
       enqueuePvpAction("strike")
-        .then(() => triggerArenaPulse("aggressive"))
+        .then(() => triggerArenaPulse("aggressive", { action: "strike", label: "PVP STRIKE" }))
         .catch(showError);
     });
     byId("pvpGuardBtn").addEventListener("click", () => {
       enqueuePvpAction("guard")
-        .then(() => triggerArenaPulse("safe"))
+        .then(() => triggerArenaPulse("safe", { action: "guard", label: "PVP GUARD" }))
         .catch(showError);
     });
     byId("pvpChargeBtn").addEventListener("click", () => {
       enqueuePvpAction("charge")
-        .then(() => triggerArenaPulse("balanced"))
+        .then(() => triggerArenaPulse("balanced", { action: "charge", label: "PVP CHARGE" }))
         .catch(showError);
     });
     byId("pvpBoardBtn").addEventListener("click", () => {
@@ -4742,6 +4905,7 @@
     const fallback = createFallbackArena(scene);
     let modelRoot = null;
     const sideModels = [];
+    const sideModelMap = {};
     const mixers = [];
     const profile = getQualityProfile();
     const manifest = await loadAssetManifest();
@@ -4789,6 +4953,7 @@
       if (model && model.root) {
         applyTransform(model.root, entry, { scale: [1.6, 1.6, 1.6] });
         sideModels.push(model.root);
+        sideModelMap[key] = model.root;
         mixers.push(...model.mixers);
         loadedAssetCount += 1;
       }
@@ -5057,6 +5222,7 @@
       starsMaterial,
       modelRoot,
       sideModels,
+      sideModelMap,
       qualityProfile: profile,
       mixers,
       moodTarget: "balanced",
