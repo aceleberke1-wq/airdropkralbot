@@ -2979,6 +2979,7 @@
     }
     line.textContent = `Input Queue ${state.v3.pvpQueue.length}`;
     renderPvpCadence(state.v3.pvpSession, state.v3.pvpTickMeta);
+    renderPvpDuelTheater(state.v3.pvpSession, state.v3.pvpTickMeta);
   }
 
   function renderPvpTickLine(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
@@ -3148,6 +3149,187 @@
     setMeterPalette(cadenceChargeMeter, expectedAction.includes("charge") ? "balanced" : "neutral");
     animateMeterWidth(cadenceDriftMeter, driftRatio * 100, 0.22);
     setMeterPalette(cadenceDriftMeter, driftRatio >= 0.7 ? "critical" : driftRatio >= 0.4 ? "aggressive" : "safe");
+  }
+
+  function renderPvpDuelTheater(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const root = byId("pvpTheaterStrip");
+    const syncLine = byId("pvpSyncLine");
+    const syncMeter = byId("pvpSyncMeter");
+    const syncHint = byId("pvpSyncHint");
+    const overheatLine = byId("pvpOverheatLine");
+    const overheatMeter = byId("pvpOverheatMeter");
+    const overheatHint = byId("pvpOverheatHint");
+    const clutchLine = byId("pvpClutchLine");
+    const clutchMeter = byId("pvpClutchMeter");
+    const clutchHint = byId("pvpClutchHint");
+    const stanceLine = byId("pvpStanceLine");
+    const stanceMeter = byId("pvpStanceMeter");
+    const stanceHint = byId("pvpStanceHint");
+    if (
+      !syncLine ||
+      !syncMeter ||
+      !syncHint ||
+      !overheatLine ||
+      !overheatMeter ||
+      !overheatHint ||
+      !clutchLine ||
+      !clutchMeter ||
+      !clutchHint ||
+      !stanceLine ||
+      !stanceMeter ||
+      !stanceHint
+    ) {
+      return;
+    }
+
+    const clearTone = () => {
+      [syncLine, overheatLine, clutchLine, stanceLine].forEach((el) => el.removeAttribute("data-tone"));
+      if (root) {
+        root.removeAttribute("data-tone");
+      }
+    };
+
+    if (!session) {
+      clearTone();
+      syncLine.textContent = "SYNC 50% | EVEN";
+      overheatLine.textContent = "Heat 0% | Stable";
+      clutchLine.textContent = "Window 0% | Resolve LOCK";
+      stanceLine.textContent = "STR 0 | GRD 0 | CHG 0";
+      syncHint.textContent = "Senkron farkini dusur, expected aksiyonla ritmi kilitle.";
+      overheatHint.textContent = "Queue ve drift artarsa overheat yukselir.";
+      clutchHint.textContent = "Aksiyon eşiği ve TTL penceresini birlikte takip et.";
+      stanceHint.textContent = "Dominant stance bozulursa guard ile tempo sabitle.";
+      animateMeterWidth(syncMeter, 50, 0.2);
+      animateMeterWidth(overheatMeter, 0, 0.2);
+      animateMeterWidth(clutchMeter, 0, 0.2);
+      animateMeterWidth(stanceMeter, 0, 0.2);
+      setMeterPalette(syncMeter, "neutral");
+      setMeterPalette(overheatMeter, "neutral");
+      setMeterPalette(clutchMeter, "neutral");
+      setMeterPalette(stanceMeter, "neutral");
+      return;
+    }
+
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const urgencyKey = String(diagnostics.urgency || state.arena?.pvpUrgency || "steady").toLowerCase();
+    const recommendation = String(diagnostics.recommendation || state.arena?.pvpRecommendation || "balanced").toUpperCase();
+    const scoreSelf = asNum(session.score?.self || 0);
+    const scoreOpp = asNum(session.score?.opponent || 0);
+    const comboSelf = asNum(session.combo?.self || 0);
+    const comboOpp = asNum(session.combo?.opponent || 0);
+    const actionsSelf = asNum(session.action_count?.self || 0);
+    const actionsOpp = asNum(session.action_count?.opponent || 0);
+    const ttlSecLeft = Math.max(0, asNum(session.ttl_sec_left || 0));
+    const tickMs = Math.max(200, asNum(session.tick_ms || state.v3.pvpTickMs || 1000));
+    const actionWindowMs = clamp(asNum(session.action_window_ms || state.v3.pvpActionWindowMs || 800), 80, tickMs);
+    const windowRatio = clamp(actionWindowMs / tickMs, 0, 1);
+    const queueRatio = clamp(asNum(state.v3.pvpQueue.length || 0) / 10, 0, 1);
+    const driftRatio = clamp(Math.abs(asNum(diagnostics.score_drift || 0)) / 6, 0, 1);
+    const latencyRatio = clamp(asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0) / 900, 0, 1);
+
+    const scoreMomentum = clamp(0.5 + (scoreSelf - scoreOpp) / 16 + (comboSelf - comboOpp) / 18 + (actionsSelf - actionsOpp) / 28, 0, 1);
+    const momentumSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? scoreMomentum), 0, 1);
+    const momentumOpp = clamp(asNum(state.arena?.pvpMomentumOpp ?? 1 - scoreMomentum), 0, 1);
+    const syncDelta = Math.round((momentumSelf - momentumOpp) * 100);
+    const syncRatio = clamp(1 - Math.abs(syncDelta) / 100, 0, 1);
+    const syncState = syncDelta >= 16 ? "AHEAD" : syncDelta <= -16 ? "UNDER" : "EVEN";
+
+    const overheatRatio = clamp(queueRatio * 0.4 + driftRatio * 0.34 + latencyRatio * 0.18 + (1 - windowRatio) * 0.08, 0, 1);
+    const overheatState = overheatRatio >= 0.78 ? "CRITICAL" : overheatRatio >= 0.54 ? "WARM" : "STABLE";
+
+    const resolveReadiness = clamp(actionsSelf / 6, 0, 1);
+    const ttlRatio = clamp(ttlSecLeft / 60, 0, 1);
+    const clutchRatio = clamp(resolveReadiness * 0.64 + ttlRatio * 0.36, 0, 1);
+    const clutchState =
+      resolveReadiness >= 1
+        ? "READY"
+        : ttlSecLeft <= 16
+          ? "CRITICAL"
+          : resolveReadiness >= 0.68
+            ? "BUILD"
+            : "LOCK";
+
+    const replay = Array.isArray(state.v3.pvpReplay) ? state.v3.pvpReplay.slice(0, 12) : [];
+    const counts = { strike: 0, guard: 0, charge: 0 };
+    replay.forEach((row) => {
+      const action = String(row?.input_action || row?.input || row?.action || "").toLowerCase();
+      if (action.includes("guard")) counts.guard += 1;
+      else if (action.includes("charge")) counts.charge += 1;
+      else if (action.includes("strike")) counts.strike += 1;
+    });
+    const totalCount = Math.max(1, counts.strike + counts.guard + counts.charge);
+    const strikeRatio = clamp(counts.strike / totalCount, 0, 1);
+    const guardRatio = clamp(counts.guard / totalCount, 0, 1);
+    const chargeRatio = clamp(counts.charge / totalCount, 0, 1);
+    const dominantRatio = Math.max(strikeRatio, guardRatio, chargeRatio);
+    const dominantAction =
+      dominantRatio === strikeRatio ? "STR" : dominantRatio === guardRatio ? "GRD" : "CHG";
+    const stancePressure = clamp((1 - dominantRatio) * 0.62 + overheatRatio * 0.24 + queueRatio * 0.14, 0, 1);
+
+    const overallTone =
+      String(session.status || "").toLowerCase() === "resolved"
+        ? String(session.result?.outcome_for_viewer || "").toLowerCase() === "win"
+          ? "advantage"
+          : "critical"
+        : urgencyKey === "critical" || overheatRatio >= 0.72
+          ? "critical"
+          : urgencyKey === "pressure" || overheatRatio >= 0.44 || stancePressure >= 0.58
+            ? "pressure"
+            : syncRatio >= 0.62 && clutchRatio >= 0.54
+              ? "advantage"
+              : "neutral";
+
+    if (root) {
+      root.dataset.tone = overallTone;
+    }
+
+    syncLine.dataset.tone = syncRatio >= 0.62 ? "advantage" : syncRatio >= 0.38 ? "pressure" : "critical";
+    syncLine.textContent = `SYNC ${Math.round(syncRatio * 100)}% | ${syncState} ${syncDelta >= 0 ? `+${syncDelta}` : syncDelta}`;
+    syncHint.textContent =
+      syncRatio >= 0.64
+        ? `Senkron iyi: ${recommendation} ritmiyle avantaj korunuyor.`
+        : syncRatio >= 0.4
+          ? "Senkron kiriliyor: beklenen aksiyona hizli don."
+          : "Senkron kritik: GUARD ile pencereyi resetle, queue baskisini temizle.";
+
+    overheatLine.dataset.tone = overheatRatio >= 0.72 ? "critical" : overheatRatio >= 0.44 ? "pressure" : "advantage";
+    overheatLine.textContent = `Heat ${Math.round(overheatRatio * 100)}% | ${overheatState}`;
+    overheatHint.textContent =
+      overheatRatio >= 0.72
+        ? "Overheat kritik: resolve yerine ritim temizleme yap."
+        : overheatRatio >= 0.44
+          ? "Heat yukseliyor: drift ve queue birikimini dusur."
+          : "Core stabil: kontrollu strike-charge zinciri acik.";
+
+    clutchLine.dataset.tone = clutchState === "READY" ? "advantage" : clutchState === "CRITICAL" ? "critical" : "pressure";
+    clutchLine.textContent = `Window ${Math.round(clutchRatio * 100)}% | Resolve ${clutchState}`;
+    clutchHint.textContent =
+      clutchState === "READY"
+        ? "Resolve penceresi acik: odulu kilitlemek icin cozum baslat."
+        : clutchState === "CRITICAL"
+          ? "TTL dusuk: riskli hamleleri kes, savunma + hizli finish."
+          : `Resolve icin ${Math.max(0, 6 - actionsSelf)} aksiyon daha gerekli.`;
+
+    stanceLine.dataset.tone = stancePressure >= 0.68 ? "critical" : stancePressure >= 0.44 ? "pressure" : "advantage";
+    stanceLine.textContent = `STR ${Math.round(strikeRatio * 100)} | GRD ${Math.round(guardRatio * 100)} | CHG ${Math.round(chargeRatio * 100)}`;
+    stanceHint.textContent =
+      stancePressure >= 0.68
+        ? "Stance dağiliyor: dominant aksiyona geri don, guard tamponu ac."
+        : stancePressure >= 0.44
+          ? `Baski orta: ${dominantAction} dominansi koruyup drift'i dusur.`
+          : `${dominantAction} dominansi sabit, combo akisi temiz ilerliyor.`;
+
+    animateMeterWidth(syncMeter, syncRatio * 100, 0.22);
+    setMeterPalette(syncMeter, syncRatio >= 0.62 ? "safe" : syncRatio >= 0.38 ? "balanced" : "aggressive");
+    animateMeterWidth(overheatMeter, overheatRatio * 100, 0.22);
+    setMeterPalette(overheatMeter, overheatRatio >= 0.72 ? "critical" : overheatRatio >= 0.44 ? "aggressive" : "safe");
+    animateMeterWidth(clutchMeter, clutchRatio * 100, 0.22);
+    setMeterPalette(
+      clutchMeter,
+      clutchState === "READY" ? "safe" : clutchState === "CRITICAL" ? "critical" : clutchRatio >= 0.54 ? "balanced" : "aggressive"
+    );
+    animateMeterWidth(stanceMeter, stancePressure * 100, 0.22);
+    setMeterPalette(stanceMeter, stancePressure >= 0.68 ? "critical" : stancePressure >= 0.44 ? "aggressive" : "balanced");
   }
 
   function paintPvpObjectiveCard(card, label, value, meta, tone = "neutral") {
@@ -3496,6 +3678,7 @@
       renderPvpTickLine(null, null);
       renderPvpMomentumAndObjectives(null);
       renderPvpCadence(null, null);
+      renderPvpDuelTheater(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -3568,6 +3751,7 @@
     renderPvpTickLine(session, state.v3.pvpTickMeta);
     renderPvpMomentumAndObjectives(session);
     renderPvpCadence(session, state.v3.pvpTickMeta);
+    renderPvpDuelTheater(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});

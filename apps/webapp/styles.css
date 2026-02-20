@@ -1085,6 +1085,73 @@ body.reduced-motion.combat-hit-reject::after {
   color: rgba(179, 206, 255, 0.86);
 }
 
+.pvpTheaterStrip {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pvpTheaterCell {
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.82), rgba(4, 9, 24, 0.74));
+  display: grid;
+  gap: 6px;
+}
+
+.pvpTheaterCell .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pvpTheaterCell .micro {
+  color: rgba(179, 205, 255, 0.86);
+}
+
+.pvpTheaterStrip[data-tone="advantage"] .pvpTheaterCell {
+  border-color: rgba(112, 255, 160, 0.38);
+  box-shadow: inset 0 0 14px rgba(112, 255, 160, 0.08);
+}
+
+.pvpTheaterStrip[data-tone="pressure"] .pvpTheaterCell {
+  border-color: rgba(255, 184, 92, 0.38);
+  box-shadow: inset 0 0 14px rgba(255, 184, 92, 0.09);
+}
+
+.pvpTheaterStrip[data-tone="critical"] .pvpTheaterCell {
+  border-color: rgba(255, 86, 121, 0.45);
+  box-shadow: inset 0 0 16px rgba(255, 86, 121, 0.14);
+}
+
+body:not(.reduced-motion) .pvpTheaterStrip[data-tone="critical"] .pvpTheaterCell {
+  animation: pvpTheaterAlert 1200ms ease-in-out infinite;
+}
+
+#pvpSyncLine[data-tone="advantage"],
+#pvpClutchLine[data-tone="advantage"],
+#pvpStanceLine[data-tone="advantage"] {
+  color: rgba(142, 250, 204, 0.96);
+  text-shadow: 0 0 10px rgba(61, 248, 194, 0.3);
+}
+
+#pvpSyncLine[data-tone="pressure"],
+#pvpOverheatLine[data-tone="pressure"],
+#pvpClutchLine[data-tone="pressure"],
+#pvpStanceLine[data-tone="pressure"] {
+  color: rgba(255, 212, 136, 0.95);
+}
+
+#pvpSyncLine[data-tone="critical"],
+#pvpOverheatLine[data-tone="critical"],
+#pvpClutchLine[data-tone="critical"],
+#pvpStanceLine[data-tone="critical"] {
+  color: rgba(255, 166, 186, 0.96);
+  text-shadow: 0 0 10px rgba(255, 86, 121, 0.32);
+}
+
 .pvpObjectiveGrid {
   margin-top: 10px;
   display: grid;
@@ -2029,6 +2096,10 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: 1fr;
   }
 
+  .pvpTheaterStrip {
+    grid-template-columns: 1fr;
+  }
+
   .raidTrackerStrip {
     grid-template-columns: 1fr;
   }
@@ -2095,6 +2166,7 @@ body[data-scene-mood="critical"] .meter > span {
 
   .pvpMomentumStrip,
   .pvpCadenceStrip,
+  .pvpTheaterStrip,
   .pvpObjectiveGrid {
     grid-template-columns: 1fr;
   }
@@ -2124,6 +2196,18 @@ body[data-scene-mood="critical"] .meter > span {
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pvpTheaterAlert {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: inset 0 0 12px rgba(255, 86, 121, 0.12);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: inset 0 0 18px rgba(255, 86, 121, 0.2);
   }
 }
 
