@@ -55,6 +55,11 @@
       lastRoundAlertKey: "",
       lastRoundAlertAt: 0,
       lastPvpObjectiveKey: "",
+      combatChain: [],
+      combatEnergy: 0,
+      pulseTone: "info",
+      pulseLabel: "NEXUS READY",
+      pulseAt: 0,
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -155,6 +160,7 @@
   const HUD_DENSITY_VALUES = Object.freeze(["compact", "full", "extended"]);
   const PVP_TIMELINE_LIMIT = 32;
   const PVP_REPLAY_LIMIT = 14;
+  const COMBAT_CHAIN_LIMIT = 10;
 
   function byId(id) {
     return document.getElementById(id);
@@ -542,6 +548,48 @@
     }
     if (arena.floorGrid) {
       arena.floorGrid.visible = nextProfile.key !== "low" || !state.ui.reducedMotion;
+    }
+    if (Array.isArray(arena.tracerBeams)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(4, arena.tracerBeams.length)
+          : nextProfile.key === "normal"
+            ? Math.min(9, arena.tracerBeams.length)
+            : arena.tracerBeams.length;
+      arena.tracerLimit = maxVisible;
+      arena.tracerBeams.forEach((beam, index) => {
+        if (!beam) {
+          return;
+        }
+        if (index >= maxVisible) {
+          beam.visible = false;
+          if (Array.isArray(arena.tracerMeta) && arena.tracerMeta[index]) {
+            arena.tracerMeta[index].life = 0;
+            arena.tracerMeta[index].maxLife = 0;
+          }
+        }
+      });
+    }
+    if (Array.isArray(arena.impactNodes)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(5, arena.impactNodes.length)
+          : nextProfile.key === "normal"
+            ? Math.min(8, arena.impactNodes.length)
+            : arena.impactNodes.length;
+      arena.impactLimit = maxVisible;
+      arena.impactNodes.forEach((node, index) => {
+        if (!node) {
+          return;
+        }
+        if (index >= maxVisible) {
+          node.visible = false;
+          if (Array.isArray(arena.impactMeta) && arena.impactMeta[index]) {
+            arena.impactMeta[index].life = 0;
+            arena.impactMeta[index].maxLife = 0;
+          }
+        }
+      });
     }
     applyUiClasses();
   }
@@ -1076,6 +1124,48 @@
       pulseWaves.push(wave);
     }
 
+    const tracerBeams = [];
+    const tracerMeta = [];
+    const tracerGeo = new THREE.CylinderGeometry(0.03, 0.03, 1, 10, 1, true);
+    for (let i = 0; i < 14; i += 1) {
+      const beam = new THREE.Mesh(
+        tracerGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0x9ec4ff,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      beam.visible = false;
+      beam.renderOrder = 3;
+      scene.add(beam);
+      tracerBeams.push(beam);
+      tracerMeta.push({ life: 0, maxLife: 0, width: 1, drift: Math.random() * Math.PI * 2 });
+    }
+
+    const impactNodes = [];
+    const impactMeta = [];
+    const impactGeo = new THREE.SphereGeometry(0.18, 14, 14);
+    for (let i = 0; i < 12; i += 1) {
+      const impact = new THREE.Mesh(
+        impactGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0x7fc5ff,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      impact.visible = false;
+      impact.renderOrder = 4;
+      scene.add(impact);
+      impactNodes.push(impact);
+      impactMeta.push({ life: 0, maxLife: 0 });
+    }
+
     return {
       ring,
       ringOuter,
@@ -1091,7 +1181,15 @@
       pylonMeta,
       floorGrid,
       pulseWaves,
-      pulseWaveCursor: 0
+      pulseWaveCursor: 0,
+      tracerBeams,
+      tracerMeta,
+      tracerCursor: 0,
+      tracerLimit: tracerBeams.length,
+      impactNodes,
+      impactMeta,
+      impactCursor: 0,
+      impactLimit: impactNodes.length
     };
   }
 
@@ -1970,6 +2068,108 @@
     return "info";
   }
 
+  function normalizeCombatAction(action) {
+    const clean = String(action || "").toLowerCase();
+    if (clean === "strike" || clean === "guard" || clean === "charge" || clean === "resolve") {
+      return clean;
+    }
+    return "pulse";
+  }
+
+  function combatActionTone(action, accepted = true, tone = "info") {
+    if (accepted === false) {
+      return "reject";
+    }
+    const normalized = normalizeCombatAction(action);
+    if (normalized === "pulse") {
+      return normalizePulseTone(tone);
+    }
+    return normalized;
+  }
+
+  function renderCombatHudPanel() {
+    const chainLine = byId("combatChainLine");
+    const chainTrail = byId("combatChainTrail");
+    const reactorLine = byId("pulseReactorLine");
+    const reactorMeter = byId("pulseReactorMeter");
+    const reactorHint = byId("pulseReactorHint");
+    const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
+    const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
+    const tone = normalizePulseTone(state.v3.pulseTone || "info");
+    const label = String(state.v3.pulseLabel || "NEXUS READY").slice(0, 26);
+    if (chainLine) {
+      const last = chain[0];
+      if (!last) {
+        chainLine.textContent = "CHAIN IDLE";
+      } else {
+        const status = last.accepted === false ? "REJECT" : "LOCKED";
+        chainLine.textContent = `x${chain.length} | ${String(last.action || "pulse").toUpperCase()} ${status}`;
+      }
+    }
+    if (chainTrail) {
+      chainTrail.innerHTML = "";
+      if (!chain.length) {
+        const empty = document.createElement("span");
+        empty.className = "trailChip muted";
+        empty.textContent = "bekleniyor";
+        chainTrail.appendChild(empty);
+      } else {
+        chain.slice(0, COMBAT_CHAIN_LIMIT).forEach((row, index) => {
+          const chip = document.createElement("span");
+          chip.className = `trailChip ${combatActionTone(row.action, row.accepted, row.tone)}${index === 0 ? " enter" : ""}`;
+          const prefix = row.accepted === false ? "x" : "+";
+          chip.textContent = `${prefix}${String(row.action || "pulse").toUpperCase()}`;
+          chainTrail.appendChild(chip);
+        });
+      }
+    }
+    if (reactorLine) {
+      reactorLine.textContent = `${String(label || "NEXUS READY").toUpperCase()} | ${Math.round(energy)}%`;
+    }
+    if (reactorMeter) {
+      reactorMeter.style.width = `${energy}%`;
+    }
+    if (reactorHint) {
+      const hintMap = {
+        safe: "Safe pencere: kontrollu cikis avantajli.",
+        balanced: "Denge aktif: ritmi koru, combo biriktir.",
+        aggressive: "Baski artiyor: guard veya hizli strike sec.",
+        reveal: "Reveal penceresi acik: odul kilidini kapat.",
+        info: "Nexus pulse bekleniyor."
+      };
+      reactorHint.textContent = hintMap[tone] || hintMap.info;
+    }
+  }
+
+  function pushCombatChainEvent(action, options = {}) {
+    const opts = options && typeof options === "object" ? options : {};
+    const normalizedAction = normalizeCombatAction(action);
+    const accepted = opts.accepted !== false;
+    const tone = normalizePulseTone(opts.tone || "info");
+    const entry = {
+      action: normalizedAction,
+      accepted,
+      tone,
+      ts: Number(opts.ts || Date.now())
+    };
+    state.v3.combatChain.unshift(entry);
+    if (state.v3.combatChain.length > COMBAT_CHAIN_LIMIT) {
+      state.v3.combatChain.splice(COMBAT_CHAIN_LIMIT);
+    }
+    const energyMap = {
+      safe: 12,
+      balanced: 15,
+      aggressive: 18,
+      reveal: 22,
+      info: 10,
+      reject: 8
+    };
+    const toneKey = combatActionTone(normalizedAction, accepted, tone);
+    const delta = energyMap[toneKey] || energyMap.info;
+    state.v3.combatEnergy = clamp(asNum(state.v3.combatEnergy || 0) * 0.9 + delta, 0, 100);
+    renderCombatHudPanel();
+  }
+
   function activateOverlayPip(action) {
     const map = {
       strike: byId("overlayPipStrike"),
@@ -2496,6 +2696,7 @@
     renderPvpTickLine(session, state.v3.pvpTickMeta);
     renderPvpMomentumAndObjectives(session);
     ensurePvpLiveLoop();
+    renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
   }
 
@@ -2646,6 +2847,7 @@
       });
       triggerArenaPulse(data.action.accepted ? actionToneForInput(inputAction) : "aggressive", {
         action: inputAction,
+        accepted: Boolean(data.action.accepted),
         label: data.action.accepted
           ? `PVP ${normalizePvpInputLabel(inputAction)} +${asNum(data.action.score_delta || 0)}`
           : `PVP REJECT ${String(data.action.reject_reason || "invalid").replace(/_/g, " ").toUpperCase()}`
@@ -2768,6 +2970,7 @@
     const pulseTone = normalizePulseTone(tone);
     const opts = options && typeof options === "object" ? options : {};
     const action = String(opts.action || "").toLowerCase();
+    const accepted = opts.accepted !== false;
     playAudioCue(pulseTone);
     const burstLabels = {
       safe: "SAFE WINDOW",
@@ -2780,6 +2983,14 @@
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 34);
+    state.v3.pulseTone = pulseTone;
+    state.v3.pulseLabel = burstLabel;
+    state.v3.pulseAt = Date.now();
+    pushCombatChainEvent(action || "pulse", {
+      tone: pulseTone,
+      accepted,
+      ts: state.v3.pulseAt
+    });
     spawnHudBurst(pulseTone, burstLabel);
     pushCombatTicker(`Nexus pulse: ${burstLabel.toLowerCase()}`, pulseTone);
     updateCombatOverlay(pulseTone, burstLabel, action);
@@ -2833,6 +3044,94 @@
         });
       }
     }
+
+    const tracerBeams = Array.isArray(state.arena.tracerBeams) ? state.arena.tracerBeams : [];
+    const tracerMeta = Array.isArray(state.arena.tracerMeta) ? state.arena.tracerMeta : [];
+    const tracerLimit = Math.max(0, Math.min(asNum(state.arena.tracerLimit || tracerBeams.length), tracerBeams.length));
+    if (tracerLimit > 0 && tracerMeta.length) {
+      const burstByTone = {
+        safe: 1,
+        balanced: 2,
+        aggressive: 4,
+        reveal: 3,
+        info: 1
+      };
+      const pulseCount = state.ui.reducedMotion ? 1 : burstByTone[pulseTone] || 1;
+      const source = new THREE.Vector3();
+      const target = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      const midpoint = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+      for (let i = 0; i < pulseCount; i += 1) {
+        const cursor = Number(state.arena.tracerCursor || 0) % tracerLimit;
+        const beam = tracerBeams[cursor];
+        const meta = tracerMeta[cursor];
+        state.arena.tracerCursor = (cursor + 1) % tracerLimit;
+        if (!beam || !meta || !beam.material) {
+          continue;
+        }
+        const startRadius = 1.9 + Math.random() * 1.8;
+        const endRadius = 6.4 + Math.random() * 3.2;
+        const startAngle = Math.random() * Math.PI * 2;
+        const sweep = (0.44 + Math.random() * 0.92) * (Math.random() > 0.5 ? 1 : -1);
+        const yJitter = (Math.random() - 0.5) * (state.ui.reducedMotion ? 0.5 : 1.15);
+        source.set(Math.cos(startAngle) * startRadius, -0.32 + yJitter * 0.55, Math.sin(startAngle) * startRadius);
+        target.set(Math.cos(startAngle + sweep) * endRadius, 0.4 + yJitter, Math.sin(startAngle + sweep) * endRadius);
+        direction.copy(target).sub(source);
+        const length = Math.max(0.6, direction.length());
+        midpoint.copy(source).add(target).multiplyScalar(0.5);
+        beam.position.copy(midpoint);
+        beam.quaternion.setFromUnitVectors(up, direction.normalize());
+        const width =
+          pulseTone === "aggressive"
+            ? 1.6
+            : pulseTone === "reveal"
+              ? 1.38
+              : pulseTone === "balanced"
+                ? 1.18
+                : 1.04;
+        beam.scale.set(width, length, width);
+        beam.material.color.setHex(accepted ? color : 0xff4f6d);
+        beam.material.opacity = accepted ? 0.8 : 0.68;
+        beam.visible = true;
+        meta.life = state.ui.reducedMotion ? 0.2 : 0.32 + Math.random() * 0.14;
+        meta.maxLife = meta.life;
+        meta.width = width;
+      }
+    }
+
+    const impactNodes = Array.isArray(state.arena.impactNodes) ? state.arena.impactNodes : [];
+    const impactMeta = Array.isArray(state.arena.impactMeta) ? state.arena.impactMeta : [];
+    const impactLimit = Math.max(0, Math.min(asNum(state.arena.impactLimit || impactNodes.length), impactNodes.length));
+    if (impactLimit > 0 && impactMeta.length) {
+      const burstByTone = {
+        safe: 1,
+        balanced: 2,
+        aggressive: 3,
+        reveal: 3,
+        info: 1
+      };
+      const impactCount = state.ui.reducedMotion ? 1 : burstByTone[pulseTone] || 1;
+      for (let i = 0; i < impactCount; i += 1) {
+        const cursor = Number(state.arena.impactCursor || 0) % impactLimit;
+        const node = impactNodes[cursor];
+        const meta = impactMeta[cursor];
+        state.arena.impactCursor = (cursor + 1) % impactLimit;
+        if (!node || !meta || !node.material) {
+          continue;
+        }
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 2.6 + Math.random() * 5.1;
+        node.position.set(Math.cos(angle) * radius, -0.4 + Math.random() * 2.0, Math.sin(angle) * radius);
+        node.scale.setScalar(state.ui.reducedMotion ? 0.58 : 0.42);
+        node.material.color.setHex(accepted ? color : 0xff4f6d);
+        node.material.opacity = accepted ? 0.78 : 0.64;
+        node.visible = true;
+        meta.life = state.ui.reducedMotion ? 0.22 : 0.34 + Math.random() * 0.16;
+        meta.maxLife = meta.life;
+      }
+    }
+
     gsap.fromTo(
       state.arena.ring.scale,
       { x: 1, y: 1, z: 1 },
@@ -5137,6 +5436,73 @@
         }
       }
 
+      if (Array.isArray(fallback.tracerBeams) && Array.isArray(fallback.tracerMeta)) {
+        const tracerLimit = Math.max(0, Math.min(asNum(state.arena?.tracerLimit || fallback.tracerBeams.length), fallback.tracerBeams.length));
+        for (let i = 0; i < fallback.tracerBeams.length; i += 1) {
+          const beam = fallback.tracerBeams[i];
+          const meta = fallback.tracerMeta[i];
+          if (!beam || !meta || !beam.material) {
+            continue;
+          }
+          if (i >= tracerLimit) {
+            beam.visible = false;
+            meta.life = 0;
+            meta.maxLife = 0;
+            continue;
+          }
+          if (meta.life > 0) {
+            meta.life = Math.max(0, meta.life - dt);
+            const lifeRatio = meta.maxLife > 0 ? meta.life / meta.maxLife : 0;
+            const width = asNum(meta.width || 1);
+            beam.visible = true;
+            beam.material.opacity = lifeRatio * (0.76 + heat * 0.16);
+            const flare = 1 + (1 - lifeRatio) * 0.65;
+            beam.scale.x = width * flare;
+            beam.scale.z = width * flare;
+            if (!state.ui.reducedMotion) {
+              beam.rotation.y += dt * (0.4 + asNum(meta.drift || 0) * 0.08);
+            }
+            if (meta.life <= 0.0001) {
+              beam.visible = false;
+              beam.material.opacity = 0;
+            }
+          } else {
+            beam.visible = false;
+          }
+        }
+      }
+
+      if (Array.isArray(fallback.impactNodes) && Array.isArray(fallback.impactMeta)) {
+        const impactLimit = Math.max(0, Math.min(asNum(state.arena?.impactLimit || fallback.impactNodes.length), fallback.impactNodes.length));
+        for (let i = 0; i < fallback.impactNodes.length; i += 1) {
+          const node = fallback.impactNodes[i];
+          const meta = fallback.impactMeta[i];
+          if (!node || !meta || !node.material) {
+            continue;
+          }
+          if (i >= impactLimit) {
+            node.visible = false;
+            meta.life = 0;
+            meta.maxLife = 0;
+            continue;
+          }
+          if (meta.life > 0) {
+            meta.life = Math.max(0, meta.life - dt);
+            const lifeRatio = meta.maxLife > 0 ? meta.life / meta.maxLife : 0;
+            const scaleBoost = 1 + (1 - lifeRatio) * (state.ui.reducedMotion ? 0.45 : 1.2);
+            node.visible = true;
+            node.material.opacity = lifeRatio * (0.82 + heat * 0.1);
+            node.scale.setScalar(scaleBoost);
+            if (meta.life <= 0.0001) {
+              node.visible = false;
+              node.material.opacity = 0;
+            }
+          } else {
+            node.visible = false;
+          }
+        }
+      }
+
       if (modelRoot) {
         const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
         modelRoot.rotation.y += dt * moodRate;
@@ -5248,6 +5614,14 @@
       floorGrid: fallback.floorGrid,
       pulseWaves: fallback.pulseWaves,
       pulseWaveCursor: fallback.pulseWaveCursor,
+      tracerBeams: fallback.tracerBeams,
+      tracerMeta: fallback.tracerMeta,
+      tracerCursor: fallback.tracerCursor,
+      tracerLimit: fallback.tracerLimit,
+      impactNodes: fallback.impactNodes,
+      impactMeta: fallback.impactMeta,
+      impactCursor: fallback.impactCursor,
+      impactLimit: fallback.impactLimit,
       stars,
       starsMaterial,
       modelRoot,
@@ -5317,6 +5691,7 @@
     await initThree();
     bindUi();
     bindPageLifecycle();
+    renderCombatHudPanel();
     if (window.gsap && !state.ui.reducedMotion) {
       gsap.from(".card, .panel", { y: 18, opacity: 0, stagger: 0.05, duration: 0.38, ease: "power2.out" });
     }

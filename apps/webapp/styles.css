@@ -779,6 +779,10 @@ body.reduced-motion .pvpPanel::after {
   opacity: 0 !important;
 }
 
+body.reduced-motion .trailChip.enter {
+  animation: none !important;
+}
+
 .directorGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1145,6 +1149,77 @@ body.reduced-motion .pvpPanel::after {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.combatHudPanel {
+  margin-top: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.84), rgba(5, 10, 26, 0.76));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+}
+
+.combatHudCell {
+  border: 1px solid rgba(162, 186, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(6, 12, 30, 0.7);
+  padding: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.combatChainTrail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.trailChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(162, 186, 255, 0.3);
+  background: rgba(4, 10, 24, 0.8);
+  color: rgba(229, 240, 255, 0.94);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trailChip.strike {
+  border-color: rgba(255, 86, 121, 0.54);
+  box-shadow: 0 0 10px rgba(255, 86, 121, 0.18);
+}
+
+.trailChip.guard {
+  border-color: rgba(112, 255, 160, 0.54);
+  box-shadow: 0 0 10px rgba(112, 255, 160, 0.14);
+}
+
+.trailChip.charge {
+  border-color: rgba(61, 248, 194, 0.58);
+  box-shadow: 0 0 10px rgba(61, 248, 194, 0.16);
+}
+
+.trailChip.resolve {
+  border-color: rgba(255, 184, 92, 0.58);
+  box-shadow: 0 0 12px rgba(255, 184, 92, 0.19);
+}
+
+.trailChip.reject {
+  border-color: rgba(255, 86, 121, 0.62);
+  color: rgba(255, 187, 198, 0.95);
+}
+
+.trailChip.enter {
+  animation: trailChipEnter 240ms ease-out;
 }
 
 .modeGrid {
@@ -1590,6 +1665,10 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: 1fr;
   }
 
+  .combatHudPanel {
+    grid-template-columns: 1fr;
+  }
+
   .tasks,
   .feed {
     grid-row: auto;
@@ -1618,7 +1697,8 @@ body[data-scene-mood="critical"] .meter > span {
 
   .modeGrid,
   .commands .commandGrid,
-  .simActions {
+  .simActions,
+  .combatHudPanel {
     grid-template-columns: 1fr;
   }
 
@@ -1647,5 +1727,16 @@ body[data-scene-mood="critical"] .meter > span {
 
   .combatDirectorCell .value {
     font-size: 12px;
+  }
+}
+
+@keyframes trailChipEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
