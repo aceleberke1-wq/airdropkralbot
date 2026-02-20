@@ -44,6 +44,16 @@ body::before {
   background: radial-gradient(1200px 700px at 50% 20%, rgba(124, 168, 255, 0.22), transparent 72%);
 }
 
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 48%, rgba(142, 191, 255, 0.18) 0%, rgba(10, 18, 42, 0) 70%);
+}
+
 body.pulse-safe::before {
   opacity: 0.32;
   background: radial-gradient(1200px 700px at 50% 20%, rgba(112, 255, 160, 0.2), transparent 72%);
@@ -66,6 +76,30 @@ body.pulse-reveal::before {
 
 body.pulse-info::before {
   opacity: 0.26;
+}
+
+body.combat-hit-strike::after {
+  opacity: 0.42;
+  background: radial-gradient(circle at 50% 52%, rgba(255, 104, 133, 0.24) 0%, rgba(10, 18, 42, 0) 72%);
+  animation: combatHitFlash 260ms ease-out;
+}
+
+body.combat-hit-guard::after {
+  opacity: 0.38;
+  background: radial-gradient(circle at 50% 52%, rgba(112, 255, 160, 0.22) 0%, rgba(10, 18, 42, 0) 72%);
+  animation: combatHitFlash 260ms ease-out;
+}
+
+body.combat-hit-charge::after {
+  opacity: 0.4;
+  background: radial-gradient(circle at 50% 52%, rgba(79, 249, 208, 0.22) 0%, rgba(10, 18, 42, 0) 72%);
+  animation: combatHitFlash 260ms ease-out;
+}
+
+body.combat-hit-reject::after {
+  opacity: 0.5;
+  background: radial-gradient(circle at 50% 52%, rgba(255, 80, 115, 0.27) 0%, rgba(10, 18, 42, 0) 74%);
+  animation: combatHitFlash 320ms ease-out;
 }
 
 body[data-scene-mood="idle"] .shell {
@@ -652,6 +686,22 @@ body.pulse-reveal .telemetryDeck {
   box-shadow: 0 0 48px rgba(255, 184, 92, 0.28), inset 0 0 24px rgba(255, 184, 92, 0.2);
 }
 
+.combatOverlay.action-strike .combatOverlayPulse {
+  box-shadow: 0 0 56px rgba(255, 86, 121, 0.34), inset 0 0 28px rgba(255, 86, 121, 0.24);
+}
+
+.combatOverlay.action-guard .combatOverlayPulse {
+  box-shadow: 0 0 52px rgba(112, 255, 160, 0.3), inset 0 0 26px rgba(112, 255, 160, 0.22);
+}
+
+.combatOverlay.action-charge .combatOverlayPulse {
+  box-shadow: 0 0 54px rgba(61, 248, 194, 0.31), inset 0 0 26px rgba(61, 248, 194, 0.22);
+}
+
+.combatOverlay.action-reject .combatOverlayPulse {
+  box-shadow: 0 0 62px rgba(255, 76, 112, 0.38), inset 0 0 30px rgba(255, 76, 112, 0.28);
+}
+
 .combatOverlayScan {
   position: absolute;
   inset: -120% -25% auto -25%;
@@ -780,6 +830,14 @@ body.reduced-motion .pvpPanel::after {
 }
 
 body.reduced-motion .trailChip.enter {
+  animation: none !important;
+}
+
+body.reduced-motion .timelineNode.flash,
+body.reduced-motion.combat-hit-strike::after,
+body.reduced-motion.combat-hit-guard::after,
+body.reduced-motion.combat-hit-charge::after,
+body.reduced-motion.combat-hit-reject::after {
   animation: none !important;
 }
 
@@ -1244,6 +1302,66 @@ body.reduced-motion .trailChip.enter {
 
 .pulseStrategyLine[data-recommendation="safe"] {
   color: rgba(156, 244, 196, 0.94);
+}
+
+.combatTimelineCell {
+  grid-column: 1 / -1;
+  border-color: rgba(162, 186, 255, 0.24);
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.82), rgba(5, 10, 26, 0.78));
+}
+
+.combatTimelineMeter {
+  height: 8px;
+}
+
+.combatTimelineNodes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.timelineNode {
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  border-radius: 10px;
+  background: rgba(6, 12, 29, 0.84);
+  color: rgba(214, 228, 255, 0.9);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 6px 4px;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.timelineNode.recent {
+  border-color: rgba(127, 208, 255, 0.48);
+}
+
+.timelineNode.expected {
+  border-color: rgba(255, 184, 92, 0.62);
+  color: #ffe0ba;
+  box-shadow: 0 0 14px rgba(255, 184, 92, 0.22);
+}
+
+.timelineNode.active {
+  transform: translateY(-1px);
+}
+
+.timelineNode.active.success {
+  border-color: rgba(112, 255, 160, 0.64);
+  color: #d0ffe3;
+  box-shadow: 0 0 16px rgba(112, 255, 160, 0.26);
+}
+
+.timelineNode.active.reject {
+  border-color: rgba(255, 86, 121, 0.68);
+  color: #ffd1dc;
+  box-shadow: 0 0 18px rgba(255, 86, 121, 0.28);
+}
+
+.timelineNode.flash {
+  animation: timelineNodeFlash 240ms ease-out;
 }
 
 .combatChainTrail {
@@ -1829,5 +1947,28 @@ body[data-scene-mood="critical"] .meter > span {
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes timelineNodeFlash {
+  0% {
+    transform: translateY(0) scale(0.96);
+    opacity: 0.64;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes combatHitFlash {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }

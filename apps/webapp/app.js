@@ -110,7 +110,8 @@
       pulseTimer: null,
       lastTimelinePulseAt: 0,
       overlayTimer: null,
-      combatHudRenderAt: 0
+      combatHudRenderAt: 0,
+      combatHitTimer: null
     },
     audio: {
       enabled: true,
@@ -2269,6 +2270,13 @@
     const reactorMeter = byId("pulseReactorMeter");
     const reactorHint = byId("pulseReactorHint");
     const strategyLine = byId("pulseStrategyLine");
+    const timelineLine = byId("combatTimelineLine");
+    const timelineBadge = byId("combatTimelineBadge");
+    const timelineMeter = byId("combatTimelineMeter");
+    const timelineHint = byId("combatTimelineHint");
+    const timelineNodeStrike = byId("combatTimelineNodeStrike");
+    const timelineNodeGuard = byId("combatTimelineNodeGuard");
+    const timelineNodeCharge = byId("combatTimelineNodeCharge");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
@@ -2280,6 +2288,24 @@
     const selfMomentum = clamp(asNum(state.arena?.pvpMomentumSelf ?? 0.5), 0, 1);
     const oppMomentum = clamp(asNum(state.arena?.pvpMomentumOpp ?? 0.5), 0, 1);
     const syncDelta = Math.round((selfMomentum - oppMomentum) * 100);
+    const syncState = syncDelta >= 18 ? "ADV" : syncDelta <= -18 ? "DEF" : "EVEN";
+    const expectedActionRaw = String(
+      state.v3.pvpSession?.next_expected_action || state.v3.session?.next_expected_action || state.sim.expected || ""
+    ).toLowerCase();
+    const expectedAction =
+      expectedActionRaw === "strike" || expectedActionRaw === "guard" || expectedActionRaw === "charge"
+        ? expectedActionRaw
+        : "";
+    const latest = chain[0] || null;
+    const latestAction = latest ? normalizeCombatAction(latest.action) : "";
+    const latestAccepted = latest ? latest.accepted !== false : true;
+    const actionCounts = { strike: 0, guard: 0, charge: 0 };
+    chain.slice(0, COMBAT_CHAIN_LIMIT).forEach((row) => {
+      const key = normalizeCombatAction(row.action);
+      if (Object.prototype.hasOwnProperty.call(actionCounts, key)) {
+        actionCounts[key] += 1;
+      }
+    });
     const pressureRatio = clamp(
       energy / 100 * 0.42 + asNum(state.telemetry.threatRatio || 0) * 0.32 + queuePressure * 0.26,
       0,
@@ -2360,11 +2386,68 @@
       reactorHint.textContent = hintMap[tone] || hintMap.info;
     }
     if (strategyLine) {
-      const syncState = syncDelta >= 18 ? "ADV" : syncDelta <= -18 ? "DEF" : "EVEN";
       strategyLine.textContent = `Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Urgency ${urgency.toUpperCase()} | ${recommendation}`;
       strategyLine.dataset.urgency = urgency;
       strategyLine.dataset.recommendation = recommendation.toLowerCase();
     }
+    if (timelineLine) {
+      const expectedLine = expectedAction ? expectedAction.toUpperCase() : "AUTO";
+      const latestLine = latestAction ? `${latestAction.toUpperCase()} ${latestAccepted ? "OK" : "MISS"}` : "CHAIN IDLE";
+      timelineLine.textContent = `Beklenen: ${expectedLine} | Son: ${latestLine} | x${chain.length}`;
+    }
+    if (timelineBadge) {
+      const badgeState = latest && !latestAccepted ? "MISS" : urgency.toUpperCase();
+      timelineBadge.textContent = badgeState;
+      timelineBadge.className = urgency === "critical" || (latest && !latestAccepted) ? "badge warn" : "badge info";
+    }
+    if (timelineMeter) {
+      const timelineRatio = clamp(chain.length / Math.max(6, COMBAT_CHAIN_LIMIT) * 0.58 + energy / 100 * 0.42, 0, 1);
+      timelineMeter.style.width = `${Math.round(timelineRatio * 100)}%`;
+      let palette = "neutral";
+      if (latest && !latestAccepted) {
+        palette = "critical";
+      } else if (pressureRatio >= 0.74) {
+        palette = "aggressive";
+      } else if (expectedAction === "guard") {
+        palette = "safe";
+      } else if (expectedAction === "charge") {
+        palette = "balanced";
+      }
+      setMeterPalette(timelineMeter, palette);
+    }
+    if (timelineHint) {
+      const queuePct = Math.round(queuePressure * 100);
+      timelineHint.textContent = `Queue ${queuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
+    }
+    const nodeMap = {
+      strike: timelineNodeStrike,
+      guard: timelineNodeGuard,
+      charge: timelineNodeCharge
+    };
+    Object.entries(nodeMap).forEach(([actionKey, node]) => {
+      if (!node) {
+        return;
+      }
+      node.classList.remove("expected", "active", "success", "reject", "recent", "flash");
+      if (actionCounts[actionKey] > 0) {
+        node.classList.add("recent");
+      }
+      if (expectedAction === actionKey) {
+        node.classList.add("expected");
+      }
+      if (latestAction === actionKey) {
+        node.classList.add("active");
+        node.classList.add(latestAccepted ? "success" : "reject");
+        node.classList.add("flash");
+        if (node._flashTimer) {
+          clearTimeout(node._flashTimer);
+        }
+        node._flashTimer = setTimeout(() => {
+          node.classList.remove("flash");
+          node._flashTimer = null;
+        }, 260);
+      }
+    });
   }
 
   function pushCombatChainEvent(action, options = {}) {
@@ -2453,7 +2536,38 @@
     }, 380);
   }
 
-  function updateCombatOverlay(tone = "info", label = "", action = "") {
+  function triggerCombatHitFeedback(action = "", accepted = true) {
+    const body = document.body;
+    if (!body) {
+      return;
+    }
+    body.classList.remove("combat-hit-strike", "combat-hit-guard", "combat-hit-charge", "combat-hit-reject");
+    const normalized = normalizeCombatAction(action);
+    const feedbackClass =
+      accepted === false
+        ? "combat-hit-reject"
+        : normalized === "strike"
+          ? "combat-hit-strike"
+          : normalized === "guard"
+            ? "combat-hit-guard"
+            : normalized === "charge"
+              ? "combat-hit-charge"
+              : "";
+    if (!feedbackClass) {
+      return;
+    }
+    body.classList.add(feedbackClass);
+    if (state.ui.combatHitTimer) {
+      clearTimeout(state.ui.combatHitTimer);
+      state.ui.combatHitTimer = null;
+    }
+    state.ui.combatHitTimer = setTimeout(() => {
+      body.classList.remove("combat-hit-strike", "combat-hit-guard", "combat-hit-charge", "combat-hit-reject");
+      state.ui.combatHitTimer = null;
+    }, accepted === false ? 360 : 280);
+  }
+
+  function updateCombatOverlay(tone = "info", label = "", action = "", accepted = true) {
     const root = byId("combatOverlay");
     if (!root) {
       return;
@@ -2463,6 +2577,13 @@
     root.classList.remove("tone-safe", "tone-balanced", "tone-aggressive", "tone-reveal", "tone-info");
     root.classList.add(`tone-${normalizedTone}`);
     root.classList.add("live");
+    root.classList.remove("action-strike", "action-guard", "action-charge", "action-reject");
+    const normalizedAction = normalizeCombatAction(action);
+    if (accepted === false) {
+      root.classList.add("action-reject");
+    } else if (normalizedAction === "strike" || normalizedAction === "guard" || normalizedAction === "charge") {
+      root.classList.add(`action-${normalizedAction}`);
+    }
 
     const labelEl = byId("combatOverlayLabel");
     if (labelEl) {
@@ -2474,6 +2595,7 @@
     }
 
     activateOverlayPip(action);
+    triggerCombatHitFeedback(action, accepted);
     if (state.ui.overlayTimer) {
       clearTimeout(state.ui.overlayTimer);
       state.ui.overlayTimer = null;
@@ -3337,7 +3459,7 @@
     });
     spawnHudBurst(pulseTone, burstLabel);
     pushCombatTicker(`Nexus pulse: ${burstLabel.toLowerCase()}`, pulseTone);
-    updateCombatOverlay(pulseTone, burstLabel, action);
+    updateCombatOverlay(pulseTone, burstLabel, action, accepted);
     if (!state.arena) {
       setHudPulseTone(pulseTone);
       return;
