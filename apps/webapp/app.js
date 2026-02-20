@@ -2353,6 +2353,7 @@
     if (!line) {
       return;
     }
+    line.classList.remove("urgency-critical", "urgency-pressure", "urgency-advantage");
     if (!session || !tickMeta) {
       line.textContent = "Tick: bekleniyor";
       line.classList.remove("live");
@@ -2361,7 +2362,25 @@
     const phase = String(tickMeta.phase || session.status || "combat").toUpperCase();
     const seq = asNum(tickMeta.tick_seq || 0);
     const transport = String(tickMeta.transport || state.v3.pvpTransport || "poll").toUpperCase();
-    line.textContent = `Tick #${seq} | ${phase} | ${transport}`;
+    const diagnostics = tickMeta.diagnostics || tickMeta.state_json?.diagnostics || {};
+    const drift = asNum(diagnostics.score_drift || 0);
+    const urgency = String(diagnostics.urgency || "steady").toUpperCase();
+    const recommendation = String(diagnostics.recommendation || "balanced").toUpperCase();
+    const shadow = tickMeta.shadow || tickMeta.state_json?.shadow || null;
+    const shadowText = shadow
+      ? ` | SH ${String(shadow.input_action || "-").toUpperCase()} ${Boolean(shadow.accepted) ? "OK" : "MISS"}`
+      : "";
+    line.textContent =
+      `Tick #${seq} | ${phase} | ${transport} | Drift ${drift >= 0 ? "+" : ""}${drift} | ${urgency} | ${recommendation}` +
+      shadowText;
+    const urgencyKey = String(diagnostics.urgency || "").toLowerCase();
+    if (urgencyKey === "critical") {
+      line.classList.add("urgency-critical");
+    } else if (urgencyKey === "pressure") {
+      line.classList.add("urgency-pressure");
+    } else if (urgencyKey === "advantage") {
+      line.classList.add("urgency-advantage");
+    }
     if (String(session.status || "").toLowerCase() === "active") {
       line.classList.add("live");
     } else {
@@ -2413,12 +2432,25 @@
     const scoreDelta = scoreSelf - scoreOpp;
     const comboDelta = comboSelf - comboOpp;
     const actionDelta = actionsSelf - actionsOpp;
-    const pressureRatio = clamp(asNum(state.telemetry.threatRatio || 0) * 0.55 + clamp(asNum(state.v3.pvpQueue.length || 0) / 8, 0, 1) * 0.45, 0, 1);
+    const diagnostics = state.v3.pvpTickMeta?.diagnostics || {};
+    const queuePressureDiag = clamp(asNum(diagnostics.queue_pressure || 0), 0, 1);
+    const pressureRatio = clamp(
+      asNum(state.telemetry.threatRatio || 0) * 0.35 +
+        clamp(asNum(state.v3.pvpQueue.length || 0) / 8, 0, 1) * 0.25 +
+        queuePressureDiag * 0.4,
+      0,
+      1
+    );
 
     const momentumSelf = clamp(0.5 + scoreDelta / 14 + comboDelta / 16 + actionDelta / 20 - pressureRatio * 0.16, 0, 1);
     const momentumOpp = clamp(1 - momentumSelf, 0, 1);
     const selfState = momentumSelf >= 0.62 ? "AHEAD" : momentumSelf <= 0.38 ? "UNDER" : "EVEN";
     const oppState = momentumOpp >= 0.62 ? "AHEAD" : momentumOpp <= 0.38 ? "UNDER" : "EVEN";
+    const urgencyKey = String(diagnostics.urgency || "steady").toLowerCase();
+    const recommendedMode = String(diagnostics.recommendation || "balanced").toUpperCase();
+    const contractMode = String(diagnostics.contract_mode || "open").toUpperCase();
+    const anomalyBias = String(diagnostics.anomaly_bias || "none").toUpperCase();
+    const shadow = state.v3.pvpTickMeta?.shadow || null;
 
     if (selfLine) selfLine.textContent = `${Math.round(momentumSelf * 100)}% | ${selfState}`;
     if (oppLine) oppLine.textContent = `${Math.round(momentumOpp * 100)}% | ${oppState}`;
@@ -2431,8 +2463,8 @@
       primaryCard,
       "Hedef 1",
       `Pattern: ${expected}`,
-      "Beklenen aksiyon penceresinde bonus skor al.",
-      objectivePrimaryTone
+      `Mode ${recommendedMode} | Kontrat ${contractMode}`,
+      urgencyKey === "advantage" ? "advantage" : objectivePrimaryTone
     );
 
     const actionsToResolve = Math.max(0, 6 - actionsSelf);
@@ -2441,20 +2473,39 @@
       secondaryCard,
       "Hedef 2",
       actionsToResolve <= 0 ? "Resolve Hazir" : `Resolve icin ${actionsToResolve}`,
-      `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp}`,
-      ttl <= 18 ? "danger" : resolveTone
+      `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp} | Bias ${anomalyBias}`,
+      ttl <= 18 || urgencyKey === "critical" ? "danger" : resolveTone
     );
 
-    const riskTone = pressureRatio >= 0.72 ? "danger" : pressureRatio >= 0.44 ? "warning" : "advantage";
+    const riskTone =
+      urgencyKey === "critical"
+        ? "danger"
+        : urgencyKey === "pressure"
+          ? "warning"
+          : pressureRatio >= 0.72
+            ? "danger"
+            : pressureRatio >= 0.44
+              ? "warning"
+              : "advantage";
     const riskHint =
       pressureRatio >= 0.72
         ? "Baski yuksek: GUARD + SAFE resolve pencereye don."
         : pressureRatio >= 0.44
           ? "Baski artiyor: tempoyu dengele, queue biriktirme."
           : "Kontrol sende: STRIKE + CHARGE ile momentum topla.";
-    paintPvpObjectiveCard(riskCard, "Risk Komutu", `Baski ${Math.round(pressureRatio * 100)}%`, riskHint, riskTone);
+    paintPvpObjectiveCard(
+      riskCard,
+      "Risk Komutu",
+      `Baski ${Math.round(pressureRatio * 100)}%`,
+      shadow
+        ? `${riskHint} | Shadow ${String(shadow.input_action || "-").toUpperCase()} ${
+            Boolean(shadow.accepted) ? "OK" : "MISS"
+          }`
+        : riskHint,
+      riskTone
+    );
 
-    const objectiveKey = `${expected}:${actionsToResolve}:${Math.round(pressureRatio * 100)}:${selfState}`;
+    const objectiveKey = `${expected}:${actionsToResolve}:${Math.round(pressureRatio * 100)}:${selfState}:${urgencyKey}`;
     if (objectiveKey !== state.v3.lastPvpObjectiveKey) {
       state.v3.lastPvpObjectiveKey = objectiveKey;
       [primaryCard, secondaryCard, riskCard].forEach((card) => {
@@ -2783,11 +2834,22 @@
     state.v3.pvpTickMeta = data.tick || null;
     syncPvpSessionUi(data.session || null, data);
     if (data.tick && data.tick.session_ref) {
+      const diagnostics = data.diagnostics || data.tick?.diagnostics || {};
+      const drift = asNum(diagnostics.score_drift || 0);
+      const recommendation = String(diagnostics.recommendation || "balanced").toUpperCase();
+      const shadow = data.shadow || data.tick?.shadow || null;
       appendPvpTimelineEntry({
         key: `${String(data.tick.session_ref)}:tick:${asNum(data.tick.tick_seq || 0)}`,
         tone: "tick",
         label: `TICK #${asNum(data.tick.tick_seq || 0)}`,
-        meta: `${String(data.tick.phase || "combat").toUpperCase()} | ${String(data.tick.transport || "poll").toUpperCase()}`,
+        meta:
+          `${String(data.tick.phase || "combat").toUpperCase()} | ${String(data.tick.transport || "poll").toUpperCase()} | ` +
+          `DRIFT ${drift >= 0 ? "+" : ""}${drift} | ${recommendation}` +
+          (shadow
+            ? ` | SH ${String(shadow.input_action || "-").toUpperCase()} ${
+                Boolean(shadow.accepted) ? "OK" : "MISS"
+              }`
+            : ""),
         ts: Number(data.tick.server_tick || Date.now())
       });
     }

@@ -153,6 +153,103 @@ function parseLimit(value, fallback = 50, max = 200) {
   return Math.max(1, Math.min(max, Math.floor(parsed)));
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, Number(value)));
+}
+
+function createDeterministicUnit(seed) {
+  const hex = crypto.createHash("sha1").update(String(seed || "")).digest("hex");
+  return parseInt(hex.slice(0, 8), 16) / 0xffffffff;
+}
+
+function buildShadowTickDecision(sessionRef, tickSeq, expectedAction, actionWindowMs) {
+  const actionPool = ["strike", "guard", "charge"];
+  const normalizedExpected = String(expectedAction || "").toLowerCase();
+  const expected = actionPool.includes(normalizedExpected) ? normalizedExpected : actionPool[0];
+  const followRoll = createDeterministicUnit(`${sessionRef}:shadow:follow:${tickSeq}`);
+  const pickRoll = createDeterministicUnit(`${sessionRef}:shadow:pick:${tickSeq}`);
+  const latencyRoll = createDeterministicUnit(`${sessionRef}:shadow:latency:${tickSeq}`);
+  const followExpected = followRoll <= 0.64;
+  const fallbackActions = actionPool.filter((key) => key !== expected);
+  const fallbackAction = fallbackActions[Math.floor(pickRoll * fallbackActions.length)] || "guard";
+  const inputAction = followExpected ? expected : fallbackAction;
+  const windowMs = Math.max(250, Number(actionWindowMs || 800));
+  const latencyMs = Math.round(120 + latencyRoll * (windowMs * 0.9));
+  return {
+    inputAction,
+    latencyMs,
+    strategy: followExpected ? "mirror_expected" : "mixup"
+  };
+}
+
+function shouldAdvanceShadowOnTick(sessionView, tickSeq) {
+  if (!sessionView || String(sessionView.status || "") !== "active") {
+    return false;
+  }
+  if (String(sessionView.opponent_type || "") !== "shadow") {
+    return false;
+  }
+  if (Number(sessionView.opponent_user_id || 0) > 0) {
+    return false;
+  }
+  const selfActions = Number(sessionView?.action_count?.self || 0);
+  const oppActions = Number(sessionView?.action_count?.opponent || 0);
+  const drift = selfActions - oppActions;
+  if (drift >= 2) {
+    return true;
+  }
+  if (drift <= -1) {
+    return false;
+  }
+  const roll = createDeterministicUnit(`${sessionView.session_ref}:shadow:cadence:${tickSeq}`);
+  return roll <= 0.58;
+}
+
+function buildPvpTickDiagnostics(session, directorPayload) {
+  if (!session) {
+    return {
+      score_drift: 0,
+      action_drift: 0,
+      queue_pressure: 0,
+      urgency: "idle",
+      recommendation: "balanced",
+      anomaly_bias: "none",
+      contract_mode: "open"
+    };
+  }
+  const scoreSelf = Number(session?.score?.self || 0);
+  const scoreOpp = Number(session?.score?.opponent || 0);
+  const actionsSelf = Number(session?.action_count?.self || 0);
+  const actionsOpp = Number(session?.action_count?.opponent || 0);
+  const scoreDrift = scoreSelf - scoreOpp;
+  const actionDrift = actionsSelf - actionsOpp;
+  const queuePressure = clamp(Math.max(0, actionDrift) / 8, 0, 1);
+  const ttl = Number(session.ttl_sec_left || 0);
+  let urgency = "steady";
+  if (String(session.status || "") !== "active") {
+    urgency = "idle";
+  } else if (ttl <= 10) {
+    urgency = "critical";
+  } else if (queuePressure >= 0.45 || scoreDrift <= -12) {
+    urgency = "pressure";
+  } else if (scoreDrift >= 10) {
+    urgency = "advantage";
+  }
+  return {
+    score_drift: scoreDrift,
+    action_drift: actionDrift,
+    queue_pressure: Number(queuePressure.toFixed(3)),
+    urgency,
+    recommendation: String(
+      directorPayload?.director?.recommended_mode ||
+        directorPayload?.contract?.required_mode ||
+        "balanced"
+    ),
+    anomaly_bias: String(directorPayload?.anomaly?.preferred_mode || "none"),
+    contract_mode: String(directorPayload?.contract?.required_mode || "open")
+  };
+}
+
 const ORACLE_CACHE = {
   ts: 0,
   payload: null
@@ -4883,7 +4980,7 @@ fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
       profile,
       config: runtimeConfig
     });
-    const statePayload = await arenaService.getAuthoritativePvpSessionState(client, {
+    let statePayload = await arenaService.getAuthoritativePvpSessionState(client, {
       profile,
       sessionRef
     });
@@ -4911,12 +5008,127 @@ fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
       return;
     }
 
-    const now = Date.now();
     const tickMs = Math.max(250, Number(statePayload.tick_ms || 1000));
     const actionWindowMs = Math.max(250, Number(statePayload.action_window_ms || 800));
-    const sessionState = statePayload.session.state || {};
+    let sessionState = statePayload.session.state || {};
     const currentTick = Math.max(0, Number(sessionState.server_tick || 0));
     const tickSeq = Math.max(1, currentTick + 1);
+    let shadowDecision = null;
+    let shadowEvaluation = null;
+
+    if (shouldAdvanceShadowOnTick(statePayload.session, tickSeq)) {
+      const rightActionSeq = Math.max(1, Number(statePayload.session?.action_count?.right || 0) + 1);
+      const expectedAction =
+        String(sessionState.next_expected_right || "").toLowerCase() ||
+        arenaEngine.expectedActionForSequence(`${sessionRef}:right`, rightActionSeq);
+      shadowDecision = buildShadowTickDecision(sessionRef, tickSeq, expectedAction, actionWindowMs);
+      shadowEvaluation = arenaEngine.evaluateSessionAction(
+        {
+          sessionRef: `${sessionRef}:right`,
+          combo: Number(statePayload.session?.combo?.right || 0),
+          hits: Number(sessionState.hits_right || 0),
+          misses: Number(sessionState.misses_right || 0),
+          score: Number(statePayload.session?.score?.right || 0),
+          actionCount: Number(statePayload.session?.action_count?.right || 0),
+          comboMax: Number(sessionState.combo_max_right || statePayload.session?.combo?.right || 0)
+        },
+        {
+          actionSeq: rightActionSeq,
+          inputAction: shadowDecision.inputAction,
+          latencyMs: shadowDecision.latencyMs
+        },
+        runtimeConfig
+      );
+      const nextExpectedRight = arenaEngine.expectedActionForSequence(`${sessionRef}:right`, rightActionSeq + 1);
+      await arenaStore.updatePvpSessionProgress(client, {
+        sessionId: Number(statePayload.session.session_id || 0),
+        side: "right",
+        score: Number(shadowEvaluation.scoreAfter || 0),
+        combo: Number(shadowEvaluation.comboAfter || 0),
+        actionCount: Number(shadowEvaluation.actionCount || 0),
+        stateJson: {
+          hits_right: Number(shadowEvaluation.hitsAfter || 0),
+          misses_right: Number(shadowEvaluation.missesAfter || 0),
+          combo_right: Number(shadowEvaluation.comboAfter || 0),
+          combo_max_right: Math.max(
+            Number(sessionState.combo_max_right || 0),
+            Number(shadowEvaluation.comboAfter || 0)
+          ),
+          action_count_right: Number(shadowEvaluation.actionCount || 0),
+          last_action_seq_right: rightActionSeq,
+          last_latency_ms_right: Number(shadowEvaluation.latencyMs || 0),
+          next_expected_right: nextExpectedRight,
+          shadow_last_action: String(shadowDecision.inputAction || ""),
+          shadow_last_accept: Boolean(shadowEvaluation.accepted),
+          shadow_last_reason: String(shadowDecision.strategy || "shadow"),
+          shadow_last_score_delta: Number(shadowEvaluation.scoreDelta || 0),
+          last_server_tick: Date.now(),
+          server_tick: tickSeq
+        }
+      });
+      await client.query(
+        `INSERT INTO pvp_match_events (
+           session_id,
+           session_ref,
+           actor_user_id,
+           event_key,
+           event_name,
+           event_scope,
+           event_value,
+           event_json
+         )
+         VALUES ($1, $2, NULL, 'shadow_tick_action', 'pvp_shadow_action', 'pvp', $3, $4::jsonb);`,
+        [
+          Number(statePayload.session.session_id || 0),
+          String(statePayload.session.session_ref || sessionRef),
+          shadowEvaluation.accepted ? "accepted" : "rejected",
+          JSON.stringify({
+            tick_seq: tickSeq,
+            action_seq: rightActionSeq,
+            expected_action: expectedAction,
+            input_action: shadowDecision.inputAction,
+            latency_ms: shadowDecision.latencyMs,
+            score_delta: shadowEvaluation.scoreDelta,
+            accepted: shadowEvaluation.accepted,
+            strategy: shadowDecision.strategy
+          })
+        ]
+      );
+      statePayload = await arenaService.getAuthoritativePvpSessionState(client, {
+        profile,
+        sessionRef
+      });
+      if (!statePayload.ok || !statePayload.session) {
+        await client.query("ROLLBACK");
+        reply.code(409).send({
+          success: false,
+          error: statePayload.error || "session_refresh_failed"
+        });
+        return;
+      }
+      sessionState = statePayload.session.state || {};
+    }
+
+    await client.query(
+      `UPDATE pvp_sessions
+       SET state_json = COALESCE(state_json, '{}'::jsonb) || $2::jsonb,
+           updated_at = now()
+       WHERE id = $1;`,
+      [
+        Number(statePayload.session.session_id || 0),
+        JSON.stringify({
+          server_tick: tickSeq,
+          last_server_tick: Date.now()
+        })
+      ]
+    );
+    if (statePayload.session && statePayload.session.state) {
+      statePayload.session.state.server_tick = tickSeq;
+      statePayload.session.state.last_server_tick = Date.now();
+    }
+
+    const diagnostics = buildPvpTickDiagnostics(statePayload.session, directorPayload);
+    const now = Date.now();
     const tickPayload = {
       session_id: Number(statePayload.session.session_id || 0),
       session_ref: String(statePayload.session.session_ref || sessionRef),
@@ -4935,8 +5147,26 @@ fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
         score: statePayload.session.score || {},
         combo: statePayload.session.combo || {},
         action_count: statePayload.session.action_count || {},
-        mode_final: statePayload.session.mode_final || null
-      }
+        mode_final: statePayload.session.mode_final || null,
+        diagnostics,
+        shadow: shadowDecision
+          ? {
+              input_action: shadowDecision.inputAction,
+              strategy: shadowDecision.strategy,
+              accepted: Boolean(shadowEvaluation?.accepted),
+              score_delta: Number(shadowEvaluation?.scoreDelta || 0)
+            }
+          : null
+      },
+      diagnostics,
+      shadow: shadowDecision
+        ? {
+            input_action: shadowDecision.inputAction,
+            strategy: shadowDecision.strategy,
+            accepted: Boolean(shadowEvaluation?.accepted),
+            score_delta: Number(shadowEvaluation?.scoreDelta || 0)
+          }
+        : null
     };
 
     await client.query(
@@ -4993,7 +5223,8 @@ fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
           tick_seq: tickPayload.tick_seq,
           server_tick: tickPayload.server_tick,
           tick_ms: tickPayload.tick_ms,
-          action_window_ms: tickPayload.action_window_ms
+          action_window_ms: tickPayload.action_window_ms,
+          diagnostics
         })
       ]
     );
@@ -5010,6 +5241,8 @@ fastify.get("/webapp/api/pvp/match/tick", async (request, reply) => {
         contract: directorPayload?.contract || null,
         anomaly: directorPayload?.anomaly || null,
         director: directorPayload?.director || null,
+        diagnostics,
+        shadow: tickPayload.shadow,
         idempotency_key: `${tickPayload.session_ref}:tick:${tickPayload.tick_seq}`
       }
     });
