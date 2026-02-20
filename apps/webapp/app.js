@@ -98,12 +98,14 @@
     ui: {
       qualityMode: "auto",
       autoQualityMode: "normal",
+      cameraMode: "broadcast",
       sceneMode: "pro",
       hudDensity: "full",
       reducedMotion: false,
       largeText: false,
       storageKeys: {
         quality: "airdropkral_ui_quality_v1",
+        cameraMode: "airdropkral_ui_camera_mode_v1",
         sceneMode: "airdropkral_ui_scene_mode_v1",
         hudDensity: "airdropkral_ui_hud_density_v1",
         reducedMotion: "airdropkral_ui_reduced_motion_v1",
@@ -162,6 +164,7 @@
 
   const SCENE_MODE_VALUES = Object.freeze(["pro", "lite", "cinematic", "minimal"]);
   const HUD_DENSITY_VALUES = Object.freeze(["compact", "full", "extended"]);
+  const CAMERA_MODE_VALUES = Object.freeze(["broadcast", "tactical", "chase"]);
   const PVP_TIMELINE_LIMIT = 32;
   const PVP_REPLAY_LIMIT = 14;
   const COMBAT_CHAIN_LIMIT = 10;
@@ -414,6 +417,13 @@
     return "PRO";
   }
 
+  function cameraModeLabel(mode = state.ui.cameraMode) {
+    const key = String(mode || "broadcast").toLowerCase();
+    if (key === "tactical") return "Tactical";
+    if (key === "chase") return "Chase";
+    return "Broadcast";
+  }
+
   function normalizeHudDensity(value, fallback = "full") {
     const key = String(value || fallback || "full").toLowerCase();
     if (HUD_DENSITY_VALUES.includes(key)) {
@@ -462,8 +472,10 @@
   function applyUiClasses() {
     const body = document.body;
     const effective = getEffectiveQualityMode();
+    const cameraMode = String(state.ui.cameraMode || "broadcast").toLowerCase();
     const sceneMode = String(state.ui.sceneMode || "pro").toLowerCase();
     const hudDensity = normalizeHudDensity(state.ui.hudDensity, "full");
+    state.ui.cameraMode = CAMERA_MODE_VALUES.includes(cameraMode) ? cameraMode : "broadcast";
     state.ui.hudDensity = hudDensity;
     state.telemetry.sceneHudDensity = hudDensity;
     body.classList.toggle("reduced-motion", state.ui.reducedMotion);
@@ -478,6 +490,7 @@
     body.classList.toggle("hud-compact", hudDensity === "compact");
     body.classList.toggle("hud-full", hudDensity === "full");
     body.classList.toggle("hud-extended", hudDensity === "extended");
+    body.dataset.cameraMode = state.ui.cameraMode;
 
     const qualityBtn = byId("qualityToggleBtn");
     if (qualityBtn) {
@@ -493,6 +506,11 @@
     if (typeBtn) {
       typeBtn.textContent = state.ui.largeText ? "Yazi: Buyuk" : "Yazi: Normal";
       typeBtn.dataset.active = state.ui.largeText ? "1" : "0";
+    }
+    const cameraBtn = byId("cameraModeToggleBtn");
+    if (cameraBtn) {
+      cameraBtn.textContent = `Cam: ${cameraModeLabel(state.ui.cameraMode)}`;
+      cameraBtn.dataset.active = state.ui.cameraMode;
     }
     const sceneBtn = byId("sceneModeToggleBtn");
     if (sceneBtn) {
@@ -513,12 +531,13 @@
     if (runtimeSceneLine) {
       runtimeSceneLine.textContent = `HUD ${hudDensity} | PostFX ${Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(
         2
-      )} | ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+      )} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
     }
   }
 
   function persistUiPrefs() {
     writeStorage(state.ui.storageKeys.quality, state.ui.qualityMode);
+    writeStorage(state.ui.storageKeys.cameraMode, state.ui.cameraMode);
     writeStorage(state.ui.storageKeys.sceneMode, state.ui.sceneMode);
     writeStorage(state.ui.storageKeys.hudDensity, normalizeHudDensity(state.ui.hudDensity, "full"));
     writeStorage(state.ui.storageKeys.reducedMotion, state.ui.reducedMotion ? "1" : "0");
@@ -529,6 +548,10 @@
     const quality = String(readStorage(state.ui.storageKeys.quality, "auto") || "auto").toLowerCase();
     if (["auto", "high", "low", "normal"].includes(quality)) {
       state.ui.qualityMode = quality === "normal" ? "auto" : quality;
+    }
+    const cameraMode = String(readStorage(state.ui.storageKeys.cameraMode, "broadcast") || "broadcast").toLowerCase();
+    if (CAMERA_MODE_VALUES.includes(cameraMode)) {
+      state.ui.cameraMode = cameraMode;
     }
     const sceneMode = String(readStorage(state.ui.storageKeys.sceneMode, "pro") || "pro").toLowerCase();
     if (SCENE_MODE_VALUES.includes(sceneMode)) {
@@ -708,6 +731,17 @@
     showToast(`Performans modu: ${qualityButtonLabel()}`);
   }
 
+  function cycleCameraMode() {
+    const current = String(state.ui.cameraMode || "broadcast").toLowerCase();
+    const idx = Math.max(0, CAMERA_MODE_VALUES.indexOf(current));
+    const next = CAMERA_MODE_VALUES[(idx + 1) % CAMERA_MODE_VALUES.length];
+    state.ui.cameraMode = next;
+    persistUiPrefs();
+    applyUiClasses();
+    scheduleSceneProfileSync(true);
+    showToast(`Kamera modu: ${cameraModeLabel(next)}`);
+  }
+
   function cycleSceneMode() {
     const current = String(state.ui.sceneMode || "pro").toLowerCase();
     const idx = Math.max(0, SCENE_MODE_VALUES.indexOf(current));
@@ -832,6 +866,7 @@
       hud_density: sceneProfile.hudDensity,
       prefs_json: {
         auto_quality_mode: state.ui.autoQualityMode,
+        camera_mode: state.ui.cameraMode,
         perf_tier: state.telemetry.perfTier,
         source: "webapp_v35"
       }
@@ -5735,6 +5770,59 @@
     }
   }
 
+  function resolveCameraDynamics(mode, heat, threat, cinematicIntensity) {
+    if (mode === "tactical") {
+      return {
+        drift: clamp(0.22 + heat * 0.34, 0.2, 0.78),
+        energy: clamp((heat * 0.42 + threat * 0.28 + cinematicIntensity * 0.18) * 100, 8, 92),
+        focus: "Tactical lock aktif, pencereler daha net."
+      };
+    }
+    if (mode === "chase") {
+      return {
+        drift: clamp(0.58 + heat * 0.56 + cinematicIntensity * 0.22, 0.5, 1.42),
+        energy: clamp((heat * 0.55 + threat * 0.25 + cinematicIntensity * 0.3) * 100, 16, 100),
+        focus: "Chase takibi aktif, ani vuruslar one cikiyor."
+      };
+    }
+    return {
+      drift: clamp(0.34 + heat * 0.4 + cinematicIntensity * 0.15, 0.3, 1.02),
+      energy: clamp((heat * 0.47 + threat * 0.31 + cinematicIntensity * 0.2) * 100, 10, 96),
+      focus: "Broadcast acisi dengeli, kontrat hizi izleniyor."
+    };
+  }
+
+  function renderCameraDirector(data, heat, threat) {
+    const safe = data && typeof data === "object" ? data : {};
+    const mode = String(state.ui.cameraMode || "broadcast").toLowerCase();
+    const validMode = CAMERA_MODE_VALUES.includes(mode) ? mode : "broadcast";
+    state.ui.cameraMode = validMode;
+    const queueSize = Math.max(
+      0,
+      asNum((state.v3.queue || []).length) + asNum((state.v3.pvpQueue || []).length) + asNum((state.v3.raidQueue || []).length)
+    );
+    const windowMs = Math.max(200, asNum(state.v3.pvpActionWindowMs || 800));
+    const cinematicIntensity = clamp(asNum(state.arena?.pvpCinematicIntensity || 0), 0, 1.6);
+    const dynamics = resolveCameraDynamics(validMode, heat, threat, cinematicIntensity);
+
+    const modeLine = byId("cameraModeLine");
+    if (modeLine) {
+      modeLine.dataset.mode = validMode;
+      modeLine.textContent = `${cameraModeLabel(validMode).toUpperCase()} | Drift ${Math.round(dynamics.drift * 100)}%`;
+    }
+
+    const focusLine = byId("cameraFocusLine");
+    if (focusLine) {
+      const riskPct = Math.round(clamp(asNum(safe.risk_score || 0) * 100, 0, 100));
+      focusLine.textContent = `${dynamics.focus} Queue ${queueSize} | Window ${windowMs}ms | Risk ${riskPct}%`;
+    }
+
+    const energyMeter = byId("cameraEnergyMeter");
+    if (energyMeter) {
+      animateMeterWidth(energyMeter, dynamics.energy, 0.32);
+    }
+  }
+
   function renderTelemetryDeck(data) {
     const safe = data && typeof data === "object" ? data : {};
     const fps = asNum(state.telemetry.fpsAvg || 0);
@@ -5749,6 +5837,7 @@
     applySceneMood(safe, heat, threat);
     renderCombatHudStrip(safe, heat, threat);
     renderRoundDirectorStrip(safe, heat, threat);
+    renderCameraDirector(safe, heat, threat);
 
     const deckBridge = getTelemetryDeckBridge();
     if (deckBridge) {
@@ -5766,7 +5855,9 @@
       if (runtimeSceneLine) {
         runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
           state.telemetry.scenePostFxLevel || 0.9
-        ).toFixed(2)} | Mood ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+        ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
+          state.telemetry.sceneMood || "balanced"
+        ).toUpperCase()}`;
       }
       return;
     }
@@ -5792,7 +5883,9 @@
     if (runtimeSceneLine) {
       runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
         state.telemetry.scenePostFxLevel || 0.9
-      ).toFixed(2)} | Mood ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
+      ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
+        state.telemetry.sceneMood || "balanced"
+      ).toUpperCase()}`;
     }
     const heatLine = byId("combatHeatLine");
     if (heatLine) {
@@ -5965,6 +6058,10 @@
       if (SCENE_MODE_VALUES.includes(sceneMode)) {
         state.ui.sceneMode = sceneMode;
       }
+      const cameraMode = String(scene.prefs_json?.camera_mode || state.ui.cameraMode || "broadcast").toLowerCase();
+      if (CAMERA_MODE_VALUES.includes(cameraMode)) {
+        state.ui.cameraMode = cameraMode;
+      }
       const perfProfile = String(scene.perf_profile || "").toLowerCase();
       if (["low", "normal", "high"].includes(perfProfile)) {
         state.ui.autoQualityMode = perfProfile;
@@ -5981,6 +6078,10 @@
       const quality = String(prefs.quality_mode || "").toLowerCase();
       if (["auto", "high", "normal", "low"].includes(quality)) {
         state.ui.qualityMode = quality === "normal" ? "auto" : quality;
+      }
+      const cameraMode = String(prefs.camera_mode || "").toLowerCase();
+      if (CAMERA_MODE_VALUES.includes(cameraMode)) {
+        state.ui.cameraMode = cameraMode;
       }
       state.ui.reducedMotion = nextReduced;
       state.ui.largeText = nextLarge;
@@ -6113,6 +6214,12 @@
     byId("qualityToggleBtn").addEventListener("click", () => {
       cycleQualityMode();
     });
+    const cameraBtn = byId("cameraModeToggleBtn");
+    if (cameraBtn) {
+      cameraBtn.addEventListener("click", () => {
+        cycleCameraMode();
+      });
+    }
     byId("sceneModeToggleBtn").addEventListener("click", () => {
       cycleSceneMode();
     });
@@ -6945,10 +7052,37 @@
       for (const mixer of mixers) {
         mixer.update(dt);
       }
-      const cameraTargetX = pointer.x * activeProfile.cameraDrift;
-      const cameraTargetY = -pointer.y * (activeProfile.cameraDrift * 0.52);
-      camera.position.x += (cameraTargetX - camera.position.x) * activeProfile.pointerLerp;
-      camera.position.y += (cameraTargetY - camera.position.y + 1.5) * activeProfile.pointerLerp;
+      const cameraMode = String(state.ui.cameraMode || "broadcast").toLowerCase();
+      let cameraDriftMul = 1;
+      let cameraLift = 1.5;
+      let cameraPointerStrength = 0.52;
+      let cameraDepthBase = 14;
+      let cameraLerp = activeProfile.pointerLerp;
+      let fovBase = 56;
+      if (cameraMode === "tactical") {
+        cameraDriftMul = 0.74;
+        cameraLift = 1.86;
+        cameraPointerStrength = 0.44;
+        cameraDepthBase = 15.4;
+        cameraLerp = Math.max(0.009, activeProfile.pointerLerp * 0.78);
+        fovBase = 52;
+      } else if (cameraMode === "chase") {
+        cameraDriftMul = 1.28;
+        cameraLift = 1.26;
+        cameraPointerStrength = 0.66;
+        cameraDepthBase = 12.8;
+        cameraLerp = Math.min(0.038, activeProfile.pointerLerp * 1.35);
+        fovBase = 60;
+      }
+      const cameraTargetX = pointer.x * activeProfile.cameraDrift * cameraDriftMul;
+      const cameraTargetY = -pointer.y * (activeProfile.cameraDrift * cameraPointerStrength);
+      const cameraTargetZ =
+        cameraDepthBase +
+        heat * (cameraMode === "tactical" ? 0.3 : cameraMode === "chase" ? -0.6 : -0.15) +
+        pvpCinematicIntensity * (cameraMode === "chase" ? -0.45 : 0.18);
+      camera.position.x += (cameraTargetX - camera.position.x) * cameraLerp;
+      camera.position.y += (cameraTargetY - camera.position.y + cameraLift) * cameraLerp;
+      camera.position.z += (cameraTargetZ - camera.position.z) * Math.max(0.03, Math.min(0.18, cameraLerp * 1.6));
       const cameraImpulse = asNum(state.arena?.cameraImpulse || 0);
       if (cameraImpulse > 0.0001 && !state.ui.reducedMotion) {
         camera.position.x += (Math.random() - 0.5) * cameraImpulse * 0.24;
@@ -6958,7 +7092,7 @@
       } else if (state.arena?.cameraImpulse) {
         state.arena.cameraImpulse = 0;
       }
-      const targetFov = 56 + heat * 3.8 + Math.min(2.8, cameraImpulse * 14) + pvpCinematicIntensity * 3.2;
+      const targetFov = fovBase + heat * 3.8 + Math.min(2.8, cameraImpulse * 14) + pvpCinematicIntensity * 3.2;
       camera.fov += (targetFov - camera.fov) * 0.08;
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0, 0);

@@ -34,6 +34,7 @@
           <button id="qualityToggleBtn" class="btn ghost">Perf: Auto</button>
           <button id="motionToggleBtn" class="btn ghost">Motion: Acik</button>
           <button id="typeToggleBtn" class="btn ghost">Yazi: Normal</button>
+          <button id="cameraModeToggleBtn" class="btn ghost">Cam: Broadcast</button>
           <button id="sceneModeToggleBtn" class="btn ghost">Scene: PRO</button>
         </div>
       </header>
@@ -89,6 +90,12 @@
             <p id="threatLine" class="value">Risk 0%</p>
             <div class="meter"><span id="threatMeter"></span></div>
             <p id="threatHint" class="micro">Stabil pencere</p>
+          </div>
+          <div class="directorBox cameraDirectorBox">
+            <p class="label">Cinematic Camera</p>
+            <p id="cameraModeLine" class="value" data-mode="broadcast">BROADCAST | Drift 0%</p>
+            <div class="meter"><span id="cameraEnergyMeter"></span></div>
+            <p id="cameraFocusLine" class="micro">Focus dengede, director hazir.</p>
           </div>
         </div>
         <canvas id="telemetryCanvas" class="telemetryCanvas" width="1080" height="132"></canvas>

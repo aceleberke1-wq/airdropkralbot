@@ -393,8 +393,25 @@ body.pulse-reveal .telemetryDeck {
 
 .telemetryGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.cameraDirectorBox {
+  border-color: rgba(124, 168, 255, 0.3);
+  box-shadow: inset 0 0 18px rgba(71, 208, 255, 0.08);
+}
+
+#cameraModeLine[data-mode="broadcast"] {
+  color: #9cd9ff;
+}
+
+#cameraModeLine[data-mode="tactical"] {
+  color: #b9ffd8;
+}
+
+#cameraModeLine[data-mode="chase"] {
+  color: #ffc0cf;
 }
 
 .telemetryCanvas {
