@@ -3492,6 +3492,249 @@
     }
   }
 
+  function drawPvpRadarCanvas(canvas, options = {}) {
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const width = Math.max(180, canvas.width || 360);
+    const height = Math.max(110, canvas.height || 196);
+    const cx = width * 0.5;
+    const cy = height * 0.52;
+    const maxRadius = Math.max(24, Math.min(width, height) * 0.4);
+    const tone = String(options.tone || "neutral");
+    const flowRatio = clamp(asNum(options.flowRatio), 0, 1);
+    const clutchVector = clamp(asNum(options.clutchVector), 0, 1);
+    const queueRatio = clamp(asNum(options.queueRatio), 0, 1);
+    const driftRatio = clamp(asNum(options.driftRatio), 0, 1);
+    const reducedMotion = Boolean(options.reducedMotion);
+    const replay = Array.isArray(options.replay) ? options.replay.slice(0, 14) : [];
+    const tickSeq = Math.max(0, asNum(options.tickSeq || 0));
+    const nowMs = Date.now();
+    const sweepSeed = reducedMotion ? tickSeq * 0.47 : nowMs / 900;
+    const sweepAngle = (sweepSeed % (Math.PI * 2)) + queueRatio * 0.16;
+
+    const toneGradientMap = {
+      critical: ["rgba(28, 8, 18, 0.92)", "rgba(8, 8, 20, 0.94)"],
+      pressure: ["rgba(24, 14, 8, 0.9)", "rgba(7, 10, 22, 0.94)"],
+      advantage: ["rgba(8, 18, 17, 0.9)", "rgba(6, 11, 24, 0.94)"],
+      neutral: ["rgba(8, 13, 30, 0.9)", "rgba(5, 9, 22, 0.94)"]
+    };
+    const [gradA, gradB] = toneGradientMap[tone] || toneGradientMap.neutral;
+    const bg = ctx.createLinearGradient(0, 0, width, height);
+    bg.addColorStop(0, gradA);
+    bg.addColorStop(1, gradB);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+
+    const gridColor = tone === "critical" ? "rgba(255, 94, 132, 0.22)" : "rgba(143, 184, 255, 0.18)";
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    for (let ring = 1; ring <= 4; ring += 1) {
+      const r = (maxRadius / 4) * ring;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - maxRadius - 10, cy);
+    ctx.lineTo(cx + maxRadius + 10, cy);
+    ctx.moveTo(cx, cy - maxRadius - 10);
+    ctx.lineTo(cx, cy + maxRadius + 10);
+    ctx.stroke();
+
+    const sweepGradient = ctx.createRadialGradient(cx, cy, maxRadius * 0.1, cx, cy, maxRadius * 1.2);
+    const sweepColor =
+      tone === "critical"
+        ? "rgba(255, 86, 121, 0.36)"
+        : tone === "pressure"
+          ? "rgba(255, 189, 111, 0.34)"
+          : tone === "advantage"
+            ? "rgba(112, 255, 160, 0.34)"
+            : "rgba(124, 214, 255, 0.3)";
+    sweepGradient.addColorStop(0, sweepColor);
+    sweepGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = sweepGradient;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, maxRadius * 1.08, sweepAngle - 0.26, sweepAngle + 0.26);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = tone === "critical" ? "rgba(255, 135, 161, 0.84)" : "rgba(151, 221, 255, 0.8)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(sweepAngle) * maxRadius * 1.06, cy + Math.sin(sweepAngle) * maxRadius * 1.06);
+    ctx.stroke();
+
+    replay.forEach((row, idx) => {
+      const action = String(row?.input_action || row?.input || row?.action || "strike").toLowerCase();
+      const accepted = Boolean(row?.accepted);
+      const seq = Math.max(1, asNum(row?.seq || idx + 1));
+      const hashSeed =
+        seq * 0.37 +
+        action
+          .split("")
+          .reduce((acc, ch) => acc + ch.charCodeAt(0), 0) *
+          0.013;
+      const angle = (hashSeed % (Math.PI * 2)) + driftRatio * 0.55;
+      const radius = clamp(maxRadius * (0.24 + (idx / Math.max(1, replay.length - 1)) * 0.72), maxRadius * 0.2, maxRadius * 0.96);
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      const fill =
+        action.includes("guard")
+          ? accepted
+            ? "rgba(112, 255, 160, 0.86)"
+            : "rgba(255, 152, 171, 0.84)"
+          : action.includes("charge")
+            ? accepted
+              ? "rgba(124, 214, 255, 0.86)"
+              : "rgba(255, 180, 120, 0.84)"
+            : accepted
+              ? "rgba(255, 206, 120, 0.86)"
+              : "rgba(255, 102, 136, 0.88)";
+      ctx.fillStyle = fill;
+      ctx.shadowBlur = accepted ? 8 : 12;
+      ctx.shadowColor = fill;
+      ctx.beginPath();
+      ctx.arc(x, y, accepted ? 3.2 : 3.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    const vectorAngle = -Math.PI * 0.5 + flowRatio * Math.PI * 1.2;
+    const vectorRadius = maxRadius * (0.22 + clutchVector * 0.62);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.66)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(vectorAngle) * vectorRadius, cy + Math.sin(vectorAngle) * vectorRadius);
+    ctx.stroke();
+
+    ctx.fillStyle = tone === "critical" ? "rgba(255, 134, 164, 0.96)" : "rgba(146, 252, 208, 0.95)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4.3 + flowRatio * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function renderPvpRadar(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const root = byId("pvpRadarStrip");
+    const toneBadge = byId("pvpRadarToneBadge");
+    const canvas = byId("pvpRadarCanvas");
+    const line = byId("pvpRadarLine");
+    const hint = byId("pvpRadarHint");
+    const flowLine = byId("pvpDuelFlowLine");
+    const flowMeter = byId("pvpDuelFlowMeter");
+    const clutchLine = byId("pvpClutchVectorLine");
+    const clutchMeter = byId("pvpClutchVectorMeter");
+    if (!root || !toneBadge || !canvas || !line || !hint || !flowLine || !flowMeter || !clutchLine || !clutchMeter) {
+      return;
+    }
+
+    const setTone = (tone = "neutral") => {
+      const safeTone = ["neutral", "advantage", "pressure", "critical"].includes(String(tone)) ? String(tone) : "neutral";
+      root.dataset.tone = safeTone;
+      toneBadge.className = safeTone === "critical" ? "badge warn" : safeTone === "advantage" ? "badge" : "badge info";
+      toneBadge.textContent =
+        safeTone === "critical" ? "CRITICAL" : safeTone === "pressure" ? "PRESSURE" : safeTone === "advantage" ? "ADVANTAGE" : "NEUTRAL";
+    };
+
+    if (!session) {
+      setTone("neutral");
+      animateTextSwap(line, "Sweep 0% | Drift 0 | Queue 0");
+      animateTextSwap(hint, "Radar feed bekleniyor.");
+      animateTextSwap(flowLine, "FLOW 0% | STABLE");
+      animateTextSwap(clutchLine, "VECTOR 0% | LOCK");
+      animateMeterWidth(flowMeter, 0, 0.2);
+      animateMeterWidth(clutchMeter, 0, 0.2);
+      setMeterPalette(flowMeter, "neutral");
+      setMeterPalette(clutchMeter, "neutral");
+      drawPvpRadarCanvas(canvas, {
+        tone: "neutral",
+        flowRatio: 0,
+        clutchVector: 0,
+        queueRatio: 0,
+        driftRatio: 0,
+        replay: [],
+        reducedMotion: state.ui.reducedMotion,
+        tickSeq: 0
+      });
+      return;
+    }
+
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const queueSize = Math.max(0, asNum(state.v3.pvpQueue.length || 0));
+    const queueRatio = clamp(queueSize / 10, 0, 1);
+    const drift = asNum(diagnostics.score_drift || 0);
+    const driftRatio = clamp(Math.abs(drift) / 6, 0, 1);
+    const latencyRatio = clamp(asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0) / 1000, 0, 1);
+    const scoreSelf = asNum(session.score?.self || 0);
+    const scoreOpp = asNum(session.score?.opponent || 0);
+    const comboSelf = asNum(session.combo?.self || 0);
+    const comboOpp = asNum(session.combo?.opponent || 0);
+    const actionsSelf = asNum(session.action_count?.self || 0);
+    const ttlSecLeft = Math.max(0, asNum(session.ttl_sec_left || 0));
+    const ttlRatio = clamp(ttlSecLeft / 60, 0, 1);
+    const resolveReadiness = clamp(actionsSelf / 6, 0, 1);
+    const momentumBase = clamp(0.5 + (scoreSelf - scoreOpp) / 16 + (comboSelf - comboOpp) / 16, 0, 1);
+    const momentumSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? momentumBase), 0, 1);
+    const momentumOpp = clamp(asNum(state.arena?.pvpMomentumOpp ?? 1 - momentumBase), 0, 1);
+    const flowRatio = clamp(momentumSelf * 0.64 + (1 - momentumOpp) * 0.24 + (1 - latencyRatio) * 0.12, 0, 1);
+    const clutchVector = clamp(resolveReadiness * 0.52 + (1 - ttlRatio) * 0.22 + (1 - queueRatio) * 0.26, 0, 1);
+    const sweepRatio = clamp(flowRatio * 0.58 + (1 - queueRatio) * 0.24 + (1 - driftRatio) * 0.18, 0, 1);
+    const status = String(session.status || "active").toLowerCase();
+    const urgency = String(diagnostics.urgency || state.arena?.pvpUrgency || "steady").toLowerCase();
+    const riskPulse = clamp(driftRatio * 0.42 + queueRatio * 0.34 + latencyRatio * 0.24, 0, 1);
+    const vectorState = resolveReadiness >= 1 ? "RESOLVE" : ttlSecLeft <= 16 ? "TIME CRIT" : clutchVector >= 0.58 ? "PUSH" : "LOCK";
+    const flowState = flowRatio >= 0.66 ? "PUSH" : flowRatio >= 0.46 ? "STABLE" : "DROP";
+
+    let tone = "neutral";
+    if (status === "resolved") {
+      const outcome = String(session.result?.outcome_for_viewer || session.result?.outcome || "").toLowerCase();
+      tone = outcome === "win" ? "advantage" : "critical";
+    } else if (urgency === "critical" || riskPulse >= 0.72 || ttlSecLeft <= 12) {
+      tone = "critical";
+    } else if (urgency === "pressure" || riskPulse >= 0.46 || queueRatio >= 0.5) {
+      tone = "pressure";
+    } else if (flowRatio >= 0.6 && clutchVector >= 0.5) {
+      tone = "advantage";
+    }
+    setTone(tone);
+
+    animateTextSwap(line, `Sweep ${Math.round(sweepRatio * 100)}% | Drift ${drift >= 0 ? "+" : ""}${Math.round(drift)} | Queue ${queueSize}`);
+    if (tone === "critical") {
+      animateTextSwap(hint, "Radar kilitlendi: queue temizle, guard ile ritmi stabil tut.");
+    } else if (tone === "pressure") {
+      animateTextSwap(hint, "Baski yukseliyor: expected aksiyonu kacirmadan pencereyi tut.");
+    } else if (tone === "advantage") {
+      animateTextSwap(hint, "Avantaj sende: flow koru, resolve penceresini kilitle.");
+    } else {
+      animateTextSwap(hint, "Stabil feed: duel flow ve clutch vector dengede.");
+    }
+
+    animateTextSwap(flowLine, `FLOW ${Math.round(flowRatio * 100)}% | ${flowState}`);
+    animateTextSwap(clutchLine, `VECTOR ${Math.round(clutchVector * 100)}% | ${vectorState}`);
+    animateMeterWidth(flowMeter, flowRatio * 100, 0.22);
+    animateMeterWidth(clutchMeter, clutchVector * 100, 0.22);
+    setMeterPalette(flowMeter, flowRatio >= 0.66 ? "safe" : flowRatio >= 0.46 ? "balanced" : "aggressive");
+    setMeterPalette(clutchMeter, clutchVector >= 0.58 ? "safe" : clutchVector >= 0.4 ? "balanced" : "critical");
+
+    drawPvpRadarCanvas(canvas, {
+      tone,
+      flowRatio,
+      clutchVector,
+      queueRatio,
+      driftRatio,
+      replay: state.v3.pvpReplay,
+      reducedMotion: state.ui.reducedMotion,
+      tickSeq: asNum(tickMeta?.tick_seq || 0)
+    });
+  }
+
   function paintPvpObjectiveCard(card, label, value, meta, tone = "neutral") {
     if (!card) {
       return;
@@ -3840,6 +4083,7 @@
       renderPvpCadence(null, null);
       renderPvpDuelTheater(null, null);
       renderPvpCinematicDirector(null, null);
+      renderPvpRadar(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -3914,6 +4158,7 @@
     renderPvpCadence(session, state.v3.pvpTickMeta);
     renderPvpDuelTheater(session, state.v3.pvpTickMeta);
     renderPvpCinematicDirector(session, state.v3.pvpTickMeta);
+    renderPvpRadar(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
