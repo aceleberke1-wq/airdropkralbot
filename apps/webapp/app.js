@@ -2870,6 +2870,7 @@
       return;
     }
     line.textContent = `Input Queue ${state.v3.pvpQueue.length}`;
+    renderPvpCadence(state.v3.pvpSession, state.v3.pvpTickMeta);
   }
 
   function renderPvpTickLine(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
@@ -2910,6 +2911,135 @@
     } else {
       line.classList.remove("live");
     }
+  }
+
+  function renderPvpCadence(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const pulseLine = byId("pvpPulseLine");
+    const pulseMeter = byId("pvpPulseMeter");
+    const windowMeter = byId("pvpWindowMeter");
+    const cadenceLine = byId("pvpCadenceLine");
+    const cadenceHint = byId("pvpCadenceHint");
+    const cadenceStrikeMeter = byId("pvpCadenceStrikeMeter");
+    const cadenceGuardMeter = byId("pvpCadenceGuardMeter");
+    const cadenceChargeMeter = byId("pvpCadenceChargeMeter");
+    const cadenceDriftMeter = byId("pvpCadenceDriftMeter");
+    if (
+      !pulseLine ||
+      !cadenceLine ||
+      !cadenceHint ||
+      !pulseMeter ||
+      !windowMeter ||
+      !cadenceStrikeMeter ||
+      !cadenceGuardMeter ||
+      !cadenceChargeMeter ||
+      !cadenceDriftMeter
+    ) {
+      return;
+    }
+
+    const resetTone = () => {
+      pulseLine.removeAttribute("data-tone");
+      cadenceLine.removeAttribute("data-tone");
+    };
+
+    if (!session) {
+      resetTone();
+      pulseLine.textContent = "Phase 0% | Window 80%";
+      cadenceLine.textContent = "STR 0 | GRD 0 | CHG 0";
+      cadenceHint.textContent = "Duel basladiginda aksiyon ritmi burada canli guncellenir.";
+      animateMeterWidth(pulseMeter, 0, 0.18);
+      animateMeterWidth(windowMeter, 0, 0.18);
+      animateMeterWidth(cadenceStrikeMeter, 0, 0.18);
+      animateMeterWidth(cadenceGuardMeter, 0, 0.18);
+      animateMeterWidth(cadenceChargeMeter, 0, 0.18);
+      animateMeterWidth(cadenceDriftMeter, 0, 0.18);
+      [pulseMeter, windowMeter, cadenceStrikeMeter, cadenceGuardMeter, cadenceChargeMeter, cadenceDriftMeter].forEach((el) =>
+        setMeterPalette(el, "neutral")
+      );
+      return;
+    }
+
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const tickMs = Math.max(200, asNum(session.tick_ms || state.v3.pvpTickMs || 1000));
+    const actionWindowMs = clamp(asNum(session.action_window_ms || state.v3.pvpActionWindowMs || 800), 80, tickMs);
+    const windowRatio = clamp(actionWindowMs / tickMs, 0, 1);
+    const queueSize = Math.max(0, asNum(state.v3.pvpQueue.length || 0));
+    const queueRatio = clamp(queueSize / 8, 0, 1);
+    const tickSeq = asNum(tickMeta?.tick_seq || 0);
+    const phaseRatio = clamp((((Date.now() % tickMs) / tickMs) * 0.74 + ((tickSeq % 7) / 7) * 0.26), 0, 1);
+    const driftRatio = clamp(Math.abs(asNum(diagnostics.score_drift || 0)) / 6, 0, 1);
+    const urgencyKey = String(diagnostics.urgency || state.arena?.pvpUrgency || "steady").toLowerCase();
+    const recommendedMode = String(
+      diagnostics.recommendation || state.arena?.pvpRecommendation || "balanced"
+    ).toLowerCase();
+    const expectedAction = String(session.next_expected_action || state.sim.expected || "strike").toLowerCase();
+    const replay = Array.isArray(state.v3.pvpReplay) ? state.v3.pvpReplay.slice(0, 12) : [];
+    const counts = { strike: 0, guard: 0, charge: 0 };
+    replay.forEach((row) => {
+      const action = String(row?.input_action || row?.input || row?.action || "").toLowerCase();
+      if (action.includes("guard")) counts.guard += 1;
+      else if (action.includes("charge")) counts.charge += 1;
+      else if (action.includes("strike")) counts.strike += 1;
+    });
+    if (counts.strike + counts.guard + counts.charge <= 0) {
+      if (expectedAction.includes("guard")) counts.guard = 1;
+      else if (expectedAction.includes("charge")) counts.charge = 1;
+      else counts.strike = 1;
+    }
+    const cadenceTotal = Math.max(1, counts.strike + counts.guard + counts.charge);
+    const strikeRatio = clamp(counts.strike / cadenceTotal, 0, 1);
+    const guardRatio = clamp(counts.guard / cadenceTotal, 0, 1);
+    const chargeRatio = clamp(counts.charge / cadenceTotal, 0, 1);
+
+    const dominantAction =
+      strikeRatio >= guardRatio && strikeRatio >= chargeRatio
+        ? "STRIKE"
+        : guardRatio >= chargeRatio
+          ? "GUARD"
+          : "CHARGE";
+    const pressureRatio = clamp(queueRatio * 0.55 + driftRatio * 0.45, 0, 1);
+    const tone =
+      urgencyKey === "critical" || pressureRatio >= 0.78
+        ? "critical"
+        : urgencyKey === "pressure" || pressureRatio >= 0.44
+          ? "pressure"
+          : urgencyKey === "advantage"
+            ? "advantage"
+            : "neutral";
+    if (tone === "neutral") {
+      resetTone();
+    } else {
+      pulseLine.dataset.tone = tone;
+      cadenceLine.dataset.tone = tone;
+    }
+
+    pulseLine.textContent = `Phase ${Math.round(phaseRatio * 100)}% | Window ${Math.round(windowRatio * 100)}% | Queue ${queueSize}`;
+    cadenceLine.textContent = `STR ${Math.round(strikeRatio * 100)} | GRD ${Math.round(guardRatio * 100)} | CHG ${Math.round(
+      chargeRatio * 100
+    )}`;
+
+    if (tone === "critical") {
+      cadenceHint.textContent = `CRITICAL: ${dominantAction} bozuldu. ${expectedAction.toUpperCase()} penceresine hizli don.`;
+    } else if (tone === "pressure") {
+      cadenceHint.textContent = `Baski yukseliyor: ${dominantAction} agirlikli akis. Queue temizleyip ${recommendedMode.toUpperCase()} kal.`;
+    } else if (tone === "advantage") {
+      cadenceHint.textContent = `Ustunluk sende: ${dominantAction} ritmi korunuyor. ${expectedAction.toUpperCase()} ile zinciri uzat.`;
+    } else {
+      cadenceHint.textContent = `Stabil ritim: ${dominantAction} odakli. ${recommendedMode.toUpperCase()} modunda pencereyi kacirma.`;
+    }
+
+    animateMeterWidth(pulseMeter, phaseRatio * 100, 0.22);
+    setMeterPalette(pulseMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+    animateMeterWidth(windowMeter, windowRatio * 100, 0.22);
+    setMeterPalette(windowMeter, windowRatio >= 0.72 ? "safe" : windowRatio >= 0.5 ? "balanced" : "aggressive");
+    animateMeterWidth(cadenceStrikeMeter, strikeRatio * 100, 0.2);
+    setMeterPalette(cadenceStrikeMeter, expectedAction.includes("strike") ? "aggressive" : "neutral");
+    animateMeterWidth(cadenceGuardMeter, guardRatio * 100, 0.2);
+    setMeterPalette(cadenceGuardMeter, expectedAction.includes("guard") ? "safe" : "neutral");
+    animateMeterWidth(cadenceChargeMeter, chargeRatio * 100, 0.2);
+    setMeterPalette(cadenceChargeMeter, expectedAction.includes("charge") ? "balanced" : "neutral");
+    animateMeterWidth(cadenceDriftMeter, driftRatio * 100, 0.22);
+    setMeterPalette(cadenceDriftMeter, driftRatio >= 0.7 ? "critical" : driftRatio >= 0.4 ? "aggressive" : "safe");
   }
 
   function paintPvpObjectiveCard(card, label, value, meta, tone = "neutral") {
@@ -3257,6 +3387,7 @@
       renderPvpReplayStrip();
       renderPvpTickLine(null, null);
       renderPvpMomentumAndObjectives(null);
+      renderPvpCadence(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -3328,6 +3459,7 @@
     renderPvpTimeline();
     renderPvpTickLine(session, state.v3.pvpTickMeta);
     renderPvpMomentumAndObjectives(session);
+    renderPvpCadence(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});

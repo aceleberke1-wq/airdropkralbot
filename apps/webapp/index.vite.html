@@ -369,6 +369,38 @@
               <div class="meter"><span id="pvpMomentumOppMeter"></span></div>
             </div>
           </section>
+          <section class="pvpCadenceStrip">
+            <div class="pvpCadenceCell">
+              <p class="label">Tick Pulse</p>
+              <p id="pvpPulseLine" class="value">Phase 0% | Window 80%</p>
+              <div class="meter"><span id="pvpPulseMeter"></span></div>
+              <div class="meter"><span id="pvpWindowMeter"></span></div>
+              <p class="micro">Tick ritmini izle, pencere disina cikma.</p>
+            </div>
+            <div class="pvpCadenceCell">
+              <p class="label">Action Cadence</p>
+              <p id="pvpCadenceLine" class="value">STR 0 | GRD 0 | CHG 0</p>
+              <div class="cadenceGrid pvpCadenceGrid">
+                <div class="cadenceRow">
+                  <span class="micro">STRIKE</span>
+                  <div class="meter"><span id="pvpCadenceStrikeMeter"></span></div>
+                </div>
+                <div class="cadenceRow">
+                  <span class="micro">GUARD</span>
+                  <div class="meter"><span id="pvpCadenceGuardMeter"></span></div>
+                </div>
+                <div class="cadenceRow">
+                  <span class="micro">CHARGE</span>
+                  <div class="meter"><span id="pvpCadenceChargeMeter"></span></div>
+                </div>
+                <div class="cadenceRow">
+                  <span class="micro">DRIFT</span>
+                  <div class="meter"><span id="pvpCadenceDriftMeter"></span></div>
+                </div>
+              </div>
+              <p id="pvpCadenceHint" class="micro">Beklenen aksiyona hizli donup queue baskisini dengele.</p>
+            </div>
+          </section>
           <section class="pvpObjectiveGrid">
             <article id="pvpObjectivePrimary" class="pvpObjectiveCard neutral">
               <p class="label">Hedef 1</p>
