@@ -1129,6 +1129,46 @@ body.reduced-motion.combat-hit-reject::after {
   transform: translateY(-1px);
 }
 
+.raidTrackerStrip {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.raidTrackerCell {
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.82), rgba(4, 9, 24, 0.74));
+  display: grid;
+  gap: 6px;
+}
+
+.raidTrackerCell .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#raidWaveLine[data-tone="critical"],
+#raidHpLine[data-tone="critical"],
+#raidTempoLine[data-tone="critical"] {
+  color: rgba(255, 166, 186, 0.96);
+  text-shadow: 0 0 10px rgba(255, 86, 121, 0.3);
+}
+
+#raidWaveLine[data-tone="pressure"],
+#raidHpLine[data-tone="pressure"],
+#raidTempoLine[data-tone="pressure"] {
+  color: rgba(255, 208, 128, 0.95);
+}
+
+#raidWaveLine[data-tone="advantage"],
+#raidHpLine[data-tone="advantage"],
+#raidTempoLine[data-tone="advantage"] {
+  color: rgba(138, 246, 198, 0.94);
+}
+
 .feed {
   grid-column: span 2;
 }
@@ -1989,6 +2029,10 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: 1fr;
   }
 
+  .raidTrackerStrip {
+    grid-template-columns: 1fr;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
@@ -2026,7 +2070,8 @@ body[data-scene-mood="critical"] .meter > span {
   .modeGrid,
   .commands .commandGrid,
   .simActions,
-  .combatHudPanel {
+  .combatHudPanel,
+  .raidTrackerStrip {
     grid-template-columns: 1fr;
   }
 

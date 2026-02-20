@@ -2008,8 +2008,116 @@
     return ["strike", "guard", "charge", "strike", "guard", "charge"];
   }
 
+  function renderRaidTracker(session) {
+    const waveLine = byId("raidWaveLine");
+    const waveMeter = byId("raidWaveMeter");
+    const bossLine = byId("raidBossLine");
+    const hpLine = byId("raidHpLine");
+    const hpMeter = byId("raidHpMeter");
+    const damageLine = byId("raidDamageLine");
+    const tempoLine = byId("raidTempoLine");
+    const tempoMeter = byId("raidTempoMeter");
+    const signalLine = byId("raidSignalLine");
+    if (
+      !waveLine ||
+      !waveMeter ||
+      !bossLine ||
+      !hpLine ||
+      !hpMeter ||
+      !damageLine ||
+      !tempoLine ||
+      !tempoMeter ||
+      !signalLine
+    ) {
+      return;
+    }
+
+    if (!session) {
+      waveLine.textContent = "Wave 0/0";
+      bossLine.textContent = "Boss: Beklemede";
+      hpLine.textContent = "HP 0%";
+      damageLine.textContent = "Damage 0 | Score 0";
+      tempoLine.textContent = "Action 0 | TTL 0s";
+      signalLine.textContent = "Signal: Stable";
+      [waveLine, hpLine, tempoLine].forEach((el) => el.removeAttribute("data-tone"));
+      animateMeterWidth(waveMeter, 0, 0.24);
+      animateMeterWidth(hpMeter, 0, 0.24);
+      animateMeterWidth(tempoMeter, 0, 0.24);
+      setMeterPalette(waveMeter, "neutral");
+      setMeterPalette(hpMeter, "neutral");
+      setMeterPalette(tempoMeter, "neutral");
+      return;
+    }
+
+    const bossCycle = session.boss_cycle || {};
+    const state = session.state || {};
+    const status = String(session.status || "active").toLowerCase();
+    const outcome = String(session.result?.outcome || "").toLowerCase();
+
+    const waveTotal = Math.max(1, asNum(bossCycle.wave_total || state.wave_total || 1));
+    const waveIndexRaw = Math.max(1, asNum(bossCycle.wave_index || state.wave_index || 1));
+    const waveIndex = Math.min(waveTotal, waveIndexRaw);
+    const waveRatio = Math.max(0, Math.min(1, waveIndex / waveTotal));
+
+    const hpTotal = Math.max(0, asNum(bossCycle.hp_total || state.hp_total || 0));
+    const hpRemaining = Math.max(0, asNum(bossCycle.hp_remaining || state.hp_remaining || 0));
+    const hpRatio = hpTotal > 0 ? Math.max(0, Math.min(1, hpRemaining / hpTotal)) : 1;
+    const breakRatio = 1 - hpRatio;
+
+    const actionCount = Math.max(0, asNum(session.action_count || 0));
+    const maxActions = Math.max(1, asNum(state.max_actions || 12));
+    const ttlSec = Math.max(0, asNum(session.ttl_sec_left || 0));
+    const ttlBase = Math.max(45, asNum(state.ttl_sec || 90));
+    const ttlDrainRatio = Math.max(0, Math.min(1, 1 - ttlSec / ttlBase));
+    const tempoRatio = Math.max(0, Math.min(1, actionCount / maxActions * 0.62 + ttlDrainRatio * 0.38));
+    const pressure = Math.max(0, Math.min(1, breakRatio * 0.52 + tempoRatio * 0.32 + (ttlSec <= 15 ? 0.16 : 0)));
+
+    let tone = "advantage";
+    if (status === "resolved" && outcome === "loss") {
+      tone = "critical";
+    } else if (status === "resolved" && outcome === "win") {
+      tone = "advantage";
+    } else if (pressure >= 0.78) {
+      tone = "critical";
+    } else if (pressure >= 0.5) {
+      tone = "pressure";
+    }
+
+    const bossName = String(bossCycle.boss_name || session.contract_key || "Nexus Boss");
+    const bossTier = String(bossCycle.tier || state.boss_tier || "-");
+    const damageDone = asNum(session.result?.damage_done || state.damage_done || 0);
+    const score = asNum(session.score || 0);
+
+    waveLine.dataset.tone = tone;
+    hpLine.dataset.tone = tone;
+    tempoLine.dataset.tone = tone;
+
+    waveLine.textContent = `Wave ${waveIndex}/${waveTotal}`;
+    bossLine.textContent = `Boss: ${bossName} | Tier ${bossTier}`;
+    hpLine.textContent = `HP ${Math.round(hpRatio * 100)}%`;
+    damageLine.textContent = `Damage ${Math.round(damageDone)} | Score ${Math.round(score)}`;
+    tempoLine.textContent = `Action ${actionCount}/${maxActions} | TTL ${ttlSec}s`;
+
+    const signal =
+      tone === "critical"
+        ? "Signal: Critical | Guard + window sync"
+        : tone === "pressure"
+          ? "Signal: Pressure | Balanced cadence"
+          : "Signal: Advantage | Strike chain";
+    signalLine.textContent = signal;
+
+    animateMeterWidth(waveMeter, waveRatio * 100, 0.24);
+    animateMeterWidth(hpMeter, hpRatio * 100, 0.24);
+    animateMeterWidth(tempoMeter, pressure * 100, 0.24);
+
+    setMeterPalette(waveMeter, waveRatio >= 0.75 ? "safe" : waveRatio >= 0.4 ? "balanced" : "neutral");
+    setMeterPalette(hpMeter, hpRatio >= 0.75 ? "aggressive" : hpRatio >= 0.35 ? "balanced" : "safe");
+    setMeterPalette(tempoMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+  }
+
   function syncRaidSessionUi(session) {
     state.v3.raidSession = session || null;
+    renderRaidTracker(session || null);
     if (!session) {
       return;
     }

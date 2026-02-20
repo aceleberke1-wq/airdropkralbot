@@ -233,6 +233,26 @@
             <button id="raidAggressiveBtn" class="mode aggressive">Raid Saldirgan</button>
             <button id="arenaBoardBtn" class="mode reveal">Arena Top</button>
           </div>
+          <section class="raidTrackerStrip">
+            <div class="raidTrackerCell">
+              <p class="label">Boss Cycle</p>
+              <p id="raidWaveLine" class="value">Wave 0/0</p>
+              <div class="meter"><span id="raidWaveMeter"></span></div>
+              <p id="raidBossLine" class="micro">Boss: Beklemede</p>
+            </div>
+            <div class="raidTrackerCell">
+              <p class="label">Boss HP</p>
+              <p id="raidHpLine" class="value">HP 0%</p>
+              <div class="meter"><span id="raidHpMeter"></span></div>
+              <p id="raidDamageLine" class="micro">Damage 0 | Score 0</p>
+            </div>
+            <div class="raidTrackerCell">
+              <p class="label">Raid Tempo</p>
+              <p id="raidTempoLine" class="value">Action 0 | TTL 0s</p>
+              <div class="meter"><span id="raidTempoMeter"></span></div>
+              <p id="raidSignalLine" class="micro">Signal: Stable</p>
+            </div>
+          </section>
           <div class="simBox">
             <div class="simHead">
               <p class="label">Combat Simulator</p>
