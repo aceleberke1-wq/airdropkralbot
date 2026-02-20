@@ -1310,6 +1310,92 @@ body.reduced-motion.combat-hit-reject::after {
   background: linear-gradient(160deg, rgba(8, 14, 34, 0.82), rgba(5, 10, 26, 0.78));
 }
 
+.combatFluxCell {
+  grid-column: 1 / -1;
+  border-color: rgba(133, 205, 255, 0.26);
+  background: linear-gradient(160deg, rgba(7, 13, 31, 0.84), rgba(4, 10, 24, 0.78));
+}
+
+.combatCadenceCell {
+  grid-column: 1 / -1;
+  border-color: rgba(161, 178, 255, 0.3);
+  background: linear-gradient(160deg, rgba(8, 13, 33, 0.88), rgba(4, 9, 24, 0.8));
+}
+
+.fluxGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.fluxRow {
+  display: grid;
+  gap: 5px;
+}
+
+.fluxRow .micro {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(163, 203, 255, 0.82);
+}
+
+#combatFluxLine {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
+#combatFluxLine[data-tone="critical"] {
+  color: rgba(255, 168, 183, 0.96);
+  text-shadow: 0 0 10px rgba(255, 86, 121, 0.32);
+}
+
+#combatFluxLine[data-tone="pressure"] {
+  color: rgba(255, 212, 142, 0.96);
+}
+
+#combatFluxLine[data-tone="advantage"] {
+  color: rgba(132, 248, 204, 0.94);
+}
+
+.cadenceGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.cadenceRow {
+  display: grid;
+  gap: 5px;
+}
+
+.cadenceRow .micro {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(171, 201, 255, 0.84);
+}
+
+#combatCadenceLine {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.03em;
+}
+
+#combatCadenceLine[data-tone="critical"] {
+  color: rgba(255, 170, 184, 0.96);
+  text-shadow: 0 0 10px rgba(255, 86, 121, 0.32);
+}
+
+#combatCadenceLine[data-tone="pressure"] {
+  color: rgba(255, 210, 132, 0.94);
+}
+
+#combatCadenceLine[data-tone="advantage"] {
+  color: rgba(142, 244, 204, 0.94);
+}
+
 .combatTimelineMeter {
   height: 8px;
 }

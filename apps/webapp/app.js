@@ -659,6 +659,34 @@
         band.visible = index < maxVisible;
       });
     }
+    if (Array.isArray(arena.stormRibbons)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(2, arena.stormRibbons.length)
+          : nextProfile.key === "normal"
+            ? Math.min(4, arena.stormRibbons.length)
+            : arena.stormRibbons.length;
+      arena.stormRibbons.forEach((ribbon, index) => {
+        if (!ribbon) {
+          return;
+        }
+        ribbon.visible = index < maxVisible;
+      });
+    }
+    if (Array.isArray(arena.raidBeacons)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(3, arena.raidBeacons.length)
+          : nextProfile.key === "normal"
+            ? Math.min(5, arena.raidBeacons.length)
+            : arena.raidBeacons.length;
+      arena.raidBeacons.forEach((beacon, index) => {
+        if (!beacon) {
+          return;
+        }
+        beacon.visible = index < maxVisible;
+      });
+    }
     applyUiClasses();
   }
 
@@ -1334,6 +1362,64 @@
       duelBands.push(band);
     }
 
+    const stormRibbons = [];
+    const stormRibbonMeta = [];
+    for (let i = 0; i < 5; i += 1) {
+      const ribbon = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(2.2 + i * 0.58, 0.035 + i * 0.004, 120, 16, i % 2 === 0 ? 2 : 3, 3),
+        new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0x7bcfff : 0xff83a6,
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      ribbon.position.set(0, -0.78 + i * 0.28, -0.8 + i * 0.32);
+      ribbon.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      scene.add(ribbon);
+      stormRibbons.push(ribbon);
+      stormRibbonMeta.push({
+        baseY: ribbon.position.y,
+        baseScale: 0.9 + i * 0.06,
+        spinX: 0.08 + Math.random() * 0.16,
+        spinY: 0.1 + Math.random() * 0.18,
+        spinZ: 0.06 + Math.random() * 0.12,
+        pulse: 0.7 + Math.random() * 1.3,
+        offset: Math.random() * Math.PI * 2
+      });
+    }
+
+    const raidBeacons = [];
+    const raidBeaconMeta = [];
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const radius = 5.6 + (i % 2) * 0.9;
+      const beacon = new THREE.Mesh(
+        new THREE.ConeGeometry(0.2, 1.45, 10, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: 0x8bc7ff,
+          emissive: 0x14376b,
+          roughness: 0.28,
+          metalness: 0.72,
+          transparent: true,
+          opacity: 0.72
+        })
+      );
+      beacon.position.set(Math.cos(angle) * radius, -0.78, Math.sin(angle) * radius);
+      beacon.rotation.y = -angle;
+      beacon.scale.set(0.95, 1, 0.95);
+      scene.add(beacon);
+      raidBeacons.push(beacon);
+      raidBeaconMeta.push({
+        baseY: beacon.position.y,
+        pulse: 0.8 + Math.random() * 1.2,
+        phase: Math.random() * Math.PI * 2,
+        radius,
+        angle,
+        drift: 0.08 + Math.random() * 0.18
+      });
+    }
+
     return {
       ring,
       ringOuter,
@@ -1364,7 +1450,11 @@
       duelHaloOpp,
       duelBridgeSegments,
       duelBridgeMeta,
-      duelBands
+      duelBands,
+      stormRibbons,
+      stormRibbonMeta,
+      raidBeacons,
+      raidBeaconMeta
     };
   }
 
@@ -2277,6 +2367,16 @@
     const timelineNodeStrike = byId("combatTimelineNodeStrike");
     const timelineNodeGuard = byId("combatTimelineNodeGuard");
     const timelineNodeCharge = byId("combatTimelineNodeCharge");
+    const fluxLine = byId("combatFluxLine");
+    const fluxHint = byId("combatFluxHint");
+    const fluxSelfMeter = byId("combatFluxSelfMeter");
+    const fluxOppMeter = byId("combatFluxOppMeter");
+    const fluxSyncMeter = byId("combatFluxSyncMeter");
+    const cadenceLine = byId("combatCadenceLine");
+    const cadenceHint = byId("combatCadenceHint");
+    const cadenceStrikeMeter = byId("combatCadenceStrikeMeter");
+    const cadenceGuardMeter = byId("combatCadenceGuardMeter");
+    const cadenceChargeMeter = byId("combatCadenceChargeMeter");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
@@ -2418,6 +2518,84 @@
     if (timelineHint) {
       const queuePct = Math.round(queuePressure * 100);
       timelineHint.textContent = `Queue ${queuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
+    }
+    if (fluxLine) {
+      fluxLine.textContent = `SELF ${Math.round(selfMomentum * 100)} | OPP ${Math.round(oppMomentum * 100)} | ${syncState}`;
+      fluxLine.dataset.tone = urgency;
+    }
+    if (fluxHint) {
+      const syncGap = Math.abs(syncDelta);
+      const pressurePct = Math.round(pressureRatio * 100);
+      const fluxHintMap = {
+        critical: "Kritik pencere: queue sifirla, savunma odakli tek hamle resolve uygula.",
+        pressure: "Baski artiyor: guard/charge dengesi ile zinciri koru.",
+        advantage: "Avantaj sende: expected aksiyonla combo kilidi olustur.",
+        steady: "Denge modu: riski dusuk tut, ritmi kontrollu surdur."
+      };
+      fluxHint.textContent = `${fluxHintMap[urgency] || fluxHintMap.steady} Gap ${syncGap}% | Basinc ${pressurePct}%`;
+    }
+    if (fluxSelfMeter) {
+      fluxSelfMeter.style.width = `${Math.round(selfMomentum * 100)}%`;
+      setMeterPalette(fluxSelfMeter, selfMomentum >= oppMomentum ? "balanced" : "safe");
+    }
+    if (fluxOppMeter) {
+      fluxOppMeter.style.width = `${Math.round(oppMomentum * 100)}%`;
+      setMeterPalette(fluxOppMeter, oppMomentum > selfMomentum ? "aggressive" : "neutral");
+    }
+    if (fluxSyncMeter) {
+      const syncRatio = clamp(1 - Math.abs(syncDelta) / 100, 0, 1);
+      fluxSyncMeter.style.width = `${Math.round(syncRatio * 100)}%`;
+      setMeterPalette(fluxSyncMeter, syncRatio >= 0.68 ? "safe" : syncRatio >= 0.44 ? "balanced" : "critical");
+    }
+    const cadenceWindow = Math.max(1, Math.min(COMBAT_CHAIN_LIMIT, 6));
+    const strikeRatio = clamp(actionCounts.strike / cadenceWindow + (expectedAction === "strike" ? 0.16 : 0), 0, 1);
+    const guardRatio = clamp(actionCounts.guard / cadenceWindow + (expectedAction === "guard" ? 0.16 : 0), 0, 1);
+    const chargeRatio = clamp(actionCounts.charge / cadenceWindow + (expectedAction === "charge" ? 0.16 : 0), 0, 1);
+    const dominantAction = (() => {
+      if (strikeRatio >= guardRatio && strikeRatio >= chargeRatio) {
+        return "STRIKE";
+      }
+      if (guardRatio >= chargeRatio) {
+        return "GUARD";
+      }
+      return "CHARGE";
+    })();
+    const cadenceTone =
+      !latestAccepted && latestAction
+        ? "critical"
+        : urgency === "critical"
+          ? "critical"
+          : urgency === "spike" || queuePressure >= 0.66
+            ? "pressure"
+            : dominantAction === (expectedAction || dominantAction).toUpperCase()
+              ? "advantage"
+              : "steady";
+    if (cadenceLine) {
+      cadenceLine.textContent = `STR ${Math.round(strikeRatio * 100)} | GRD ${Math.round(guardRatio * 100)} | CHG ${Math.round(chargeRatio * 100)}`;
+      cadenceLine.dataset.tone = cadenceTone;
+    }
+    if (cadenceHint) {
+      const focus = expectedAction ? expectedAction.toUpperCase() : dominantAction;
+      const queuePct = Math.round(queuePressure * 100);
+      const cadenceHintMap = {
+        critical: `MISS algilandi: ${focus} ile ritmi geri al, resolve penceresini koru.`,
+        pressure: `Baski yuksek (${queuePct}%): ${focus} odagi ile cadence'i stabil tut.`,
+        advantage: `Avantaj aktif: ${focus} zinciri ile combo carpanini buyut.`,
+        steady: `Stabil tempo: ${focus} odakli devam edip enerjiyi dengede tut.`
+      };
+      cadenceHint.textContent = cadenceHintMap[cadenceTone] || cadenceHintMap.steady;
+    }
+    if (cadenceStrikeMeter) {
+      cadenceStrikeMeter.style.width = `${Math.round(strikeRatio * 100)}%`;
+      setMeterPalette(cadenceStrikeMeter, expectedAction === "strike" ? "aggressive" : "neutral");
+    }
+    if (cadenceGuardMeter) {
+      cadenceGuardMeter.style.width = `${Math.round(guardRatio * 100)}%`;
+      setMeterPalette(cadenceGuardMeter, expectedAction === "guard" ? "safe" : "neutral");
+    }
+    if (cadenceChargeMeter) {
+      cadenceChargeMeter.style.width = `${Math.round(chargeRatio * 100)}%`;
+      setMeterPalette(cadenceChargeMeter, expectedAction === "charge" ? "balanced" : "neutral");
     }
     const nodeMap = {
       strike: timelineNodeStrike,
@@ -3716,6 +3894,55 @@
           duration: 0.34,
           ease: "power2.out"
         });
+      });
+    }
+    if (Array.isArray(state.arena.stormRibbons)) {
+      state.arena.stormRibbons.forEach((ribbon, index) => {
+        if (!ribbon || !ribbon.material) {
+          return;
+        }
+        ribbon.material.color.setHex(accepted ? color : 0xff4f6d);
+        ribbon.material.opacity = Math.max(asNum(ribbon.material.opacity || 0.08), pulseTone === "aggressive" ? 0.48 : 0.38);
+        const pulseScale = pulseTone === "aggressive" ? 1.2 : pulseTone === "reveal" ? 1.14 : 1.08;
+        gsap.fromTo(
+          ribbon.scale,
+          { x: ribbon.scale.x, y: ribbon.scale.y, z: ribbon.scale.z },
+          {
+            x: ribbon.scale.x * pulseScale,
+            y: ribbon.scale.y * pulseScale,
+            z: ribbon.scale.z * pulseScale,
+            duration: 0.2,
+            yoyo: true,
+            repeat: 1,
+            ease: "power2.out",
+            delay: index * 0.02
+          }
+        );
+      });
+    }
+    if (Array.isArray(state.arena.raidBeacons) && !state.ui.reducedMotion) {
+      state.arena.raidBeacons.forEach((beacon, index) => {
+        if (!beacon || !beacon.material) {
+          return;
+        }
+        beacon.material.color.setHex(accepted ? color : 0xff4f6d);
+        if (beacon.material.emissive?.setHex) {
+          beacon.material.emissive.setHex(accepted ? color : 0xff4f6d);
+        }
+        gsap.fromTo(
+          beacon.scale,
+          { x: beacon.scale.x, y: beacon.scale.y, z: beacon.scale.z },
+          {
+            x: beacon.scale.x * 1.08,
+            y: beacon.scale.y * 1.32,
+            z: beacon.scale.z * 1.08,
+            duration: 0.18,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.015,
+            ease: "power2.out"
+          }
+        );
       });
     }
 
@@ -6033,6 +6260,54 @@
         }
       }
 
+      if (Array.isArray(fallback.stormRibbons) && Array.isArray(fallback.stormRibbonMeta)) {
+        for (let i = 0; i < fallback.stormRibbons.length; i += 1) {
+          const ribbon = fallback.stormRibbons[i];
+          const meta = fallback.stormRibbonMeta[i];
+          if (!ribbon || !meta || !ribbon.material) {
+            continue;
+          }
+          ribbon.rotation.x += dt * (meta.spinX + urgencyFactor * 0.32);
+          ribbon.rotation.y += dt * (meta.spinY + heat * 0.42 + pvpPressure * 0.25);
+          ribbon.rotation.z += dt * (meta.spinZ + threat * 0.3);
+          const pulse = Math.sin(t * meta.pulse + meta.offset);
+          const yBoost = (state.ui.reducedMotion ? 0.04 : 0.14) * (0.5 + heat * 0.7 + pvpPressure * 0.4);
+          ribbon.position.y = meta.baseY + pulse * yBoost;
+          const scalePulse = meta.baseScale + pulse * (state.ui.reducedMotion ? 0.04 : 0.12) + urgencyFactor * 0.06;
+          ribbon.scale.setScalar(scalePulse);
+          const opacityTarget = clamp(0.08 + heat * 0.18 + pvpPressure * 0.16 + urgencyFactor * 0.1, 0.08, 0.62);
+          ribbon.material.opacity += (opacityTarget - asNum(ribbon.material.opacity || 0)) * 0.1;
+          if (ribbon.material.color?.setHSL) {
+            ribbon.material.color.setHSL((hue + i * 16 + momentumDelta * 24) / 360, 0.72, 0.6 - pvpPressure * 0.12);
+          }
+        }
+      }
+
+      if (Array.isArray(fallback.raidBeacons) && Array.isArray(fallback.raidBeaconMeta)) {
+        for (let i = 0; i < fallback.raidBeacons.length; i += 1) {
+          const beacon = fallback.raidBeacons[i];
+          const meta = fallback.raidBeaconMeta[i];
+          if (!beacon || !meta || !beacon.material) {
+            continue;
+          }
+          const pulse = Math.sin(t * meta.pulse + meta.phase);
+          const orbit = meta.angle + Math.sin(t * meta.drift + meta.phase) * 0.05;
+          beacon.position.x = Math.cos(orbit) * meta.radius;
+          beacon.position.z = Math.sin(orbit) * meta.radius;
+          beacon.position.y = meta.baseY + pulse * (state.ui.reducedMotion ? 0.03 : 0.1);
+          beacon.scale.y = 1 + pulse * (0.12 + pvpPressure * 0.16 + urgencyFactor * 0.08);
+          beacon.rotation.y = -orbit;
+          const opacityTarget = clamp(0.48 + heat * 0.2 + urgencyFactor * 0.16, 0.3, 0.9);
+          beacon.material.opacity += (opacityTarget - asNum(beacon.material.opacity || 0.7)) * 0.08;
+          if (beacon.material.color?.setHSL) {
+            beacon.material.color.setHSL((hue + 32 + i * 9) / 360, 0.7, 0.58);
+          }
+          if (beacon.material.emissive?.setHSL) {
+            beacon.material.emissive.setHSL((hue + i * 11) / 360, 0.66, 0.16 + heat * 0.2 + pvpPressure * 0.12);
+          }
+        }
+      }
+
       if (Array.isArray(fallback.tracerBeams) && Array.isArray(fallback.tracerMeta)) {
         const tracerLimit = Math.max(0, Math.min(asNum(state.arena?.tracerLimit || fallback.tracerBeams.length), fallback.tracerBeams.length));
         for (let i = 0; i < fallback.tracerBeams.length; i += 1) {
@@ -6228,6 +6503,10 @@
       duelBridgeSegments: fallback.duelBridgeSegments,
       duelBridgeMeta: fallback.duelBridgeMeta,
       duelBands: fallback.duelBands,
+      stormRibbons: fallback.stormRibbons,
+      stormRibbonMeta: fallback.stormRibbonMeta,
+      raidBeacons: fallback.raidBeacons,
+      raidBeaconMeta: fallback.raidBeaconMeta,
       stars,
       starsMaterial,
       modelRoot,
