@@ -1130,6 +1130,67 @@ body:not(.reduced-motion) .pvpTheaterStrip[data-tone="critical"] .pvpTheaterCell
   animation: pvpTheaterAlert 1200ms ease-in-out infinite;
 }
 
+.pvpCineStrip {
+  margin-top: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.86), rgba(5, 10, 25, 0.76));
+  display: grid;
+  gap: 8px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.pvpCineTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.pvpCineStrip .value {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(225, 236, 255, 0.95);
+}
+
+.pvpCineStrip .micro {
+  color: rgba(176, 205, 255, 0.88);
+}
+
+.pvpCineStrip[data-tone="advantage"] {
+  border-color: rgba(112, 255, 160, 0.38);
+  box-shadow: inset 0 0 16px rgba(112, 255, 160, 0.1);
+}
+
+.pvpCineStrip[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.38);
+  box-shadow: inset 0 0 16px rgba(255, 184, 92, 0.1);
+}
+
+.pvpCineStrip[data-tone="critical"] {
+  border-color: rgba(255, 86, 121, 0.48);
+  box-shadow: inset 0 0 20px rgba(255, 86, 121, 0.16);
+}
+
+body:not(.reduced-motion) .pvpCineStrip[data-tone="critical"] {
+  animation: pvpCineAlert 980ms ease-in-out infinite;
+}
+
+#pvpCineLine[data-tone="advantage"] {
+  color: rgba(146, 252, 208, 0.96);
+  text-shadow: 0 0 10px rgba(61, 248, 194, 0.28);
+}
+
+#pvpCineLine[data-tone="pressure"] {
+  color: rgba(255, 214, 142, 0.95);
+}
+
+#pvpCineLine[data-tone="critical"] {
+  color: rgba(255, 172, 191, 0.97);
+  text-shadow: 0 0 12px rgba(255, 86, 121, 0.32);
+}
+
 #pvpSyncLine[data-tone="advantage"],
 #pvpClutchLine[data-tone="advantage"],
 #pvpStanceLine[data-tone="advantage"] {
@@ -2171,6 +2232,11 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: 1fr;
   }
 
+  .pvpCineTop {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .combatDirectorCell .value {
     font-size: 12px;
   }
@@ -2208,6 +2274,18 @@ body[data-scene-mood="critical"] .meter > span {
   50% {
     transform: translateY(-1px);
     box-shadow: inset 0 0 18px rgba(255, 86, 121, 0.2);
+  }
+}
+
+@keyframes pvpCineAlert {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: inset 0 0 20px rgba(255, 86, 121, 0.14);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: inset 0 0 30px rgba(255, 86, 121, 0.26);
   }
 }
 

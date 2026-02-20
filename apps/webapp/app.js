@@ -55,6 +55,8 @@
       lastRoundAlertKey: "",
       lastRoundAlertAt: 0,
       lastPvpObjectiveKey: "",
+      lastPvpCineKey: "",
+      lastPvpCinePulseAt: 0,
       combatChain: [],
       combatEnergy: 0,
       pulseTone: "info",
@@ -2980,6 +2982,7 @@
     line.textContent = `Input Queue ${state.v3.pvpQueue.length}`;
     renderPvpCadence(state.v3.pvpSession, state.v3.pvpTickMeta);
     renderPvpDuelTheater(state.v3.pvpSession, state.v3.pvpTickMeta);
+    renderPvpCinematicDirector(state.v3.pvpSession, state.v3.pvpTickMeta);
   }
 
   function renderPvpTickLine(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
@@ -3332,6 +3335,128 @@
     setMeterPalette(stanceMeter, stancePressure >= 0.68 ? "critical" : stancePressure >= 0.44 ? "aggressive" : "balanced");
   }
 
+  function renderPvpCinematicDirector(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const root = byId("pvpCineStrip");
+    const phaseBadge = byId("pvpCinePhaseBadge");
+    const line = byId("pvpCineLine");
+    const meter = byId("pvpCineMeter");
+    const hint = byId("pvpCineHint");
+    if (!root || !phaseBadge || !line || !meter || !hint) {
+      if (state.arena) {
+        state.arena.pvpCinematicIntensity = 0;
+      }
+      return;
+    }
+
+    const setTone = (tone = "neutral") => {
+      root.dataset.tone = tone;
+      if (tone === "neutral") {
+        line.removeAttribute("data-tone");
+      } else {
+        line.dataset.tone = tone;
+      }
+      phaseBadge.className = tone === "critical" ? "badge warn" : tone === "advantage" ? "badge" : "badge info";
+      setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : tone === "advantage" ? "safe" : "balanced");
+    };
+
+    if (!session) {
+      setTone("neutral");
+      phaseBadge.textContent = "DUEL PHASE";
+      line.textContent = "Cinematic Director | SYNC 50% | HEAT 0%";
+      hint.textContent = "Tick akisina kilitlen, expected aksiyona hizli don.";
+      animateMeterWidth(meter, 18, 0.2);
+      if (state.arena) {
+        state.arena.pvpCinematicIntensity = 0;
+      }
+      state.v3.lastPvpCineKey = "";
+      return;
+    }
+
+    const status = String(session.status || "active").toLowerCase();
+    const phase = String(tickMeta?.phase || status || "combat").toLowerCase();
+    const phaseLabelMap = {
+      queued: "MATCHMAKING",
+      queue: "MATCHMAKING",
+      active: "COMBAT",
+      combat: "COMBAT",
+      resolve: "RESOLVE",
+      resolved: "RESOLVED",
+      expired: "EXPIRED"
+    };
+    const phaseLabel = phaseLabelMap[phase] || phase.toUpperCase();
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const tickSeq = asNum(tickMeta?.tick_seq || 0);
+    const queueSize = Math.max(0, asNum(state.v3.pvpQueue.length || 0));
+    const queueRatio = clamp(queueSize / 8, 0, 1);
+    const driftRatio = clamp(Math.abs(asNum(diagnostics.score_drift || 0)) / 7, 0, 1);
+    const latencyRatio = clamp(asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0) / 1000, 0, 1);
+    const ttlSecLeft = Math.max(0, asNum(session.ttl_sec_left || 0));
+    const ttlRatio = clamp(ttlSecLeft / 60, 0, 1);
+    const actionsSelf = asNum(session.action_count?.self || 0);
+    const resolveNeed = Math.max(0, 6 - actionsSelf);
+    const resolveRatio = clamp(1 - resolveNeed / 6, 0, 1);
+    const momentumSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? 0.5), 0, 1);
+    const momentumOpp = clamp(asNum(state.arena?.pvpMomentumOpp ?? 0.5), 0, 1);
+    const momentumDelta = momentumSelf - momentumOpp;
+    const syncRatio = clamp(0.5 + momentumDelta * 0.5, 0, 1);
+    const urgencyKey = String(diagnostics.urgency || state.arena?.pvpUrgency || "steady").toLowerCase();
+    const recommendation = String(diagnostics.recommendation || state.arena?.pvpRecommendation || "balanced").toUpperCase();
+    const heatRatio = clamp(queueRatio * 0.32 + driftRatio * 0.42 + latencyRatio * 0.26, 0, 1);
+    const clutchRatio = clamp(resolveRatio * 0.62 + (1 - ttlRatio) * 0.38, 0, 1);
+    let cineIntensity = clamp(syncRatio * 0.24 + heatRatio * 0.36 + clutchRatio * 0.4, 0, 1);
+
+    let tone = "neutral";
+    if (status === "resolved") {
+      const outcome = String(session.result?.outcome_for_viewer || session.result?.outcome || "").toLowerCase();
+      tone = outcome === "win" ? "advantage" : "critical";
+      cineIntensity = outcome === "win" ? Math.max(cineIntensity, 0.78) : Math.max(cineIntensity, 0.86);
+    } else if (urgencyKey === "critical" || ttlSecLeft <= 12 || heatRatio >= 0.72 || clutchRatio >= 0.84) {
+      tone = "critical";
+    } else if (urgencyKey === "pressure" || heatRatio >= 0.46 || queueRatio >= 0.5) {
+      tone = "pressure";
+    } else if (urgencyKey === "advantage" || syncRatio >= 0.62) {
+      tone = "advantage";
+    }
+
+    setTone(tone);
+    phaseBadge.textContent = `${phaseLabel} | #${tickSeq}`;
+    line.textContent =
+      `${phaseLabel} | Sync ${Math.round(syncRatio * 100)}% | Heat ${Math.round(heatRatio * 100)}% | ` +
+      `Queue ${queueSize} | TTL ${ttlSecLeft}s`;
+
+    if (tone === "critical") {
+      hint.textContent = `KRITIK: ${resolveNeed > 0 ? `${resolveNeed} aksiyon` : "resolve"} penceresini kacirma, ${recommendation} ritmine don.`;
+    } else if (tone === "pressure") {
+      hint.textContent = `Baski artiyor: queue ${queueSize}, drift ${Math.round(driftRatio * 100)}%. ${recommendation} ile tempoyu sabitle.`;
+    } else if (tone === "advantage") {
+      hint.textContent = `Avantaj sende: senkron ${Math.round(syncRatio * 100)}%, resolve hazirlik ${Math.round(resolveRatio * 100)}%.`;
+    } else {
+      hint.textContent = `Stabil duel: expected aksiyona sadik kal, ${recommendation} modunda pencereyi koru.`;
+    }
+
+    animateMeterWidth(meter, cineIntensity * 100, 0.22);
+    if (state.arena) {
+      state.arena.pvpCinematicIntensity = cineIntensity;
+    }
+
+    const cinematicKey = `${phase}:${tone}:${Math.round(cineIntensity * 10)}:${resolveNeed}:${queueSize}`;
+    const now = Date.now();
+    if (
+      status === "active" &&
+      tone !== "neutral" &&
+      cinematicKey !== state.v3.lastPvpCineKey &&
+      now - asNum(state.v3.lastPvpCinePulseAt || 0) > 1400
+    ) {
+      state.v3.lastPvpCinePulseAt = now;
+      state.v3.lastPvpCineKey = cinematicKey;
+      triggerArenaPulse(tone === "critical" ? "aggressive" : tone === "pressure" ? "balanced" : "safe", {
+        label: `PVP ${phaseLabel} ${Math.round(cineIntensity * 100)}%`
+      });
+    } else {
+      state.v3.lastPvpCineKey = cinematicKey;
+    }
+  }
+
   function paintPvpObjectiveCard(card, label, value, meta, tone = "neutral") {
     if (!card) {
       return;
@@ -3679,6 +3804,7 @@
       renderPvpMomentumAndObjectives(null);
       renderPvpCadence(null, null);
       renderPvpDuelTheater(null, null);
+      renderPvpCinematicDirector(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -3752,6 +3878,7 @@
     renderPvpMomentumAndObjectives(session);
     renderPvpCadence(session, state.v3.pvpTickMeta);
     renderPvpDuelTheater(session, state.v3.pvpTickMeta);
+    renderPvpCinematicDirector(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
@@ -6604,6 +6731,7 @@
       const pvpSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? 0.5), 0, 1);
       const pvpOpp = clamp(asNum(state.arena?.pvpMomentumOpp ?? 0.5), 0, 1);
       const pvpPressure = clamp(asNum(state.arena?.pvpPressure ?? 0.25), 0, 1);
+      const pvpCinematicIntensity = clamp(asNum(state.arena?.pvpCinematicIntensity ?? 0), 0, 1);
       const pvpUrgency = String(state.arena?.pvpUrgency || "steady").toLowerCase();
       const momentumDelta = pvpSelf - pvpOpp;
       const urgencyFactorMap = {
@@ -6612,7 +6740,7 @@
         pressure: 0.56,
         critical: 0.92
       };
-      const urgencyFactor = urgencyFactorMap[pvpUrgency] ?? 0.24;
+      const urgencyFactor = (urgencyFactorMap[pvpUrgency] ?? 0.24) + pvpCinematicIntensity * 0.34;
       const selfScale = 0.92 + pvpSelf * 0.42 + urgencyFactor * 0.12;
       const oppScale = 0.92 + pvpOpp * 0.42 + urgencyFactor * 0.12;
       if (fallback.duelCoreSelf) {
@@ -6800,6 +6928,10 @@
       }
 
       decayCombatHudState(dt);
+      if (state.arena) {
+        const decayRate = state.ui.reducedMotion ? 0.42 : 0.28;
+        state.arena.pvpCinematicIntensity = Math.max(0, pvpCinematicIntensity - dt * decayRate);
+      }
 
       if (modelRoot) {
         const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
@@ -6826,18 +6958,19 @@
       } else if (state.arena?.cameraImpulse) {
         state.arena.cameraImpulse = 0;
       }
-      const targetFov = 56 + heat * 3.8 + Math.min(2.8, cameraImpulse * 14);
+      const targetFov = 56 + heat * 3.8 + Math.min(2.8, cameraImpulse * 14) + pvpCinematicIntensity * 3.2;
       camera.fov += (targetFov - camera.fov) * 0.08;
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0, 0);
       if (composer && bloomPass && rgbShiftPass) {
         const motionBoost = state.ui.reducedMotion ? 0.5 : 1;
-        bloomPass.strength += ((0.26 + postFxTarget * 0.32 + heat * 0.4) * motionBoost - bloomPass.strength) * 0.08;
+        bloomPass.strength +=
+          ((0.26 + postFxTarget * 0.32 + heat * 0.4 + pvpCinematicIntensity * 0.2) * motionBoost - bloomPass.strength) * 0.08;
         bloomPass.radius += ((0.45 + postFxTarget * 0.18 + threat * 0.2) * motionBoost - bloomPass.radius) * 0.08;
         bloomPass.threshold += ((0.62 - heat * 0.16) - bloomPass.threshold) * 0.08;
         if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
           const currentAmount = asNum(rgbShiftPass.uniforms.amount.value || 0);
-          const targetAmount = (0.0005 + threat * 0.0016 + heat * 0.0008) * motionBoost;
+          const targetAmount = (0.0005 + threat * 0.0016 + heat * 0.0008 + pvpCinematicIntensity * 0.0009) * motionBoost;
           rgbShiftPass.uniforms.amount.value = currentAmount + (targetAmount - currentAmount) * 0.12;
         }
         composer.render();
