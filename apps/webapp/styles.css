@@ -862,6 +862,11 @@ body.reduced-motion .trailChip.enter {
   animation: none !important;
 }
 
+body.reduced-motion .pvpTimelineRow.enter,
+body.reduced-motion .replayChip.enter {
+  animation: none !important;
+}
+
 body.reduced-motion .timelineNode.flash,
 body.reduced-motion.combat-hit-strike::after,
 body.reduced-motion.combat-hit-guard::after,
@@ -2029,6 +2034,10 @@ body:not(.reduced-motion) .pvpRadarStrip[data-tone="critical"] {
   font-size: 12px;
 }
 
+.pvpTimelineRow.enter {
+  animation: pvpTimelineEnter 260ms ease-out;
+}
+
 .pvpTimelineRow .meta {
   font-family: "IBM Plex Mono", monospace;
   color: var(--muted);
@@ -2078,6 +2087,10 @@ body:not(.reduced-motion) .pvpRadarStrip[data-tone="critical"] {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.replayChip.enter {
+  animation: pvpReplayChipEnter 260ms ease-out;
+}
+
 .replayChip.strike {
   border-color: rgba(255, 86, 121, 0.55);
 }
@@ -2092,6 +2105,28 @@ body:not(.reduced-motion) .pvpRadarStrip[data-tone="critical"] {
 
 .replayChip.resolve {
   border-color: rgba(255, 184, 92, 0.55);
+}
+
+@keyframes pvpTimelineEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pvpReplayChipEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .badge {

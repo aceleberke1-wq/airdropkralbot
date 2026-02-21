@@ -246,6 +246,17 @@
     return bridge;
   }
 
+  function getPvpEventBridge() {
+    const bridge = window.__AKR_PVP_EVENTS__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function getCombatHudBridge() {
     const bridge = window.__AKR_COMBAT_HUD__;
     if (!bridge || typeof bridge !== "object") {
@@ -2477,8 +2488,43 @@
     if (!host) {
       return;
     }
-    host.innerHTML = "";
     const replay = Array.isArray(state.v3.pvpReplay) ? state.v3.pvpReplay : [];
+    const pvpEventBridge = getPvpEventBridge();
+    if (pvpEventBridge) {
+      try {
+        const handled = pvpEventBridge.render({
+          reducedMotion: Boolean(state.ui.reducedMotion),
+          timelineRows: Array.isArray(state.v3.pvpTimeline)
+            ? state.v3.pvpTimeline.slice(0, PVP_TIMELINE_LIMIT).map((row, index) => ({
+                tone: String(row.tone || "tick"),
+                label: String(row.label || "Event"),
+                metaText: `${formatTimelineClock(row.ts)} | ${String(row.meta || "-")}`,
+                isLatest: index === 0
+              }))
+            : [],
+          replayRows: replay.slice(0, PVP_REPLAY_LIMIT).map((chip, index) => {
+            const scoreDelta = asNum(chip.scoreDelta || 0);
+            const scoreSign = scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`;
+            const reason = String(chip.reason || "").trim().replace(/_/g, " ");
+            const suffix = chip.accepted ? ` ${scoreSign}` : ` MISS${reason ? ` (${reason})` : ""}`;
+            return {
+              tone: String(chip.tone || "guard"),
+              text: `${normalizePvpInputLabel(chip.input)} #${asNum(chip.seq || 0)}${suffix}`,
+              isLatest: index === 0
+            };
+          }),
+          timelineLimit: PVP_TIMELINE_LIMIT,
+          replayLimit: PVP_REPLAY_LIMIT
+        });
+        if (handled) {
+          return;
+        }
+      } catch (err) {
+        console.warn("pvp-event-bridge-render-failed", err);
+      }
+    }
+
+    host.innerHTML = "";
     if (!replay.length) {
       const empty = document.createElement("span");
       empty.className = "replayChip muted";
@@ -2505,8 +2551,43 @@
     if (!host) {
       return;
     }
-    host.innerHTML = "";
     const timeline = Array.isArray(state.v3.pvpTimeline) ? state.v3.pvpTimeline : [];
+    const pvpEventBridge = getPvpEventBridge();
+    if (pvpEventBridge) {
+      try {
+        const handled = pvpEventBridge.render({
+          reducedMotion: Boolean(state.ui.reducedMotion),
+          timelineRows: timeline.slice(0, PVP_TIMELINE_LIMIT).map((row, index) => ({
+            tone: String(row.tone || "tick"),
+            label: String(row.label || "Event"),
+            metaText: `${formatTimelineClock(row.ts)} | ${String(row.meta || "-")}`,
+            isLatest: index === 0
+          })),
+          replayRows: Array.isArray(state.v3.pvpReplay)
+            ? state.v3.pvpReplay.slice(0, PVP_REPLAY_LIMIT).map((chip, index) => {
+                const scoreDelta = asNum(chip.scoreDelta || 0);
+                const scoreSign = scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`;
+                const reason = String(chip.reason || "").trim().replace(/_/g, " ");
+                const suffix = chip.accepted ? ` ${scoreSign}` : ` MISS${reason ? ` (${reason})` : ""}`;
+                return {
+                  tone: String(chip.tone || "guard"),
+                  text: `${normalizePvpInputLabel(chip.input)} #${asNum(chip.seq || 0)}${suffix}`,
+                  isLatest: index === 0
+                };
+              })
+            : [],
+          timelineLimit: PVP_TIMELINE_LIMIT,
+          replayLimit: PVP_REPLAY_LIMIT
+        });
+        if (handled) {
+          return;
+        }
+      } catch (err) {
+        console.warn("pvp-event-bridge-render-failed", err);
+      }
+    }
+
+    host.innerHTML = "";
     if (!timeline.length) {
       const empty = document.createElement("li");
       empty.className = "muted";
