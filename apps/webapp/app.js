@@ -57,6 +57,9 @@
       lastPvpObjectiveKey: "",
       lastPvpCineKey: "",
       lastPvpCinePulseAt: 0,
+      pvpLastAction: "",
+      pvpLastActionAt: 0,
+      pvpLastRejected: false,
       combatChain: [],
       combatEnergy: 0,
       pulseTone: "info",
@@ -3430,6 +3433,7 @@
     renderPvpCadence(state.v3.pvpSession, state.v3.pvpTickMeta);
     renderPvpDuelTheater(state.v3.pvpSession, state.v3.pvpTickMeta);
     renderPvpCinematicDirector(state.v3.pvpSession, state.v3.pvpTickMeta);
+    renderPvpActionPulse(state.v3.pvpSession, state.v3.pvpTickMeta);
   }
 
   function renderPvpTickLine(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
@@ -4742,6 +4746,79 @@
     }
   }
 
+  function renderPvpActionPulse(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
+    const strip = byId("pvpActionPulseStrip");
+    const stateBadge = byId("pvpActionPulseState");
+    const line = byId("pvpActionPulseLine");
+    const meter = byId("pvpActionPulseMeter");
+    const hint = byId("pvpActionPulseHint");
+    const strikeBtn = byId("pvpStrikeBtn");
+    const guardBtn = byId("pvpGuardBtn");
+    const chargeBtn = byId("pvpChargeBtn");
+    if (!strip || !stateBadge || !line || !meter || !hint || !strikeBtn || !guardBtn || !chargeBtn) {
+      return;
+    }
+
+    const actionButtons = [
+      { key: "strike", el: strikeBtn },
+      { key: "guard", el: guardBtn },
+      { key: "charge", el: chargeBtn }
+    ];
+    actionButtons.forEach(({ el }) => el.classList.remove("expected", "window-hot"));
+
+    if (!session) {
+      strip.dataset.tone = "neutral";
+      stateBadge.textContent = "IDLE";
+      stateBadge.className = "badge info";
+      line.textContent = "Expected - | Queue 0 | Drift 0%";
+      hint.textContent = "Tick penceresi acildiginda dogru aksiyon butonu glow olur.";
+      animateMeterWidth(meter, 0, 0.2);
+      setMeterPalette(meter, "neutral");
+      return;
+    }
+
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const expectedAction = String(session.next_expected_action || diagnostics.expected_action || "-").toLowerCase();
+    const queueSize = Math.max(0, asNum(state.v3.pvpQueue.length || 0));
+    const driftRatio = clamp(Math.abs(asNum(diagnostics.score_drift || 0)) / 6, 0, 1);
+    const tickMs = Math.max(220, asNum(session.tick_ms || tickMeta?.tick_ms || state.v3.pvpTickMs || 1000));
+    const actionWindowMs = clamp(asNum(session.action_window_ms || tickMeta?.action_window_ms || state.v3.pvpActionWindowMs || 800), 80, tickMs);
+    const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0));
+    const windowRatio = clamp((actionWindowMs - latencyMs) / actionWindowMs, 0, 1);
+    const pressure = clamp((1 - windowRatio) * 0.52 + driftRatio * 0.3 + clamp(queueSize / 8, 0, 1) * 0.18, 0, 1);
+    const recentReject = Boolean(state.v3.pvpLastRejected) && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 2200;
+    const tone = recentReject ? "critical" : pressure >= 0.72 ? "critical" : pressure >= 0.42 ? "pressure" : "advantage";
+
+    strip.dataset.tone = tone;
+    stateBadge.textContent = tone === "critical" ? "CRITICAL" : tone === "pressure" ? "PRESSURE" : "FLOW";
+    stateBadge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    line.textContent = `Expected ${expectedAction.toUpperCase()} | Queue ${queueSize} | Drift ${Math.round(driftRatio * 100)}%`;
+    hint.textContent =
+      recentReject
+        ? "Son aksiyon reject edildi: expected aksiyona don ve queue temizle."
+        : tone === "critical"
+        ? "Pencere dar: GUARD ve denge hamleleriyle queue baskisini dusur."
+        : tone === "pressure"
+          ? "Ritim kiriliyor: expected aksiyona hizli don ve drifti temizle."
+          : "Flow stabil: combo ve resolve penceresi acik kalabilir.";
+    animateMeterWidth(meter, pressure * 100, 0.22);
+    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
+
+    actionButtons.forEach(({ key, el }) => {
+      if (key === expectedAction) {
+        el.classList.add("expected");
+      }
+      if (tone === "critical") {
+        el.classList.add("window-hot");
+      }
+      if (key === state.v3.pvpLastAction && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 320) {
+        el.classList.add("last-fired");
+      } else {
+        el.classList.remove("last-fired");
+      }
+    });
+  }
+
   function syncPvpSessionUi(session, meta = {}) {
     state.v3.pvpSession = session || null;
     state.v3.pvpTickMeta = meta && meta.tick ? meta.tick : state.v3.pvpTickMeta;
@@ -4781,6 +4858,9 @@
 
     if (!session) {
       state.v3.pvpTickMeta = null;
+      state.v3.pvpLastAction = "";
+      state.v3.pvpLastActionAt = 0;
+      state.v3.pvpLastRejected = false;
       setPvpPanelState("idle");
       statusBadge.textContent = "Duel Hazir";
       statusBadge.className = "badge info";
@@ -4802,6 +4882,7 @@
       renderPvpDuelTheater(null, null);
       renderPvpCinematicDirector(null, null);
       renderPvpRadar(null, null);
+      renderPvpActionPulse(null, null);
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -4877,6 +4958,7 @@
     renderPvpDuelTheater(session, state.v3.pvpTickMeta);
     renderPvpCinematicDirector(session, state.v3.pvpTickMeta);
     renderPvpRadar(session, state.v3.pvpTickMeta);
+    renderPvpActionPulse(session, state.v3.pvpTickMeta);
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
@@ -5018,6 +5100,9 @@
     const data = payload.data || {};
     syncPvpSessionUi(data.session || null, data);
     if (data.action && !data.duplicate) {
+      state.v3.pvpLastAction = inputAction;
+      state.v3.pvpLastActionAt = Date.now();
+      state.v3.pvpLastRejected = !Boolean(data.action.accepted);
       appendPvpTimelineEntry({
         key: `${String(data.session?.session_ref || session.session_ref)}:action:${asNum(data.action.action_seq || 0)}`,
         tone: data.action.accepted ? "action" : "reject",
@@ -5045,6 +5130,7 @@
           ? `PVP ${normalizePvpInputLabel(inputAction)} +${asNum(data.action.score_delta || 0)}`
           : `PVP REJECT ${String(data.action.reject_reason || "invalid").replace(/_/g, " ").toUpperCase()}`
       });
+      renderPvpActionPulse(state.v3.pvpSession, state.v3.pvpTickMeta);
     }
     return data;
   }
@@ -5071,6 +5157,9 @@
     if (!session || !session.session_ref) {
       throw new Error("pvp_session_not_found");
     }
+    state.v3.pvpLastAction = String(action || "").toLowerCase();
+    state.v3.pvpLastActionAt = Date.now();
+    state.v3.pvpLastRejected = false;
     state.v3.pvpQueue.push({
       action: String(action || "").toLowerCase(),
       queuedAt: Date.now()
