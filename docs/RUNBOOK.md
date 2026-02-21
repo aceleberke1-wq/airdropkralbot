@@ -65,7 +65,9 @@
 ## Token treasury ops
 1. Curve degisikligi: WebApp admin `Curve Kaydet` veya `/admin/token/curve`.
 2. Auto policy degisikligi: WebApp admin `Auto Policy Kaydet` veya `/admin/token/auto-policy`.
-3. Otomatik onay sadece policy + gate + onchain verify kosullari gecerse aktif olur.
+3. Quote quorum kontrolu:
+   `GET /webapp/api/token/quote` payloadinda `quote_quorum` alaninda `decision`, `provider_count`, `agreement_ratio` degerlerini izle.
+4. Otomatik onay sadece policy + gate + onchain verify kosullari gecerse aktif olur.
 
 ## Rollout
 1. Once backend migration + deploy.

@@ -499,6 +499,131 @@ async function insertTokenQuoteTrace(db, payload) {
   return result.rows[0] || null;
 }
 
+async function insertQuoteProviderHealth(db, payload) {
+  const result = await db.query(
+    `INSERT INTO quote_provider_health (
+       provider,
+       endpoint,
+       check_name,
+       ok,
+       status_code,
+       latency_ms,
+       error_code,
+       error_message,
+       payload_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+     RETURNING id, provider, endpoint, check_name, ok, status_code, latency_ms, error_code, error_message, payload_json, checked_at;`,
+    [
+      String(payload.provider || "unknown"),
+      String(payload.endpoint || ""),
+      String(payload.checkName || "quote"),
+      Boolean(payload.ok),
+      Math.max(0, Math.floor(Number(payload.statusCode || 0))),
+      Math.max(0, Math.floor(Number(payload.latencyMs || 0))),
+      String(payload.errorCode || ""),
+      String(payload.errorMessage || ""),
+      JSON.stringify(payload.payloadJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertQuoteProviderResponse(db, payload) {
+  const result = await db.query(
+    `INSERT INTO quote_provider_responses (
+       request_ref,
+       provider,
+       symbol,
+       chain,
+       usd_amount,
+       token_amount,
+       price_usd,
+       confidence,
+       latency_ms,
+       ok,
+       response_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+     ON CONFLICT (request_ref, provider)
+     DO UPDATE SET
+       symbol = EXCLUDED.symbol,
+       chain = EXCLUDED.chain,
+       usd_amount = EXCLUDED.usd_amount,
+       token_amount = EXCLUDED.token_amount,
+       price_usd = EXCLUDED.price_usd,
+       confidence = EXCLUDED.confidence,
+       latency_ms = EXCLUDED.latency_ms,
+       ok = EXCLUDED.ok,
+       response_json = EXCLUDED.response_json,
+       created_at = now()
+     RETURNING id, request_ref, provider, symbol, chain, usd_amount, token_amount, price_usd, confidence, latency_ms,
+               ok, response_json, created_at;`,
+    [
+      String(payload.requestRef || ""),
+      String(payload.provider || "unknown"),
+      String(payload.symbol || "NXT").toUpperCase(),
+      String(payload.chain || "BTC").toUpperCase(),
+      Number(payload.usdAmount || 0),
+      Number(payload.tokenAmount || 0),
+      Number(payload.priceUsd || 0),
+      Number(payload.confidence || 0),
+      Math.max(0, Math.floor(Number(payload.latencyMs || 0))),
+      Boolean(payload.ok),
+      JSON.stringify(payload.responseJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function upsertQuoteQuorumDecision(db, payload) {
+  const result = await db.query(
+    `INSERT INTO quote_quorum_decisions (
+       request_ref,
+       token_symbol,
+       chain,
+       usd_amount,
+       chosen_price_usd,
+       quorum_price_usd,
+       provider_count,
+       ok_provider_count,
+       agreement_ratio,
+       decision,
+       decision_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+     ON CONFLICT (request_ref)
+     DO UPDATE SET
+       token_symbol = EXCLUDED.token_symbol,
+       chain = EXCLUDED.chain,
+       usd_amount = EXCLUDED.usd_amount,
+       chosen_price_usd = EXCLUDED.chosen_price_usd,
+       quorum_price_usd = EXCLUDED.quorum_price_usd,
+       provider_count = EXCLUDED.provider_count,
+       ok_provider_count = EXCLUDED.ok_provider_count,
+       agreement_ratio = EXCLUDED.agreement_ratio,
+       decision = EXCLUDED.decision,
+       decision_json = EXCLUDED.decision_json,
+       created_at = now()
+     RETURNING id, request_ref, token_symbol, chain, usd_amount, chosen_price_usd, quorum_price_usd, provider_count,
+               ok_provider_count, agreement_ratio, decision, decision_json, created_at;`,
+    [
+      String(payload.requestRef || ""),
+      String(payload.tokenSymbol || "NXT").toUpperCase(),
+      String(payload.chain || "BTC").toUpperCase(),
+      Number(payload.usdAmount || 0),
+      Number(payload.chosenPriceUsd || 0),
+      Number(payload.quorumPriceUsd || 0),
+      Math.max(0, Math.floor(Number(payload.providerCount || 0))),
+      Math.max(0, Math.floor(Number(payload.okProviderCount || 0))),
+      Number(payload.agreementRatio || 0),
+      String(payload.decision || "curve_only"),
+      JSON.stringify(payload.decisionJson || {})
+    ]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   listUserPurchaseRequests,
   getPurchaseRequest,
@@ -523,5 +648,8 @@ module.exports = {
   incrementVelocityBucket,
   insertTreasuryPolicyHistory,
   insertPayoutGateSnapshot,
-  insertTokenQuoteTrace
+  insertTokenQuoteTrace,
+  insertQuoteProviderHealth,
+  insertQuoteProviderResponse,
+  upsertQuoteQuorumDecision
 };

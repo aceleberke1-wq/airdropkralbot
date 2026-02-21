@@ -46,10 +46,14 @@ This repository runs AirdropKralBot as a single-service production stack.
 ## Token treasury model
 1. Quote endpoint uses curve price:
    `price = max(admin_floor, base * (1 + k*ln(1+supply_norm)) * demand_factor)`
-2. Buy intent -> tx submit -> policy evaluation
-3. Semi-auto approval requires:
+2. External BTC/USD providers are sampled per quote call and persisted:
+   `quote_provider_health`, `quote_provider_responses`, `quote_quorum_decisions`
+3. Quorum decision is attached to quote response:
+   `provider_count`, `ok_provider_count`, `agreement_ratio`, `quorum_price_usd`
+4. Buy intent -> tx submit -> policy evaluation
+5. Semi-auto approval requires:
    `usd <= limit`, `risk <= threshold`, `velocity pass`, `onchain verified`, `gate open`
-4. Fail policy => manual review queue
+6. Fail policy => manual review queue
 
 ## Control plane
 1. Admin endpoints for freeze, curve, auto-policy, payout/token queue decisions

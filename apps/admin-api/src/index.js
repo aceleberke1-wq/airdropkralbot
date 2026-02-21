@@ -255,6 +255,97 @@ const ORACLE_CACHE = {
   payload: null
 };
 
+const ORACLE_PROVIDERS = Object.freeze([
+  {
+    provider: "coingecko",
+    endpoint: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+    parsePrice: (body) => Number(body?.bitcoin?.usd || 0)
+  },
+  {
+    provider: "coinbase",
+    endpoint: "https://api.coinbase.com/v2/prices/BTC-USD/spot",
+    parsePrice: (body) => Number(body?.data?.amount || 0)
+  }
+]);
+
+function normalizeOraclePayload(raw = {}) {
+  return {
+    provider: String(raw.provider || "unknown"),
+    endpoint: String(raw.endpoint || ""),
+    ok: Boolean(raw.ok),
+    statusCode: Math.max(0, Math.floor(Number(raw.statusCode || 0))),
+    latencyMs: Math.max(0, Math.floor(Number(raw.latencyMs || 0))),
+    priceUsd: Number(raw.priceUsd || 0),
+    errorCode: String(raw.errorCode || ""),
+    errorMessage: String(raw.errorMessage || ""),
+    sourceTs: raw.sourceTs || null,
+    confidence: clamp(Number(raw.confidence || 0), 0, 1),
+    payload: raw.payload && typeof raw.payload === "object" ? raw.payload : {}
+  };
+}
+
+function summarizeOracleQuorum(providerPayloads = [], fallbackPriceUsd = 0) {
+  const providers = Array.isArray(providerPayloads)
+    ? providerPayloads.map((item) => normalizeOraclePayload(item))
+    : [];
+  const okProviders = providers.filter((item) => item.ok && Number(item.priceUsd || 0) > 0);
+  const providerCount = providers.length;
+  const okProviderCount = okProviders.length;
+  const sorted = okProviders.slice().sort((a, b) => Number(a.priceUsd) - Number(b.priceUsd));
+  const medianPrice =
+    sorted.length === 0
+      ? 0
+      : sorted.length % 2 === 1
+        ? Number(sorted[(sorted.length - 1) / 2].priceUsd)
+        : Number(sorted[sorted.length / 2 - 1].priceUsd + sorted[sorted.length / 2].priceUsd) / 2;
+  const tolerance = 0.02;
+  const agreeingCount =
+    medianPrice > 0
+      ? sorted.filter((item) => Math.abs(Number(item.priceUsd) - medianPrice) / medianPrice <= tolerance).length
+      : 0;
+  const agreementRatio = okProviderCount > 0 ? agreeingCount / okProviderCount : 0;
+  const quorumPass = okProviderCount >= 2 && agreementRatio >= 0.5;
+  const chosen = quorumPass
+    ? {
+        provider: "quorum",
+        endpoint: "multi_provider",
+        priceUsd: medianPrice,
+        statusCode: 200,
+        latencyMs: sorted.reduce((max, item) => Math.max(max, Number(item.latencyMs || 0)), 0),
+        confidence: clamp(0.65 + agreementRatio * 0.35, 0, 1),
+        sourceTs: new Date().toISOString(),
+        errorCode: "",
+        errorMessage: "",
+        ok: true
+      }
+    : okProviderCount > 0
+      ? {
+          ...sorted[0],
+          confidence: clamp(Number(sorted[0].confidence || 0.6), 0, 1)
+        }
+      : {
+          provider: "curve_fallback",
+          endpoint: "",
+          priceUsd: Number(fallbackPriceUsd || 0),
+          statusCode: 0,
+          latencyMs: 0,
+          confidence: 0.1,
+          sourceTs: null,
+          errorCode: "no_provider_available",
+          errorMessage: "No healthy provider response",
+          ok: false
+        };
+  return {
+    providers,
+    providerCount,
+    okProviderCount,
+    quorumPriceUsd: Number(medianPrice || 0),
+    agreementRatio: Number(agreementRatio.toFixed(6)),
+    decision: quorumPass ? "provider_quorum" : okProviderCount > 0 ? "fallback" : "fallback",
+    chosen
+  };
+}
+
 async function fetchWithTimeout(url, timeoutMs = 3500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -271,71 +362,112 @@ async function fetchWithTimeout(url, timeoutMs = 3500) {
   }
 }
 
-async function getReliableCoreApiQuote(db, { force = false } = {}) {
+async function getReliableCoreApiQuote(db, { force = false, fallbackPriceUsd = 0 } = {}) {
   const now = Date.now();
   if (!force && ORACLE_CACHE.payload && now - ORACLE_CACHE.ts < 45000) {
     return ORACLE_CACHE.payload;
   }
-
-  const endpoint = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
-  const started = Date.now();
-  let payload = {
-    provider: "coingecko",
-    endpoint,
-    ok: false,
-    statusCode: 0,
-    latencyMs: 0,
-    priceUsd: 0,
-    errorCode: "",
-    errorMessage: "",
-    sourceTs: null
-  };
-  try {
-    const res = await fetchWithTimeout(endpoint, 3500);
-    payload.statusCode = Number(res.status || 0);
-    payload.latencyMs = Date.now() - started;
-    const body = await res.json().catch(() => ({}));
-    const price = Number(body?.bitcoin?.usd || 0);
-    payload.priceUsd = Number.isFinite(price) ? price : 0;
-    payload.ok = res.ok && payload.priceUsd > 0;
-    if (!payload.ok && !payload.errorCode) {
-      payload.errorCode = "upstream_invalid_payload";
-    }
-  } catch (err) {
-    payload.latencyMs = Date.now() - started;
-    payload.errorCode = err?.name === "AbortError" ? "timeout" : "network_error";
-    payload.errorMessage = String(err?.message || "oracle_fetch_failed");
-  }
-
-  if (payload.ok) {
-    payload.sourceTs = new Date().toISOString();
-  }
-
-  try {
-    await webappStore.insertExternalApiHealth(db, {
-      provider: payload.provider,
-      endpoint: payload.endpoint,
-      checkName: "token_quote",
-      ok: payload.ok,
-      statusCode: payload.statusCode,
-      latencyMs: payload.latencyMs,
-      errorCode: payload.errorCode,
-      errorMessage: payload.errorMessage,
-      healthJson: {
-        price_usd: payload.priceUsd
+  const providerPayloads = [];
+  for (const provider of ORACLE_PROVIDERS) {
+    const started = Date.now();
+    let payload = {
+      provider: provider.provider,
+      endpoint: provider.endpoint,
+      ok: false,
+      statusCode: 0,
+      latencyMs: 0,
+      priceUsd: 0,
+      errorCode: "",
+      errorMessage: "",
+      sourceTs: null,
+      confidence: 0.45
+    };
+    try {
+      const res = await fetchWithTimeout(provider.endpoint, 3500);
+      const body = await res.json().catch(() => ({}));
+      const parsedPrice = Number(provider.parsePrice(body));
+      payload.statusCode = Number(res.status || 0);
+      payload.latencyMs = Date.now() - started;
+      payload.priceUsd = Number.isFinite(parsedPrice) ? parsedPrice : 0;
+      payload.ok = Boolean(res.ok && payload.priceUsd > 0);
+      payload.sourceTs = payload.ok ? new Date().toISOString() : null;
+      payload.confidence = payload.ok ? (payload.statusCode === 200 ? 0.95 : 0.75) : 0.2;
+      if (!payload.ok) {
+        payload.errorCode = "upstream_invalid_payload";
       }
-    });
-    if (payload.ok) {
-      await webappStore.insertPriceOracleSnapshot(db, {
-        provider: payload.provider,
-        symbol: "BTC",
-        priceUsd: payload.priceUsd,
-        confidence: payload.statusCode === 200 ? 0.95 : 0.6,
-        sourceTs: payload.sourceTs,
-        snapshotJson: {
-          endpoint: payload.endpoint
+      payload.payload = body && typeof body === "object" ? body : {};
+    } catch (err) {
+      payload.latencyMs = Date.now() - started;
+      payload.errorCode = err?.name === "AbortError" ? "timeout" : "network_error";
+      payload.errorMessage = String(err?.message || "oracle_fetch_failed");
+      payload.confidence = 0.1;
+    }
+    providerPayloads.push(payload);
+  }
+
+  const quorum = summarizeOracleQuorum(providerPayloads, fallbackPriceUsd);
+  const payload = {
+    provider: quorum.chosen.provider,
+    endpoint: quorum.chosen.endpoint,
+    ok: Boolean(quorum.okProviderCount > 0),
+    statusCode: Number(quorum.chosen.statusCode || 0),
+    latencyMs: Number(quorum.chosen.latencyMs || 0),
+    priceUsd: Number(quorum.chosen.priceUsd || 0),
+    errorCode: String(quorum.chosen.errorCode || ""),
+    errorMessage: String(quorum.chosen.errorMessage || ""),
+    sourceTs: quorum.chosen.sourceTs || null,
+    confidence: Number(quorum.chosen.confidence || 0),
+    provider_count: quorum.providerCount,
+    ok_provider_count: quorum.okProviderCount,
+    quorum_price_usd: quorum.quorumPriceUsd,
+    agreement_ratio: quorum.agreementRatio,
+    decision: quorum.decision,
+    providers: quorum.providers
+  };
+
+  try {
+    for (const entry of quorum.providers) {
+      await webappStore.insertExternalApiHealth(db, {
+        provider: entry.provider,
+        endpoint: entry.endpoint,
+        checkName: "token_quote",
+        ok: entry.ok,
+        statusCode: entry.statusCode,
+        latencyMs: entry.latencyMs,
+        errorCode: entry.errorCode,
+        errorMessage: entry.errorMessage,
+        healthJson: {
+          price_usd: Number(entry.priceUsd || 0),
+          decision: payload.decision
         }
       });
+      await tokenStore.insertQuoteProviderHealth(db, {
+        provider: entry.provider,
+        endpoint: entry.endpoint,
+        checkName: "token_quote",
+        ok: entry.ok,
+        statusCode: entry.statusCode,
+        latencyMs: entry.latencyMs,
+        errorCode: entry.errorCode,
+        errorMessage: entry.errorMessage,
+        payloadJson: {
+          price_usd: Number(entry.priceUsd || 0),
+          confidence: Number(entry.confidence || 0)
+        }
+      });
+      if (entry.ok) {
+        await webappStore.insertPriceOracleSnapshot(db, {
+          provider: entry.provider,
+          symbol: "BTC",
+          priceUsd: Number(entry.priceUsd || 0),
+          confidence: Number(entry.confidence || 0.75),
+          sourceTs: entry.sourceTs || new Date().toISOString(),
+          snapshotJson: {
+            endpoint: entry.endpoint,
+            decision: payload.decision
+          }
+        });
+      }
     }
   } catch (err) {
     if (err.code !== "42P01") {
@@ -5363,25 +5495,31 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
       marketState,
       totalSupply: Number(supply.total || 0)
     });
-    const oracleProbe = await getReliableCoreApiQuote(client).catch((err) => {
-      if (err.code === "42P01") {
-        return {
-          provider: "coingecko",
-          ok: false,
-          statusCode: 0,
-          latencyMs: 0,
-          priceUsd: 0,
-          errorCode: "oracle_tables_missing",
-          errorMessage: "oracle tables missing"
-        };
-      }
-      throw err;
-    });
     const guardrail = await tokenStore.getTreasuryGuardrail(client, tokenConfig.symbol).catch((err) => {
       if (err.code === "42P01") return null;
       throw err;
     });
     const priceUsd = curveEnabled ? Number(curveQuote.priceUsd || 0) : Number(tokenConfig.usd_price || 0);
+    const oracleProbe = await getReliableCoreApiQuote(client, { fallbackPriceUsd: priceUsd }).catch((err) => {
+      if (err.code === "42P01") {
+        return {
+          provider: "quorum",
+          ok: false,
+          statusCode: 0,
+          latencyMs: 0,
+          priceUsd: 0,
+          errorCode: "oracle_tables_missing",
+          errorMessage: "oracle tables missing",
+          provider_count: 0,
+          ok_provider_count: 0,
+          quorum_price_usd: 0,
+          agreement_ratio: 0,
+          decision: "fallback",
+          providers: []
+        };
+      }
+      throw err;
+    });
     const quote = tokenEngine.quotePurchaseByUsd(usdAmount, tokenConfig, { priceUsd });
     if (!quote.ok) {
       reply.code(409).send({ success: false, error: quote.reason, data: quote });
@@ -5407,6 +5545,66 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
       if (err.code === "42P01") return { riskScore: 0 };
       throw err;
     });
+    const quoteRequestRef =
+      String(request.query.request_ref || "").trim() ||
+      `quote:${profile.user_id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+    const providerRows = Array.isArray(oracleProbe.providers) ? oracleProbe.providers : [];
+    for (const providerRow of providerRows) {
+      await tokenStore
+        .insertQuoteProviderResponse(client, {
+          requestRef: quoteRequestRef,
+          provider: providerRow.provider,
+          symbol: tokenConfig.symbol,
+          chain: chainConfig.chain,
+          usdAmount: Number(quote.usdAmount || 0),
+          tokenAmount: Number(quote.tokenAmount || 0),
+          priceUsd: Number(providerRow.priceUsd || 0),
+          confidence: Number(providerRow.confidence || 0),
+          latencyMs: Number(providerRow.latencyMs || 0),
+          ok: Boolean(providerRow.ok),
+          responseJson: {
+            endpoint: providerRow.endpoint || "",
+            status_code: Number(providerRow.statusCode || 0),
+            error_code: providerRow.errorCode || "",
+            error_message: providerRow.errorMessage || "",
+            source_ts: providerRow.sourceTs || null
+          }
+        })
+        .catch((err) => {
+          if (err.code !== "42P01") {
+            throw err;
+          }
+        });
+    }
+    await tokenStore
+      .upsertQuoteQuorumDecision(client, {
+        requestRef: quoteRequestRef,
+        tokenSymbol: tokenConfig.symbol,
+        chain: chainConfig.chain,
+        usdAmount: Number(quote.usdAmount || 0),
+        chosenPriceUsd: Number(oracleProbe.priceUsd || priceUsd || 0),
+        quorumPriceUsd: Number(oracleProbe.quorum_price_usd || 0),
+        providerCount: Number(oracleProbe.provider_count || providerRows.length || 0),
+        okProviderCount: Number(oracleProbe.ok_provider_count || providerRows.filter((item) => item.ok).length || 0),
+        agreementRatio: Number(oracleProbe.agreement_ratio || 0),
+        decision: String(oracleProbe.decision || "fallback"),
+        decisionJson: {
+          source: "token_quote",
+          provider: oracleProbe.provider || "quorum",
+          fallback_price_usd: Number(priceUsd || 0),
+          providers: providerRows.map((item) => ({
+            provider: item.provider,
+            ok: Boolean(item.ok),
+            price_usd: Number(item.priceUsd || 0),
+            confidence: Number(item.confidence || 0)
+          }))
+        }
+      })
+      .catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
     await tokenStore
       .insertTokenQuoteTrace(client, {
         requestId: request.query.request_id ? Number(request.query.request_id) || null : null,
@@ -5424,7 +5622,8 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
           quote,
           curve: curveQuote,
           guardrail: guardrail || null,
-          external_api: oracleProbe
+          external_api: oracleProbe,
+          quote_request_ref: quoteRequestRef
         }
       })
       .catch((err) => {
@@ -5479,6 +5678,16 @@ fastify.get("/webapp/api/token/quote", async (request, reply) => {
             : null
         },
         external_api: oracleProbe
+        ,
+        quote_quorum: {
+          request_ref: quoteRequestRef,
+          decision: String(oracleProbe.decision || "fallback"),
+          provider_count: Number(oracleProbe.provider_count || providerRows.length || 0),
+          ok_provider_count: Number(oracleProbe.ok_provider_count || providerRows.filter((item) => item.ok).length || 0),
+          agreement_ratio: Number(oracleProbe.agreement_ratio || 0),
+          quorum_price_usd: Number(oracleProbe.quorum_price_usd || 0),
+          chosen_price_usd: Number(oracleProbe.priceUsd || 0)
+        }
       }
     });
   } finally {

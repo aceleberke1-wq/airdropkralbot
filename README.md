@@ -91,7 +91,7 @@ Set `LOOP_V2_ENABLED=1` in `.env` to enable the Loop v2 economy/anti-abuse flow.
 `GET /webapp/api/arena/director`,
 `GET /webapp/api/token/summary`, `POST /webapp/api/token/mint`,
 `POST /webapp/api/token/buy_intent`, `POST /webapp/api/token/submit_tx`,
-`GET /webapp/api/token/quote`,
+`GET /webapp/api/token/quote` (returns `quote_quorum` diagnostics),
 `GET /webapp/api/telemetry/perf-profile`, `POST /webapp/api/telemetry/perf-profile`,
 `GET /webapp/api/scene/profile`, `POST /webapp/api/scene/profile`,
 `GET /webapp/api/assets/manifest/active`,
