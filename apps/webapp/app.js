@@ -235,6 +235,17 @@
     return bridge;
   }
 
+  function getPvpRadarBridge() {
+    const bridge = window.__AKR_PVP_RADAR__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.draw !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -3623,6 +3634,17 @@
   function drawPvpRadarCanvas(canvas, options = {}) {
     if (!canvas) {
       return;
+    }
+    const bridge = getPvpRadarBridge();
+    if (bridge) {
+      try {
+        const handled = bridge.draw(canvas, options);
+        if (handled) {
+          return;
+        }
+      } catch (err) {
+        console.warn("pvp-radar-bridge-draw-failed", err);
+      }
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
