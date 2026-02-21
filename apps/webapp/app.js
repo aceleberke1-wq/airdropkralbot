@@ -81,6 +81,8 @@
       threatHistory: [],
       combatHeat: 0,
       threatRatio: 0,
+      raidBossPressure: 0,
+      raidBossTone: "stable",
       sceneMood: "balanced",
       scenePostFxLevel: 0.9,
       sceneHudDensity: "full",
@@ -1457,6 +1459,87 @@
       });
     }
 
+    const bossCluster = new THREE.Group();
+    bossCluster.position.set(0, -0.08, -1.15);
+    scene.add(bossCluster);
+
+    const bossCore = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.82, 2),
+      new THREE.MeshStandardMaterial({
+        color: 0xff8fa6,
+        emissive: 0x4a172c,
+        roughness: 0.22,
+        metalness: 0.68
+      })
+    );
+    bossCluster.add(bossCore);
+
+    const bossAura = new THREE.Mesh(
+      new THREE.SphereGeometry(1.28, 28, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0xff9ab1,
+        transparent: true,
+        opacity: 0.14,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    bossCluster.add(bossAura);
+
+    const bossShieldRings = [];
+    const bossShieldMeta = [];
+    for (let i = 0; i < 3; i += 1) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.18 + i * 0.26, 0.028 + i * 0.004, 14, 100),
+        new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0xff8da7 : 0x7bd4ff,
+          transparent: true,
+          opacity: 0.18 + i * 0.04,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      ring.rotation.x = Math.PI / 2 + i * 0.24;
+      ring.rotation.y = i * 0.42;
+      ring.position.y = -0.06 + i * 0.06;
+      bossCluster.add(ring);
+      bossShieldRings.push(ring);
+      bossShieldMeta.push({
+        spin: (i % 2 === 0 ? 1 : -1) * (0.18 + i * 0.1 + Math.random() * 0.08),
+        drift: Math.random() * Math.PI * 2,
+        pulse: 0.8 + Math.random() * 1.4
+      });
+    }
+
+    const bossSpikes = [];
+    const bossSpikeMeta = [];
+    for (let i = 0; i < 10; i += 1) {
+      const angle = (Math.PI * 2 * i) / 10;
+      const radius = 1.72 + (i % 2) * 0.22;
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(0.08, 0.56 + (i % 3) * 0.08, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0xff97ac,
+          emissive: 0x3f1728,
+          roughness: 0.24,
+          metalness: 0.72,
+          transparent: true,
+          opacity: 0.76
+        })
+      );
+      spike.position.set(Math.cos(angle) * radius, -0.08 + (i % 4) * 0.06, Math.sin(angle) * radius);
+      spike.lookAt(0, -0.02, 0);
+      bossCluster.add(spike);
+      bossSpikes.push(spike);
+      bossSpikeMeta.push({
+        angle,
+        radius,
+        baseY: spike.position.y,
+        pulse: 0.9 + Math.random() * 1.3,
+        drift: Math.random() * Math.PI * 2,
+        orbit: 0.1 + Math.random() * 0.2
+      });
+    }
+
     return {
       ring,
       ringOuter,
@@ -1491,7 +1574,14 @@
       stormRibbons,
       stormRibbonMeta,
       raidBeacons,
-      raidBeaconMeta
+      raidBeaconMeta,
+      bossCluster,
+      bossCore,
+      bossAura,
+      bossShieldRings,
+      bossShieldMeta,
+      bossSpikes,
+      bossSpikeMeta
     };
   }
 
@@ -2070,6 +2160,8 @@
     }
 
     if (!session) {
+      state.telemetry.raidBossPressure = 0;
+      state.telemetry.raidBossTone = "stable";
       waveLine.textContent = "Wave 0/0";
       bossLine.textContent = "Boss: Beklemede";
       hpLine.textContent = "HP 0%";
@@ -2119,6 +2211,8 @@
     } else if (pressure >= 0.5) {
       tone = "pressure";
     }
+    state.telemetry.raidBossPressure = pressure;
+    state.telemetry.raidBossTone = tone;
 
     const bossName = String(bossCycle.boss_name || session.contract_key || "Nexus Boss");
     const bossTier = String(bossCycle.tier || state.boss_tier || "-");
@@ -2522,6 +2616,8 @@
     const cadenceStrikeMeter = byId("combatCadenceStrikeMeter");
     const cadenceGuardMeter = byId("combatCadenceGuardMeter");
     const cadenceChargeMeter = byId("combatCadenceChargeMeter");
+    const bossPressureLine = byId("bossPressureLine");
+    const bossPressureMeter = byId("bossPressureMeter");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
@@ -2556,6 +2652,23 @@
       0,
       1
     );
+    const raidSession = state.v3.raidSession || null;
+    const raidState = raidSession?.state || {};
+    const bossCycle = raidSession?.boss_cycle || {};
+    const raidHpTotal = Math.max(0, asNum(bossCycle.hp_total || raidState.hp_total || 0));
+    const raidHpRemaining = Math.max(0, asNum(bossCycle.hp_remaining || raidState.hp_remaining || 0));
+    const raidHpRatio = raidHpTotal > 0 ? clamp(raidHpRemaining / raidHpTotal, 0, 1) : 1;
+    const raidActionCount = Math.max(0, asNum(raidSession?.action_count || 0));
+    const raidActionMax = Math.max(1, asNum(raidState.max_actions || 12));
+    const raidTtlSec = Math.max(0, asNum(raidSession?.ttl_sec_left || 0));
+    const raidTtlBase = Math.max(45, asNum(raidState.ttl_sec || 90));
+    const raidTempo = clamp(raidActionCount / raidActionMax * 0.62 + clamp(1 - raidTtlSec / raidTtlBase, 0, 1) * 0.38, 0, 1);
+    const bossPressure = raidSession
+      ? clamp((1 - raidHpRatio) * 0.5 + raidTempo * 0.32 + pressureRatio * 0.18, 0, 1)
+      : clamp(pressureRatio * 0.44 + queuePressure * 0.12, 0, 1);
+    const bossTone = bossPressure >= 0.78 ? "critical" : bossPressure >= 0.46 ? "pressure" : "stable";
+    state.telemetry.raidBossPressure = bossPressure;
+    state.telemetry.raidBossTone = bossTone;
     if (panelRoot) {
       panelRoot.classList.remove("pressure-low", "pressure-medium", "pressure-high", "pressure-critical");
       const pressureClass =
@@ -2741,6 +2854,21 @@
     if (cadenceChargeMeter) {
       cadenceChargeMeter.style.width = `${Math.round(chargeRatio * 100)}%`;
       setMeterPalette(cadenceChargeMeter, expectedAction === "charge" ? "balanced" : "neutral");
+    }
+    if (bossPressureLine) {
+      if (!raidSession) {
+        bossPressureLine.textContent = `STABLE | HP -- | TTL --`;
+        bossPressureLine.dataset.tone = "stable";
+      } else {
+        const bossHpPct = Math.round(raidHpRatio * 100);
+        const bossLabel = bossTone === "critical" ? "CRITICAL" : bossTone === "pressure" ? "PRESSURE" : "STABLE";
+        bossPressureLine.textContent = `${bossLabel} | HP ${bossHpPct}% | TTL ${raidTtlSec}s`;
+        bossPressureLine.dataset.tone = bossTone;
+      }
+    }
+    if (bossPressureMeter) {
+      animateMeterWidth(bossPressureMeter, bossPressure * 100, 0.24);
+      setMeterPalette(bossPressureMeter, bossTone === "critical" ? "critical" : bossTone === "pressure" ? "aggressive" : "safe");
     }
     const nodeMap = {
       strike: timelineNodeStrike,
@@ -4771,6 +4899,95 @@
             yoyo: true,
             repeat: 1,
             delay: index * 0.015,
+            ease: "power2.out"
+          }
+        );
+      });
+    }
+    if (state.arena.bossCore && state.arena.bossCore.material) {
+      const bossFlash = pulseTone === "aggressive" ? 0xff6a8d : pulseTone === "reveal" ? 0xffca73 : pulseTone === "safe" ? 0x72ffb0 : 0x7bcfff;
+      state.arena.bossCore.material.color.setHex(bossFlash);
+      if (state.arena.bossCore.material.emissive?.setHex) {
+        state.arena.bossCore.material.emissive.setHex(bossFlash);
+      }
+      gsap.fromTo(
+        state.arena.bossCore.scale,
+        { x: state.arena.bossCore.scale.x, y: state.arena.bossCore.scale.y, z: state.arena.bossCore.scale.z },
+        {
+          x: state.arena.bossCore.scale.x * (pulseTone === "aggressive" ? 1.24 : 1.16),
+          y: state.arena.bossCore.scale.y * (pulseTone === "aggressive" ? 1.24 : 1.16),
+          z: state.arena.bossCore.scale.z * (pulseTone === "aggressive" ? 1.24 : 1.16),
+          duration: 0.18,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+    }
+    if (state.arena.bossAura?.material) {
+      state.arena.bossAura.material.color.setHex(accepted ? color : 0xff4f6d);
+      state.arena.bossAura.material.opacity = Math.max(asNum(state.arena.bossAura.material.opacity || 0.1), pulseTone === "aggressive" ? 0.5 : 0.4);
+      gsap.fromTo(
+        state.arena.bossAura.scale,
+        { x: state.arena.bossAura.scale.x, y: state.arena.bossAura.scale.y, z: state.arena.bossAura.scale.z },
+        {
+          x: state.arena.bossAura.scale.x * (pulseTone === "aggressive" ? 1.32 : 1.2),
+          y: state.arena.bossAura.scale.y * (pulseTone === "aggressive" ? 1.32 : 1.2),
+          z: state.arena.bossAura.scale.z * (pulseTone === "aggressive" ? 1.32 : 1.2),
+          duration: 0.22,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        }
+      );
+      gsap.to(state.arena.bossAura.material, { opacity: 0.14, duration: 0.36, ease: "power2.out" });
+    }
+    if (Array.isArray(state.arena.bossShieldRings)) {
+      state.arena.bossShieldRings.forEach((ring, index) => {
+        if (!ring || !ring.material) {
+          return;
+        }
+        ring.material.color.setHex(accepted ? color : 0xff4f6d);
+        ring.material.opacity = Math.max(asNum(ring.material.opacity || 0.16), pulseTone === "aggressive" ? 0.62 : 0.48);
+        gsap.to(ring.material, { opacity: 0.2, duration: 0.42, delay: index * 0.02, ease: "power2.out" });
+        if (!state.ui.reducedMotion) {
+          gsap.fromTo(
+            ring.scale,
+            { x: ring.scale.x, y: ring.scale.y, z: ring.scale.z },
+            {
+              x: ring.scale.x * 1.12,
+              y: ring.scale.y * 1.12,
+              z: ring.scale.z * 1.12,
+              duration: 0.2,
+              yoyo: true,
+              repeat: 1,
+              delay: index * 0.02,
+              ease: "power2.out"
+            }
+          );
+        }
+      });
+    }
+    if (Array.isArray(state.arena.bossSpikes) && !state.ui.reducedMotion) {
+      state.arena.bossSpikes.forEach((spike, index) => {
+        if (!spike || !spike.material) {
+          return;
+        }
+        spike.material.color.setHex(accepted ? color : 0xff4f6d);
+        if (spike.material.emissive?.setHex) {
+          spike.material.emissive.setHex(accepted ? color : 0xff4f6d);
+        }
+        gsap.fromTo(
+          spike.scale,
+          { x: spike.scale.x, y: spike.scale.y, z: spike.scale.z },
+          {
+            x: spike.scale.x * 1.08,
+            y: spike.scale.y * 1.18,
+            z: spike.scale.z * 1.08,
+            duration: 0.16,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.012,
             ease: "power2.out"
           }
         );
@@ -7212,6 +7429,99 @@
         }
       }
 
+      const raidSessionLive = state.v3.raidSession || null;
+      const raidLiveState = raidSessionLive?.state || {};
+      const raidLiveCycle = raidSessionLive?.boss_cycle || {};
+      const raidLiveHpTotal = Math.max(0, asNum(raidLiveCycle.hp_total || raidLiveState.hp_total || 0));
+      const raidLiveHpRemaining = Math.max(0, asNum(raidLiveCycle.hp_remaining || raidLiveState.hp_remaining || 0));
+      const raidLiveHpRatio = raidLiveHpTotal > 0 ? clamp(raidLiveHpRemaining / raidLiveHpTotal, 0, 1) : 1;
+      const raidLiveActions = Math.max(0, asNum(raidSessionLive?.action_count || 0));
+      const raidLiveActionMax = Math.max(1, asNum(raidLiveState.max_actions || 12));
+      const raidLiveTtlSec = Math.max(0, asNum(raidSessionLive?.ttl_sec_left || 0));
+      const raidLiveTtlBase = Math.max(45, asNum(raidLiveState.ttl_sec || 90));
+      const raidLiveTempo = clamp(
+        raidLiveActions / raidLiveActionMax * 0.62 + clamp(1 - raidLiveTtlSec / raidLiveTtlBase, 0, 1) * 0.38,
+        0,
+        1
+      );
+      const raidBossPressure = raidSessionLive
+        ? clamp((1 - raidLiveHpRatio) * 0.5 + raidLiveTempo * 0.32 + pvpPressure * 0.18, 0, 1)
+        : clamp(asNum(state.telemetry.raidBossPressure || 0) * 0.72 + threat * 0.2 + pvpPressure * 0.12, 0, 1);
+      const raidBossTone = raidBossPressure >= 0.78 ? "critical" : raidBossPressure >= 0.46 ? "pressure" : "stable";
+      state.telemetry.raidBossPressure = raidBossPressure;
+      state.telemetry.raidBossTone = raidBossTone;
+
+      if (fallback.bossCluster) {
+        const baseY = -0.08;
+        const hover = Math.sin(t * (1.1 + raidBossPressure * 1.4)) * (state.ui.reducedMotion ? 0.03 : 0.12);
+        fallback.bossCluster.position.y = baseY + hover;
+        fallback.bossCluster.rotation.y += dt * (0.24 + raidBossPressure * 0.9 + pvpPressure * 0.24);
+      }
+      if (fallback.bossCore) {
+        fallback.bossCore.rotation.x += dt * (0.3 + raidBossPressure * 0.7);
+        fallback.bossCore.rotation.y += dt * (0.46 + raidBossPressure * 1.1);
+        const scalePulse = 1 + Math.sin(t * (2 + raidBossPressure * 2.2)) * (state.ui.reducedMotion ? 0.02 : 0.08);
+        fallback.bossCore.scale.setScalar(scalePulse + raidBossPressure * 0.12);
+        if (fallback.bossCore.material?.emissive?.setHSL) {
+          const bossHue = raidBossTone === "critical" ? 356 : raidBossTone === "pressure" ? 26 : 198;
+          fallback.bossCore.material.emissive.setHSL(bossHue / 360, 0.74, 0.2 + raidBossPressure * 0.34);
+        }
+      }
+      if (fallback.bossAura?.material) {
+        const auraPulse = Math.sin(t * (1.8 + raidBossPressure * 1.6));
+        const auraOpacityTarget = clamp(0.08 + raidBossPressure * 0.26 + (auraPulse + 1) * 0.04, 0.06, 0.54);
+        fallback.bossAura.material.opacity += (auraOpacityTarget - asNum(fallback.bossAura.material.opacity || 0.12)) * 0.1;
+        if (fallback.bossAura.material.color?.setHSL) {
+          const auraHue = raidBossTone === "critical" ? 350 : raidBossTone === "pressure" ? 20 : 194;
+          fallback.bossAura.material.color.setHSL(auraHue / 360, 0.7, 0.58);
+        }
+        if (!state.ui.reducedMotion) {
+          const auraScale = 1 + auraPulse * 0.08 + raidBossPressure * 0.16;
+          fallback.bossAura.scale.setScalar(auraScale);
+        } else {
+          fallback.bossAura.scale.setScalar(1 + raidBossPressure * 0.08);
+        }
+      }
+      if (Array.isArray(fallback.bossShieldRings) && Array.isArray(fallback.bossShieldMeta)) {
+        for (let i = 0; i < fallback.bossShieldRings.length; i += 1) {
+          const ring = fallback.bossShieldRings[i];
+          const meta = fallback.bossShieldMeta[i];
+          if (!ring || !meta || !ring.material) {
+            continue;
+          }
+          ring.rotation.z += dt * meta.spin * (1 + raidBossPressure * 1.4);
+          ring.rotation.y += dt * 0.08 * (i % 2 === 0 ? 1 : -1);
+          ring.position.y = -0.06 + i * 0.06 + Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.01 : 0.04);
+          const ringOpacity = clamp(0.1 + raidBossPressure * 0.34 + (i + 1) * 0.03, 0.08, 0.78);
+          ring.material.opacity += (ringOpacity - asNum(ring.material.opacity || 0.12)) * 0.1;
+          if (ring.material.color?.setHSL) {
+            const ringHue = raidBossTone === "critical" ? 352 : raidBossTone === "pressure" ? 24 : 198;
+            ring.material.color.setHSL((ringHue + i * 8) / 360, 0.68, 0.62 - raidBossPressure * 0.08);
+          }
+        }
+      }
+      if (Array.isArray(fallback.bossSpikes) && Array.isArray(fallback.bossSpikeMeta)) {
+        for (let i = 0; i < fallback.bossSpikes.length; i += 1) {
+          const spike = fallback.bossSpikes[i];
+          const meta = fallback.bossSpikeMeta[i];
+          if (!spike || !meta || !spike.material) {
+            continue;
+          }
+          const orbit = meta.angle + Math.sin(t * meta.orbit + meta.drift) * 0.08;
+          spike.position.x = Math.cos(orbit) * meta.radius;
+          spike.position.z = Math.sin(orbit) * meta.radius;
+          spike.position.y = meta.baseY + Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.02 : 0.07);
+          spike.lookAt(0, -0.04, 0);
+          const spikeScale = 0.94 + raidBossPressure * 0.42 + Math.sin(t * (1.2 + meta.pulse) + meta.drift) * 0.08;
+          spike.scale.setScalar(spikeScale);
+          if (spike.material.emissive?.setHSL) {
+            const spikeHue = raidBossTone === "critical" ? 354 : raidBossTone === "pressure" ? 22 : 196;
+            spike.material.emissive.setHSL((spikeHue + i * 3) / 360, 0.74, 0.16 + raidBossPressure * 0.28);
+          }
+          spike.material.opacity = clamp(0.58 + raidBossPressure * 0.3, 0.4, 0.94);
+        }
+      }
+
       if (Array.isArray(fallback.tracerBeams) && Array.isArray(fallback.tracerMeta)) {
         const tracerLimit = Math.max(0, Math.min(asNum(state.arena?.tracerLimit || fallback.tracerBeams.length), fallback.tracerBeams.length));
         for (let i = 0; i < fallback.tracerBeams.length; i += 1) {
@@ -7443,6 +7753,13 @@
       stormRibbonMeta: fallback.stormRibbonMeta,
       raidBeacons: fallback.raidBeacons,
       raidBeaconMeta: fallback.raidBeaconMeta,
+      bossCluster: fallback.bossCluster,
+      bossCore: fallback.bossCore,
+      bossAura: fallback.bossAura,
+      bossShieldRings: fallback.bossShieldRings,
+      bossShieldMeta: fallback.bossShieldMeta,
+      bossSpikes: fallback.bossSpikes,
+      bossSpikeMeta: fallback.bossSpikeMeta,
       stars,
       starsMaterial,
       modelRoot,

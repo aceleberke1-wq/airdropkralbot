@@ -426,7 +426,7 @@ body.pulse-reveal .telemetryDeck {
 
 .combatStrip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -514,6 +514,18 @@ body.pulse-reveal .telemetryDeck {
 }
 
 #anomalyPulseLine[data-tone="critical"] {
+  color: #ff8aa5;
+}
+
+#bossPressureLine[data-tone="stable"] {
+  color: #9de4be;
+}
+
+#bossPressureLine[data-tone="pressure"] {
+  color: #ffd08b;
+}
+
+#bossPressureLine[data-tone="critical"] {
   color: #ff8aa5;
 }
 
