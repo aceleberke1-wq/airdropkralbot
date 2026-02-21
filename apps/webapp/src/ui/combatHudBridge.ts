@@ -65,6 +65,13 @@ type CombatHudPayload = {
   overdriveThreatPalette: string;
   overdrivePvpPalette: string;
   overdriveImpulsePalette: string;
+  alertPrimaryLabel: string;
+  alertPrimaryTone: string;
+  alertSecondaryLabel: string;
+  alertSecondaryTone: string;
+  alertTertiaryLabel: string;
+  alertTertiaryTone: string;
+  alertHintText: string;
 };
 
 type CombatHudBridge = {
@@ -183,6 +190,10 @@ function render(payload: CombatHudPayload): boolean {
   const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
   const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
   const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
+  const alertPrimaryChip = byId("combatAlertPrimaryChip");
+  const alertSecondaryChip = byId("combatAlertSecondaryChip");
+  const alertTertiaryChip = byId("combatAlertTertiaryChip");
+  const alertHint = byId("combatAlertHint");
 
   if (!panelRoot || !chainLine || !chainTrail || !timelineLine || !timelineBadge || !timelineMeter) {
     return false;
@@ -271,6 +282,33 @@ function render(payload: CombatHudPayload): boolean {
   setMeter(overdriveThreatMeter, payload.overdriveThreatPct, payload.overdriveThreatPalette);
   setMeter(overdrivePvpMeter, payload.overdrivePvpPct, payload.overdrivePvpPalette);
   setMeter(overdriveImpulseMeter, payload.overdriveImpulsePct, payload.overdriveImpulsePalette);
+
+  const applyAlertChip = (node: HTMLElement | null, label: string, toneKey: string) => {
+    if (!node) {
+      return;
+    }
+    node.textContent = String(label || "FLOW HOLD");
+    node.className = "combatAlertChip";
+    const safeTone = String(toneKey || "neutral").toLowerCase();
+    node.classList.add(
+      safeTone === "critical"
+        ? "critical"
+        : safeTone === "aggressive" || safeTone === "pressure"
+          ? "aggressive"
+          : safeTone === "safe"
+            ? "safe"
+            : safeTone === "balanced" || safeTone === "advantage"
+              ? "balanced"
+              : "neutral"
+    );
+  };
+  applyAlertChip(alertPrimaryChip, payload.alertPrimaryLabel, payload.alertPrimaryTone);
+  applyAlertChip(alertSecondaryChip, payload.alertSecondaryLabel, payload.alertSecondaryTone);
+  applyAlertChip(alertTertiaryChip, payload.alertTertiaryLabel, payload.alertTertiaryTone);
+  if (alertHint) {
+    alertHint.textContent = String(payload.alertHintText || "");
+    alertHint.dataset.tone = String(payload.alertPrimaryTone || "steady").toLowerCase();
+  }
 
   const nodeMap: Record<string, HTMLElement | null> = {
     strike: timelineNodeStrike,

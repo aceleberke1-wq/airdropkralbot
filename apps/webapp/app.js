@@ -120,7 +120,9 @@
       lastTimelinePulseAt: 0,
       overlayTimer: null,
       combatHudRenderAt: 0,
-      combatHitTimer: null
+      combatHitTimer: null,
+      overdriveTone: "steady",
+      overdriveSurgeTimer: null
     },
     audio: {
       enabled: true,
@@ -2752,6 +2754,10 @@
     const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
     const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
     const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
+    const alertPrimaryChip = byId("combatAlertPrimaryChip");
+    const alertSecondaryChip = byId("combatAlertSecondaryChip");
+    const alertTertiaryChip = byId("combatAlertTertiaryChip");
+    const alertHint = byId("combatAlertHint");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
@@ -2824,6 +2830,77 @@
     const overdriveLineText =
       `HEAT ${Math.round(sceneHeatRatio * 100)}% | THREAT ${Math.round(threatRatio * 100)}% | ` +
       `PVP ${Math.round(pvpPressureRatio * 100)}% | CAM ${Math.round(impulseRatio * 100)}%`;
+    const overdriveShiftedToCritical = state.ui.overdriveTone !== "critical" && overdriveTone === "critical";
+    state.ui.overdriveTone = overdriveTone;
+    const alertRows = [];
+    if (latest && !latestAccepted) {
+      alertRows.push({
+        label: "ACTION REJECT",
+        tone: "critical",
+        hint: "Son hamle reject oldu. Beklenen aksiyona donup drifti sifirla."
+      });
+    }
+    if (pvpPressureRatio >= 0.7) {
+      alertRows.push({
+        label: "PVP PRESSURE",
+        tone: pvpPressureRatio >= 0.84 ? "critical" : "aggressive",
+        hint: "Queue baskisi yuksek. GUARD/CHARGE ile pencereyi stabilize et."
+      });
+    }
+    if (bossPressure >= 0.62) {
+      alertRows.push({
+        label: "RAID OVERHEAT",
+        tone: bossPressure >= 0.82 ? "critical" : "aggressive",
+        hint: "Boss baskisi yukseliyor. HP/TTL dengesini koru, gereksiz riski azalt."
+      });
+    }
+    if (sceneHeatRatio >= 0.64) {
+      alertRows.push({
+        label: "SCENE HEAT",
+        tone: sceneHeatRatio >= 0.82 ? "critical" : "aggressive",
+        hint: "Sahne isi yuksek. Kamera impulsunu dusur, kontrollu tempo koru."
+      });
+    }
+    if (threatRatio >= 0.54) {
+      alertRows.push({
+        label: "THREAT WAVE",
+        tone: threatRatio >= 0.76 ? "critical" : "balanced",
+        hint: "Threat dalgasi aktif. Kontrat hedefiyle uyumlu ritimde kal."
+      });
+    }
+    if (!alertRows.length) {
+      alertRows.push(
+        {
+          label: "STABLE FLOW",
+          tone: "safe",
+          hint: "Akis stabil. Combo penceresini kontrollu sekilde buyut."
+        },
+        {
+          label: "QUEUE LOW",
+          tone: "balanced",
+          hint: "Queue baskisi dusuk."
+        },
+        {
+          label: "RAID SAFE",
+          tone: "safe",
+          hint: "Raid baskisi normal."
+        }
+      );
+    }
+    while (alertRows.length < 3) {
+      alertRows.push({
+        label: "FLOW HOLD",
+        tone: "balanced",
+        hint: "Denge korunuyor."
+      });
+    }
+    const [alertPrimary, alertSecondary, alertTertiary] = alertRows.slice(0, 3);
+    const alertHintText =
+      alertPrimary?.hint ||
+      "Director alert: stabil akista cadence ve sync dengesini koru.";
+    if (overdriveShiftedToCritical) {
+      triggerOverdriveSurge();
+    }
 
     const bridgeLatestAgeSec = latest ? Math.max(0, Math.round((Date.now() - asNum(latest.ts || Date.now())) / 1000)) : 0;
     const bridgeChainLineText = !latest
@@ -2984,7 +3061,14 @@
           overdriveHeatPalette: sceneHeatRatio >= 0.68 ? "critical" : sceneHeatRatio >= 0.4 ? "aggressive" : "balanced",
           overdriveThreatPalette: threatRatio >= 0.66 ? "critical" : threatRatio >= 0.38 ? "aggressive" : "safe",
           overdrivePvpPalette: pvpPressureRatio >= 0.66 ? "critical" : pvpPressureRatio >= 0.36 ? "aggressive" : "balanced",
-          overdriveImpulsePalette: impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe"
+          overdriveImpulsePalette: impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe",
+          alertPrimaryLabel: String(alertPrimary?.label || "STABLE FLOW"),
+          alertPrimaryTone: String(alertPrimary?.tone || "safe"),
+          alertSecondaryLabel: String(alertSecondary?.label || "QUEUE LOW"),
+          alertSecondaryTone: String(alertSecondary?.tone || "balanced"),
+          alertTertiaryLabel: String(alertTertiary?.label || "RAID SAFE"),
+          alertTertiaryTone: String(alertTertiary?.tone || "safe"),
+          alertHintText
         });
         if (handled) {
           return;
@@ -3219,6 +3303,32 @@
       animateMeterWidth(overdriveImpulseMeter, impulseRatio * 100, 0.22);
       setMeterPalette(overdriveImpulseMeter, impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe");
     }
+    const applyAlertChip = (node, label, toneKey) => {
+      if (!node) {
+        return;
+      }
+      node.textContent = String(label || "FLOW HOLD");
+      node.className = "combatAlertChip";
+      const safeTone = String(toneKey || "neutral").toLowerCase();
+      node.classList.add(
+        safeTone === "critical"
+          ? "critical"
+          : safeTone === "aggressive" || safeTone === "pressure"
+            ? "aggressive"
+            : safeTone === "safe"
+              ? "safe"
+              : safeTone === "balanced" || safeTone === "advantage"
+                ? "balanced"
+                : "neutral"
+      );
+    };
+    applyAlertChip(alertPrimaryChip, alertPrimary?.label, alertPrimary?.tone);
+    applyAlertChip(alertSecondaryChip, alertSecondary?.label, alertSecondary?.tone);
+    applyAlertChip(alertTertiaryChip, alertTertiary?.label, alertTertiary?.tone);
+    if (alertHint) {
+      alertHint.textContent = alertHintText;
+      alertHint.dataset.tone = String(alertPrimary?.tone || "steady").toLowerCase();
+    }
     const nodeMap = {
       strike: timelineNodeStrike,
       guard: timelineNodeGuard,
@@ -3365,6 +3475,22 @@
       body.classList.remove("combat-hit-strike", "combat-hit-guard", "combat-hit-charge", "combat-hit-reject");
       state.ui.combatHitTimer = null;
     }, accepted === false ? 360 : 280);
+  }
+
+  function triggerOverdriveSurge() {
+    const body = document.body;
+    if (!body) {
+      return;
+    }
+    body.classList.add("combat-overdrive-surge");
+    if (state.ui.overdriveSurgeTimer) {
+      clearTimeout(state.ui.overdriveSurgeTimer);
+      state.ui.overdriveSurgeTimer = null;
+    }
+    state.ui.overdriveSurgeTimer = setTimeout(() => {
+      body.classList.remove("combat-overdrive-surge");
+      state.ui.overdriveSurgeTimer = null;
+    }, state.ui.reducedMotion ? 180 : 520);
   }
 
   function updateCombatOverlay(tone = "info", label = "", action = "", accepted = true) {
@@ -6094,6 +6220,7 @@
     const chain = String(byId("tokenChainSelect").value || "").toUpperCase();
     if (!usd || !chain) {
       state.v3.tokenQuote = null;
+      renderTreasuryPulse(state.data?.token || {}, null);
       return;
     }
     const quote = await fetchTokenQuote(usd, chain);
@@ -6106,6 +6233,7 @@
         `Quote: $${asNum(q.usdAmount).toFixed(2)} -> ${asNum(q.tokenAmount).toFixed(4)} ${symbol} ` +
         `(${chain}) | min ${asNum(q.tokenMinReceive).toFixed(4)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
     }
+    renderTreasuryPulse(state.data?.token || {}, quote);
   }
 
   function scheduleTokenQuote() {
@@ -6123,11 +6251,146 @@
         ) {
           state.v3.tokenQuote = null;
           byId("tokenHint").textContent = "Quote alinmadi. Zincir veya USD miktarini kontrol et.";
+          renderTreasuryPulse(state.data?.token || {}, null);
           return;
         }
         showError(err);
       });
     }, 300);
+  }
+
+  function renderTreasuryPulse(token, quotePayload = null) {
+    const safe = token && typeof token === "object" ? token : {};
+    const quoteData = quotePayload && typeof quotePayload === "object" ? quotePayload : state.v3.tokenQuote || null;
+    const gate = quoteData?.payout_gate || safe.payout_gate || {};
+    const guardrail = gate.guardrail || {};
+    const curveQuote = quoteData?.curve?.quote || safe.curve?.quote || {};
+    const quorum = quoteData?.quote_quorum || {};
+
+    const gateCurrent = Math.max(0, asNum(gate.current || gate.current_market_cap_usd || safe.market_cap_usd || 0));
+    const gateMin = Math.max(0, asNum(gate.min || gate.min_market_cap_usd || guardrail.min_market_cap_usd || 0));
+    const gateRatio = gateMin > 0 ? clamp(gateCurrent / gateMin, 0, 1.5) : 1;
+    const gateOpen = gate.allowed === true;
+
+    const supplyNorm = Math.max(0, asNum(curveQuote.supply_norm || 0));
+    const demandFactor = Math.max(0, asNum(curveQuote.demand_factor || 1));
+    const curvePressure = clamp(
+      (Math.log1p(supplyNorm) / Math.log(3)) * 0.72 + clamp(Math.abs(demandFactor - 1), 0, 1) * 0.28,
+      0,
+      1
+    );
+
+    const providerCount = Math.max(0, Math.floor(asNum(quorum.provider_count || 0)));
+    const okProviderCount = Math.max(0, Math.floor(asNum(quorum.ok_provider_count || 0)));
+    const agreementRatio = clamp(asNum(quorum.agreement_ratio || 0), 0, 1);
+    const providerRatio = providerCount > 0 ? clamp(okProviderCount / providerCount, 0, 1) : 0;
+    const quorumRatio = providerCount > 0 ? clamp(providerRatio * 0.62 + agreementRatio * 0.38, 0, 1) : 0.32;
+
+    const riskScore = clamp(asNum(state.data?.risk_score || 0), 0, 1);
+    const usdIntent = Math.max(0, asNum(byId("tokenUsdInput")?.value || 0));
+    const autoUsdLimit = Math.max(0, asNum(guardrail.auto_usd_limit || 10));
+    const riskThreshold = clamp(asNum(guardrail.risk_threshold || 0.35), 0.01, 1);
+    const usdReadiness = autoUsdLimit > 0 ? (usdIntent > 0 && usdIntent <= autoUsdLimit ? 1 : usdIntent > 0 ? 0.25 : 0.6) : 0.5;
+    const riskReadiness = clamp((riskThreshold - riskScore + 0.05) / riskThreshold, 0, 1);
+    const policyRatio = clamp(usdReadiness * 0.36 + riskReadiness * 0.34 + (gateOpen ? 1 : 0.2) * 0.3, 0, 1);
+
+    const gateLine = byId("tokenGateLine");
+    const gateMeter = byId("tokenGateMeter");
+    if (gateLine) {
+      gateLine.textContent = `CAP ${Math.round(gateRatio * 100)}% | ${gateOpen ? "OPEN" : "LOCKED"}`;
+    }
+    if (gateMeter) {
+      animateMeterWidth(gateMeter, clamp(gateRatio * 100, 0, 100), 0.24);
+      setMeterPalette(gateMeter, gateOpen ? (gateRatio >= 1 ? "safe" : "balanced") : gateRatio >= 0.85 ? "aggressive" : "critical");
+    }
+
+    const curveLine = byId("tokenCurveLine");
+    const curveMeter = byId("tokenCurveMeter");
+    if (curveLine) {
+      curveLine.textContent = `NORM ${supplyNorm.toFixed(2)} | DEM ${demandFactor.toFixed(2)}`;
+    }
+    if (curveMeter) {
+      animateMeterWidth(curveMeter, curvePressure * 100, 0.24);
+      setMeterPalette(curveMeter, curvePressure >= 0.78 ? "critical" : curvePressure >= 0.52 ? "aggressive" : curvePressure >= 0.3 ? "balanced" : "safe");
+    }
+
+    const quorumLine = byId("tokenQuorumLine");
+    const quorumMeter = byId("tokenQuorumMeter");
+    if (quorumLine) {
+      quorumLine.textContent =
+        providerCount > 0
+          ? `OK ${okProviderCount}/${providerCount} | AGR ${Math.round(agreementRatio * 100)}%`
+          : "Provider bekleniyor";
+    }
+    if (quorumMeter) {
+      animateMeterWidth(quorumMeter, quorumRatio * 100, 0.24);
+      setMeterPalette(quorumMeter, quorumRatio >= 0.75 ? "safe" : quorumRatio >= 0.56 ? "balanced" : quorumRatio >= 0.36 ? "aggressive" : "critical");
+    }
+
+    const policyLine = byId("tokenPolicyLine");
+    const policyMeter = byId("tokenPolicyMeter");
+    if (policyLine) {
+      policyLine.textContent = `Risk ${Math.round(riskScore * 100)}% | AUTO <= $${autoUsdLimit.toFixed(2)}`;
+    }
+    if (policyMeter) {
+      animateMeterWidth(policyMeter, policyRatio * 100, 0.24);
+      setMeterPalette(policyMeter, policyRatio >= 0.72 ? "safe" : policyRatio >= 0.52 ? "balanced" : policyRatio >= 0.32 ? "aggressive" : "critical");
+    }
+
+    const badge = byId("treasuryStateBadge");
+    const stateLine = byId("treasuryStateLine");
+    const stateTone = !gateOpen || quorumRatio < 0.3 ? "critical" : policyRatio < 0.45 || curvePressure > 0.75 ? "aggressive" : curvePressure > 0.42 || quorumRatio < 0.65 ? "balanced" : "safe";
+    const badgeText =
+      stateTone === "critical" ? "LOCKDOWN" : stateTone === "aggressive" ? "PRESSURE" : stateTone === "balanced" ? "BALANCED" : "STABLE";
+    if (badge) {
+      badge.textContent = badgeText;
+      badge.className = stateTone === "critical" ? "badge warn" : stateTone === "aggressive" ? "badge" : "badge info";
+    }
+    if (stateLine) {
+      stateLine.textContent =
+        `${gateOpen ? "Gate acik" : "Gate kilitli"} | ` +
+        `Quorum ${Math.round(quorumRatio * 100)}% | Policy ${Math.round(policyRatio * 100)}%`;
+    }
+
+    const applyTokenChip = (id, label, tone) => {
+      const node = byId(id);
+      if (!node) {
+        return;
+      }
+      node.textContent = label;
+      node.className = "combatAlertChip";
+      node.classList.add(
+        tone === "critical"
+          ? "critical"
+          : tone === "aggressive"
+            ? "aggressive"
+            : tone === "balanced"
+              ? "balanced"
+              : tone === "safe"
+                ? "safe"
+                : "neutral"
+      );
+    };
+
+    const chipA = !gateOpen
+      ? { label: "GATE LOCK", tone: "critical" }
+      : gateRatio >= 1
+        ? { label: "GATE OPEN", tone: "safe" }
+        : { label: "CAP BUILD", tone: "balanced" };
+    const chipB = quorumRatio >= 0.7
+      ? { label: "QUORUM OK", tone: "safe" }
+      : quorumRatio >= 0.45
+        ? { label: "QUORUM MID", tone: "balanced" }
+        : { label: "QUORUM LOW", tone: "aggressive" };
+    const chipC = policyRatio >= 0.7
+      ? { label: "AUTO READY", tone: "safe" }
+      : policyRatio >= 0.45
+        ? { label: "MANUAL WATCH", tone: "balanced" }
+        : { label: "POLICY HOLD", tone: "aggressive" };
+
+    applyTokenChip("tokenAlertPrimaryChip", chipA.label, chipA.tone);
+    applyTokenChip("tokenAlertSecondaryChip", chipB.label, chipB.tone);
+    applyTokenChip("tokenAlertTertiaryChip", chipC.label, chipC.tone);
   }
 
   function renderToken(token) {
@@ -6182,6 +6445,7 @@
     } else {
       scheduleTokenQuote();
     }
+    renderTreasuryPulse(safe, state.v3.tokenQuote || null);
   }
 
   function renderAdmin(adminData) {

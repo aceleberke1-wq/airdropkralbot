@@ -369,6 +369,12 @@
                 </div>
               </div>
               <p id="combatOverdriveHint" class="micro">Heat ve threat yukselirse guard ile tempo resetle, impulse dusur.</p>
+              <div id="combatAlertRail" class="combatAlertRail">
+                <span id="combatAlertPrimaryChip" class="combatAlertChip neutral">STABLE FLOW</span>
+                <span id="combatAlertSecondaryChip" class="combatAlertChip neutral">QUEUE LOW</span>
+                <span id="combatAlertTertiaryChip" class="combatAlertChip neutral">RAID SAFE</span>
+              </div>
+              <p id="combatAlertHint" class="micro">Director alert: stabil akista cadence ve sync dengesini koru.</p>
             </div>
           </div>
         </article>
@@ -548,6 +554,40 @@
               <p id="tokenUnits" class="micro">Unify Units: 0</p>
             </div>
           </div>
+          <section class="treasuryPulseBlock">
+            <div class="panelHead">
+              <h4>Treasury Pulse</h4>
+              <span id="treasuryStateBadge" class="badge info">STABLE</span>
+            </div>
+            <p id="treasuryStateLine" class="micro">Gate/curve/quorum degerleri yukleniyor.</p>
+            <div class="treasuryPulseGrid">
+              <div class="treasuryPulseCell">
+                <p class="label">Gate Sync</p>
+                <p id="tokenGateLine" class="micro">CAP 0% | LOCKED</p>
+                <div class="meter"><span id="tokenGateMeter"></span></div>
+              </div>
+              <div class="treasuryPulseCell">
+                <p class="label">Curve Heat</p>
+                <p id="tokenCurveLine" class="micro">SUPPLY NORM 0.00</p>
+                <div class="meter"><span id="tokenCurveMeter"></span></div>
+              </div>
+              <div class="treasuryPulseCell">
+                <p class="label">Quote Quorum</p>
+                <p id="tokenQuorumLine" class="micro">Provider 0/0</p>
+                <div class="meter"><span id="tokenQuorumMeter"></span></div>
+              </div>
+              <div class="treasuryPulseCell">
+                <p class="label">Policy Readiness</p>
+                <p id="tokenPolicyLine" class="micro">Risk 0% | AUTO OFF</p>
+                <div class="meter"><span id="tokenPolicyMeter"></span></div>
+              </div>
+            </div>
+            <div class="treasuryAlertRail">
+              <span id="tokenAlertPrimaryChip" class="combatAlertChip neutral">GATE WATCH</span>
+              <span id="tokenAlertSecondaryChip" class="combatAlertChip neutral">QUOTE WAIT</span>
+              <span id="tokenAlertTertiaryChip" class="combatAlertChip neutral">POLICY HOLD</span>
+            </div>
+          </section>
           <div class="tokenActions">
             <div class="tokenRow">
               <label for="tokenUsdInput" class="label">USD Alim Talebi</label>
