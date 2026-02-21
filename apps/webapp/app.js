@@ -279,6 +279,17 @@
     return bridge;
   }
 
+  function getPvpDuelBridge() {
+    const bridge = window.__AKR_PVP_DUEL__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -3426,10 +3437,32 @@
     if (!line) {
       return;
     }
-    line.classList.remove("urgency-critical", "urgency-pressure", "urgency-advantage");
+    const pvpDuelBridge = getPvpDuelBridge();
+    const renderWithBridge = (payload) => {
+      if (!pvpDuelBridge) {
+        return false;
+      }
+      try {
+        return Boolean(pvpDuelBridge.render(payload));
+      } catch (err) {
+        console.warn("pvp-duel-bridge-render-failed", err);
+        return false;
+      }
+    };
     if (!session || !tickMeta) {
-      line.textContent = "Tick: bekleniyor";
-      line.classList.remove("live");
+      const handled = renderWithBridge({
+        tick: {
+          lineText: "Tick: bekleniyor",
+          urgency: "neutral",
+          live: false,
+          reducedMotion: state.ui.reducedMotion
+        }
+      });
+      if (!handled) {
+        line.classList.remove("urgency-critical", "urgency-pressure", "urgency-advantage");
+        line.textContent = "Tick: bekleniyor";
+        line.classList.remove("live");
+      }
       return;
     }
     const phase = String(tickMeta.phase || session.status || "combat").toUpperCase();
@@ -3443,10 +3476,30 @@
     const shadowText = shadow
       ? ` | SH ${String(shadow.input_action || "-").toUpperCase()} ${Boolean(shadow.accepted) ? "OK" : "MISS"}`
       : "";
-    line.textContent =
+    const lineText =
       `Tick #${seq} | ${phase} | ${transport} | Drift ${drift >= 0 ? "+" : ""}${drift} | ${urgency} | ${recommendation}` +
       shadowText;
     const urgencyKey = String(diagnostics.urgency || "").toLowerCase();
+    const handled = renderWithBridge({
+      tick: {
+        lineText,
+        urgency:
+          urgencyKey === "critical"
+            ? "critical"
+            : urgencyKey === "pressure"
+              ? "pressure"
+              : urgencyKey === "advantage"
+                ? "advantage"
+                : "neutral",
+        live: String(session.status || "").toLowerCase() === "active",
+        reducedMotion: state.ui.reducedMotion
+      }
+    });
+    if (handled) {
+      return;
+    }
+    line.classList.remove("urgency-critical", "urgency-pressure", "urgency-advantage");
+    line.textContent = lineText;
     if (urgencyKey === "critical") {
       line.classList.add("urgency-critical");
     } else if (urgencyKey === "pressure") {
@@ -3454,11 +3507,7 @@
     } else if (urgencyKey === "advantage") {
       line.classList.add("urgency-advantage");
     }
-    if (String(session.status || "").toLowerCase() === "active") {
-      line.classList.add("live");
-    } else {
-      line.classList.remove("live");
-    }
+    line.classList.toggle("live", String(session.status || "").toLowerCase() === "active");
   }
 
   function renderPvpCadence(session = state.v3.pvpSession, tickMeta = state.v3.pvpTickMeta) {
@@ -3484,6 +3533,18 @@
     ) {
       return;
     }
+    const pvpDuelBridge = getPvpDuelBridge();
+    const renderWithBridge = (payload) => {
+      if (!pvpDuelBridge) {
+        return false;
+      }
+      try {
+        return Boolean(pvpDuelBridge.render(payload));
+      } catch (err) {
+        console.warn("pvp-duel-bridge-render-failed", err);
+        return false;
+      }
+    };
 
     const resetTone = () => {
       pulseLine.removeAttribute("data-tone");
@@ -3491,19 +3552,42 @@
     };
 
     if (!session) {
-      resetTone();
-      pulseLine.textContent = "Phase 0% | Window 80%";
-      cadenceLine.textContent = "STR 0 | GRD 0 | CHG 0";
-      cadenceHint.textContent = "Duel basladiginda aksiyon ritmi burada canli guncellenir.";
-      animateMeterWidth(pulseMeter, 0, 0.18);
-      animateMeterWidth(windowMeter, 0, 0.18);
-      animateMeterWidth(cadenceStrikeMeter, 0, 0.18);
-      animateMeterWidth(cadenceGuardMeter, 0, 0.18);
-      animateMeterWidth(cadenceChargeMeter, 0, 0.18);
-      animateMeterWidth(cadenceDriftMeter, 0, 0.18);
-      [pulseMeter, windowMeter, cadenceStrikeMeter, cadenceGuardMeter, cadenceChargeMeter, cadenceDriftMeter].forEach((el) =>
-        setMeterPalette(el, "neutral")
-      );
+      const handled = renderWithBridge({
+        cadence: {
+          tone: "neutral",
+          pulseLineText: "Phase 0% | Window 80%",
+          cadenceLineText: "STR 0 | GRD 0 | CHG 0",
+          cadenceHintText: "Duel basladiginda aksiyon ritmi burada canli guncellenir.",
+          pulsePct: 0,
+          pulsePalette: "neutral",
+          windowPct: 0,
+          windowPalette: "neutral",
+          strikePct: 0,
+          strikePalette: "neutral",
+          guardPct: 0,
+          guardPalette: "neutral",
+          chargePct: 0,
+          chargePalette: "neutral",
+          driftPct: 0,
+          driftPalette: "neutral",
+          reducedMotion: state.ui.reducedMotion
+        }
+      });
+      if (!handled) {
+        resetTone();
+        pulseLine.textContent = "Phase 0% | Window 80%";
+        cadenceLine.textContent = "STR 0 | GRD 0 | CHG 0";
+        cadenceHint.textContent = "Duel basladiginda aksiyon ritmi burada canli guncellenir.";
+        animateMeterWidth(pulseMeter, 0, 0.18);
+        animateMeterWidth(windowMeter, 0, 0.18);
+        animateMeterWidth(cadenceStrikeMeter, 0, 0.18);
+        animateMeterWidth(cadenceGuardMeter, 0, 0.18);
+        animateMeterWidth(cadenceChargeMeter, 0, 0.18);
+        animateMeterWidth(cadenceDriftMeter, 0, 0.18);
+        [pulseMeter, windowMeter, cadenceStrikeMeter, cadenceGuardMeter, cadenceChargeMeter, cadenceDriftMeter].forEach((el) =>
+          setMeterPalette(el, "neutral")
+        );
+      }
       return;
     }
 
@@ -3575,6 +3659,32 @@
     } else {
       cadenceHint.textContent = `Stabil ritim: ${dominantAction} odakli. ${recommendedMode.toUpperCase()} modunda pencereyi kacirma.`;
     }
+    const handled = renderWithBridge({
+      cadence: {
+        tone,
+        pulseLineText: `Phase ${Math.round(phaseRatio * 100)}% | Window ${Math.round(windowRatio * 100)}% | Queue ${queueSize}`,
+        cadenceLineText: `STR ${Math.round(strikeRatio * 100)} | GRD ${Math.round(guardRatio * 100)} | CHG ${Math.round(
+          chargeRatio * 100
+        )}`,
+        cadenceHintText: cadenceHint.textContent || "",
+        pulsePct: phaseRatio * 100,
+        pulsePalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+        windowPct: windowRatio * 100,
+        windowPalette: windowRatio >= 0.72 ? "safe" : windowRatio >= 0.5 ? "balanced" : "aggressive",
+        strikePct: strikeRatio * 100,
+        strikePalette: expectedAction.includes("strike") ? "aggressive" : "neutral",
+        guardPct: guardRatio * 100,
+        guardPalette: expectedAction.includes("guard") ? "safe" : "neutral",
+        chargePct: chargeRatio * 100,
+        chargePalette: expectedAction.includes("charge") ? "balanced" : "neutral",
+        driftPct: driftRatio * 100,
+        driftPalette: driftRatio >= 0.7 ? "critical" : driftRatio >= 0.4 ? "aggressive" : "safe",
+        reducedMotion: state.ui.reducedMotion
+      }
+    });
+    if (handled) {
+      return;
+    }
 
     animateMeterWidth(pulseMeter, phaseRatio * 100, 0.22);
     setMeterPalette(pulseMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
@@ -3621,6 +3731,19 @@
       return;
     }
 
+    const pvpDuelBridge = getPvpDuelBridge();
+    const renderWithBridge = (payload) => {
+      if (!pvpDuelBridge) {
+        return false;
+      }
+      try {
+        return Boolean(pvpDuelBridge.render(payload));
+      } catch (err) {
+        console.warn("pvp-duel-bridge-render-failed", err);
+        return false;
+      }
+    };
+
     const clearTone = () => {
       [syncLine, overheatLine, clutchLine, stanceLine].forEach((el) => el.removeAttribute("data-tone"));
       if (root) {
@@ -3629,23 +3752,51 @@
     };
 
     if (!session) {
-      clearTone();
-      syncLine.textContent = "SYNC 50% | EVEN";
-      overheatLine.textContent = "Heat 0% | Stable";
-      clutchLine.textContent = "Window 0% | Resolve LOCK";
-      stanceLine.textContent = "STR 0 | GRD 0 | CHG 0";
-      syncHint.textContent = "Senkron farkini dusur, expected aksiyonla ritmi kilitle.";
-      overheatHint.textContent = "Queue ve drift artarsa overheat yukselir.";
-      clutchHint.textContent = "Aksiyon eşiği ve TTL penceresini birlikte takip et.";
-      stanceHint.textContent = "Dominant stance bozulursa guard ile tempo sabitle.";
-      animateMeterWidth(syncMeter, 50, 0.2);
-      animateMeterWidth(overheatMeter, 0, 0.2);
-      animateMeterWidth(clutchMeter, 0, 0.2);
-      animateMeterWidth(stanceMeter, 0, 0.2);
-      setMeterPalette(syncMeter, "neutral");
-      setMeterPalette(overheatMeter, "neutral");
-      setMeterPalette(clutchMeter, "neutral");
-      setMeterPalette(stanceMeter, "neutral");
+      const handled = renderWithBridge({
+        theater: {
+          rootTone: "neutral",
+          syncLineText: "SYNC 50% | EVEN",
+          syncLineTone: "pressure",
+          syncHintText: "Senkron farkini dusur, expected aksiyonla ritmi kilitle.",
+          syncPct: 50,
+          syncPalette: "neutral",
+          overheatLineText: "Heat 0% | Stable",
+          overheatLineTone: "advantage",
+          overheatHintText: "Queue ve drift artarsa overheat yukselir.",
+          overheatPct: 0,
+          overheatPalette: "neutral",
+          clutchLineText: "Window 0% | Resolve LOCK",
+          clutchLineTone: "pressure",
+          clutchHintText: "Aksiyon esigi ve TTL penceresini birlikte takip et.",
+          clutchPct: 0,
+          clutchPalette: "neutral",
+          stanceLineText: "STR 0 | GRD 0 | CHG 0",
+          stanceLineTone: "pressure",
+          stanceHintText: "Dominant stance bozulursa guard ile tempo sabitle.",
+          stancePct: 0,
+          stancePalette: "neutral",
+          reducedMotion: state.ui.reducedMotion
+        }
+      });
+      if (!handled) {
+        clearTone();
+        syncLine.textContent = "SYNC 50% | EVEN";
+        overheatLine.textContent = "Heat 0% | Stable";
+        clutchLine.textContent = "Window 0% | Resolve LOCK";
+        stanceLine.textContent = "STR 0 | GRD 0 | CHG 0";
+        syncHint.textContent = "Senkron farkini dusur, expected aksiyonla ritmi kilitle.";
+        overheatHint.textContent = "Queue ve drift artarsa overheat yukselir.";
+        clutchHint.textContent = "Aksiyon esigi ve TTL penceresini birlikte takip et.";
+        stanceHint.textContent = "Dominant stance bozulursa guard ile tempo sabitle.";
+        animateMeterWidth(syncMeter, 50, 0.2);
+        animateMeterWidth(overheatMeter, 0, 0.2);
+        animateMeterWidth(clutchMeter, 0, 0.2);
+        animateMeterWidth(stanceMeter, 0, 0.2);
+        setMeterPalette(syncMeter, "neutral");
+        setMeterPalette(overheatMeter, "neutral");
+        setMeterPalette(clutchMeter, "neutral");
+        setMeterPalette(stanceMeter, "neutral");
+      }
       return;
     }
 
@@ -3701,8 +3852,7 @@
     const guardRatio = clamp(counts.guard / totalCount, 0, 1);
     const chargeRatio = clamp(counts.charge / totalCount, 0, 1);
     const dominantRatio = Math.max(strikeRatio, guardRatio, chargeRatio);
-    const dominantAction =
-      dominantRatio === strikeRatio ? "STR" : dominantRatio === guardRatio ? "GRD" : "CHG";
+    const dominantAction = dominantRatio === strikeRatio ? "STR" : dominantRatio === guardRatio ? "GRD" : "CHG";
     const stancePressure = clamp((1 - dominantRatio) * 0.62 + overheatRatio * 0.24 + queueRatio * 0.14, 0, 1);
 
     const overallTone =
@@ -3753,10 +3903,41 @@
     stanceLine.textContent = `STR ${Math.round(strikeRatio * 100)} | GRD ${Math.round(guardRatio * 100)} | CHG ${Math.round(chargeRatio * 100)}`;
     stanceHint.textContent =
       stancePressure >= 0.68
-        ? "Stance dağiliyor: dominant aksiyona geri don, guard tamponu ac."
+        ? "Stance dagiliyor: dominant aksiyona geri don, guard tamponu ac."
         : stancePressure >= 0.44
           ? `Baski orta: ${dominantAction} dominansi koruyup drift'i dusur.`
           : `${dominantAction} dominansi sabit, combo akisi temiz ilerliyor.`;
+
+    const handled = renderWithBridge({
+      theater: {
+        rootTone: overallTone,
+        syncLineText: syncLine.textContent || "",
+        syncLineTone: syncRatio >= 0.62 ? "advantage" : syncRatio >= 0.38 ? "pressure" : "critical",
+        syncHintText: syncHint.textContent || "",
+        syncPct: syncRatio * 100,
+        syncPalette: syncRatio >= 0.62 ? "safe" : syncRatio >= 0.38 ? "balanced" : "aggressive",
+        overheatLineText: overheatLine.textContent || "",
+        overheatLineTone: overheatRatio >= 0.72 ? "critical" : overheatRatio >= 0.44 ? "pressure" : "advantage",
+        overheatHintText: overheatHint.textContent || "",
+        overheatPct: overheatRatio * 100,
+        overheatPalette: overheatRatio >= 0.72 ? "critical" : overheatRatio >= 0.44 ? "aggressive" : "safe",
+        clutchLineText: clutchLine.textContent || "",
+        clutchLineTone: clutchState === "READY" ? "advantage" : clutchState === "CRITICAL" ? "critical" : "pressure",
+        clutchHintText: clutchHint.textContent || "",
+        clutchPct: clutchRatio * 100,
+        clutchPalette:
+          clutchState === "READY" ? "safe" : clutchState === "CRITICAL" ? "critical" : clutchRatio >= 0.54 ? "balanced" : "aggressive",
+        stanceLineText: stanceLine.textContent || "",
+        stanceLineTone: stancePressure >= 0.68 ? "critical" : stancePressure >= 0.44 ? "pressure" : "advantage",
+        stanceHintText: stanceHint.textContent || "",
+        stancePct: stancePressure * 100,
+        stancePalette: stancePressure >= 0.68 ? "critical" : stancePressure >= 0.44 ? "aggressive" : "balanced",
+        reducedMotion: state.ui.reducedMotion
+      }
+    });
+    if (handled) {
+      return;
+    }
 
     animateMeterWidth(syncMeter, syncRatio * 100, 0.22);
     setMeterPalette(syncMeter, syncRatio >= 0.62 ? "safe" : syncRatio >= 0.38 ? "balanced" : "aggressive");
