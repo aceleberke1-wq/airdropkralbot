@@ -1219,6 +1219,87 @@
     );
     scene.add(pulseShell);
 
+    const warFogLayers = [];
+    const warFogMeta = [];
+    for (let i = 0; i < 4; i += 1) {
+      const fog = new THREE.Mesh(
+        new THREE.SphereGeometry(5.6 + i * 1.35, 28, 28),
+        new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0x5e9dff : 0x7f7bff,
+          transparent: true,
+          opacity: 0.045 + i * 0.012,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.BackSide
+        })
+      );
+      fog.position.set(0, -0.75 + i * 0.2, -0.2 - i * 0.35);
+      fog.scale.setScalar(1 + i * 0.08);
+      scene.add(fog);
+      warFogLayers.push(fog);
+      warFogMeta.push({
+        baseY: fog.position.y,
+        spin: 0.035 + Math.random() * 0.08,
+        pulse: 0.55 + Math.random() * 0.95,
+        drift: Math.random() * Math.PI * 2
+      });
+    }
+
+    const contractGlyphs = [];
+    const contractGlyphMeta = [];
+    for (let i = 0; i < 18; i += 1) {
+      const angle = (Math.PI * 2 * i) / 18;
+      const radius = 5.2 + (i % 3) * 0.75;
+      const glyph = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.1, 0.04, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0x8ec4ff,
+          emissive: 0x122f5f,
+          roughness: 0.4,
+          metalness: 0.78,
+          transparent: true,
+          opacity: 0.78
+        })
+      );
+      glyph.position.set(Math.cos(angle) * radius, -1.12 + (i % 2) * 0.14, Math.sin(angle) * radius);
+      glyph.rotation.set(Math.PI / 2, 0, angle);
+      scene.add(glyph);
+      contractGlyphs.push(glyph);
+      contractGlyphMeta.push({
+        angle,
+        radius,
+        baseY: glyph.position.y,
+        pulse: 0.85 + Math.random() * 1.35,
+        drift: Math.random() * Math.PI * 2,
+        spin: (Math.random() > 0.5 ? 1 : -1) * (0.18 + Math.random() * 0.32)
+      });
+    }
+
+    const nexusArcs = [];
+    const nexusArcMeta = [];
+    for (let i = 0; i < 6; i += 1) {
+      const arc = new THREE.Mesh(
+        new THREE.TorusGeometry(4.4 + i * 0.66, 0.045 + i * 0.005, 12, 96, Math.PI * 0.42),
+        new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0x73d9ff : 0xff8fb2,
+          transparent: true,
+          opacity: 0.22 + i * 0.035,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      arc.position.set(0, -0.8 + i * 0.18, -0.5 + i * 0.2);
+      arc.rotation.set(Math.PI / 2 + i * 0.1, (Math.PI * 2 * i) / 6, i * 0.15);
+      scene.add(arc);
+      nexusArcs.push(arc);
+      nexusArcMeta.push({
+        baseY: arc.position.y,
+        spin: (Math.random() > 0.5 ? 1 : -1) * (0.08 + Math.random() * 0.16),
+        pulse: 0.8 + Math.random() * 1.2,
+        drift: Math.random() * Math.PI * 2
+      });
+    }
+
     const shardGeo = new THREE.TetrahedronGeometry(0.14, 0);
     const shardMat = new THREE.MeshStandardMaterial({
       color: 0xbfe1ff,
@@ -1606,6 +1687,12 @@
       core,
       glow,
       pulseShell,
+      warFogLayers,
+      warFogMeta,
+      contractGlyphs,
+      contractGlyphMeta,
+      nexusArcs,
+      nexusArcMeta,
       shards,
       shardMeta,
       shardDummy: dummy,
@@ -5861,61 +5948,200 @@
       });
     }
 
+    if (Array.isArray(state.arena.warFogLayers)) {
+      state.arena.warFogLayers.forEach((fog, index) => {
+        if (!fog || !fog.material) {
+          return;
+        }
+        fog.material.color.setHex(accepted ? color : 0xff4f6d);
+        fog.material.opacity = Math.max(asNum(fog.material.opacity || 0.05), pulseTone === "aggressive" ? 0.24 : 0.18);
+        gsap.to(fog.material, {
+          opacity: 0.08 + index * 0.01,
+          duration: 0.4,
+          delay: index * 0.025,
+          ease: "power2.out"
+        });
+        if (!state.ui.reducedMotion) {
+          gsap.fromTo(
+            fog.scale,
+            { x: fog.scale.x, y: fog.scale.y, z: fog.scale.z },
+            {
+              x: fog.scale.x * 1.06,
+              y: fog.scale.y * 1.06,
+              z: fog.scale.z * 1.06,
+              duration: 0.22,
+              yoyo: true,
+              repeat: 1,
+              delay: index * 0.02,
+              ease: "power1.out"
+            }
+          );
+        }
+      });
+    }
+
+    if (Array.isArray(state.arena.contractGlyphs)) {
+      state.arena.contractGlyphs.forEach((glyph, index) => {
+        if (!glyph || !glyph.material) {
+          return;
+        }
+        glyph.material.color.setHex(accepted ? color : 0xff4f6d);
+        if (glyph.material.emissive?.setHex) {
+          glyph.material.emissive.setHex(accepted ? color : 0xff4f6d);
+        }
+        const glowBoost = pulseTone === "aggressive" ? 1.24 : pulseTone === "reveal" ? 1.18 : 1.1;
+        gsap.fromTo(
+          glyph.scale,
+          { x: glyph.scale.x, y: glyph.scale.y, z: glyph.scale.z },
+          {
+            x: glyph.scale.x * glowBoost,
+            y: glyph.scale.y * glowBoost,
+            z: glyph.scale.z * glowBoost,
+            duration: 0.16,
+            yoyo: true,
+            repeat: 1,
+            delay: (index % 6) * 0.01,
+            ease: "power2.out"
+          }
+        );
+      });
+    }
+
+    if (Array.isArray(state.arena.nexusArcs)) {
+      state.arena.nexusArcs.forEach((arc, index) => {
+        if (!arc || !arc.material) {
+          return;
+        }
+        arc.material.color.setHex(accepted ? color : 0xff4f6d);
+        arc.material.opacity = Math.max(asNum(arc.material.opacity || 0.22), pulseTone === "aggressive" ? 0.62 : 0.5);
+        gsap.to(arc.material, {
+          opacity: 0.24 + index * 0.015,
+          duration: 0.34,
+          delay: index * 0.025,
+          ease: "power2.out"
+        });
+      });
+    }
+
     const sideModelMap = state.arena.sideModelMap || {};
-    const enemyRig = sideModelMap.enemy_rig || null;
-    const rewardCrate = sideModelMap.reward_crate || null;
-    const ambientFx = sideModelMap.ambient_fx || null;
-    if (!state.ui.reducedMotion && enemyRig) {
+    const sideModelGroups = state.arena.sideModelGroups || {};
+    const modelsForKey = (key) => {
+      const grouped = Array.isArray(sideModelGroups[key]) ? sideModelGroups[key].filter(Boolean) : [];
+      if (grouped.length) {
+        return grouped;
+      }
+      const fallback = sideModelMap[key];
+      return fallback ? [fallback] : [];
+    };
+    const tintModelMaterials = (root, toneColor, emissiveColor = null) => {
+      if (!root || typeof root.traverse !== "function") {
+        return;
+      }
+      root.traverse((node) => {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach((mat) => {
+          if (!mat) {
+            return;
+          }
+          if (mat.color?.setHex) {
+            mat.color.setHex(toneColor);
+          }
+          if (emissiveColor !== null && mat.emissive?.setHex) {
+            mat.emissive.setHex(emissiveColor);
+          }
+        });
+      });
+    };
+    const enemyRigs = modelsForKey("enemy_rig");
+    if (!state.ui.reducedMotion && enemyRigs.length) {
       const enemyKick = pulseTone === "aggressive" ? 0.2 : pulseTone === "reveal" ? 0.14 : 0.1;
-      gsap.fromTo(
-        enemyRig.rotation,
-        { x: enemyRig.rotation.x, y: enemyRig.rotation.y, z: enemyRig.rotation.z },
-        {
-          x: enemyRig.rotation.x + enemyKick * 0.4,
-          y: enemyRig.rotation.y + enemyKick,
-          z: enemyRig.rotation.z + enemyKick * 0.24,
-          duration: 0.2,
-          yoyo: true,
-          repeat: 1,
-          ease: "power2.out"
+      enemyRigs.forEach((enemyRig, index) => {
+        if (!enemyRig) {
+          return;
         }
-      );
+        gsap.fromTo(
+          enemyRig.rotation,
+          { x: enemyRig.rotation.x, y: enemyRig.rotation.y, z: enemyRig.rotation.z },
+          {
+            x: enemyRig.rotation.x + enemyKick * 0.4,
+            y: enemyRig.rotation.y + enemyKick,
+            z: enemyRig.rotation.z + enemyKick * 0.24,
+            duration: 0.2,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.02,
+            ease: "power2.out"
+          }
+        );
+      });
     }
-    if (!state.ui.reducedMotion && rewardCrate && (pulseTone === "reveal" || action === "charge")) {
-      const yNow = rewardCrate.position.y;
-      gsap.fromTo(
-        rewardCrate.position,
-        { y: yNow },
-        { y: yNow + 0.42, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out" }
-      );
-      gsap.fromTo(
-        rewardCrate.scale,
-        { x: rewardCrate.scale.x, y: rewardCrate.scale.y, z: rewardCrate.scale.z },
-        {
-          x: rewardCrate.scale.x * 1.08,
-          y: rewardCrate.scale.y * 1.08,
-          z: rewardCrate.scale.z * 1.08,
-          duration: 0.18,
-          yoyo: true,
-          repeat: 1,
-          ease: "power2.out"
+
+    const rewardCrates = modelsForKey("reward_crate");
+    if (rewardCrates.length && (pulseTone === "reveal" || action === "charge")) {
+      rewardCrates.forEach((rewardCrate, index) => {
+        if (!rewardCrate) {
+          return;
         }
-      );
+        tintModelMaterials(rewardCrate, accepted ? color : 0xff4f6d, accepted ? color : 0xff4f6d);
+        if (state.ui.reducedMotion) {
+          return;
+        }
+        const yNow = rewardCrate.position.y;
+        gsap.fromTo(
+          rewardCrate.position,
+          { y: yNow },
+          {
+            y: yNow + 0.42,
+            duration: 0.16,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.025,
+            ease: "power2.out"
+          }
+        );
+        gsap.fromTo(
+          rewardCrate.scale,
+          { x: rewardCrate.scale.x, y: rewardCrate.scale.y, z: rewardCrate.scale.z },
+          {
+            x: rewardCrate.scale.x * 1.08,
+            y: rewardCrate.scale.y * 1.08,
+            z: rewardCrate.scale.z * 1.08,
+            duration: 0.18,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.025,
+            ease: "power2.out"
+          }
+        );
+      });
     }
-    if (!state.ui.reducedMotion && ambientFx) {
-      gsap.fromTo(
-        ambientFx.scale,
-        { x: ambientFx.scale.x, y: ambientFx.scale.y, z: ambientFx.scale.z },
-        {
-          x: ambientFx.scale.x * 1.04,
-          y: ambientFx.scale.y * 1.04,
-          z: ambientFx.scale.z * 1.04,
-          duration: 0.22,
-          yoyo: true,
-          repeat: 1,
-          ease: "power1.out"
+
+    const ambientFxModels = modelsForKey("ambient_fx");
+    if (ambientFxModels.length) {
+      ambientFxModels.forEach((ambientFx, index) => {
+        if (!ambientFx) {
+          return;
         }
-      );
+        tintModelMaterials(ambientFx, accepted ? color : 0xff4f6d, accepted ? color : 0xff4f6d);
+        if (state.ui.reducedMotion) {
+          return;
+        }
+        const pulseScale = pulseTone === "aggressive" ? 1.1 : pulseTone === "reveal" ? 1.08 : 1.04;
+        gsap.fromTo(
+          ambientFx.scale,
+          { x: ambientFx.scale.x, y: ambientFx.scale.y, z: ambientFx.scale.z },
+          {
+            x: ambientFx.scale.x * pulseScale,
+            y: ambientFx.scale.y * pulseScale,
+            z: ambientFx.scale.z * pulseScale,
+            duration: 0.22,
+            yoyo: true,
+            repeat: 1,
+            delay: index * 0.03,
+            ease: "power1.out"
+          }
+        );
+      });
     }
     setHudPulseTone(pulseTone);
   }
@@ -8101,6 +8327,11 @@
     let modelRoot = null;
     const sideModels = [];
     const sideModelMap = {};
+    const sideModelGroups = {
+      enemy_rig: [],
+      reward_crate: [],
+      ambient_fx: []
+    };
     const mixers = [];
     const profile = getQualityProfile();
     const manifest = await loadAssetManifest();
@@ -8139,21 +8370,60 @@
         loadedAssetCount += 1;
       }
     }
+    const registerSideModel = (key, root) => {
+      if (!root) {
+        return;
+      }
+      sideModels.push(root);
+      if (!sideModelMap[key]) {
+        sideModelMap[key] = root;
+      }
+      if (Array.isArray(sideModelGroups[key])) {
+        sideModelGroups[key].push(root);
+      }
+    };
+    const loadSideEntry = async (key, entry, defaults = { scale: [1.6, 1.6, 1.6] }) => {
+      if (!entry?.path) {
+        return false;
+      }
+      const model = await tryLoadArenaModel(scene, String(entry.path));
+      if (!model || !model.root) {
+        return false;
+      }
+      applyTransform(model.root, entry, defaults);
+      registerSideModel(key, model.root);
+      mixers.push(...model.mixers);
+      loadedAssetCount += 1;
+      return true;
+    };
     for (const key of ["enemy_rig", "reward_crate", "ambient_fx"]) {
       const entry = resolveModelEntry(key);
       if (!entry?.path) {
         continue;
       }
-      const model = await tryLoadArenaModel(scene, String(entry.path));
-      if (model && model.root) {
-        applyTransform(model.root, entry, { scale: [1.6, 1.6, 1.6] });
-        sideModels.push(model.root);
-        sideModelMap[key] = model.root;
-        mixers.push(...model.mixers);
-        loadedAssetCount += 1;
+      await loadSideEntry(key, entry, { scale: [1.6, 1.6, 1.6] });
+      const instances = Array.isArray(entry.instances) ? entry.instances.slice(0, 4) : [];
+      for (const instance of instances) {
+        if (!instance || typeof instance !== "object") {
+          continue;
+        }
+        const instanceEntry = {
+          ...entry,
+          position: Array.isArray(instance.position) ? instance.position : entry.position,
+          rotation: Array.isArray(instance.rotation) ? instance.rotation : entry.rotation,
+          scale: Array.isArray(instance.scale) ? instance.scale : entry.scale
+        };
+        await loadSideEntry(key, instanceEntry, { scale: [1.4, 1.4, 1.4] });
       }
     }
-    const expectedAssetCount = requestedKeys.filter((key) => Boolean(resolveModelEntry(key)?.path)).length;
+    const expectedAssetCount = requestedKeys.reduce((acc, key) => {
+      const entry = resolveModelEntry(key);
+      if (!entry?.path) {
+        return acc;
+      }
+      const instanceCount = Array.isArray(entry.instances) ? Math.min(4, entry.instances.length) : 0;
+      return acc + 1 + instanceCount;
+    }, 0);
     const effectiveExpectedCount = Math.max(1, expectedAssetCount);
     const sceneMode = loadedAssetCount >= Math.max(2, expectedAssetCount) ? "PRO" : "LITE";
     setAssetModeLine(`Assets: ${loadedAssetCount}/${effectiveExpectedCount} ${sceneMode}`);
@@ -8298,6 +8568,68 @@
           if (pylon.material) {
             const opacityTarget = 0.65 + heat * 0.3 + threat * 0.15;
             pylon.material.opacity += (opacityTarget - pylon.material.opacity) * 0.08;
+          }
+        }
+      }
+
+      if (Array.isArray(fallback.warFogLayers) && Array.isArray(fallback.warFogMeta)) {
+        for (let i = 0; i < fallback.warFogLayers.length; i += 1) {
+          const fog = fallback.warFogLayers[i];
+          const meta = fallback.warFogMeta[i];
+          if (!fog || !meta || !fog.material) {
+            continue;
+          }
+          fog.rotation.y += dt * meta.spin * (1 + heat * 0.6 + threat * 0.3);
+          fog.rotation.x += dt * 0.02 * (i % 2 === 0 ? 1 : -1);
+          fog.position.y = meta.baseY + Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.02 : 0.08);
+          const fogOpacityTarget = clamp(0.04 + heat * 0.09 + threat * 0.06 + asNum(state.arena?.pvpPressure || 0) * 0.07, 0.03, 0.24);
+          fog.material.opacity += (fogOpacityTarget - asNum(fog.material.opacity || 0.08)) * 0.08;
+          if (fog.material.color?.setHSL) {
+            fog.material.color.setHSL((hue + i * 10 + threat * 18) / 360, 0.42 + heat * 0.14, 0.5 + (1 - threat) * 0.08);
+          }
+        }
+      }
+
+      if (Array.isArray(fallback.contractGlyphs) && Array.isArray(fallback.contractGlyphMeta)) {
+        const glyphPressure = clamp(asNum(state.arena?.pvpPressure || 0) * 0.6 + heat * 0.4, 0, 1);
+        const expectedAction = String(state.v3?.pvpTickMeta?.tick?.expected_action || state.sim.expected || "none").toLowerCase();
+        const stanceBias = expectedAction === "strike" ? 0.26 : expectedAction === "charge" ? 0.18 : expectedAction === "guard" ? 0.08 : 0.14;
+        for (let i = 0; i < fallback.contractGlyphs.length; i += 1) {
+          const glyph = fallback.contractGlyphs[i];
+          const meta = fallback.contractGlyphMeta[i];
+          if (!glyph || !meta || !glyph.material) {
+            continue;
+          }
+          const orbit = meta.angle + Math.sin(t * 0.2 + meta.drift) * 0.06;
+          glyph.position.x = Math.cos(orbit) * meta.radius;
+          glyph.position.z = Math.sin(orbit) * meta.radius;
+          glyph.position.y = meta.baseY + Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.015 : 0.05);
+          glyph.rotation.y += dt * meta.spin * (1 + glyphPressure * 0.8);
+          const glyphOpacityTarget = clamp(0.5 + glyphPressure * 0.25 + stanceBias, 0.45, 0.96);
+          glyph.material.opacity += (glyphOpacityTarget - asNum(glyph.material.opacity || 0.72)) * 0.1;
+          if (glyph.material.emissive?.setHSL) {
+            glyph.material.emissive.setHSL((hue + i * 6 + 12) / 360, 0.68, 0.12 + glyphPressure * 0.28 + stanceBias * 0.12);
+          }
+        }
+      }
+
+      if (Array.isArray(fallback.nexusArcs) && Array.isArray(fallback.nexusArcMeta)) {
+        const arcPulse = clamp(heat * 0.55 + threat * 0.25 + asNum(state.arena?.pvpCinematicIntensity || 0) * 0.2, 0, 1);
+        for (let i = 0; i < fallback.nexusArcs.length; i += 1) {
+          const arc = fallback.nexusArcs[i];
+          const meta = fallback.nexusArcMeta[i];
+          if (!arc || !meta || !arc.material) {
+            continue;
+          }
+          arc.rotation.z += dt * meta.spin * (1 + arcPulse * 1.1);
+          arc.rotation.y += dt * 0.04 * (i % 2 === 0 ? 1 : -1);
+          arc.position.y = meta.baseY + Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.02 : 0.06);
+          const arcScale = 1 + Math.sin(t * (meta.pulse + 0.3) + meta.drift) * (state.ui.reducedMotion ? 0.02 : 0.05) + arcPulse * 0.12;
+          arc.scale.setScalar(arcScale);
+          const arcOpacityTarget = clamp(0.14 + arcPulse * 0.34 + i * 0.02, 0.1, 0.86);
+          arc.material.opacity += (arcOpacityTarget - asNum(arc.material.opacity || 0.22)) * 0.09;
+          if (arc.material.color?.setHSL) {
+            arc.material.color.setHSL((hue + 20 + i * 12) / 360, 0.72, 0.58 - threat * 0.1);
           }
         }
       }
@@ -8731,6 +9063,12 @@
       core: fallback.core,
       glow: fallback.glow,
       pulseShell: fallback.pulseShell,
+      warFogLayers: fallback.warFogLayers,
+      warFogMeta: fallback.warFogMeta,
+      contractGlyphs: fallback.contractGlyphs,
+      contractGlyphMeta: fallback.contractGlyphMeta,
+      nexusArcs: fallback.nexusArcs,
+      nexusArcMeta: fallback.nexusArcMeta,
       shards: fallback.shards,
       drones: fallback.drones,
       droneMeta: fallback.droneMeta,
@@ -8770,6 +9108,7 @@
       modelRoot,
       sideModels,
       sideModelMap,
+      sideModelGroups,
       qualityProfile: profile,
       mixers,
       moodTarget: "balanced",
