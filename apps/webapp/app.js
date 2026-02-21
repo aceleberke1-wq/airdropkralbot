@@ -268,6 +268,17 @@
     return bridge;
   }
 
+  function getPvpDirectorBridge() {
+    const bridge = window.__AKR_PVP_DIRECTOR__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -3773,6 +3784,19 @@
       return;
     }
 
+    const pvpDirectorBridge = getPvpDirectorBridge();
+    const renderWithBridge = (payload) => {
+      if (!pvpDirectorBridge) {
+        return false;
+      }
+      try {
+        return Boolean(pvpDirectorBridge.render(payload));
+      } catch (err) {
+        console.warn("pvp-director-bridge-render-failed", err);
+        return false;
+      }
+    };
+
     const setTone = (tone = "neutral") => {
       root.dataset.tone = tone;
       if (tone === "neutral") {
@@ -3785,11 +3809,23 @@
     };
 
     if (!session) {
-      setTone("neutral");
-      phaseBadge.textContent = "DUEL PHASE";
-      line.textContent = "Cinematic Director | SYNC 50% | HEAT 0%";
-      hint.textContent = "Tick akisina kilitlen, expected aksiyona hizli don.";
-      animateMeterWidth(meter, 18, 0.2);
+      const handled = renderWithBridge({
+        cinematic: {
+          tone: "neutral",
+          phaseBadgeText: "DUEL PHASE",
+          lineText: "Cinematic Director | SYNC 50% | HEAT 0%",
+          hintText: "Tick akisina kilitlen, expected aksiyona hizli don.",
+          meterPct: 18,
+          reducedMotion: state.ui.reducedMotion
+        }
+      });
+      if (!handled) {
+        setTone("neutral");
+        phaseBadge.textContent = "DUEL PHASE";
+        line.textContent = "Cinematic Director | SYNC 50% | HEAT 0%";
+        hint.textContent = "Tick akisina kilitlen, expected aksiyona hizli don.";
+        animateMeterWidth(meter, 18, 0.2);
+      }
       if (state.arena) {
         state.arena.pvpCinematicIntensity = 0;
       }
@@ -3843,23 +3879,37 @@
       tone = "advantage";
     }
 
-    setTone(tone);
-    phaseBadge.textContent = `${phaseLabel} | #${tickSeq}`;
-    line.textContent =
+    const phaseBadgeText = `${phaseLabel} | #${tickSeq}`;
+    const lineText =
       `${phaseLabel} | Sync ${Math.round(syncRatio * 100)}% | Heat ${Math.round(heatRatio * 100)}% | ` +
       `Queue ${queueSize} | TTL ${ttlSecLeft}s`;
+    const hintText =
+      tone === "critical"
+        ? `KRITIK: ${resolveNeed > 0 ? `${resolveNeed} aksiyon` : "resolve"} penceresini kacirma, ${recommendation} ritmine don.`
+        : tone === "pressure"
+          ? `Baski artiyor: queue ${queueSize}, drift ${Math.round(driftRatio * 100)}%. ${recommendation} ile tempoyu sabitle.`
+          : tone === "advantage"
+            ? `Avantaj sende: senkron ${Math.round(syncRatio * 100)}%, resolve hazirlik ${Math.round(resolveRatio * 100)}%.`
+            : `Stabil duel: expected aksiyona sadik kal, ${recommendation} modunda pencereyi koru.`;
 
-    if (tone === "critical") {
-      hint.textContent = `KRITIK: ${resolveNeed > 0 ? `${resolveNeed} aksiyon` : "resolve"} penceresini kacirma, ${recommendation} ritmine don.`;
-    } else if (tone === "pressure") {
-      hint.textContent = `Baski artiyor: queue ${queueSize}, drift ${Math.round(driftRatio * 100)}%. ${recommendation} ile tempoyu sabitle.`;
-    } else if (tone === "advantage") {
-      hint.textContent = `Avantaj sende: senkron ${Math.round(syncRatio * 100)}%, resolve hazirlik ${Math.round(resolveRatio * 100)}%.`;
-    } else {
-      hint.textContent = `Stabil duel: expected aksiyona sadik kal, ${recommendation} modunda pencereyi koru.`;
+    const handled = renderWithBridge({
+      cinematic: {
+        tone,
+        phaseBadgeText,
+        lineText,
+        hintText,
+        meterPct: Math.round(cineIntensity * 100),
+        reducedMotion: state.ui.reducedMotion
+      }
+    });
+    if (!handled) {
+      setTone(tone);
+      phaseBadge.textContent = phaseBadgeText;
+      line.textContent = lineText;
+      hint.textContent = hintText;
+      animateMeterWidth(meter, cineIntensity * 100, 0.22);
     }
 
-    animateMeterWidth(meter, cineIntensity * 100, 0.22);
     if (state.arena) {
       state.arena.pvpCinematicIntensity = cineIntensity;
     }
@@ -4159,20 +4209,65 @@
     const secondaryCard = byId("pvpObjectiveSecondary");
     const riskCard = byId("pvpObjectiveRisk");
 
+    const pvpDirectorBridge = getPvpDirectorBridge();
+    const renderWithBridge = (payload) => {
+      if (!pvpDirectorBridge) {
+        return false;
+      }
+      try {
+        return Boolean(pvpDirectorBridge.render(payload));
+      } catch (err) {
+        console.warn("pvp-director-bridge-render-failed", err);
+        return false;
+      }
+    };
+
     if (!session) {
-      if (selfLine) selfLine.textContent = "50% | EVEN";
-      if (oppLine) oppLine.textContent = "50% | EVEN";
-      if (selfMeter) {
-        animateMeterWidth(selfMeter, 50, 0.2);
-        setMeterPalette(selfMeter, "neutral");
+      const handled = renderWithBridge({
+        momentum: {
+          selfLineText: "50% | EVEN",
+          selfMeterPct: 50,
+          selfPalette: "neutral",
+          oppLineText: "50% | EVEN",
+          oppMeterPct: 50,
+          oppPalette: "neutral",
+          primaryCard: {
+            label: "Hedef 1",
+            value: "Pattern Hazir",
+            meta: "Beklenen aksiyonla ritmi tut.",
+            tone: "neutral"
+          },
+          secondaryCard: {
+            label: "Hedef 2",
+            value: "Resolve Penceresi",
+            meta: "6+ aksiyonla duel cozumunu ac.",
+            tone: "neutral"
+          },
+          riskCard: {
+            label: "Risk Komutu",
+            value: "Kontrol Modu",
+            meta: "Baski artarsa GUARD ile dengele.",
+            tone: "neutral"
+          },
+          pulseObjectives: false,
+          reducedMotion: state.ui.reducedMotion
+        }
+      });
+      if (!handled) {
+        if (selfLine) selfLine.textContent = "50% | EVEN";
+        if (oppLine) oppLine.textContent = "50% | EVEN";
+        if (selfMeter) {
+          animateMeterWidth(selfMeter, 50, 0.2);
+          setMeterPalette(selfMeter, "neutral");
+        }
+        if (oppMeter) {
+          animateMeterWidth(oppMeter, 50, 0.2);
+          setMeterPalette(oppMeter, "neutral");
+        }
+        paintPvpObjectiveCard(primaryCard, "Hedef 1", "Pattern Hazir", "Beklenen aksiyonla ritmi tut.", "neutral");
+        paintPvpObjectiveCard(secondaryCard, "Hedef 2", "Resolve Penceresi", "6+ aksiyonla duel cozumunu ac.", "neutral");
+        paintPvpObjectiveCard(riskCard, "Risk Komutu", "Kontrol Modu", "Baski artarsa GUARD ile dengele.", "neutral");
       }
-      if (oppMeter) {
-        animateMeterWidth(oppMeter, 50, 0.2);
-        setMeterPalette(oppMeter, "neutral");
-      }
-      paintPvpObjectiveCard(primaryCard, "Hedef 1", "Pattern Hazir", "Beklenen aksiyonla ritmi tut.", "neutral");
-      paintPvpObjectiveCard(secondaryCard, "Hedef 2", "Resolve Penceresi", "6+ aksiyonla duel cozumunu ac.", "neutral");
-      paintPvpObjectiveCard(riskCard, "Risk Komutu", "Kontrol Modu", "Baski artarsa GUARD ile dengele.", "neutral");
       if (state.arena) {
         state.arena.pvpMomentumSelf = 0.5;
         state.arena.pvpMomentumOpp = 0.5;
@@ -4213,36 +4308,11 @@
     const anomalyBias = String(diagnostics.anomaly_bias || "none").toUpperCase();
     const shadow = state.v3.pvpTickMeta?.shadow || null;
 
-    if (selfLine) selfLine.textContent = `${Math.round(momentumSelf * 100)}% | ${selfState}`;
-    if (oppLine) oppLine.textContent = `${Math.round(momentumOpp * 100)}% | ${oppState}`;
-    if (selfMeter) {
-      animateMeterWidth(selfMeter, momentumSelf * 100, 0.24);
-      setMeterPalette(selfMeter, momentumSelf >= 0.62 ? "safe" : momentumSelf >= 0.45 ? "balanced" : "aggressive");
-    }
-    if (oppMeter) {
-      animateMeterWidth(oppMeter, momentumOpp * 100, 0.24);
-      setMeterPalette(oppMeter, momentumOpp >= 0.62 ? "aggressive" : momentumOpp >= 0.45 ? "balanced" : "safe");
-    }
-
     const expected = normalizePvpInputLabel(String(session.next_expected_action || "strike"));
     const objectivePrimaryTone = expected === "GUARD" ? "advantage" : expected === "CHARGE" ? "warning" : "neutral";
-    paintPvpObjectiveCard(
-      primaryCard,
-      "Hedef 1",
-      `Pattern: ${expected}`,
-      `Mode ${recommendedMode} | Kontrat ${contractMode}`,
-      urgencyKey === "advantage" ? "advantage" : objectivePrimaryTone
-    );
 
     const actionsToResolve = Math.max(0, 6 - actionsSelf);
     const resolveTone = actionsToResolve <= 1 ? "advantage" : actionsToResolve <= 3 ? "warning" : "neutral";
-    paintPvpObjectiveCard(
-      secondaryCard,
-      "Hedef 2",
-      actionsToResolve <= 0 ? "Resolve Hazir" : `Resolve icin ${actionsToResolve}`,
-      `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp} | Bias ${anomalyBias}`,
-      ttl <= 18 || urgencyKey === "critical" ? "danger" : resolveTone
-    );
 
     const riskTone =
       urgencyKey === "critical"
@@ -4260,29 +4330,95 @@
         : pressureRatio >= 0.44
           ? "Baski artiyor: tempoyu dengele, queue biriktirme."
           : "Kontrol sende: STRIKE + CHARGE ile momentum topla.";
-    paintPvpObjectiveCard(
-      riskCard,
-      "Risk Komutu",
-      `Baski ${Math.round(pressureRatio * 100)}%`,
-      shadow
-        ? `${riskHint} | Shadow ${String(shadow.input_action || "-").toUpperCase()} ${
-            Boolean(shadow.accepted) ? "OK" : "MISS"
-          }`
-        : riskHint,
-      riskTone
-    );
 
     const objectiveKey = `${expected}:${actionsToResolve}:${Math.round(pressureRatio * 100)}:${selfState}:${urgencyKey}`;
-    if (objectiveKey !== state.v3.lastPvpObjectiveKey) {
-      state.v3.lastPvpObjectiveKey = objectiveKey;
-      [primaryCard, secondaryCard, riskCard].forEach((card) => {
-        if (!card) {
-          return;
-        }
-        card.classList.add("pulse");
-        setTimeout(() => card.classList.remove("pulse"), 220);
-      });
+    const pulseObjectives = objectiveKey !== state.v3.lastPvpObjectiveKey;
+    state.v3.lastPvpObjectiveKey = objectiveKey;
+
+    const handled = renderWithBridge({
+      momentum: {
+        selfLineText: `${Math.round(momentumSelf * 100)}% | ${selfState}`,
+        selfMeterPct: Math.round(momentumSelf * 100),
+        selfPalette: momentumSelf >= 0.62 ? "safe" : momentumSelf >= 0.45 ? "balanced" : "aggressive",
+        oppLineText: `${Math.round(momentumOpp * 100)}% | ${oppState}`,
+        oppMeterPct: Math.round(momentumOpp * 100),
+        oppPalette: momentumOpp >= 0.62 ? "aggressive" : momentumOpp >= 0.45 ? "balanced" : "safe",
+        primaryCard: {
+          label: "Hedef 1",
+          value: `Pattern: ${expected}`,
+          meta: `Mode ${recommendedMode} | Kontrat ${contractMode}`,
+          tone: urgencyKey === "advantage" ? "advantage" : objectivePrimaryTone
+        },
+        secondaryCard: {
+          label: "Hedef 2",
+          value: actionsToResolve <= 0 ? "Resolve Hazir" : `Resolve icin ${actionsToResolve}`,
+          meta: `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp} | Bias ${anomalyBias}`,
+          tone: ttl <= 18 || urgencyKey === "critical" ? "danger" : resolveTone
+        },
+        riskCard: {
+          label: "Risk Komutu",
+          value: `Baski ${Math.round(pressureRatio * 100)}%`,
+          meta: shadow
+            ? `${riskHint} | Shadow ${String(shadow.input_action || "-").toUpperCase()} ${
+                Boolean(shadow.accepted) ? "OK" : "MISS"
+              }`
+            : riskHint,
+          tone: riskTone
+        },
+        pulseObjectives,
+        reducedMotion: state.ui.reducedMotion
+      }
+    });
+
+    if (!handled) {
+      if (selfLine) selfLine.textContent = `${Math.round(momentumSelf * 100)}% | ${selfState}`;
+      if (oppLine) oppLine.textContent = `${Math.round(momentumOpp * 100)}% | ${oppState}`;
+      if (selfMeter) {
+        animateMeterWidth(selfMeter, momentumSelf * 100, 0.24);
+        setMeterPalette(selfMeter, momentumSelf >= 0.62 ? "safe" : momentumSelf >= 0.45 ? "balanced" : "aggressive");
+      }
+      if (oppMeter) {
+        animateMeterWidth(oppMeter, momentumOpp * 100, 0.24);
+        setMeterPalette(oppMeter, momentumOpp >= 0.62 ? "aggressive" : momentumOpp >= 0.45 ? "balanced" : "safe");
+      }
+
+      paintPvpObjectiveCard(
+        primaryCard,
+        "Hedef 1",
+        `Pattern: ${expected}`,
+        `Mode ${recommendedMode} | Kontrat ${contractMode}`,
+        urgencyKey === "advantage" ? "advantage" : objectivePrimaryTone
+      );
+      paintPvpObjectiveCard(
+        secondaryCard,
+        "Hedef 2",
+        actionsToResolve <= 0 ? "Resolve Hazir" : `Resolve icin ${actionsToResolve}`,
+        `TTL ${ttl}s | Aksiyon ${actionsSelf}-${actionsOpp} | Bias ${anomalyBias}`,
+        ttl <= 18 || urgencyKey === "critical" ? "danger" : resolveTone
+      );
+      paintPvpObjectiveCard(
+        riskCard,
+        "Risk Komutu",
+        `Baski ${Math.round(pressureRatio * 100)}%`,
+        shadow
+          ? `${riskHint} | Shadow ${String(shadow.input_action || "-").toUpperCase()} ${
+              Boolean(shadow.accepted) ? "OK" : "MISS"
+            }`
+          : riskHint,
+        riskTone
+      );
+
+      if (pulseObjectives) {
+        [primaryCard, secondaryCard, riskCard].forEach((card) => {
+          if (!card) {
+            return;
+          }
+          card.classList.add("pulse");
+          setTimeout(() => card.classList.remove("pulse"), 220);
+        });
+      }
     }
+
     if (state.arena) {
       state.arena.pvpMomentumSelf = momentumSelf;
       state.arena.pvpMomentumOpp = momentumOpp;
