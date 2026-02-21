@@ -246,6 +246,17 @@
     return bridge;
   }
 
+  function getCombatHudBridge() {
+    const bridge = window.__AKR_COMBAT_HUD__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -2680,6 +2691,165 @@
     const bossTone = bossPressure >= 0.78 ? "critical" : bossPressure >= 0.46 ? "pressure" : "stable";
     state.telemetry.raidBossPressure = bossPressure;
     state.telemetry.raidBossTone = bossTone;
+
+    const bridgeLatestAgeSec = latest ? Math.max(0, Math.round((Date.now() - asNum(latest.ts || Date.now())) / 1000)) : 0;
+    const bridgeChainLineText = !latest
+      ? "CHAIN IDLE"
+      : `x${chain.length} | ${String(latest.action || "pulse").toUpperCase()} ${latestAccepted ? "LOCKED" : "REJECT"} | ${bridgeLatestAgeSec}s`;
+    const bridgeChainTrail = chain.slice(0, COMBAT_CHAIN_LIMIT).map((row, index) => ({
+      action: String(row.action || "pulse"),
+      accepted: row.accepted !== false,
+      tone: combatActionTone(row.action, row.accepted, row.tone),
+      isLatest: index === 0
+    }));
+    const bridgeReactorPalette =
+      tone === "aggressive"
+        ? pressureRatio >= 0.78
+          ? "critical"
+          : "aggressive"
+        : tone === "safe"
+          ? "safe"
+          : tone === "balanced"
+            ? "balanced"
+            : tone === "reveal"
+              ? "critical"
+              : pressureRatio >= 0.72
+                ? "critical"
+                : pressureRatio >= 0.52
+                  ? "aggressive"
+                  : "neutral";
+    const bridgeHintMap = {
+      safe: "Safe pencere: kontrollu cikis avantajli.",
+      balanced: "Denge aktif: ritmi koru, combo biriktir.",
+      aggressive: "Baski artiyor: guard veya hizli strike sec.",
+      reveal: "Reveal penceresi acik: odul kilidini kapat.",
+      info: "Nexus pulse bekleniyor."
+    };
+    const bridgeStrategyLineText = `Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Urgency ${urgency.toUpperCase()} | ${recommendation}`;
+    const bridgeExpectedLine = expectedAction ? expectedAction.toUpperCase() : "AUTO";
+    const bridgeLatestLine = latestAction ? `${latestAction.toUpperCase()} ${latestAccepted ? "OK" : "MISS"}` : "CHAIN IDLE";
+    const bridgeTimelineLineText = `Beklenen: ${bridgeExpectedLine} | Son: ${bridgeLatestLine} | x${chain.length}`;
+    const bridgeTimelineBadgeText = latest && !latestAccepted ? "MISS" : urgency.toUpperCase();
+    const bridgeTimelineWarn = urgency === "critical" || (latest && !latestAccepted);
+    const bridgeTimelineRatio = clamp(chain.length / Math.max(6, COMBAT_CHAIN_LIMIT) * 0.58 + energy / 100 * 0.42, 0, 1);
+    let bridgeTimelinePalette = "neutral";
+    if (latest && !latestAccepted) {
+      bridgeTimelinePalette = "critical";
+    } else if (pressureRatio >= 0.74) {
+      bridgeTimelinePalette = "aggressive";
+    } else if (expectedAction === "guard") {
+      bridgeTimelinePalette = "safe";
+    } else if (expectedAction === "charge") {
+      bridgeTimelinePalette = "balanced";
+    }
+    const bridgeQueuePct = Math.round(queuePressure * 100);
+    const bridgeTimelineHint = `Queue ${bridgeQueuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
+    const bridgeSyncGap = Math.abs(syncDelta);
+    const bridgePressurePct = Math.round(pressureRatio * 100);
+    const bridgeFluxHintMap = {
+      critical: "Kritik pencere: queue sifirla, savunma odakli tek hamle resolve uygula.",
+      pressure: "Baski artiyor: guard/charge dengesi ile zinciri koru.",
+      advantage: "Avantaj sende: expected aksiyonla combo kilidi olustur.",
+      steady: "Denge modu: riski dusuk tut, ritmi kontrollu surdur."
+    };
+    const bridgeFluxHintText = `${bridgeFluxHintMap[urgency] || bridgeFluxHintMap.steady} Gap ${bridgeSyncGap}% | Basinc ${bridgePressurePct}%`;
+    const bridgeSyncRatio = clamp(1 - Math.abs(syncDelta) / 100, 0, 1);
+    const bridgeCadenceWindow = Math.max(1, Math.min(COMBAT_CHAIN_LIMIT, 6));
+    const bridgeStrikeRatio = clamp(actionCounts.strike / bridgeCadenceWindow + (expectedAction === "strike" ? 0.16 : 0), 0, 1);
+    const bridgeGuardRatio = clamp(actionCounts.guard / bridgeCadenceWindow + (expectedAction === "guard" ? 0.16 : 0), 0, 1);
+    const bridgeChargeRatio = clamp(actionCounts.charge / bridgeCadenceWindow + (expectedAction === "charge" ? 0.16 : 0), 0, 1);
+    const bridgeDominantAction = (() => {
+      if (bridgeStrikeRatio >= bridgeGuardRatio && bridgeStrikeRatio >= bridgeChargeRatio) {
+        return "STRIKE";
+      }
+      if (bridgeGuardRatio >= bridgeChargeRatio) {
+        return "GUARD";
+      }
+      return "CHARGE";
+    })();
+    const bridgeCadenceTone =
+      !latestAccepted && latestAction
+        ? "critical"
+        : urgency === "critical"
+          ? "critical"
+          : urgency === "spike" || queuePressure >= 0.66
+            ? "pressure"
+            : bridgeDominantAction === (expectedAction || bridgeDominantAction).toUpperCase()
+              ? "advantage"
+              : "steady";
+    const bridgeFocus = expectedAction ? expectedAction.toUpperCase() : bridgeDominantAction;
+    const bridgeCadenceHintMap = {
+      critical: `MISS algilandi: ${bridgeFocus} ile ritmi geri al, resolve penceresini koru.`,
+      pressure: `Baski yuksek (${bridgeQueuePct}%): ${bridgeFocus} odagi ile cadence'i stabil tut.`,
+      advantage: `Avantaj aktif: ${bridgeFocus} zinciri ile combo carpanini buyut.`,
+      steady: `Stabil tempo: ${bridgeFocus} odakli devam edip enerjiyi dengede tut.`
+    };
+    const bridgeBossHpPct = Math.round(raidHpRatio * 100);
+    const bridgeBossLabel = bossTone === "critical" ? "CRITICAL" : bossTone === "pressure" ? "PRESSURE" : "STABLE";
+    const bridgeBossLineText = !raidSession ? "STABLE | HP -- | TTL --" : `${bridgeBossLabel} | HP ${bridgeBossHpPct}% | TTL ${raidTtlSec}s`;
+
+    const combatHudBridge = getCombatHudBridge();
+    if (combatHudBridge) {
+      try {
+        const handled = combatHudBridge.render({
+          pressureClass:
+            pressureRatio >= 0.78
+              ? "pressure-critical"
+              : pressureRatio >= 0.56
+                ? "pressure-high"
+                : pressureRatio >= 0.34
+                  ? "pressure-medium"
+                  : "pressure-low",
+          urgency,
+          recommendation,
+          chainLineText: bridgeChainLineText,
+          chainTrail: bridgeChainTrail,
+          energy: Math.round(energy),
+          reactorLineText: `${String(label || "NEXUS READY").toUpperCase()} | ${Math.round(energy)}%`,
+          reactorHintText: bridgeHintMap[tone] || bridgeHintMap.info,
+          reactorPalette: bridgeReactorPalette,
+          strategyLineText: bridgeStrategyLineText,
+          timelineLineText: bridgeTimelineLineText,
+          timelineBadgeText: bridgeTimelineBadgeText,
+          timelineBadgeWarn: bridgeTimelineWarn,
+          timelineMeterPct: Math.round(bridgeTimelineRatio * 100),
+          timelineHintText: bridgeTimelineHint,
+          timelinePalette: bridgeTimelinePalette,
+          expectedAction,
+          latestAction,
+          latestAccepted,
+          actionCounts,
+          fluxLineText: `SELF ${Math.round(selfMomentum * 100)} | OPP ${Math.round(oppMomentum * 100)} | ${syncState}`,
+          fluxHintText: bridgeFluxHintText,
+          fluxTone: urgency,
+          fluxSelfPct: Math.round(selfMomentum * 100),
+          fluxOppPct: Math.round(oppMomentum * 100),
+          fluxSyncPct: Math.round(bridgeSyncRatio * 100),
+          fluxSelfPalette: selfMomentum >= oppMomentum ? "balanced" : "safe",
+          fluxOppPalette: oppMomentum > selfMomentum ? "aggressive" : "neutral",
+          fluxSyncPalette: bridgeSyncRatio >= 0.68 ? "safe" : bridgeSyncRatio >= 0.44 ? "balanced" : "critical",
+          cadenceLineText: `STR ${Math.round(bridgeStrikeRatio * 100)} | GRD ${Math.round(bridgeGuardRatio * 100)} | CHG ${Math.round(bridgeChargeRatio * 100)}`,
+          cadenceHintText: bridgeCadenceHintMap[bridgeCadenceTone] || bridgeCadenceHintMap.steady,
+          cadenceTone: bridgeCadenceTone,
+          cadenceStrikePct: Math.round(bridgeStrikeRatio * 100),
+          cadenceGuardPct: Math.round(bridgeGuardRatio * 100),
+          cadenceChargePct: Math.round(bridgeChargeRatio * 100),
+          cadenceStrikePalette: expectedAction === "strike" ? "aggressive" : "neutral",
+          cadenceGuardPalette: expectedAction === "guard" ? "safe" : "neutral",
+          cadenceChargePalette: expectedAction === "charge" ? "balanced" : "neutral",
+          bossLineText: bridgeBossLineText,
+          bossTone,
+          bossMeterPct: Math.round(bossPressure * 100),
+          bossPalette: bossTone === "critical" ? "critical" : bossTone === "pressure" ? "aggressive" : "safe"
+        });
+        if (handled) {
+          return;
+        }
+      } catch (err) {
+        console.warn("combat-hud-bridge-render-failed", err);
+      }
+    }
+
     if (panelRoot) {
       panelRoot.classList.remove("pressure-low", "pressure-medium", "pressure-high", "pressure-critical");
       const pressureClass =
