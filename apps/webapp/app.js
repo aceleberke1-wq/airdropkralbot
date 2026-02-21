@@ -2746,6 +2746,12 @@
     const cadenceChargeMeter = byId("combatCadenceChargeMeter");
     const bossPressureLine = byId("bossPressureLine");
     const bossPressureMeter = byId("bossPressureMeter");
+    const overdriveLine = byId("combatOverdriveLine");
+    const overdriveHint = byId("combatOverdriveHint");
+    const overdriveHeatMeter = byId("combatOverdriveHeatMeter");
+    const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
+    const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
+    const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
     const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
     const energy = clamp(asNum(state.v3.combatEnergy || 0), 0, 100);
     const tone = normalizePulseTone(state.v3.pulseTone || "info");
@@ -2797,6 +2803,27 @@
     const bossTone = bossPressure >= 0.78 ? "critical" : bossPressure >= 0.46 ? "pressure" : "stable";
     state.telemetry.raidBossPressure = bossPressure;
     state.telemetry.raidBossTone = bossTone;
+    const sceneHeatRatio = clamp(asNum(state.telemetry.combatHeat || 0), 0, 1);
+    const threatRatio = clamp(asNum(state.telemetry.threatRatio || 0), 0, 1);
+    const pvpPressureRatio = clamp(queuePressure * 0.58 + pressureRatio * 0.42, 0, 1);
+    const impulseRatio = clamp(asNum(state.arena?.cameraImpulse || 0) / 1.6, 0, 1);
+    const overdriveTone =
+      pvpPressureRatio >= 0.78 || impulseRatio >= 0.7
+        ? "critical"
+        : pvpPressureRatio >= 0.52 || threatRatio >= 0.55
+          ? "pressure"
+          : pvpPressureRatio >= 0.3
+            ? "advantage"
+            : "steady";
+    const overdriveHintMap = {
+      critical: "Kritik overdrive: GUARD ile pencereyi kilitle, combo zincirini tek hamleyle stabilize et.",
+      pressure: "Baski yuksek: expected aksiyona hizli don, queue driftini sifirla.",
+      advantage: "Tempo sende: STRIKE/CHARGE dengesini koruyup resolve penceresini ac.",
+      steady: "Stabil mod: threat ve heat dengesini koru, impulse birikimini dusuk tut."
+    };
+    const overdriveLineText =
+      `HEAT ${Math.round(sceneHeatRatio * 100)}% | THREAT ${Math.round(threatRatio * 100)}% | ` +
+      `PVP ${Math.round(pvpPressureRatio * 100)}% | CAM ${Math.round(impulseRatio * 100)}%`;
 
     const bridgeLatestAgeSec = latest ? Math.max(0, Math.round((Date.now() - asNum(latest.ts || Date.now())) / 1000)) : 0;
     const bridgeChainLineText = !latest
@@ -2946,7 +2973,18 @@
           bossLineText: bridgeBossLineText,
           bossTone,
           bossMeterPct: Math.round(bossPressure * 100),
-          bossPalette: bossTone === "critical" ? "critical" : bossTone === "pressure" ? "aggressive" : "safe"
+          bossPalette: bossTone === "critical" ? "critical" : bossTone === "pressure" ? "aggressive" : "safe",
+          overdriveLineText,
+          overdriveHintText: overdriveHintMap[overdriveTone] || overdriveHintMap.steady,
+          overdriveTone,
+          overdriveHeatPct: Math.round(sceneHeatRatio * 100),
+          overdriveThreatPct: Math.round(threatRatio * 100),
+          overdrivePvpPct: Math.round(pvpPressureRatio * 100),
+          overdriveImpulsePct: Math.round(impulseRatio * 100),
+          overdriveHeatPalette: sceneHeatRatio >= 0.68 ? "critical" : sceneHeatRatio >= 0.4 ? "aggressive" : "balanced",
+          overdriveThreatPalette: threatRatio >= 0.66 ? "critical" : threatRatio >= 0.38 ? "aggressive" : "safe",
+          overdrivePvpPalette: pvpPressureRatio >= 0.66 ? "critical" : pvpPressureRatio >= 0.36 ? "aggressive" : "balanced",
+          overdriveImpulsePalette: impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe"
         });
         if (handled) {
           return;
@@ -3156,6 +3194,30 @@
     if (bossPressureMeter) {
       animateMeterWidth(bossPressureMeter, bossPressure * 100, 0.24);
       setMeterPalette(bossPressureMeter, bossTone === "critical" ? "critical" : bossTone === "pressure" ? "aggressive" : "safe");
+    }
+    if (overdriveLine) {
+      overdriveLine.textContent = overdriveLineText;
+      overdriveLine.dataset.tone = overdriveTone;
+    }
+    if (overdriveHint) {
+      overdriveHint.textContent = overdriveHintMap[overdriveTone] || overdriveHintMap.steady;
+      overdriveHint.dataset.tone = overdriveTone;
+    }
+    if (overdriveHeatMeter) {
+      animateMeterWidth(overdriveHeatMeter, sceneHeatRatio * 100, 0.22);
+      setMeterPalette(overdriveHeatMeter, sceneHeatRatio >= 0.68 ? "critical" : sceneHeatRatio >= 0.4 ? "aggressive" : "balanced");
+    }
+    if (overdriveThreatMeter) {
+      animateMeterWidth(overdriveThreatMeter, threatRatio * 100, 0.22);
+      setMeterPalette(overdriveThreatMeter, threatRatio >= 0.66 ? "critical" : threatRatio >= 0.38 ? "aggressive" : "safe");
+    }
+    if (overdrivePvpMeter) {
+      animateMeterWidth(overdrivePvpMeter, pvpPressureRatio * 100, 0.22);
+      setMeterPalette(overdrivePvpMeter, pvpPressureRatio >= 0.66 ? "critical" : pvpPressureRatio >= 0.36 ? "aggressive" : "balanced");
+    }
+    if (overdriveImpulseMeter) {
+      animateMeterWidth(overdriveImpulseMeter, impulseRatio * 100, 0.22);
+      setMeterPalette(overdriveImpulseMeter, impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe");
     }
     const nodeMap = {
       strike: timelineNodeStrike,

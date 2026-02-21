@@ -54,6 +54,17 @@ type CombatHudPayload = {
   bossTone: string;
   bossMeterPct: number;
   bossPalette: string;
+  overdriveLineText: string;
+  overdriveHintText: string;
+  overdriveTone: string;
+  overdriveHeatPct: number;
+  overdriveThreatPct: number;
+  overdrivePvpPct: number;
+  overdriveImpulsePct: number;
+  overdriveHeatPalette: string;
+  overdriveThreatPalette: string;
+  overdrivePvpPalette: string;
+  overdriveImpulsePalette: string;
 };
 
 type CombatHudBridge = {
@@ -166,6 +177,12 @@ function render(payload: CombatHudPayload): boolean {
   const cadenceChargeMeter = byId("combatCadenceChargeMeter");
   const bossPressureLine = byId("bossPressureLine");
   const bossPressureMeter = byId("bossPressureMeter");
+  const overdriveLine = byId("combatOverdriveLine");
+  const overdriveHint = byId("combatOverdriveHint");
+  const overdriveHeatMeter = byId("combatOverdriveHeatMeter");
+  const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
+  const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
+  const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
 
   if (!panelRoot || !chainLine || !chainTrail || !timelineLine || !timelineBadge || !timelineMeter) {
     return false;
@@ -242,6 +259,19 @@ function render(payload: CombatHudPayload): boolean {
   }
   setMeter(bossPressureMeter, payload.bossMeterPct, payload.bossPalette);
 
+  if (overdriveLine) {
+    overdriveLine.textContent = String(payload.overdriveLineText || "HEAT 0% | THREAT 0% | PVP 0% | CAM 0%");
+    overdriveLine.dataset.tone = String(payload.overdriveTone || "steady");
+  }
+  if (overdriveHint) {
+    overdriveHint.textContent = String(payload.overdriveHintText || "");
+    overdriveHint.dataset.tone = String(payload.overdriveTone || "steady");
+  }
+  setMeter(overdriveHeatMeter, payload.overdriveHeatPct, payload.overdriveHeatPalette);
+  setMeter(overdriveThreatMeter, payload.overdriveThreatPct, payload.overdriveThreatPalette);
+  setMeter(overdrivePvpMeter, payload.overdrivePvpPct, payload.overdrivePvpPalette);
+  setMeter(overdriveImpulseMeter, payload.overdriveImpulsePct, payload.overdriveImpulsePalette);
+
   const nodeMap: Record<string, HTMLElement | null> = {
     strike: timelineNodeStrike,
     guard: timelineNodeGuard,
@@ -274,4 +304,3 @@ export function installCombatHudBridge(): void {
     render
   };
 }
-

@@ -1745,6 +1745,39 @@ body:not(.reduced-motion) .pvpActionPulseStrip[data-tone="critical"] {
   background: linear-gradient(160deg, rgba(8, 13, 33, 0.88), rgba(4, 9, 24, 0.8));
 }
 
+.combatOverdriveCell {
+  grid-column: 1 / -1;
+  border-color: rgba(132, 219, 255, 0.28);
+  background: linear-gradient(152deg, rgba(9, 15, 36, 0.9), rgba(6, 10, 25, 0.84));
+}
+
+#combatOverdriveLine {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.03em;
+}
+
+#combatOverdriveLine[data-tone="advantage"] {
+  color: rgba(138, 246, 208, 0.95);
+}
+
+#combatOverdriveLine[data-tone="pressure"] {
+  color: rgba(255, 214, 143, 0.96);
+}
+
+#combatOverdriveLine[data-tone="critical"] {
+  color: rgba(255, 166, 184, 0.97);
+  text-shadow: 0 0 10px rgba(255, 88, 125, 0.36);
+}
+
+#combatOverdriveHint[data-tone="critical"] {
+  color: rgba(255, 183, 196, 0.95);
+}
+
+body:not(.reduced-motion) .combatHudPanel[data-urgency="critical"] .combatOverdriveCell {
+  animation: pvpActionAlert 1100ms ease-in-out infinite;
+}
+
 .fluxGrid {
   display: grid;
   gap: 6px;
