@@ -65,6 +65,8 @@
       pulseTone: "info",
       pulseLabel: "NEXUS READY",
       pulseAt: 0,
+      matrixScopeHistory: [],
+      matrixScopeLastAt: 0,
       tokenQuote: null,
       quoteTimer: null,
       featureFlags: {}
@@ -2931,6 +2933,8 @@
     const matrixThermalMeter = byId("combatMatrixThermalMeter");
     const matrixShieldMeter = byId("combatMatrixShieldMeter");
     const matrixClutchMeter = byId("combatMatrixClutchMeter");
+    const matrixScopeLine = byId("combatMatrixScopeLine");
+    const matrixScopeCanvas = byId("combatMatrixScopeCanvas");
     const matrixCell =
       (matrixLine && typeof matrixLine.closest === "function" && matrixLine.closest(".combatReactorCell")) || null;
     const alertPrimaryChip = byId("combatAlertPrimaryChip");
@@ -3040,6 +3044,38 @@
       advantage: "Matriks lehine: sync+shield dengesi ile agresif finish penceresini ac.",
       steady: "Stabil matris: expected aksiyonda kal, riski kademeli biriktir."
     };
+    const matrixFlowRatio = clamp(
+      matrixSyncRatio * 0.34 + (1 - matrixThermalRatio) * 0.22 + matrixShieldRatio * 0.24 + (1 - matrixClutchRatio) * 0.2,
+      0,
+      1
+    );
+    const sampleNow = Date.now();
+    const sampleEveryMs = state.ui.reducedMotion ? 220 : 120;
+    if (sampleNow - asNum(state.v3.matrixScopeLastAt || 0) >= sampleEveryMs) {
+      state.v3.matrixScopeLastAt = sampleNow;
+      const nextHistory = Array.isArray(state.v3.matrixScopeHistory) ? state.v3.matrixScopeHistory.slice(0, 95) : [];
+      nextHistory.unshift({
+        ts: sampleNow,
+        flow: matrixFlowRatio,
+        sync: matrixSyncRatio,
+        thermal: matrixThermalRatio,
+        shield: matrixShieldRatio,
+        clutch: matrixClutchRatio,
+        tone: matrixTone
+      });
+      state.v3.matrixScopeHistory = nextHistory.slice(0, 96);
+    }
+    if (matrixScopeLine) {
+      matrixScopeLine.textContent = `FLOW ${Math.round(matrixFlowRatio * 100)}% | Q ${Math.round(queuePressure * 100)}%`;
+      matrixScopeLine.dataset.tone = matrixTone;
+    }
+    drawMatrixScopeCanvas(matrixScopeCanvas, {
+      tone: matrixTone,
+      flowRatio: matrixFlowRatio,
+      queueRatio: queuePressure,
+      reducedMotion: state.ui.reducedMotion,
+      samples: state.v3.matrixScopeHistory
+    });
     const alertRows = [];
     if (latest && !latestAccepted) {
       alertRows.push({
@@ -4688,6 +4724,119 @@
     ctx.fillStyle = tone === "critical" ? "rgba(255, 134, 164, 0.96)" : "rgba(146, 252, 208, 0.95)";
     ctx.beginPath();
     ctx.arc(cx, cy, 4.3 + flowRatio * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawMatrixScopeCanvas(canvas, options = {}) {
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const width = Math.max(220, canvas.width || 420);
+    const height = Math.max(84, canvas.height || 132);
+    const tone = String(options.tone || "steady").toLowerCase();
+    const queueRatio = clamp(asNum(options.queueRatio || 0), 0, 1);
+    const flowRatio = clamp(asNum(options.flowRatio || 0), 0, 1);
+    const reducedMotion = Boolean(options.reducedMotion);
+    const samplesRaw = Array.isArray(options.samples) ? options.samples.slice(0, 96) : [];
+    const samples = samplesRaw.length ? samplesRaw.slice().reverse() : [{ flow: flowRatio, sync: 0, thermal: 0, shield: 0, clutch: 0 }];
+    const paletteMap = {
+      critical: {
+        a: "rgba(34, 10, 20, 0.92)",
+        b: "rgba(9, 9, 22, 0.95)",
+        flow: "rgba(255, 134, 169, 0.96)",
+        sync: "rgba(255, 198, 130, 0.92)",
+        thermal: "rgba(255, 108, 143, 0.86)",
+        shield: "rgba(127, 206, 255, 0.92)",
+        clutch: "rgba(255, 222, 163, 0.9)"
+      },
+      pressure: {
+        a: "rgba(30, 16, 10, 0.9)",
+        b: "rgba(7, 11, 24, 0.95)",
+        flow: "rgba(255, 198, 120, 0.94)",
+        sync: "rgba(151, 233, 255, 0.92)",
+        thermal: "rgba(255, 124, 137, 0.84)",
+        shield: "rgba(154, 234, 214, 0.9)",
+        clutch: "rgba(255, 211, 150, 0.88)"
+      },
+      advantage: {
+        a: "rgba(8, 21, 24, 0.9)",
+        b: "rgba(6, 11, 25, 0.95)",
+        flow: "rgba(130, 255, 206, 0.94)",
+        sync: "rgba(145, 228, 255, 0.92)",
+        thermal: "rgba(254, 193, 140, 0.82)",
+        shield: "rgba(131, 255, 176, 0.92)",
+        clutch: "rgba(173, 231, 255, 0.88)"
+      },
+      steady: {
+        a: "rgba(8, 14, 33, 0.9)",
+        b: "rgba(5, 9, 22, 0.95)",
+        flow: "rgba(138, 218, 255, 0.94)",
+        sync: "rgba(112, 255, 168, 0.9)",
+        thermal: "rgba(255, 197, 136, 0.82)",
+        shield: "rgba(163, 234, 255, 0.9)",
+        clutch: "rgba(255, 214, 154, 0.86)"
+      }
+    };
+    const palette = paletteMap[tone] || paletteMap.steady;
+    const bg = ctx.createLinearGradient(0, 0, width, height);
+    bg.addColorStop(0, palette.a);
+    bg.addColorStop(1, palette.b);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = tone === "critical" ? "rgba(255, 112, 142, 0.22)" : "rgba(143, 184, 255, 0.2)";
+    ctx.lineWidth = 1;
+    for (let row = 1; row <= 4; row += 1) {
+      const y = (height / 5) * row;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    const queueX = clamp(queueRatio, 0, 1) * width;
+    ctx.beginPath();
+    ctx.moveTo(queueX, 0);
+    ctx.lineTo(queueX, height);
+    ctx.strokeStyle = tone === "critical" ? "rgba(255, 142, 168, 0.4)" : "rgba(123, 205, 255, 0.28)";
+    ctx.stroke();
+
+    const drawSeries = (extractor, stroke, widthRatio = 1, alpha = 1) => {
+      const step = samples.length > 1 ? width / (samples.length - 1) : width;
+      ctx.beginPath();
+      for (let i = 0; i < samples.length; i += 1) {
+        const row = samples[i] || {};
+        const x = i * step;
+        const raw = clamp(asNum(extractor(row)), 0, 1);
+        const y = height - raw * (height - 12) - 6;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.strokeStyle = stroke;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = widthRatio;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+
+    drawSeries((row) => row.flow, palette.flow, 2.3, 0.98);
+    drawSeries((row) => row.sync, palette.sync, 1.5, reducedMotion ? 0.7 : 0.84);
+    drawSeries((row) => 1 - clamp(asNum(row.thermal || 0), 0, 1), palette.thermal, 1.3, reducedMotion ? 0.66 : 0.8);
+    drawSeries((row) => row.shield, palette.shield, 1.2, reducedMotion ? 0.62 : 0.76);
+    drawSeries((row) => 1 - clamp(asNum(row.clutch || 0), 0, 1), palette.clutch, 1.1, reducedMotion ? 0.56 : 0.72);
+
+    const latest = samples[samples.length - 1] || samples[0] || {};
+    const latestFlow = clamp(asNum(latest.flow || flowRatio), 0, 1);
+    const dotY = height - latestFlow * (height - 12) - 6;
+    ctx.beginPath();
+    ctx.arc(width - 8, dotY, reducedMotion ? 2.4 : 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = palette.flow;
     ctx.fill();
   }
 
