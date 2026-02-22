@@ -748,6 +748,36 @@
         band.visible = index < maxVisible;
       });
     }
+    if (Array.isArray(arena.duelActionBeacons)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(2, arena.duelActionBeacons.length)
+          : nextProfile.key === "normal"
+            ? Math.min(3, arena.duelActionBeacons.length)
+            : arena.duelActionBeacons.length;
+      arena.duelActionBeacons.forEach((entry, index) => {
+        if (!entry) {
+          return;
+        }
+        const root = entry.root || entry;
+        const visible = index < maxVisible;
+        if (root && typeof root.visible !== "undefined") {
+          root.visible = visible;
+        }
+        if (!visible) {
+          if (entry.beamSelf) {
+            entry.beamSelf.visible = false;
+          }
+          if (entry.beamOpp) {
+            entry.beamOpp.visible = false;
+          }
+          if (Array.isArray(arena.duelActionMeta) && arena.duelActionMeta[index]) {
+            arena.duelActionMeta[index].pulseBoost = 0;
+            arena.duelActionMeta[index].pulseDecay = 0;
+          }
+        }
+      });
+    }
     if (Array.isArray(arena.sentinelNodes)) {
       const maxVisible =
         state.ui.reducedMotion || nextProfile.key === "low"
@@ -1561,6 +1591,116 @@
       duelBands.push(band);
     }
 
+    const duelActionBeacons = [];
+    const duelActionMeta = [];
+    const duelActionKeys = ["strike", "guard", "charge"];
+    const duelActionLayout = [
+      { x: -1.82, y: 0.66, z: 2.1 },
+      { x: 0, y: 1.08, z: 2.44 },
+      { x: 1.82, y: 0.66, z: 2.1 }
+    ];
+    const duelActionPalette = {
+      strike: { core: 0xff6b88, ring: 0xff8ea6, beam: 0xff6f8c, hue: 350 },
+      guard: { core: 0x70ffad, ring: 0x98ffd0, beam: 0x72ffb0, hue: 146 },
+      charge: { core: 0x72d6ff, ring: 0xa5e8ff, beam: 0x7bcfff, hue: 204 }
+    };
+    const duelBeamGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 10, 1, true);
+    for (let i = 0; i < duelActionKeys.length; i += 1) {
+      const key = duelActionKeys[i];
+      const palette = duelActionPalette[key] || duelActionPalette.charge;
+      const layout = duelActionLayout[i] || duelActionLayout[0];
+
+      const root = new THREE.Group();
+      root.position.set(layout.x, layout.y, layout.z);
+      scene.add(root);
+
+      const core = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.19, 1),
+        new THREE.MeshStandardMaterial({
+          color: palette.core,
+          emissive: palette.core,
+          roughness: 0.22,
+          metalness: 0.74
+        })
+      );
+      root.add(core);
+
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.33, 0.014, 10, 60),
+        new THREE.MeshBasicMaterial({
+          color: palette.ring,
+          transparent: true,
+          opacity: 0.24,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      ring.rotation.x = Math.PI / 2;
+      root.add(ring);
+
+      const aura = new THREE.Mesh(
+        new THREE.SphereGeometry(0.36, 16, 16),
+        new THREE.MeshBasicMaterial({
+          color: palette.ring,
+          transparent: true,
+          opacity: 0.1,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      root.add(aura);
+
+      const beamSelf = new THREE.Mesh(
+        duelBeamGeo,
+        new THREE.MeshBasicMaterial({
+          color: palette.beam,
+          transparent: true,
+          opacity: 0.18,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      beamSelf.visible = false;
+      beamSelf.renderOrder = 2;
+      scene.add(beamSelf);
+
+      const beamOpp = new THREE.Mesh(
+        duelBeamGeo,
+        new THREE.MeshBasicMaterial({
+          color: palette.beam,
+          transparent: true,
+          opacity: 0.14,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      beamOpp.visible = false;
+      beamOpp.renderOrder = 2;
+      scene.add(beamOpp);
+
+      duelActionBeacons.push({
+        key,
+        root,
+        core,
+        ring,
+        aura,
+        beamSelf,
+        beamOpp
+      });
+      duelActionMeta.push({
+        key,
+        hue: palette.hue,
+        baseX: layout.x,
+        baseY: layout.y,
+        baseZ: layout.z,
+        pulse: 0.86 + Math.random() * 1.2,
+        drift: Math.random() * Math.PI * 2,
+        sway: 0.07 + Math.random() * 0.1,
+        spin: 0.44 + Math.random() * 0.62,
+        pulseBoost: 0,
+        pulseDecay: 0
+      });
+    }
+
     const sentinelNodes = [];
     const sentinelMeta = [];
     const sentinelCount = 6;
@@ -1802,6 +1942,8 @@
       duelBridgeSegments,
       duelBridgeMeta,
       duelBands,
+      duelActionBeacons,
+      duelActionMeta,
       sentinelNodes,
       sentinelMeta,
       stormRibbons,
@@ -2662,6 +2804,37 @@
     return clean ? clean.toUpperCase() : "ACTION";
   }
 
+  function getPvpTickSnapshot() {
+    const meta = state?.v3?.pvpTickMeta;
+    if (!meta || typeof meta !== "object") {
+      return {};
+    }
+    if (meta.tick && typeof meta.tick === "object") {
+      return meta.tick;
+    }
+    return meta;
+  }
+
+  function normalizePvpActionKey(value) {
+    const clean = String(value || "").toLowerCase();
+    if (clean === "strike" || clean === "guard" || clean === "charge") {
+      return clean;
+    }
+    return "";
+  }
+
+  function resolveExpectedPvpAction(tickSnapshot = getPvpTickSnapshot()) {
+    return normalizePvpActionKey(
+      tickSnapshot?.expected_action || state?.v3?.pvpSession?.next_expected_action || state?.sim?.expected || ""
+    );
+  }
+
+  function resolveLastPvpAction(tickSnapshot = getPvpTickSnapshot()) {
+    return normalizePvpActionKey(
+      state?.v3?.pvpLastAction || tickSnapshot?.last_action || tickSnapshot?.latest_action || ""
+    );
+  }
+
   function actionToneForInput(value) {
     const clean = String(value || "").toLowerCase();
     if (clean === "strike") return "aggressive";
@@ -2669,6 +2842,25 @@
     if (clean === "charge") return "balanced";
     if (clean === "resolve") return "reveal";
     return "info";
+  }
+
+  function alignBeamToPoints(beam, start, end, width = 1, opacity = 0.18) {
+    if (!beam || !start || !end) {
+      return;
+    }
+    const source = new THREE.Vector3(asNum(start.x), asNum(start.y), asNum(start.z));
+    const target = new THREE.Vector3(asNum(end.x), asNum(end.y), asNum(end.z));
+    const direction = new THREE.Vector3().copy(target).sub(source);
+    const length = Math.max(0.001, direction.length());
+    const midpoint = new THREE.Vector3().copy(source).add(target).multiplyScalar(0.5);
+    const up = new THREE.Vector3(0, 1, 0);
+    beam.position.copy(midpoint);
+    beam.quaternion.setFromUnitVectors(up, direction.normalize());
+    beam.scale.set(Math.max(0.001, asNum(width || 1)), length, Math.max(0.001, asNum(width || 1)));
+    if (beam.material) {
+      beam.material.opacity = clamp(asNum(opacity), 0, 1);
+    }
+    beam.visible = true;
   }
 
   function pvpReplayTone(inputAction, accepted = true) {
@@ -6101,6 +6293,101 @@
         }
       );
     }
+    if (Array.isArray(state.arena.duelActionBeacons) && Array.isArray(state.arena.duelActionMeta)) {
+      const tickSnapshot = getPvpTickSnapshot();
+      const pulseAction = normalizePvpActionKey(action);
+      const expectedAction = resolveExpectedPvpAction(tickSnapshot);
+      const fallbackActionByTone = {
+        safe: "guard",
+        balanced: "charge",
+        aggressive: "strike",
+        reveal: expectedAction || "charge",
+        info: expectedAction || "guard"
+      };
+      const focusAction = pulseAction || expectedAction || fallbackActionByTone[pulseTone] || "";
+      state.arena.duelActionBeacons.forEach((entry, index) => {
+        const meta = state.arena.duelActionMeta[index];
+        if (!entry || !meta) {
+          return;
+        }
+        const root = entry.root || entry;
+        if (root && typeof root.visible !== "undefined" && !root.visible) {
+          return;
+        }
+        const key = String(entry.key || meta.key || "").toLowerCase();
+        const focusHit = key && key === focusAction;
+        const boost = focusHit ? (pulseTone === "aggressive" ? 1.16 : pulseTone === "reveal" ? 1.04 : 0.92) : 0.24;
+        meta.pulseBoost = Math.min(2.8, asNum(meta.pulseBoost || 0) + boost);
+        meta.pulseDecay = Math.min(2.2, asNum(meta.pulseDecay || 0) + (focusHit ? 0.44 : 0.12));
+        if (entry.core?.material?.color?.setHex) {
+          entry.core.material.color.setHex(focusHit ? color : 0x8ebaff);
+        }
+        if (entry.core?.material?.emissive?.setHex) {
+          entry.core.material.emissive.setHex(focusHit ? color : 0x224673);
+        }
+        if (entry.ring?.material) {
+          entry.ring.material.color.setHex(focusHit ? color : 0xa6c4ff);
+          entry.ring.material.opacity = Math.max(asNum(entry.ring.material.opacity || 0.2), focusHit ? 0.58 : 0.3);
+          gsap.to(entry.ring.material, {
+            opacity: focusHit ? 0.24 : 0.16,
+            duration: focusHit ? 0.48 : 0.36,
+            ease: "power2.out"
+          });
+        }
+        if (entry.aura?.material) {
+          entry.aura.material.color.setHex(focusHit ? color : 0x8cb6ff);
+          entry.aura.material.opacity = Math.max(asNum(entry.aura.material.opacity || 0.1), focusHit ? 0.32 : 0.2);
+          gsap.to(entry.aura.material, {
+            opacity: focusHit ? 0.14 : 0.08,
+            duration: focusHit ? 0.58 : 0.42,
+            ease: "power2.out"
+          });
+        }
+        if (entry.core?.scale) {
+          gsap.fromTo(
+            entry.core.scale,
+            { x: entry.core.scale.x, y: entry.core.scale.y, z: entry.core.scale.z },
+            {
+              x: entry.core.scale.x * (focusHit ? 1.26 : 1.12),
+              y: entry.core.scale.y * (focusHit ? 1.26 : 1.12),
+              z: entry.core.scale.z * (focusHit ? 1.26 : 1.12),
+              duration: focusHit ? 0.22 : 0.16,
+              yoyo: true,
+              repeat: 1,
+              ease: "power2.out"
+            }
+          );
+        }
+        if (focusHit && state.arena.duelCoreSelf && entry.beamSelf?.material) {
+          alignBeamToPoints(entry.beamSelf, root.position, state.arena.duelCoreSelf.position, 0.048, accepted ? 0.48 : 0.32);
+          entry.beamSelf.material.color.setHex(accepted ? color : 0xff4f6d);
+          gsap.to(entry.beamSelf.material, {
+            opacity: 0.14,
+            duration: 0.34,
+            ease: "power2.out",
+            onComplete: () => {
+              if (entry.beamSelf) {
+                entry.beamSelf.visible = false;
+              }
+            }
+          });
+        }
+        if (focusHit && state.arena.duelCoreOpp && entry.beamOpp?.material) {
+          alignBeamToPoints(entry.beamOpp, root.position, state.arena.duelCoreOpp.position, 0.042, accepted ? 0.36 : 0.26);
+          entry.beamOpp.material.color.setHex(accepted ? color : 0xff4f6d);
+          gsap.to(entry.beamOpp.material, {
+            opacity: 0.12,
+            duration: 0.3,
+            ease: "power2.out",
+            onComplete: () => {
+              if (entry.beamOpp) {
+                entry.beamOpp.visible = false;
+              }
+            }
+          });
+        }
+      });
+    }
     if (Array.isArray(state.arena.duelBridgeSegments)) {
       const bridgeFlash = pulseTone === "aggressive" ? 0xff6a8d : pulseTone === "reveal" ? 0xffcc80 : 0x84cbff;
       state.arena.duelBridgeSegments.forEach((segment, idx) => {
@@ -8942,10 +9229,26 @@
         }
       }
 
+      const pvpTickState = getPvpTickSnapshot();
+      const pvpExpectedAction = resolveExpectedPvpAction(pvpTickState);
+      const pvpLastAction = resolveLastPvpAction(pvpTickState);
+      const pvpLastActionAt = Math.max(
+        0,
+        asNum(state.v3?.pvpLastActionAt || pvpTickState.last_action_at || pvpTickState.latest_action_at || 0)
+      );
+      const pvpLastActionAgeMs = pvpLastActionAt > 0 ? Math.max(0, Date.now() - pvpLastActionAt) : Number.POSITIVE_INFINITY;
+      const pvpLastActionRecent = Number.isFinite(pvpLastActionAgeMs) && pvpLastActionAgeMs < 1400;
+
       if (Array.isArray(fallback.contractGlyphs) && Array.isArray(fallback.contractGlyphMeta)) {
         const glyphPressure = clamp(asNum(state.arena?.pvpPressure || 0) * 0.6 + heat * 0.4, 0, 1);
-        const expectedAction = String(state.v3?.pvpTickMeta?.tick?.expected_action || state.sim.expected || "none").toLowerCase();
-        const stanceBias = expectedAction === "strike" ? 0.26 : expectedAction === "charge" ? 0.18 : expectedAction === "guard" ? 0.08 : 0.14;
+        const stanceBias =
+          pvpExpectedAction === "strike"
+            ? 0.26
+            : pvpExpectedAction === "charge"
+              ? 0.18
+              : pvpExpectedAction === "guard"
+                ? 0.08
+                : 0.14;
         for (let i = 0; i < fallback.contractGlyphs.length; i += 1) {
           const glyph = fallback.contractGlyphs[i];
           const meta = fallback.contractGlyphMeta[i];
@@ -9067,6 +9370,113 @@
           if (band.material.color?.setHSL) {
             band.material.color.setHSL((212 + urgencyFactor * 48 + i * 5) / 360, 0.58, 0.58);
           }
+        }
+      }
+      if (Array.isArray(fallback.duelActionBeacons) && Array.isArray(fallback.duelActionMeta)) {
+        const lastActionWindowMs = state.ui.reducedMotion ? 900 : 1400;
+        const lastActionRatio =
+          pvpLastActionRecent && Number.isFinite(pvpLastActionAgeMs)
+            ? clamp(1 - pvpLastActionAgeMs / lastActionWindowMs, 0, 1)
+            : 0;
+        for (let i = 0; i < fallback.duelActionBeacons.length; i += 1) {
+          const entry = fallback.duelActionBeacons[i];
+          const meta = fallback.duelActionMeta[i];
+          if (!entry || !meta) {
+            continue;
+          }
+          const root = entry.root || entry;
+          const core = entry.core || null;
+          const ring = entry.ring || null;
+          const aura = entry.aura || null;
+          if (!root) {
+            continue;
+          }
+          if (typeof root.visible !== "undefined" && !root.visible) {
+            if (entry.beamSelf) entry.beamSelf.visible = false;
+            if (entry.beamOpp) entry.beamOpp.visible = false;
+            continue;
+          }
+
+          const key = String(entry.key || meta.key || "").toLowerCase();
+          const expectedBoost = key && key === pvpExpectedAction ? 1 : 0;
+          const recentBoost = key && key === pvpLastAction ? lastActionRatio : 0;
+          const pulseBoost = clamp(asNum(meta.pulseBoost || 0), 0, 2.8);
+          const pulseDecay = clamp(asNum(meta.pulseDecay || 0), 0, 2.2);
+          const energy = clamp(
+            expectedBoost * 0.72 +
+              recentBoost * 0.96 +
+              pulseBoost * 0.74 +
+              pulseDecay * 0.32 +
+              pvpPressure * 0.2 +
+              urgencyFactor * 0.18,
+            0,
+            2.8
+          );
+          const orbit = Math.sin(t * (0.38 + meta.sway * 0.7) + meta.drift) * (state.ui.reducedMotion ? 0.02 : meta.sway * 0.38);
+          const depth = Math.cos(t * (0.3 + meta.sway * 0.42) + meta.drift) * (state.ui.reducedMotion ? 0.03 : 0.14);
+          const hover = Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.012 : 0.08 + energy * 0.03);
+          root.position.x = meta.baseX + orbit;
+          root.position.y = meta.baseY + hover + expectedBoost * 0.04;
+          root.position.z = meta.baseZ + depth;
+          root.rotation.y += dt * (meta.spin + 0.46 + energy * 0.72);
+          root.rotation.x = Math.sin(t * (0.56 + meta.sway * 0.2) + meta.drift) * (state.ui.reducedMotion ? 0.05 : 0.2);
+          const rootScale = 0.9 + energy * 0.14 + expectedBoost * 0.1;
+          root.scale.setScalar(rootScale);
+
+          if (core?.material?.emissive?.setHSL) {
+            core.material.emissive.setHSL((meta.hue + momentumDelta * 18) / 360, 0.72, 0.14 + energy * 0.18 + recentBoost * 0.16);
+          }
+          if (core?.material?.color?.setHSL) {
+            core.material.color.setHSL((meta.hue + 8 + urgencyFactor * 22) / 360, 0.76, 0.62 - pvpPressure * 0.08);
+          }
+          if (core?.scale) {
+            const coreScale = 0.9 + energy * 0.2;
+            core.scale.setScalar(coreScale);
+          }
+          if (ring?.material) {
+            ring.rotation.z += dt * (0.86 + energy * 0.94);
+            ring.rotation.x += dt * 0.22;
+            ring.scale.setScalar(1 + energy * 0.16);
+            const ringOpacity = clamp(0.12 + energy * 0.2 + expectedBoost * 0.12, 0.1, 0.92);
+            ring.material.opacity += (ringOpacity - asNum(ring.material.opacity || 0.2)) * 0.1;
+            if (ring.material.color?.setHSL) {
+              ring.material.color.setHSL((meta.hue + 14 + urgencyFactor * 26) / 360, 0.82, 0.68);
+            }
+          }
+          if (aura?.material) {
+            const auraScale = 1.04 + energy * (state.ui.reducedMotion ? 0.08 : 0.24);
+            aura.scale.setScalar(auraScale);
+            const auraOpacity = clamp(0.06 + energy * 0.16 + recentBoost * 0.12, 0.04, 0.52);
+            aura.material.opacity += (auraOpacity - asNum(aura.material.opacity || 0.1)) * 0.1;
+            if (aura.material.color?.setHSL) {
+              aura.material.color.setHSL((meta.hue + 24 + momentumDelta * 16) / 360, 0.74, 0.62);
+            }
+          }
+
+          const showBeam = !state.ui.reducedMotion && (energy >= 0.28 || expectedBoost > 0 || recentBoost > 0);
+          if (showBeam && fallback.duelCoreSelf && entry.beamSelf?.material) {
+            const beamWidth = clamp(0.02 + energy * 0.026, 0.02, 0.08);
+            const beamOpacity = clamp(0.08 + energy * 0.22 + expectedBoost * 0.12, 0.08, 0.82);
+            alignBeamToPoints(entry.beamSelf, root.position, fallback.duelCoreSelf.position, beamWidth, beamOpacity);
+            if (entry.beamSelf.material.color?.setHSL) {
+              entry.beamSelf.material.color.setHSL((meta.hue + 8) / 360, 0.8, 0.62);
+            }
+          } else if (entry.beamSelf) {
+            entry.beamSelf.visible = false;
+          }
+          if (showBeam && fallback.duelCoreOpp && entry.beamOpp?.material) {
+            const beamWidth = clamp(0.018 + energy * 0.022, 0.018, 0.074);
+            const beamOpacity = clamp(0.06 + energy * 0.18 + recentBoost * 0.16, 0.06, 0.72);
+            alignBeamToPoints(entry.beamOpp, root.position, fallback.duelCoreOpp.position, beamWidth, beamOpacity);
+            if (entry.beamOpp.material.color?.setHSL) {
+              entry.beamOpp.material.color.setHSL((meta.hue - 8) / 360, 0.78, 0.58);
+            }
+          } else if (entry.beamOpp) {
+            entry.beamOpp.visible = false;
+          }
+
+          meta.pulseBoost = Math.max(0, pulseBoost - dt * (state.ui.reducedMotion ? 1.5 : 1.22));
+          meta.pulseDecay = Math.max(0, pulseDecay - dt * (state.ui.reducedMotion ? 1.1 : 0.88));
         }
       }
       if (Array.isArray(fallback.sentinelNodes) && Array.isArray(fallback.sentinelMeta)) {
@@ -9492,6 +9902,8 @@
       duelBridgeSegments: fallback.duelBridgeSegments,
       duelBridgeMeta: fallback.duelBridgeMeta,
       duelBands: fallback.duelBands,
+      duelActionBeacons: fallback.duelActionBeacons,
+      duelActionMeta: fallback.duelActionMeta,
       sentinelNodes: fallback.sentinelNodes,
       sentinelMeta: fallback.sentinelMeta,
       stormRibbons: fallback.stormRibbons,
