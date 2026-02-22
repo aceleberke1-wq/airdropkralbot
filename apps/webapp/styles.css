@@ -514,17 +514,115 @@ body.pulse-reveal .telemetryDeck {
 }
 
 .combatCell {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(162, 186, 255, 0.2);
   border-radius: 12px;
   padding: 10px;
   background: rgba(7, 12, 30, 0.52);
   display: grid;
   gap: 6px;
+  --combat-cell-ratio: 0;
+  --combat-cell-pressure: 0;
+  --combat-cell-intensity: 0;
+  transition: border-color 160ms ease, box-shadow 180ms ease, background 180ms ease, transform 160ms ease;
+}
+
+.combatCell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(140px 60px at 12% 100%, rgba(127, 214, 255, calc(0.04 + var(--combat-cell-intensity) * 0.12)), transparent 70%),
+    radial-gradient(160px 80px at 100% 0%, rgba(61, 248, 194, calc(0.03 + var(--combat-cell-ratio) * 0.12)), transparent 72%);
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.combatCell::after {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 38%,
+    rgba(255, 255, 255, calc(0.03 + var(--combat-cell-intensity) * 0.05)) 49%,
+    transparent 62%,
+    transparent 100%
+  );
+  transform: translate3d(-10%, 0, 0);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+body:not(.reduced-motion) .combatCell[data-active="1"]::after {
+  animation: combatCellSweep 2100ms linear infinite;
+}
+
+.combatCell[data-tone="safe"] {
+  border-color: rgba(112, 255, 160, 0.28);
+  box-shadow: inset 0 0 18px rgba(112, 255, 160, 0.05);
+}
+
+.combatCell[data-tone="balanced"] {
+  border-color: rgba(127, 214, 255, 0.3);
+  box-shadow: inset 0 0 18px rgba(127, 214, 255, 0.06);
+}
+
+.combatCell[data-tone="aggressive"] {
+  border-color: rgba(255, 184, 92, 0.34);
+  box-shadow: inset 0 0 20px rgba(255, 184, 92, 0.08), 0 0 16px rgba(255, 184, 92, 0.06);
+}
+
+.combatCell[data-tone="critical"] {
+  border-color: rgba(255, 93, 125, 0.42);
+  box-shadow: inset 0 0 24px rgba(255, 93, 125, 0.1), 0 0 20px rgba(255, 93, 125, 0.1);
+}
+
+body:not(.reduced-motion) .combatCell[data-tone="critical"][data-active="1"] {
+  animation: combatCellCriticalPulse 980ms ease-in-out infinite;
+}
+
+body:not(.reduced-motion) .combatCell[data-flash="1"] {
+  animation: combatCellFlash 360ms ease-out;
+}
+
+.combatCell .label,
+.combatCell .value,
+.combatCell .micro {
+  position: relative;
+  z-index: 1;
+}
+
+.combatCell .meter {
+  position: relative;
+  z-index: 1;
 }
 
 .combatCell .value {
   font-size: 13px;
   font-weight: 700;
+}
+
+#comboHeatLine[data-tone="safe"],
+#windowPressureLine[data-tone="safe"] {
+  color: #b8ffd8;
+}
+
+#comboHeatLine[data-tone="balanced"],
+#windowPressureLine[data-tone="balanced"] {
+  color: #cbe7ff;
+}
+
+#comboHeatLine[data-tone="aggressive"],
+#windowPressureLine[data-tone="aggressive"] {
+  color: #ffd9a6;
+}
+
+#comboHeatLine[data-tone="critical"],
+#windowPressureLine[data-tone="critical"] {
+  color: #ffb7c7;
 }
 
 .combatDirectorStrip {
@@ -2139,7 +2237,12 @@ body:not(.reduced-motion) .pvpActionPulseStrip[data-tone="critical"] {
   gap: 10px;
   padding: 10px;
   box-shadow: inset 0 1px 0 rgba(186, 207, 255, 0.06);
-  transition: border-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+  transition: border-color 180ms ease, box-shadow 220ms ease, transform 220ms ease, background 220ms ease;
+  --combat-panel-queue: 0;
+  --combat-panel-pressure: 0;
+  --combat-panel-boss: 0;
+  --combat-panel-sync: 0.5;
+  --combat-panel-overdrive: 0;
 }
 
 .combatHudPanel.pressure-low {
@@ -2161,6 +2264,17 @@ body:not(.reduced-motion) .pvpActionPulseStrip[data-tone="critical"] {
   border-color: rgba(255, 93, 125, 0.62);
   box-shadow: inset 0 1px 0 rgba(255, 93, 125, 0.2), 0 0 0 1px rgba(255, 93, 125, 0.16), 0 0 24px rgba(255, 93, 125, 0.24);
   animation: combatPressurePulse 1.2s ease-in-out infinite;
+}
+
+.combatHudPanel[data-overdrive="critical"] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 93, 125, 0.18),
+    0 0 0 1px rgba(255, 93, 125, 0.14),
+    0 0 calc(14px + var(--combat-panel-overdrive) * 22px) rgba(255, 93, 125, 0.18);
+}
+
+.combatHudPanel[data-matrix="critical"][data-latest-accepted="0"] .combatHudCell {
+  border-color: rgba(255, 96, 129, 0.34);
 }
 
 .combatHudCell {
@@ -2498,7 +2612,8 @@ body:not(.reduced-motion) .combatAlertChip.critical {
 .timelineNode {
   border: 1px solid rgba(162, 186, 255, 0.24);
   border-radius: 10px;
-  background: rgba(6, 12, 29, 0.84);
+  background:
+    linear-gradient(180deg, rgba(7, 13, 30, 0.92), rgba(5, 10, 24, 0.86));
   color: rgba(214, 228, 255, 0.9);
   font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
@@ -2506,7 +2621,32 @@ body:not(.reduced-motion) .combatAlertChip.critical {
   text-transform: uppercase;
   text-align: center;
   padding: 6px 4px;
-  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease, background 160ms ease;
+  position: relative;
+  overflow: hidden;
+  --node-heat: 0;
+  --node-stack: 0;
+  --node-glow-alpha: 0.2;
+}
+
+.timelineNode::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80px 30px at 10% 100%, rgba(127, 214, 255, calc(0.05 + var(--node-heat) * 0.08)), transparent 72%),
+    radial-gradient(90px 36px at 100% 0%, rgba(61, 248, 194, calc(0.03 + var(--node-heat) * 0.06)), transparent 74%);
+  pointer-events: none;
+}
+
+.timelineNode::after {
+  content: "";
+  position: absolute;
+  inset: -30% -40%;
+  background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, 0.08) 50%, transparent 62%);
+  opacity: 0;
+  transform: translate3d(-30%, 0, 0);
+  pointer-events: none;
 }
 
 .timelineNode.recent {
@@ -2516,7 +2656,12 @@ body:not(.reduced-motion) .combatAlertChip.critical {
 .timelineNode.expected {
   border-color: rgba(255, 184, 92, 0.62);
   color: #ffe0ba;
-  box-shadow: 0 0 14px rgba(255, 184, 92, 0.22);
+  box-shadow: 0 0 14px rgba(255, 184, 92, calc(0.18 + var(--node-glow-alpha)));
+}
+
+body:not(.reduced-motion) .timelineNode.expected::after {
+  opacity: 0.95;
+  animation: timelineExpectedSweep 1150ms linear infinite;
 }
 
 .timelineNode.active {
@@ -2533,6 +2678,27 @@ body:not(.reduced-motion) .combatAlertChip.critical {
   border-color: rgba(255, 86, 121, 0.68);
   color: #ffd1dc;
   box-shadow: 0 0 18px rgba(255, 86, 121, 0.28);
+}
+
+.timelineNode[data-flow="reject"] {
+  background: linear-gradient(180deg, rgba(26, 7, 18, 0.9), rgba(12, 7, 20, 0.88));
+}
+
+.timelineNode[data-flow="resolve"] {
+  background: linear-gradient(180deg, rgba(8, 22, 19, 0.86), rgba(6, 12, 28, 0.84));
+}
+
+.timelineNode[data-weight="high"],
+.timelineNode[data-weight="critical"] {
+  transform: translateY(-0.5px);
+}
+
+.timelineNode[data-weight="critical"] {
+  box-shadow: 0 0 16px rgba(255, 93, 125, calc(0.14 + var(--node-glow-alpha) * 0.8));
+}
+
+body:not(.reduced-motion) .timelineNode[data-flow="reject"] {
+  animation: timelineRejectPulse 780ms ease-in-out 2;
 }
 
 .timelineNode.flash {
@@ -3183,6 +3349,40 @@ body[data-scene-mood="critical"] .meter > span {
   }
 }
 
+@keyframes combatCellSweep {
+  0% {
+    transform: translate3d(-24%, 0, 0);
+  }
+  100% {
+    transform: translate3d(24%, 0, 0);
+  }
+}
+
+@keyframes combatCellFlash {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(127, 214, 255, 0);
+  }
+  45% {
+    transform: translateY(-1px) scale(1.006);
+    box-shadow: 0 0 24px rgba(127, 214, 255, 0.16);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(127, 214, 255, 0);
+  }
+}
+
+@keyframes combatCellCriticalPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 20px rgba(255, 93, 125, 0.08), 0 0 14px rgba(255, 93, 125, 0.06);
+  }
+  50% {
+    box-shadow: inset 0 0 28px rgba(255, 93, 125, 0.14), 0 0 24px rgba(255, 93, 125, 0.16);
+  }
+}
+
 @keyframes trailChipEnter {
   0% {
     opacity: 0;
@@ -3213,6 +3413,27 @@ body[data-scene-mood="critical"] .meter > span {
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes timelineExpectedSweep {
+  0% {
+    transform: translate3d(-34%, 0, 0);
+  }
+  100% {
+    transform: translate3d(34%, 0, 0);
+  }
+}
+
+@keyframes timelineRejectPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(255, 86, 121, 0.18);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(255, 86, 121, 0.32);
+    transform: translateY(-1px);
   }
 }
 

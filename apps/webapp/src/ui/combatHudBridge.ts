@@ -28,6 +28,9 @@ type CombatHudPayload = {
   timelineMeterPct: number;
   timelineHintText: string;
   timelinePalette: string;
+  queuePressurePct: number;
+  pressureRatioPct: number;
+  syncDelta: number;
   expectedAction: string;
   latestAction: string;
   latestAccepted: boolean;
@@ -221,6 +224,18 @@ function render(payload: CombatHudPayload): boolean {
   panelRoot.classList.add(payload.pressureClass || "pressure-low");
   panelRoot.dataset.urgency = String(payload.urgency || "steady");
   panelRoot.dataset.recommendation = String(payload.recommendation || "balanced").toLowerCase();
+  panelRoot.dataset.overdrive = String(payload.overdriveTone || "steady");
+  panelRoot.dataset.matrix = String(payload.matrixTone || "steady");
+  panelRoot.dataset.expectedAction = String(payload.expectedAction || "auto");
+  panelRoot.dataset.latestAccepted = payload.latestAccepted === false ? "0" : "1";
+  panelRoot.style.setProperty("--combat-panel-queue", (clamp(asNum(payload.queuePressurePct) / 100, 0, 1)).toFixed(3));
+  panelRoot.style.setProperty("--combat-panel-pressure", (clamp(asNum(payload.pressureRatioPct) / 100, 0, 1)).toFixed(3));
+  panelRoot.style.setProperty("--combat-panel-boss", (clamp(asNum(payload.bossMeterPct) / 100, 0, 1)).toFixed(3));
+  panelRoot.style.setProperty("--combat-panel-sync", clamp((asNum(payload.syncDelta) + 100) / 200, 0, 1).toFixed(3));
+  panelRoot.style.setProperty(
+    "--combat-panel-overdrive",
+    clamp((asNum(payload.overdrivePvpPct) / 100) * 0.7 + (asNum(payload.overdriveImpulsePct) / 100) * 0.3, 0, 1).toFixed(3)
+  );
 
   chainLine.textContent = String(payload.chainLineText || "CHAIN IDLE");
   chainTrail.innerHTML = "";
@@ -357,6 +372,37 @@ function render(payload: CombatHudPayload): boolean {
     if (count > 0) {
       node.classList.add("recent");
     }
+    const nodeHeat = clamp(
+      (count / 6) * 0.62 +
+        (payload.expectedAction === actionKey ? 0.2 : 0) +
+        (payload.latestAction === actionKey ? 0.24 : 0) +
+        (payload.latestAction === actionKey && payload.latestAccepted === false ? 0.18 : 0),
+      0,
+      1
+    );
+    node.dataset.weight = nodeHeat >= 0.78 ? "critical" : nodeHeat >= 0.52 ? "high" : nodeHeat >= 0.24 ? "mid" : "low";
+    node.dataset.flow =
+      payload.latestAction === actionKey
+        ? payload.latestAccepted === false
+          ? "reject"
+          : "resolve"
+        : payload.expectedAction === actionKey
+          ? "expected"
+          : count > 0
+            ? "recent"
+            : "idle";
+    node.style.setProperty("--node-heat", nodeHeat.toFixed(3));
+    node.style.setProperty("--node-stack", String(count));
+    node.style.setProperty(
+      "--node-glow-alpha",
+      (
+        payload.latestAction === actionKey && payload.latestAccepted === false
+          ? 0.42
+          : payload.expectedAction === actionKey
+            ? 0.34
+            : 0.18 + nodeHeat * 0.18
+      ).toFixed(3)
+    );
     if (payload.expectedAction === actionKey) {
       node.classList.add("expected");
     }

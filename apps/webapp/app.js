@@ -3537,12 +3537,15 @@
           timelineBadgeText: bridgeTimelineBadgeText,
           timelineBadgeWarn: bridgeTimelineWarn,
           timelineMeterPct: Math.round(bridgeTimelineRatio * 100),
-          timelineHintText: bridgeTimelineHint,
-          timelinePalette: bridgeTimelinePalette,
-          expectedAction,
-          latestAction,
-          latestAccepted,
-          actionCounts,
+           timelineHintText: bridgeTimelineHint,
+           timelinePalette: bridgeTimelinePalette,
+           queuePressurePct: bridgeQueuePct,
+           pressureRatioPct: bridgePressurePct,
+           syncDelta,
+           expectedAction,
+           latestAction,
+           latestAccepted,
+           actionCounts,
           fluxLineText: `SELF ${Math.round(selfMomentum * 100)} | OPP ${Math.round(oppMomentum * 100)} | ${syncState}`,
           fluxHintText: bridgeFluxHintText,
           fluxTone: urgency,
@@ -3616,6 +3619,15 @@
       panelRoot.classList.add(pressureClass);
       panelRoot.dataset.urgency = urgency;
       panelRoot.dataset.recommendation = recommendation.toLowerCase();
+      panelRoot.dataset.overdrive = overdriveTone;
+      panelRoot.dataset.matrix = matrixTone;
+      panelRoot.dataset.expectedAction = expectedAction || "auto";
+      panelRoot.dataset.latestAccepted = latestAccepted ? "1" : "0";
+      panelRoot.style.setProperty("--combat-panel-queue", queuePressure.toFixed(3));
+      panelRoot.style.setProperty("--combat-panel-pressure", pressureRatio.toFixed(3));
+      panelRoot.style.setProperty("--combat-panel-boss", bossPressure.toFixed(3));
+      panelRoot.style.setProperty("--combat-panel-sync", clamp((syncDelta + 100) / 200, 0, 1).toFixed(3));
+      panelRoot.style.setProperty("--combat-panel-overdrive", clamp(pvpPressureRatio * 0.7 + impulseRatio * 0.3, 0, 1).toFixed(3));
     }
     if (chainLine) {
       const last = chain[0];
@@ -3891,9 +3903,35 @@
         return;
       }
       node.classList.remove("expected", "active", "success", "reject", "recent", "flash");
-      if (actionCounts[actionKey] > 0) {
+      const count = actionCounts[actionKey] || 0;
+      if (count > 0) {
         node.classList.add("recent");
       }
+      const nodeHeat = clamp(
+        count / Math.max(1, COMBAT_CHAIN_LIMIT) * 0.62 +
+          (expectedAction === actionKey ? 0.2 : 0) +
+          (latestAction === actionKey ? 0.24 : 0) +
+          (latestAction === actionKey && !latestAccepted ? 0.18 : 0),
+        0,
+        1
+      );
+      node.dataset.weight = nodeHeat >= 0.78 ? "critical" : nodeHeat >= 0.52 ? "high" : nodeHeat >= 0.24 ? "mid" : "low";
+      node.dataset.flow =
+        latestAction === actionKey
+          ? latestAccepted
+            ? "resolve"
+            : "reject"
+          : expectedAction === actionKey
+            ? "expected"
+            : count > 0
+              ? "recent"
+              : "idle";
+      node.style.setProperty("--node-heat", nodeHeat.toFixed(3));
+      node.style.setProperty("--node-stack", String(count));
+      node.style.setProperty(
+        "--node-glow-alpha",
+        (latestAction === actionKey && !latestAccepted ? 0.42 : expectedAction === actionKey ? 0.34 : 0.18 + nodeHeat * 0.18).toFixed(3)
+      );
       if (expectedAction === actionKey) {
         node.classList.add("expected");
       }
@@ -8373,6 +8411,9 @@
   function renderCombatHudStrip(data, heat, threat) {
     const safe = data && typeof data === "object" ? data : {};
     const session = state.v3.pvpSession || {};
+    const chain = Array.isArray(state.v3.combatChain) ? state.v3.combatChain : [];
+    const latestChain = chain[0] || null;
+    const latestRejected = Boolean(latestChain && latestChain.accepted === false);
     const simCombo = asNum(state.sim.combo || 0);
     const pvpCombo = asNum(session?.combo?.self || 0);
     const comboPeak = Math.max(simCombo, pvpCombo);
@@ -8383,6 +8424,70 @@
     const actionWindowMs = Math.max(1, asNum(state.v3.pvpActionWindowMs || 800));
     const windowRatio = clamp((actionWindowMs - latency) / actionWindowMs, 0, 1);
     const anomaly = clamp((threat * 0.68 + queuePressure * 0.22 + (1 - windowRatio) * 0.3), 0, 1);
+    const comboTone = comboHeat >= 0.8 ? "critical" : comboHeat >= 0.55 ? "aggressive" : comboHeat >= 0.28 ? "balanced" : "safe";
+    const windowTone =
+      windowRatio >= 0.78 ? "safe" : windowRatio >= 0.52 ? "balanced" : windowRatio >= 0.28 ? "aggressive" : "critical";
+    const anomalyToneKey =
+      anomaly >= 0.78 ? "critical" : anomaly >= 0.48 ? "aggressive" : anomaly >= 0.22 ? "balanced" : "safe";
+    const stripMem = state.v3.combatStripState || (state.v3.combatStripState = {});
+    const flashCell = (cell, flashKey, durationMs = 340) => {
+      if (!cell) {
+        return;
+      }
+      const safeKey = String(flashKey || "");
+      if (!safeKey || cell.dataset.flashKey === safeKey) {
+        return;
+      }
+      cell.dataset.flashKey = safeKey;
+      cell.dataset.flash = "1";
+      if (cell._flashTimer) {
+        clearTimeout(cell._flashTimer);
+      }
+      cell._flashTimer = setTimeout(() => {
+        if (cell.dataset.flashKey === safeKey) {
+          cell.dataset.flash = "0";
+        }
+        cell._flashTimer = null;
+      }, durationMs);
+    };
+    const applyStripCellState = (lineNode, meterNode, options = {}) => {
+      const lineEl = lineNode && lineNode.nodeType === 1 ? lineNode : null;
+      const meterEl = meterNode && meterNode.nodeType === 1 ? meterNode : null;
+      const cell = lineEl && typeof lineEl.closest === "function" ? lineEl.closest(".combatCell") : null;
+      if (!cell) {
+        return;
+      }
+      const toneKey = String(options.tone || "balanced").toLowerCase();
+      const ratio = clamp(asNum(options.ratio || 0), 0, 1);
+      const pressure = clamp(asNum(options.pressure || 0), 0, 1);
+      const level = ratio >= 0.82 ? "critical" : ratio >= 0.56 ? "high" : ratio >= 0.28 ? "mid" : "low";
+      cell.dataset.tone = toneKey;
+      cell.dataset.level = level;
+      cell.dataset.active = ratio > 0.06 ? "1" : "0";
+      cell.style.setProperty("--combat-cell-ratio", ratio.toFixed(3));
+      cell.style.setProperty("--combat-cell-pressure", pressure.toFixed(3));
+      cell.style.setProperty("--combat-cell-intensity", clamp(ratio * 0.7 + pressure * 0.3, 0, 1).toFixed(3));
+      if (lineEl) {
+        lineEl.dataset.tone = String(options.lineTone || toneKey).toLowerCase();
+      }
+      if (meterEl) {
+        setMeterPalette(meterEl, toneKey === "critical" ? "critical" : toneKey === "aggressive" ? "aggressive" : toneKey);
+      }
+      if (options.flashKey) {
+        flashCell(cell, options.flashKey, options.flashMs);
+      }
+    };
+    const comboEscalated =
+      (stripMem.comboTone === "safe" && comboTone !== "safe") ||
+      (stripMem.comboTone === "balanced" && (comboTone === "aggressive" || comboTone === "critical")) ||
+      (stripMem.comboTone === "aggressive" && comboTone === "critical");
+    const windowCollapsed =
+      (stripMem.windowTone === "safe" || stripMem.windowTone === "balanced") &&
+      (windowTone === "aggressive" || windowTone === "critical");
+    const anomalyEscalated =
+      (stripMem.anomalyTone === "safe" && anomalyToneKey !== "safe") ||
+      (stripMem.anomalyTone === "balanced" && (anomalyToneKey === "aggressive" || anomalyToneKey === "critical")) ||
+      (stripMem.anomalyTone === "aggressive" && anomalyToneKey === "critical");
 
     const comboLine = byId("comboHeatLine");
     if (comboLine) {
@@ -8392,6 +8497,12 @@
     if (comboMeter) {
       animateMeterWidth(comboMeter, comboHeat * 100, 0.28);
     }
+    applyStripCellState(comboLine, comboMeter, {
+      tone: comboTone,
+      ratio: comboHeat,
+      pressure: clamp(queuePressure * 0.35 + heat * 0.65, 0, 1),
+      flashKey: comboEscalated || comboHeat >= 0.9 ? `combo-${comboTone}-${Math.round(comboHeat * 100)}` : ""
+    });
 
     const windowLine = byId("windowPressureLine");
     if (windowLine) {
@@ -8401,6 +8512,13 @@
     if (windowMeter) {
       animateMeterWidth(windowMeter, windowRatio * 100, 0.3);
     }
+    applyStripCellState(windowLine, windowMeter, {
+      tone: windowTone,
+      ratio: clamp(1 - windowRatio, 0, 1),
+      pressure: clamp((latency / actionWindowMs) * 0.7 + queuePressure * 0.3, 0, 1),
+      flashKey: latestRejected || windowCollapsed ? `window-${windowTone}-${Math.round(windowRatio * 100)}` : "",
+      flashMs: latestRejected ? 420 : 320
+    });
 
     const anomalyLine = byId("anomalyPulseLine");
     if (anomalyLine) {
@@ -8412,6 +8530,18 @@
     if (anomalyMeter) {
       animateMeterWidth(anomalyMeter, anomaly * 100, 0.34);
     }
+    applyStripCellState(anomalyLine, anomalyMeter, {
+      tone: anomalyToneKey,
+      lineTone: anomaly >= 0.78 ? "critical" : anomaly >= 0.48 ? "volatile" : "stable",
+      ratio: anomaly,
+      pressure: clamp(threat * 0.55 + queuePressure * 0.25 + (1 - windowRatio) * 0.2, 0, 1),
+      flashKey: latestRejected || anomalyEscalated ? `anomaly-${anomalyToneKey}-${Math.round(anomaly * 100)}` : "",
+      flashMs: latestRejected ? 460 : 360
+    });
+    stripMem.comboTone = comboTone;
+    stripMem.windowTone = windowTone;
+    stripMem.anomalyTone = anomalyToneKey;
+    stripMem.latestRejected = latestRejected;
 
     if (anomaly >= 0.78) {
       pushCombatTicker("Anomali yuksek: SAFE cikis onerildi", "aggressive");
