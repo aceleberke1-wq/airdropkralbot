@@ -1816,6 +1816,61 @@ body:not(.reduced-motion) .pvpActionPulseStrip[data-tone="critical"] {
   color: rgba(255, 183, 196, 0.95);
 }
 
+.combatReactorCell {
+  grid-column: 1 / -1;
+  border-color: rgba(145, 214, 255, 0.3);
+  background: linear-gradient(154deg, rgba(7, 13, 33, 0.9), rgba(4, 9, 24, 0.82));
+}
+
+.matrixGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.matrixRow {
+  display: grid;
+  gap: 5px;
+}
+
+.matrixRow .micro {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(176, 216, 255, 0.86);
+}
+
+#combatMatrixLine {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.03em;
+}
+
+#combatMatrixLine[data-tone="critical"] {
+  color: rgba(255, 171, 189, 0.97);
+  text-shadow: 0 0 10px rgba(255, 88, 125, 0.34);
+}
+
+#combatMatrixLine[data-tone="pressure"] {
+  color: rgba(255, 214, 143, 0.96);
+}
+
+#combatMatrixLine[data-tone="advantage"] {
+  color: rgba(144, 245, 208, 0.95);
+}
+
+#combatMatrixHint[data-tone="critical"] {
+  color: rgba(255, 186, 200, 0.96);
+}
+
+#combatMatrixHint[data-tone="pressure"] {
+  color: rgba(255, 218, 154, 0.95);
+}
+
+body:not(.reduced-motion) .combatReactorCell[data-tone="critical"] {
+  animation: pvpActionAlert 980ms ease-in-out infinite;
+}
+
 body:not(.reduced-motion) .combatHudPanel[data-urgency="critical"] .combatOverdriveCell {
   animation: pvpActionAlert 1100ms ease-in-out infinite;
 }

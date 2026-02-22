@@ -746,6 +746,23 @@
         band.visible = index < maxVisible;
       });
     }
+    if (Array.isArray(arena.sentinelNodes)) {
+      const maxVisible =
+        state.ui.reducedMotion || nextProfile.key === "low"
+          ? Math.min(2, arena.sentinelNodes.length)
+          : nextProfile.key === "normal"
+            ? Math.min(4, arena.sentinelNodes.length)
+            : arena.sentinelNodes.length;
+      arena.sentinelNodes.forEach((entry, index) => {
+        if (!entry) {
+          return;
+        }
+        const root = entry.root || entry;
+        if (root && typeof root.visible !== "undefined") {
+          root.visible = index < maxVisible;
+        }
+      });
+    }
     if (Array.isArray(arena.stormRibbons)) {
       const maxVisible =
         state.ui.reducedMotion || nextProfile.key === "low"
@@ -1542,6 +1559,71 @@
       duelBands.push(band);
     }
 
+    const sentinelNodes = [];
+    const sentinelMeta = [];
+    const sentinelCount = 6;
+    for (let i = 0; i < sentinelCount; i += 1) {
+      const root = new THREE.Group();
+      const angle = (Math.PI * 2 * i) / sentinelCount;
+      const radius = 4.6 + (i % 2) * 0.82;
+      const baseY = -0.44 + (i % 3) * 0.16;
+
+      const coreNode = new THREE.Mesh(
+        new THREE.SphereGeometry(0.16, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x88cfff,
+          emissive: 0x14355f,
+          roughness: 0.24,
+          metalness: 0.74
+        })
+      );
+      root.add(coreNode);
+
+      const ringInner = new THREE.Mesh(
+        new THREE.TorusGeometry(0.28, 0.016, 10, 54),
+        new THREE.MeshBasicMaterial({
+          color: 0x8fd2ff,
+          transparent: true,
+          opacity: 0.24,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      ringInner.rotation.x = Math.PI / 2;
+      root.add(ringInner);
+
+      const ringOuter = new THREE.Mesh(
+        new THREE.TorusGeometry(0.38, 0.012, 10, 62),
+        new THREE.MeshBasicMaterial({
+          color: 0xff93b0,
+          transparent: true,
+          opacity: 0.18,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      ringOuter.rotation.y = Math.PI / 2;
+      root.add(ringOuter);
+
+      root.position.set(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius + 0.32);
+      root.rotation.set(0, -angle, 0);
+      scene.add(root);
+
+      sentinelNodes.push({
+        root,
+        core: coreNode,
+        ringInner,
+        ringOuter
+      });
+      sentinelMeta.push({
+        angle,
+        radius,
+        baseY,
+        spin: 0.42 + Math.random() * 0.5,
+        pulse: 0.75 + Math.random() * 1.3,
+        drift: Math.random() * Math.PI * 2,
+        sway: 0.08 + Math.random() * 0.12
+      });
+    }
+
     const stormRibbons = [];
     const stormRibbonMeta = [];
     for (let i = 0; i < 5; i += 1) {
@@ -1718,6 +1800,8 @@
       duelBridgeSegments,
       duelBridgeMeta,
       duelBands,
+      sentinelNodes,
+      sentinelMeta,
       stormRibbons,
       stormRibbonMeta,
       raidBeacons,
@@ -2841,6 +2925,14 @@
     const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
     const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
     const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
+    const matrixLine = byId("combatMatrixLine");
+    const matrixHint = byId("combatMatrixHint");
+    const matrixSyncMeter = byId("combatMatrixSyncMeter");
+    const matrixThermalMeter = byId("combatMatrixThermalMeter");
+    const matrixShieldMeter = byId("combatMatrixShieldMeter");
+    const matrixClutchMeter = byId("combatMatrixClutchMeter");
+    const matrixCell =
+      (matrixLine && typeof matrixLine.closest === "function" && matrixLine.closest(".combatReactorCell")) || null;
     const alertPrimaryChip = byId("combatAlertPrimaryChip");
     const alertSecondaryChip = byId("combatAlertSecondaryChip");
     const alertTertiaryChip = byId("combatAlertTertiaryChip");
@@ -2919,6 +3011,35 @@
       `PVP ${Math.round(pvpPressureRatio * 100)}% | CAM ${Math.round(impulseRatio * 100)}%`;
     const overdriveShiftedToCritical = state.ui.overdriveTone !== "critical" && overdriveTone === "critical";
     state.ui.overdriveTone = overdriveTone;
+    const matrixSyncRatio = clamp(1 - Math.abs(syncDelta) / 100, 0, 1);
+    const matrixThermalRatio = clamp(sceneHeatRatio * 0.62 + threatRatio * 0.24 + pvpPressureRatio * 0.14, 0, 1);
+    const matrixShieldBase = clamp(actionCounts.guard / Math.max(1, COMBAT_CHAIN_LIMIT), 0, 1);
+    const matrixShieldRatio = clamp(matrixShieldBase * 0.62 + (expectedAction === "guard" ? 0.22 : 0.06) + (latestAccepted ? 0.1 : -0.08), 0, 1);
+    const matrixClutchRatio = clamp(
+      (1 - clamp(raidTtlSec / raidTtlBase, 0, 1)) * 0.35 +
+        pvpPressureRatio * 0.27 +
+        (latestAccepted ? 0.16 : 0.34) +
+        (latestAction && latestAction === expectedAction ? 0.14 : 0),
+      0,
+      1
+    );
+    const matrixTone =
+      !latestAccepted || matrixClutchRatio >= 0.76
+        ? "critical"
+        : matrixThermalRatio >= 0.58 || pvpPressureRatio >= 0.54
+          ? "pressure"
+          : matrixShieldRatio >= 0.58 && matrixSyncRatio >= 0.52
+            ? "advantage"
+            : "steady";
+    const matrixLineText =
+      `SYNC ${Math.round(matrixSyncRatio * 100)}% | THERMAL ${Math.round(matrixThermalRatio * 100)}% | ` +
+      `SHIELD ${Math.round(matrixShieldRatio * 100)}% | CLUTCH ${Math.round(matrixClutchRatio * 100)}%`;
+    const matrixHintMap = {
+      critical: "Clutch penceresi kritik: once guard ile yuku dengele, sonra resolve zincirine gir.",
+      pressure: "Reaktor basinci yukseliyor: thermal yukunu dusurup queue driftini kapat.",
+      advantage: "Matriks lehine: sync+shield dengesi ile agresif finish penceresini ac.",
+      steady: "Stabil matris: expected aksiyonda kal, riski kademeli biriktir."
+    };
     const alertRows = [];
     if (latest && !latestAccepted) {
       alertRows.push({
@@ -3149,6 +3270,17 @@
           overdriveThreatPalette: threatRatio >= 0.66 ? "critical" : threatRatio >= 0.38 ? "aggressive" : "safe",
           overdrivePvpPalette: pvpPressureRatio >= 0.66 ? "critical" : pvpPressureRatio >= 0.36 ? "aggressive" : "balanced",
           overdriveImpulsePalette: impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe",
+          matrixLineText,
+          matrixHintText: matrixHintMap[matrixTone] || matrixHintMap.steady,
+          matrixTone,
+          matrixSyncPct: Math.round(matrixSyncRatio * 100),
+          matrixThermalPct: Math.round(matrixThermalRatio * 100),
+          matrixShieldPct: Math.round(matrixShieldRatio * 100),
+          matrixClutchPct: Math.round(matrixClutchRatio * 100),
+          matrixSyncPalette: matrixSyncRatio >= 0.64 ? "safe" : matrixSyncRatio >= 0.42 ? "balanced" : "critical",
+          matrixThermalPalette: matrixThermalRatio >= 0.72 ? "critical" : matrixThermalRatio >= 0.46 ? "aggressive" : "balanced",
+          matrixShieldPalette: matrixShieldRatio >= 0.62 ? "safe" : matrixShieldRatio >= 0.38 ? "balanced" : "critical",
+          matrixClutchPalette: matrixClutchRatio >= 0.76 ? "critical" : matrixClutchRatio >= 0.52 ? "aggressive" : "safe",
           alertPrimaryLabel: String(alertPrimary?.label || "STABLE FLOW"),
           alertPrimaryTone: String(alertPrimary?.tone || "safe"),
           alertSecondaryLabel: String(alertSecondary?.label || "QUEUE LOW"),
@@ -3389,6 +3521,33 @@
     if (overdriveImpulseMeter) {
       animateMeterWidth(overdriveImpulseMeter, impulseRatio * 100, 0.22);
       setMeterPalette(overdriveImpulseMeter, impulseRatio >= 0.62 ? "critical" : impulseRatio >= 0.34 ? "aggressive" : "safe");
+    }
+    if (matrixLine) {
+      matrixLine.textContent = matrixLineText;
+      matrixLine.dataset.tone = matrixTone;
+    }
+    if (matrixHint) {
+      matrixHint.textContent = matrixHintMap[matrixTone] || matrixHintMap.steady;
+      matrixHint.dataset.tone = matrixTone;
+    }
+    if (matrixCell) {
+      matrixCell.dataset.tone = matrixTone;
+    }
+    if (matrixSyncMeter) {
+      animateMeterWidth(matrixSyncMeter, matrixSyncRatio * 100, 0.22);
+      setMeterPalette(matrixSyncMeter, matrixSyncRatio >= 0.64 ? "safe" : matrixSyncRatio >= 0.42 ? "balanced" : "critical");
+    }
+    if (matrixThermalMeter) {
+      animateMeterWidth(matrixThermalMeter, matrixThermalRatio * 100, 0.22);
+      setMeterPalette(matrixThermalMeter, matrixThermalRatio >= 0.72 ? "critical" : matrixThermalRatio >= 0.46 ? "aggressive" : "balanced");
+    }
+    if (matrixShieldMeter) {
+      animateMeterWidth(matrixShieldMeter, matrixShieldRatio * 100, 0.22);
+      setMeterPalette(matrixShieldMeter, matrixShieldRatio >= 0.62 ? "safe" : matrixShieldRatio >= 0.38 ? "balanced" : "critical");
+    }
+    if (matrixClutchMeter) {
+      animateMeterWidth(matrixClutchMeter, matrixClutchRatio * 100, 0.22);
+      setMeterPalette(matrixClutchMeter, matrixClutchRatio >= 0.76 ? "critical" : matrixClutchRatio >= 0.52 ? "aggressive" : "safe");
     }
     const applyAlertChip = (node, label, toneKey) => {
       if (!node) {
@@ -5807,6 +5966,50 @@
           duration: 0.34,
           ease: "power2.out"
         });
+      });
+    }
+    if (Array.isArray(state.arena.sentinelNodes)) {
+      const sentinelFlash = pulseTone === "aggressive" ? 0xff7b98 : pulseTone === "reveal" ? 0xffd18a : pulseTone === "safe" ? 0x80ffc3 : 0x87d4ff;
+      state.arena.sentinelNodes.forEach((entry, index) => {
+        if (!entry) {
+          return;
+        }
+        const root = entry.root || entry;
+        const core = entry.core || null;
+        const ringInner = entry.ringInner || null;
+        const ringOuter = entry.ringOuter || null;
+        if (core?.material?.color?.setHex) {
+          core.material.color.setHex(sentinelFlash);
+        }
+        if (core?.material?.emissive?.setHex) {
+          core.material.emissive.setHex(sentinelFlash);
+        }
+        if (ringInner?.material) {
+          ringInner.material.color.setHex(sentinelFlash);
+          ringInner.material.opacity = Math.max(asNum(ringInner.material.opacity || 0.2), pulseTone === "aggressive" ? 0.5 : 0.38);
+          gsap.to(ringInner.material, { opacity: 0.2, duration: 0.34, ease: "power2.out", delay: index * 0.014 });
+        }
+        if (ringOuter?.material) {
+          ringOuter.material.color.setHex(sentinelFlash);
+          ringOuter.material.opacity = Math.max(asNum(ringOuter.material.opacity || 0.16), pulseTone === "aggressive" ? 0.36 : 0.26);
+          gsap.to(ringOuter.material, { opacity: 0.16, duration: 0.36, ease: "power2.out", delay: index * 0.014 });
+        }
+        if (root?.scale) {
+          gsap.fromTo(
+            root.scale,
+            { x: root.scale.x, y: root.scale.y, z: root.scale.z },
+            {
+              x: root.scale.x * 1.16,
+              y: root.scale.y * 1.16,
+              z: root.scale.z * 1.16,
+              duration: 0.18,
+              yoyo: true,
+              repeat: 1,
+              ease: "power2.out",
+              delay: index * 0.012
+            }
+          );
+        }
       });
     }
     if (Array.isArray(state.arena.stormRibbons)) {
@@ -8717,6 +8920,54 @@
           }
         }
       }
+      if (Array.isArray(fallback.sentinelNodes) && Array.isArray(fallback.sentinelMeta)) {
+        for (let i = 0; i < fallback.sentinelNodes.length; i += 1) {
+          const entry = fallback.sentinelNodes[i];
+          const meta = fallback.sentinelMeta[i];
+          if (!entry || !meta) {
+            continue;
+          }
+          const root = entry.root || entry;
+          const core = entry.core || null;
+          const ringInner = entry.ringInner || null;
+          const ringOuter = entry.ringOuter || null;
+          if (!root) {
+            continue;
+          }
+          const orbit = meta.angle + Math.sin(t * (0.22 + meta.spin * 0.08) + meta.drift) * 0.08;
+          const sway = Math.sin(t * meta.pulse + meta.drift) * (state.ui.reducedMotion ? 0.016 : meta.sway * 0.62);
+          const orbitRadius = meta.radius + pvpPressure * 0.24 + urgencyFactor * 0.2;
+          root.position.x = Math.cos(orbit) * orbitRadius;
+          root.position.z = Math.sin(orbit) * orbitRadius + 0.32;
+          root.position.y = meta.baseY + sway;
+          root.rotation.y += dt * (meta.spin + urgencyFactor * 0.42);
+          const rootScale = 0.92 + pvpPressure * 0.22 + Math.abs(momentumDelta) * 0.16;
+          root.scale.setScalar(rootScale);
+          const syncStability = clamp(1 - Math.abs(momentumDelta), 0, 1);
+          if (core?.material?.emissive?.setHSL) {
+            core.material.emissive.setHSL((hue + i * 13 + momentumDelta * 18) / 360, 0.68, 0.14 + pvpPressure * 0.24 + threat * 0.1);
+          }
+          if (core?.material?.color?.setHSL) {
+            core.material.color.setHSL((hue + 6 + i * 8) / 360, 0.72, 0.56 - pvpPressure * 0.08);
+          }
+          if (ringInner?.material) {
+            ringInner.rotation.z += dt * (0.8 + urgencyFactor * 0.9);
+            const innerOpacity = clamp(0.14 + pvpPressure * 0.18 + threat * 0.1, 0.1, 0.66);
+            ringInner.material.opacity += (innerOpacity - asNum(ringInner.material.opacity || 0.22)) * 0.1;
+            if (ringInner.material.color?.setHSL) {
+              ringInner.material.color.setHSL((hue + 24 + i * 7) / 360, 0.74, 0.62);
+            }
+          }
+          if (ringOuter?.material) {
+            ringOuter.rotation.x += dt * (0.62 + urgencyFactor * 0.74);
+            const outerOpacity = clamp(0.1 + pvpPressure * 0.14 + (1 - syncStability) * 0.2, 0.08, 0.54);
+            ringOuter.material.opacity += (outerOpacity - asNum(ringOuter.material.opacity || 0.16)) * 0.1;
+            if (ringOuter.material.color?.setHSL) {
+              ringOuter.material.color.setHSL((hue + 338 + i * 5) / 360, 0.72, 0.62);
+            }
+          }
+        }
+      }
 
       if (Array.isArray(fallback.stormRibbons) && Array.isArray(fallback.stormRibbonMeta)) {
         for (let i = 0; i < fallback.stormRibbons.length; i += 1) {
@@ -9092,6 +9343,8 @@
       duelBridgeSegments: fallback.duelBridgeSegments,
       duelBridgeMeta: fallback.duelBridgeMeta,
       duelBands: fallback.duelBands,
+      sentinelNodes: fallback.sentinelNodes,
+      sentinelMeta: fallback.sentinelMeta,
       stormRibbons: fallback.stormRibbons,
       stormRibbonMeta: fallback.stormRibbonMeta,
       raidBeacons: fallback.raidBeacons,

@@ -65,6 +65,17 @@ type CombatHudPayload = {
   overdriveThreatPalette: string;
   overdrivePvpPalette: string;
   overdriveImpulsePalette: string;
+  matrixLineText: string;
+  matrixHintText: string;
+  matrixTone: string;
+  matrixSyncPct: number;
+  matrixThermalPct: number;
+  matrixShieldPct: number;
+  matrixClutchPct: number;
+  matrixSyncPalette: string;
+  matrixThermalPalette: string;
+  matrixShieldPalette: string;
+  matrixClutchPalette: string;
   alertPrimaryLabel: string;
   alertPrimaryTone: string;
   alertSecondaryLabel: string;
@@ -190,6 +201,13 @@ function render(payload: CombatHudPayload): boolean {
   const overdriveThreatMeter = byId("combatOverdriveThreatMeter");
   const overdrivePvpMeter = byId("combatOverdrivePvpMeter");
   const overdriveImpulseMeter = byId("combatOverdriveImpulseMeter");
+  const matrixLine = byId("combatMatrixLine");
+  const matrixHint = byId("combatMatrixHint");
+  const matrixSyncMeter = byId("combatMatrixSyncMeter");
+  const matrixThermalMeter = byId("combatMatrixThermalMeter");
+  const matrixShieldMeter = byId("combatMatrixShieldMeter");
+  const matrixClutchMeter = byId("combatMatrixClutchMeter");
+  const matrixCell = matrixLine?.closest(".combatReactorCell") as HTMLElement | null;
   const alertPrimaryChip = byId("combatAlertPrimaryChip");
   const alertSecondaryChip = byId("combatAlertSecondaryChip");
   const alertTertiaryChip = byId("combatAlertTertiaryChip");
@@ -282,6 +300,21 @@ function render(payload: CombatHudPayload): boolean {
   setMeter(overdriveThreatMeter, payload.overdriveThreatPct, payload.overdriveThreatPalette);
   setMeter(overdrivePvpMeter, payload.overdrivePvpPct, payload.overdrivePvpPalette);
   setMeter(overdriveImpulseMeter, payload.overdriveImpulsePct, payload.overdriveImpulsePalette);
+  if (matrixLine) {
+    matrixLine.textContent = String(payload.matrixLineText || "SYNC 0% | THERMAL 0% | SHIELD 0% | CLUTCH 0%");
+    matrixLine.dataset.tone = String(payload.matrixTone || "steady");
+  }
+  if (matrixHint) {
+    matrixHint.textContent = String(payload.matrixHintText || "");
+    matrixHint.dataset.tone = String(payload.matrixTone || "steady");
+  }
+  if (matrixCell) {
+    matrixCell.dataset.tone = String(payload.matrixTone || "steady");
+  }
+  setMeter(matrixSyncMeter, payload.matrixSyncPct, payload.matrixSyncPalette);
+  setMeter(matrixThermalMeter, payload.matrixThermalPct, payload.matrixThermalPalette);
+  setMeter(matrixShieldMeter, payload.matrixShieldPct, payload.matrixShieldPalette);
+  setMeter(matrixClutchMeter, payload.matrixClutchPct, payload.matrixClutchPalette);
 
   const applyAlertChip = (node: HTMLElement | null, label: string, toneKey: string) => {
     if (!node) {
