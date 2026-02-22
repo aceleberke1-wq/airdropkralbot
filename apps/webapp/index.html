@@ -27,6 +27,13 @@
           <p id="assetModeLine" class="micro">Assets: init...</p>
           <p id="sceneProfileLine" class="micro">Profile: hud full | postfx 0.90</p>
           <span id="liteSceneBadge" class="badge warn hidden">Lite Scene</span>
+          <div id="sceneStatusDeck" class="sceneStatusDeck" aria-label="Scene runtime status">
+            <span id="sceneDeckModeChip" class="sceneStatusChip tone-balanced">SCENE PRO</span>
+            <span id="sceneDeckPerfChip" class="sceneStatusChip tone-safe">PERF NORMAL</span>
+            <span id="sceneDeckAssetChip" class="sceneStatusChip tone-safe">ASSET READY</span>
+            <span id="sceneDeckTransportChip" class="sceneStatusChip tone-balanced">PVP POLL</span>
+            <span id="sceneDeckManifestChip" class="sceneStatusChip tone-neutral">REV local</span>
+          </div>
         </div>
         <div class="headerActions">
           <button id="refreshBtn" class="btn ghost">Yenile</button>
@@ -317,6 +324,21 @@
             <button id="pvpGuardBtn" class="mode safe">Guard</button>
             <button id="pvpChargeBtn" class="mode balanced">Charge</button>
           </div>
+          <section id="pvpActionPulseStrip" class="pvpActionPulseStrip" data-tone="neutral">
+            <div class="pvpActionPulseHead">
+              <p class="label">Action Window</p>
+              <span id="pvpActionPulseState" class="badge info">IDLE</span>
+            </div>
+            <p id="pvpActionPulseLine" class="value">Expected - | Queue 0 | Drift 0%</p>
+            <div class="meter"><span id="pvpActionPulseMeter"></span></div>
+            <div class="pvpActionPulseTelemetry">
+              <span id="pvpActionPulseWindowChip" class="pvpActionChip neutral">WND 0%</span>
+              <span id="pvpActionPulseLatencyChip" class="pvpActionChip neutral">LAT 0ms</span>
+              <span id="pvpActionPulseQueueChip" class="pvpActionChip neutral">Q 0</span>
+              <span id="pvpActionPulseFlowChip" class="pvpActionChip neutral">FLOW IDLE</span>
+            </div>
+            <p id="pvpActionPulseHint" class="micro">Tick penceresi acildiginda dogru aksiyon butonu glow olur.</p>
+          </section>
           <section class="pvpMomentumStrip">
             <div class="pvpMomentumCell">
               <p class="label">Momentum (Sen)</p>

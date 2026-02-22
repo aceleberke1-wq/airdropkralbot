@@ -221,6 +221,83 @@
       const isLite = value.toUpperCase().includes("LITE") || value.toLowerCase().includes("fallback");
       liteBadge.classList.toggle("hidden", !isLite);
     }
+    renderSceneStatusDeck();
+  }
+
+  function setSceneDeckChip(id, text, tone = "neutral", level = 0.2) {
+    const el = byId(id);
+    if (!el) {
+      return;
+    }
+    el.textContent = String(text || "-");
+    el.classList.remove("tone-neutral", "tone-safe", "tone-balanced", "tone-pressure", "tone-critical");
+    el.classList.add(`tone-${String(tone || "neutral")}`);
+    el.style.setProperty("--chip-level", clamp(asNum(level), 0, 1).toFixed(3));
+  }
+
+  function renderSceneStatusDeck() {
+    const deck = byId("sceneStatusDeck");
+    if (!deck) {
+      return;
+    }
+    const sceneMode = String(state.ui.sceneMode || "pro").toUpperCase();
+    const perfTier = String(state.ui.autoQualityMode || state.telemetry.perfTier || "normal").toUpperCase();
+    const fps = Math.max(0, Math.round(asNum(state.telemetry.fpsAvg || 0)));
+    const assetsText = String(byId("assetModeLine")?.textContent || "Assets: -");
+    const isLite = assetsText.toUpperCase().includes("LITE") || assetsText.toLowerCase().includes("fallback");
+    const assetReadyMatch = assetsText.match(/Assets:\s*(\d+)\/(\d+)/i);
+    const readyAssets = assetReadyMatch ? asNum(assetReadyMatch[1]) : 0;
+    const totalAssets = assetReadyMatch ? Math.max(1, asNum(assetReadyMatch[2])) : 1;
+    const assetRatio = clamp(readyAssets / totalAssets, 0, 1);
+    const transport = String(state.v3.pvpTransport || "poll").toUpperCase();
+    const pvpStatus = String(state.v3.pvpSession?.status || "idle").toLowerCase();
+    const manifestRevision = String(state.telemetry.manifestRevision || "local");
+    const manifestShort = manifestRevision.length > 10 ? manifestRevision.slice(0, 10) : manifestRevision;
+    const pressureRatio = clamp(asNum(state.telemetry.combatHeat || 0) * 0.45 + asNum(state.telemetry.threatRatio || 0) * 0.55, 0, 1);
+    const perfTone =
+      fps > 0 && fps < 28
+        ? "critical"
+        : fps > 0 && fps < 40
+          ? "pressure"
+          : perfTier === "LOW"
+            ? "pressure"
+            : "safe";
+    const transportTone =
+      pvpStatus === "resolved"
+        ? "balanced"
+        : pvpStatus === "active"
+          ? pressureRatio > 0.68
+            ? "critical"
+            : pressureRatio > 0.42
+              ? "pressure"
+              : "balanced"
+          : "neutral";
+
+    setSceneDeckChip("sceneDeckModeChip", `SCENE ${sceneMode}`, isLite ? "pressure" : "balanced", isLite ? 0.42 : 0.28);
+    setSceneDeckChip(
+      "sceneDeckPerfChip",
+      fps > 0 ? `PERF ${perfTier} ${fps}FPS` : `PERF ${perfTier}`,
+      perfTone,
+      fps > 0 ? clamp(fps / 60, 0.15, 1) : perfTier === "HIGH" ? 0.85 : perfTier === "LOW" ? 0.35 : 0.6
+    );
+    setSceneDeckChip(
+      "sceneDeckAssetChip",
+      isLite ? `ASSET LITE ${readyAssets}/${totalAssets}` : `ASSET ${readyAssets}/${totalAssets}`,
+      isLite ? "pressure" : assetRatio >= 0.9 ? "safe" : "balanced",
+      assetRatio
+    );
+    setSceneDeckChip(
+      "sceneDeckTransportChip",
+      `PVP ${transport}${pvpStatus === "active" ? " LIVE" : pvpStatus === "resolved" ? " END" : ""}`,
+      transportTone,
+      pvpStatus === "active" ? Math.max(0.3, 1 - pressureRatio * 0.45) : 0.2
+    );
+    setSceneDeckChip(
+      "sceneDeckManifestChip",
+      `REV ${manifestShort}`,
+      String(state.telemetry.manifestProvider || "fallback").toLowerCase().includes("registry") ? "safe" : "neutral",
+      0.35
+    );
   }
 
   function getPerfBridge() {
@@ -597,6 +674,7 @@
         2
       )} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | ${String(state.telemetry.sceneMood || "balanced").toUpperCase()}`;
     }
+    renderSceneStatusDeck();
   }
 
   function persistUiPrefs() {
@@ -5712,6 +5790,10 @@
     const line = byId("pvpActionPulseLine");
     const meter = byId("pvpActionPulseMeter");
     const hint = byId("pvpActionPulseHint");
+    const windowChip = byId("pvpActionPulseWindowChip");
+    const latencyChip = byId("pvpActionPulseLatencyChip");
+    const queueChip = byId("pvpActionPulseQueueChip");
+    const flowChip = byId("pvpActionPulseFlowChip");
     const strikeBtn = byId("pvpStrikeBtn");
     const guardBtn = byId("pvpGuardBtn");
     const chargeBtn = byId("pvpChargeBtn");
@@ -5727,16 +5809,36 @@
     actionButtons.forEach(({ el }) => {
       el.classList.remove("expected", "window-hot");
       el.dataset.focusState = "idle";
+      el.dataset.acceptState = "neutral";
       el.style.removeProperty("--action-intensity");
       el.style.removeProperty("--action-hue");
+      el.style.removeProperty("--action-fill");
+      el.style.removeProperty("--action-queue");
+      el.style.removeProperty("--action-latency");
     });
+
+    const setPulseChip = (el, text, tone = "neutral", level = 0.15) => {
+      if (!el) return;
+      el.textContent = String(text || "-");
+      el.classList.remove("neutral", "advantage", "pressure", "critical");
+      el.classList.add(String(tone || "neutral"));
+      el.style.setProperty("--chip-level", clamp(asNum(level), 0, 1).toFixed(3));
+    };
 
     if (!session) {
       strip.dataset.tone = "neutral";
+      strip.dataset.reject = "0";
       stateBadge.textContent = "IDLE";
       stateBadge.className = "badge info";
       line.textContent = "Expected - | Queue 0 | Drift 0%";
       hint.textContent = "Tick penceresi acildiginda dogru aksiyon butonu glow olur.";
+      strip.style.setProperty("--pulse-latency", "0");
+      strip.style.setProperty("--pulse-queue", "0");
+      strip.style.setProperty("--pulse-kick", "0");
+      setPulseChip(windowChip, "WND 0%", "neutral", 0.12);
+      setPulseChip(latencyChip, "LAT 0ms", "neutral", 0.12);
+      setPulseChip(queueChip, "Q 0", "neutral", 0.12);
+      setPulseChip(flowChip, "FLOW IDLE", "neutral", 0.12);
       animateMeterWidth(meter, 0, 0.2);
       setMeterPalette(meter, "neutral");
       return;
@@ -5750,6 +5852,7 @@
     const actionWindowMs = clamp(asNum(session.action_window_ms || tickMeta?.action_window_ms || state.v3.pvpActionWindowMs || 800), 80, tickMs);
     const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0));
     const windowRatio = clamp((actionWindowMs - latencyMs) / actionWindowMs, 0, 1);
+    const phaseRatio = clamp(asNum(tickMeta?.phase_ratio || tickMeta?.phaseRatio || 0), 0, 1);
     const pressure = clamp((1 - windowRatio) * 0.52 + driftRatio * 0.3 + clamp(queueSize / 8, 0, 1) * 0.18, 0, 1);
     const recentReject = Boolean(state.v3.pvpLastRejected) && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 2200;
     const tone = recentReject ? "critical" : pressure >= 0.72 ? "critical" : pressure >= 0.42 ? "pressure" : "advantage";
@@ -5757,11 +5860,15 @@
     const focusHue = hueByAction[expectedAction] ?? 214;
 
     strip.dataset.tone = tone;
+    strip.dataset.reject = recentReject ? "1" : "0";
     strip.dataset.expectedAction = expectedAction || "none";
     strip.style.setProperty("--pulse-hue", String(focusHue));
     strip.style.setProperty("--pulse-pressure", pressure.toFixed(3));
     strip.style.setProperty("--pulse-window", windowRatio.toFixed(3));
     strip.style.setProperty("--pulse-drift", driftRatio.toFixed(3));
+    strip.style.setProperty("--pulse-latency", clamp(latencyMs / Math.max(1, actionWindowMs), 0, 1).toFixed(3));
+    strip.style.setProperty("--pulse-queue", clamp(queueSize / 8, 0, 1).toFixed(3));
+    strip.style.setProperty("--pulse-kick", (recentReject ? 1 : clamp(phaseRatio * 0.65 + pressure * 0.35, 0, 1)).toFixed(3));
     stateBadge.textContent = tone === "critical" ? "CRITICAL" : tone === "pressure" ? "PRESSURE" : "FLOW";
     stateBadge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
     line.textContent = `Expected ${expectedAction.toUpperCase()} | Queue ${queueSize} | Drift ${Math.round(driftRatio * 100)}%`;
@@ -5773,6 +5880,30 @@
         : tone === "pressure"
           ? "Ritim kiriliyor: expected aksiyona hizli don ve drifti temizle."
           : "Flow stabil: combo ve resolve penceresi acik kalabilir.";
+    setPulseChip(
+      windowChip,
+      `WND ${Math.round(windowRatio * 100)}%`,
+      tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage",
+      windowRatio
+    );
+    setPulseChip(
+      latencyChip,
+      `LAT ${Math.round(latencyMs)}ms`,
+      latencyMs > actionWindowMs * 0.72 ? "critical" : latencyMs > actionWindowMs * 0.46 ? "pressure" : "neutral",
+      clamp(latencyMs / Math.max(1, actionWindowMs), 0, 1)
+    );
+    setPulseChip(
+      queueChip,
+      `Q ${queueSize}`,
+      queueSize >= 5 ? "critical" : queueSize >= 2 ? "pressure" : "neutral",
+      clamp(queueSize / 8, 0, 1)
+    );
+    setPulseChip(
+      flowChip,
+      recentReject ? "FLOW REJECT" : tone === "critical" ? "FLOW SPIKE" : tone === "pressure" ? "FLOW WATCH" : "FLOW LOCK",
+      recentReject ? "critical" : tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage",
+      1 - pressure
+    );
     animateMeterWidth(meter, pressure * 100, 0.22);
     setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
 
@@ -5790,15 +5921,28 @@
       } else {
         el.classList.remove("last-fired");
       }
+      const actionAccepted = !(recentReject && isLastFired);
+      el.dataset.acceptState = actionAccepted ? "neutral" : "rejected";
       const buttonIntensity = clamp(
         (isExpected ? 0.56 : 0.12) + (tone === "critical" ? 0.28 : tone === "pressure" ? 0.16 : 0.08) + (isLastFired ? 0.34 : 0),
         0,
         1
       );
+      const buttonFill = clamp(
+        (isExpected ? windowRatio * 0.84 : windowRatio * 0.22) +
+          (isLastFired ? 0.22 : 0) +
+          (key === expectedAction && tone !== "critical" ? 0.08 : 0),
+        0,
+        1
+      );
       el.style.setProperty("--action-intensity", buttonIntensity.toFixed(3));
       el.style.setProperty("--action-hue", String(hueByAction[key] ?? 214));
+      el.style.setProperty("--action-fill", buttonFill.toFixed(3));
+      el.style.setProperty("--action-queue", clamp(queueSize / 8, 0, 1).toFixed(3));
+      el.style.setProperty("--action-latency", clamp(latencyMs / Math.max(1, actionWindowMs), 0, 1).toFixed(3));
       el.dataset.focusState = isExpected ? "expected" : isLastFired ? "recent" : "idle";
     });
+    renderSceneStatusDeck();
   }
 
   function syncPvpSessionUi(session, meta = {}) {
@@ -5830,6 +5974,7 @@
     byId("pvpTick").textContent = `${asNum(state.v3.pvpTickMs)} ms`;
     byId("pvpWindow").textContent = `${asNum(state.v3.pvpActionWindowMs)} ms`;
     updatePvpQueueLine();
+    renderSceneStatusDeck();
 
     const startBtn = byId("pvpStartBtn");
     const refreshBtn = byId("pvpRefreshBtn");
