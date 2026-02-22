@@ -5539,7 +5539,12 @@
       { key: "guard", el: guardBtn },
       { key: "charge", el: chargeBtn }
     ];
-    actionButtons.forEach(({ el }) => el.classList.remove("expected", "window-hot"));
+    actionButtons.forEach(({ el }) => {
+      el.classList.remove("expected", "window-hot");
+      el.dataset.focusState = "idle";
+      el.style.removeProperty("--action-intensity");
+      el.style.removeProperty("--action-hue");
+    });
 
     if (!session) {
       strip.dataset.tone = "neutral";
@@ -5563,8 +5568,15 @@
     const pressure = clamp((1 - windowRatio) * 0.52 + driftRatio * 0.3 + clamp(queueSize / 8, 0, 1) * 0.18, 0, 1);
     const recentReject = Boolean(state.v3.pvpLastRejected) && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 2200;
     const tone = recentReject ? "critical" : pressure >= 0.72 ? "critical" : pressure >= 0.42 ? "pressure" : "advantage";
+    const hueByAction = { strike: 350, guard: 146, charge: 204 };
+    const focusHue = hueByAction[expectedAction] ?? 214;
 
     strip.dataset.tone = tone;
+    strip.dataset.expectedAction = expectedAction || "none";
+    strip.style.setProperty("--pulse-hue", String(focusHue));
+    strip.style.setProperty("--pulse-pressure", pressure.toFixed(3));
+    strip.style.setProperty("--pulse-window", windowRatio.toFixed(3));
+    strip.style.setProperty("--pulse-drift", driftRatio.toFixed(3));
     stateBadge.textContent = tone === "critical" ? "CRITICAL" : tone === "pressure" ? "PRESSURE" : "FLOW";
     stateBadge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
     line.textContent = `Expected ${expectedAction.toUpperCase()} | Queue ${queueSize} | Drift ${Math.round(driftRatio * 100)}%`;
@@ -5580,17 +5592,27 @@
     setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
 
     actionButtons.forEach(({ key, el }) => {
+      const isExpected = key === expectedAction;
+      const isLastFired = key === state.v3.pvpLastAction && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 320;
       if (key === expectedAction) {
         el.classList.add("expected");
       }
       if (tone === "critical") {
         el.classList.add("window-hot");
       }
-      if (key === state.v3.pvpLastAction && Date.now() - asNum(state.v3.pvpLastActionAt || 0) < 320) {
+      if (isLastFired) {
         el.classList.add("last-fired");
       } else {
         el.classList.remove("last-fired");
       }
+      const buttonIntensity = clamp(
+        (isExpected ? 0.56 : 0.12) + (tone === "critical" ? 0.28 : tone === "pressure" ? 0.16 : 0.08) + (isLastFired ? 0.34 : 0),
+        0,
+        1
+      );
+      el.style.setProperty("--action-intensity", buttonIntensity.toFixed(3));
+      el.style.setProperty("--action-hue", String(hueByAction[key] ?? 214));
+      el.dataset.focusState = isExpected ? "expected" : isLastFired ? "recent" : "idle";
     });
   }
 
