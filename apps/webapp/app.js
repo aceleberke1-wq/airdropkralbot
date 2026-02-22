@@ -9766,12 +9766,98 @@
 
       if (modelRoot) {
         const moodRate = mood === "critical" ? 0.54 : mood === "aggressive" ? 0.46 : mood === "safe" ? 0.24 : 0.35;
-        modelRoot.rotation.y += dt * moodRate;
-        modelRoot.position.y += (Math.sin(t * 1.6) * 0.08 - modelRoot.position.y) * 0.06;
+        if (!modelRoot.userData.nexusBaseTransform) {
+          modelRoot.userData.nexusBaseTransform = {
+            x: modelRoot.position.x,
+            y: modelRoot.position.y,
+            z: modelRoot.position.z,
+            sx: modelRoot.scale.x,
+            sy: modelRoot.scale.y,
+            sz: modelRoot.scale.z
+          };
+        }
+        const base = modelRoot.userData.nexusBaseTransform;
+        modelRoot.rotation.y += dt * (moodRate + pvpPressure * 0.18 + pvpCinematicIntensity * 0.12);
+        modelRoot.rotation.x += (Math.sin(t * 0.38 + pvpPressure) * (state.ui.reducedMotion ? 0.002 : 0.012) - modelRoot.rotation.x) * 0.05;
+        modelRoot.position.y += (base.y + Math.sin(t * (1.2 + pvpPressure * 0.5)) * (0.05 + heat * 0.05) - modelRoot.position.y) * 0.06;
+        const coreScalePulse = 1 + Math.sin(t * (0.92 + threat * 0.22)) * (state.ui.reducedMotion ? 0.008 : 0.024) + pvpPressure * 0.015;
+        modelRoot.scale.set(base.sx * coreScalePulse, base.sy * coreScalePulse, base.sz * coreScalePulse);
       }
+      const animatedSideModels = new Set();
+      const ensureNexusBaseTransform = (root) => {
+        if (!root || root.userData.nexusBaseTransform) {
+          return root?.userData?.nexusBaseTransform || null;
+        }
+        root.userData.nexusBaseTransform = {
+          x: root.position.x,
+          y: root.position.y,
+          z: root.position.z,
+          rx: root.rotation.x,
+          ry: root.rotation.y,
+          rz: root.rotation.z,
+          sx: root.scale.x,
+          sy: root.scale.y,
+          sz: root.scale.z
+        };
+        return root.userData.nexusBaseTransform;
+      };
+      const enemyRigsLive = Array.isArray(sideModelGroups?.enemy_rig) ? sideModelGroups.enemy_rig.filter(Boolean) : [];
+      enemyRigsLive.forEach((root, index) => {
+        const base = ensureNexusBaseTransform(root);
+        if (!root || !base) {
+          return;
+        }
+        animatedSideModels.add(root);
+        const lane = index - (enemyRigsLive.length - 1) * 0.5;
+        const bob = Math.sin(t * (1.08 + index * 0.12) + lane) * (state.ui.reducedMotion ? 0.015 : 0.07 + pvpPressure * 0.05);
+        const strafe = Math.cos(t * (0.52 + index * 0.08) + lane * 0.8) * (state.ui.reducedMotion ? 0.03 : 0.12 + urgencyFactor * 0.06);
+        root.position.x += (base.x + strafe - root.position.x) * 0.08;
+        root.position.y += (base.y + bob - root.position.y) * 0.08;
+        root.position.z += (base.z + Math.sin(t * 0.4 + index) * (state.ui.reducedMotion ? 0.02 : 0.08) - root.position.z) * 0.06;
+        root.rotation.y += ((base.ry + Math.sin(t * 0.44 + index) * 0.12 + momentumDelta * 0.08) - root.rotation.y) * 0.06;
+        root.rotation.x += ((base.rx + Math.sin(t * 0.82 + index) * 0.03) - root.rotation.x) * 0.06;
+        const scale = 1 + pvpPressure * 0.04 + (Math.sin(t * (0.94 + index * 0.1) + lane) * (state.ui.reducedMotion ? 0.004 : 0.018));
+        root.scale.set(base.sx * scale, base.sy * scale, base.sz * scale);
+      });
+      const rewardCratesLive = Array.isArray(sideModelGroups?.reward_crate) ? sideModelGroups.reward_crate.filter(Boolean) : [];
+      const revealReady = Boolean(state.data?.revealReady || state.data?.ui?.reveal_ready || state.v3?.session?.reveal_ready);
+      rewardCratesLive.forEach((root, index) => {
+        const base = ensureNexusBaseTransform(root);
+        if (!root || !base) {
+          return;
+        }
+        animatedSideModels.add(root);
+        const spinRate = revealReady ? 0.34 : 0.12;
+        root.rotation.y += dt * (spinRate + index * 0.03);
+        root.position.y += (
+          base.y + Math.sin(t * (1.26 + index * 0.16)) * (state.ui.reducedMotion ? 0.012 : revealReady ? 0.09 : 0.05) - root.position.y
+        ) * 0.08;
+        const scalePulse = 1 + Math.sin(t * (1.4 + index * 0.18)) * (state.ui.reducedMotion ? 0.006 : revealReady ? 0.028 : 0.014);
+        root.scale.set(base.sx * scalePulse, base.sy * scalePulse, base.sz * scalePulse);
+      });
+      const ambientFxLive = Array.isArray(sideModelGroups?.ambient_fx) ? sideModelGroups.ambient_fx.filter(Boolean) : [];
+      ambientFxLive.forEach((root, index) => {
+        const base = ensureNexusBaseTransform(root);
+        if (!root || !base) {
+          return;
+        }
+        animatedSideModels.add(root);
+        root.rotation.y += dt * (0.08 + heat * 0.12 + threat * 0.06 + index * 0.01);
+        root.rotation.z += dt * (0.03 + urgencyFactor * 0.05) * (index % 2 === 0 ? 1 : -1);
+        root.position.y += (base.y + Math.sin(t * (0.68 + index * 0.11)) * (state.ui.reducedMotion ? 0.015 : 0.06) - root.position.y) * 0.06;
+        const ambientScale = 1 + heat * 0.03 + Math.sin(t * (0.54 + index * 0.1)) * (state.ui.reducedMotion ? 0.004 : 0.014);
+        root.scale.set(base.sx * ambientScale, base.sy * ambientScale, base.sz * ambientScale);
+      });
       for (const model of sideModels) {
+        if (!model || animatedSideModels.has(model)) {
+          continue;
+        }
+        const base = ensureNexusBaseTransform(model);
+        if (!base) {
+          continue;
+        }
         model.rotation.y += dt * 0.08;
-        model.position.y += (Math.sin(t * 1.5 + model.position.x) * 0.05 - model.position.y) * 0.08;
+        model.position.y += (base.y + Math.sin(t * 1.5 + base.x) * 0.05 - model.position.y) * 0.08;
       }
       for (const mixer of mixers) {
         mixer.update(dt);
