@@ -1133,6 +1133,11 @@ body.reduced-motion.combat-overdrive-surge::after {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  position: relative;
+  --theater-sync: 0.5;
+  --theater-heat: 0;
+  --theater-clutch: 0;
+  --theater-stance: 0;
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -1143,6 +1148,45 @@ body.reduced-motion.combat-overdrive-surge::after {
   background: linear-gradient(160deg, rgba(8, 14, 34, 0.82), rgba(4, 9, 24, 0.74));
   display: grid;
   gap: 6px;
+  position: relative;
+  overflow: hidden;
+  --cell-ratio: 0;
+  --cell-pulse: 0.24;
+  --cell-fill: 0;
+}
+
+.pvpTheaterCell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 90% at calc(12% + var(--cell-fill) * 76%) 18%,
+      rgba(124, 214, 255, calc(0.06 + var(--cell-pulse) * 0.14)),
+      rgba(124, 214, 255, 0) 58%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65%),
+      rgba(255, 255, 255, 0.03) calc(var(--cell-ratio) * 65% + 8%),
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65% + 18%)
+    );
+  opacity: 0.95;
+}
+
+.pvpTheaterCell::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(124, 214, 255, 0.15), rgba(124, 214, 255, 0.68), rgba(124, 214, 255, 0.15));
+  transform-origin: left center;
+  transform: scaleX(var(--cell-ratio));
+  opacity: 0.82;
 }
 
 .pvpTheaterCell .value {
@@ -1152,6 +1196,51 @@ body.reduced-motion.combat-overdrive-surge::after {
 
 .pvpTheaterCell .micro {
   color: rgba(179, 205, 255, 0.86);
+}
+
+.pvpTheaterCell[data-tone="advantage"]::before {
+  background:
+    radial-gradient(
+      120% 90% at calc(10% + var(--cell-fill) * 78%) 18%,
+      rgba(112, 255, 160, calc(0.08 + var(--cell-pulse) * 0.18)),
+      rgba(112, 255, 160, 0) 58%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65%),
+      rgba(112, 255, 160, 0.06) calc(var(--cell-ratio) * 65% + 8%),
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65% + 18%)
+    );
+}
+
+.pvpTheaterCell[data-tone="pressure"]::before {
+  background:
+    radial-gradient(
+      120% 90% at calc(10% + var(--cell-fill) * 78%) 18%,
+      rgba(255, 184, 92, calc(0.09 + var(--cell-pulse) * 0.18)),
+      rgba(255, 184, 92, 0) 58%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65%),
+      rgba(255, 184, 92, 0.07) calc(var(--cell-ratio) * 65% + 8%),
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65% + 18%)
+    );
+}
+
+.pvpTheaterCell[data-tone="critical"]::before {
+  background:
+    radial-gradient(
+      120% 90% at calc(10% + var(--cell-fill) * 78%) 18%,
+      rgba(255, 86, 121, calc(0.11 + var(--cell-pulse) * 0.22)),
+      rgba(255, 86, 121, 0) 58%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65%),
+      rgba(255, 86, 121, 0.08) calc(var(--cell-ratio) * 65% + 8%),
+      rgba(255, 255, 255, 0) calc(var(--cell-ratio) * 65% + 18%)
+    );
 }
 
 .pvpTheaterStrip[data-tone="advantage"] .pvpTheaterCell {
@@ -1181,11 +1270,52 @@ body:not(.reduced-motion) .pvpTheaterStrip[data-tone="critical"] .pvpTheaterCell
   background: linear-gradient(160deg, rgba(8, 14, 34, 0.86), rgba(5, 10, 25, 0.76));
   display: grid;
   gap: 8px;
+  position: relative;
+  overflow: hidden;
+  --cine-intensity: 0.18;
+  --cine-sync: 0.5;
+  --cine-heat: 0;
+  --cine-clutch: 0;
+  --cine-ttl: 1;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .pvpCineStrip.enter {
   animation: pvpCineEnter 280ms ease-out;
+}
+
+.pvpCineStrip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      140% 100% at calc(8% + var(--cine-sync) * 84%) 10%,
+      rgba(124, 214, 255, calc(0.08 + var(--cine-intensity) * 0.16)),
+      rgba(124, 214, 255, 0) 60%
+    ),
+    radial-gradient(
+      100% 80% at calc(12% + var(--cine-heat) * 76%) 100%,
+      rgba(255, 184, 92, calc(0.04 + var(--cine-heat) * 0.14)),
+      rgba(255, 184, 92, 0) 62%
+    );
+  opacity: 0.95;
+}
+
+.pvpCineStrip::after {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  pointer-events: none;
+  background: linear-gradient(
+    108deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, calc(0.02 + var(--cine-intensity) * 0.045)) 49%,
+    rgba(255, 255, 255, 0) 58%
+  );
+  transform: translateX(calc(-32% + var(--cine-clutch) * 64%));
+  opacity: 0.9;
 }
 
 .pvpCineTop {
@@ -1224,6 +1354,17 @@ body:not(.reduced-motion) .pvpCineStrip[data-tone="critical"] {
   animation: pvpCineAlert 980ms ease-in-out infinite;
 }
 
+body:not(.reduced-motion) .pvpTheaterCell[data-tone="critical"]::after,
+body:not(.reduced-motion) .pvpTheaterCell[data-tone="pressure"]::after,
+body:not(.reduced-motion) .pvpTheaterCell[data-tone="advantage"]::after {
+  animation: pvpCellFlux 1400ms ease-in-out infinite;
+}
+
+body.reduced-motion .pvpTheaterCell::before,
+body.reduced-motion .pvpCineStrip::after {
+  animation: none !important;
+}
+
 #pvpCineLine[data-tone="advantage"] {
   color: rgba(146, 252, 208, 0.96);
   text-shadow: 0 0 10px rgba(61, 248, 194, 0.28);
@@ -1236,6 +1377,18 @@ body:not(.reduced-motion) .pvpCineStrip[data-tone="critical"] {
 #pvpCineLine[data-tone="critical"] {
   color: rgba(255, 172, 191, 0.97);
   text-shadow: 0 0 12px rgba(255, 86, 121, 0.32);
+}
+
+@keyframes pvpCellFlux {
+  0%,
+  100% {
+    opacity: 0.72;
+    filter: saturate(0.95);
+  }
+  50% {
+    opacity: 1;
+    filter: saturate(1.18);
+  }
 }
 
 .pvpRadarStrip {

@@ -4414,7 +4414,19 @@
       [syncLine, overheatLine, clutchLine, stanceLine].forEach((el) => el.removeAttribute("data-tone"));
       if (root) {
         root.removeAttribute("data-tone");
+        root.style.removeProperty("--theater-sync");
+        root.style.removeProperty("--theater-heat");
+        root.style.removeProperty("--theater-clutch");
+        root.style.removeProperty("--theater-stance");
       }
+      [syncLine, overheatLine, clutchLine, stanceLine].forEach((lineEl) => {
+        const cell = lineEl?.closest?.(".pvpTheaterCell");
+        if (!cell) return;
+        cell.removeAttribute("data-tone");
+        cell.style.removeProperty("--cell-ratio");
+        cell.style.removeProperty("--cell-pulse");
+        cell.style.removeProperty("--cell-fill");
+      });
     };
 
     if (!session) {
@@ -4536,6 +4548,10 @@
 
     if (root) {
       root.dataset.tone = overallTone;
+      root.style.setProperty("--theater-sync", syncRatio.toFixed(3));
+      root.style.setProperty("--theater-heat", overheatRatio.toFixed(3));
+      root.style.setProperty("--theater-clutch", clutchRatio.toFixed(3));
+      root.style.setProperty("--theater-stance", stancePressure.toFixed(3));
     }
 
     syncLine.dataset.tone = syncRatio >= 0.62 ? "advantage" : syncRatio >= 0.38 ? "pressure" : "critical";
@@ -4573,6 +4589,20 @@
         : stancePressure >= 0.44
           ? `Baski orta: ${dominantAction} dominansi koruyup drift'i dusur.`
           : `${dominantAction} dominansi sabit, combo akisi temiz ilerliyor.`;
+
+    const bindTheaterCellFx = (lineEl, ratio, toneKey, fillRatio) => {
+      const cell = lineEl?.closest?.(".pvpTheaterCell");
+      if (!cell) return;
+      cell.dataset.tone = String(toneKey || "neutral");
+      cell.style.setProperty("--cell-ratio", clamp(asNum(ratio), 0, 1).toFixed(3));
+      cell.style.setProperty("--cell-pulse", (0.22 + clamp(asNum(ratio), 0, 1) * 0.78).toFixed(3));
+      cell.style.setProperty("--cell-fill", clamp(asNum(fillRatio), 0, 1).toFixed(3));
+    };
+
+    bindTheaterCellFx(syncLine, syncRatio, syncLine.dataset.tone || "pressure", syncRatio);
+    bindTheaterCellFx(overheatLine, overheatRatio, overheatLine.dataset.tone || "pressure", overheatRatio);
+    bindTheaterCellFx(clutchLine, clutchRatio, clutchLine.dataset.tone || "pressure", clutchRatio);
+    bindTheaterCellFx(stanceLine, stancePressure, stanceLine.dataset.tone || "pressure", stancePressure);
 
     const handled = renderWithBridge({
       theater: {
@@ -4673,6 +4703,11 @@
         hint.textContent = "Tick akisina kilitlen, expected aksiyona hizli don.";
         animateMeterWidth(meter, 18, 0.2);
       }
+      root.style.setProperty("--cine-intensity", "0.180");
+      root.style.setProperty("--cine-sync", "0.500");
+      root.style.setProperty("--cine-heat", "0.000");
+      root.style.setProperty("--cine-clutch", "0.000");
+      root.style.setProperty("--cine-ttl", "1.000");
       if (state.arena) {
         state.arena.pvpCinematicIntensity = 0;
       }
@@ -4756,6 +4791,12 @@
       hint.textContent = hintText;
       animateMeterWidth(meter, cineIntensity * 100, 0.22);
     }
+
+    root.style.setProperty("--cine-intensity", cineIntensity.toFixed(3));
+    root.style.setProperty("--cine-sync", syncRatio.toFixed(3));
+    root.style.setProperty("--cine-heat", heatRatio.toFixed(3));
+    root.style.setProperty("--cine-clutch", clutchRatio.toFixed(3));
+    root.style.setProperty("--cine-ttl", ttlRatio.toFixed(3));
 
     if (state.arena) {
       state.arena.pvpCinematicIntensity = cineIntensity;
