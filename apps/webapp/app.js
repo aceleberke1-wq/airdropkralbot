@@ -6415,6 +6415,49 @@
       info: 0xa6c3ff
     };
     const color = palette[pulseTone] || palette.info;
+    const burstPowerByTone = {
+      safe: 0.34,
+      balanced: 0.5,
+      aggressive: 0.9,
+      reveal: 1.05,
+      info: 0.26
+    };
+    const baseBurst = (burstPowerByTone[pulseTone] || burstPowerByTone.info) * (accepted ? 1 : 0.82);
+    const actionBurst =
+      action === "strike"
+        ? 0.18
+        : action === "guard"
+          ? 0.08
+          : action === "charge"
+            ? 0.14
+            : action === "reveal" || pulseTone === "reveal"
+              ? 0.22
+              : 0.06;
+    state.arena.scenePulseEnergy = Math.min(3.4, asNum(state.arena.scenePulseEnergy || 0) + baseBurst + actionBurst);
+    state.arena.scenePulseCrate = Math.min(
+      3.2,
+      asNum(state.arena.scenePulseCrate || 0) +
+        (pulseTone === "reveal" ? 1.05 : action === "charge" ? 0.72 : 0.28) * (accepted ? 1 : 0.65)
+    );
+    state.arena.scenePulseBridge = Math.min(
+      3,
+      asNum(state.arena.scenePulseBridge || 0) +
+        (pulseTone === "aggressive" ? 1 : pulseTone === "balanced" ? 0.58 : 0.38) * (accepted ? 1 : 0.76)
+    );
+    state.arena.scenePulseAmbient = Math.min(
+      2.8,
+      asNum(state.arena.scenePulseAmbient || 0) + (pulseTone === "reveal" ? 0.9 : 0.42) * (accepted ? 1 : 0.72)
+    );
+    state.arena.scenePulseReject = accepted ? Math.max(0, asNum(state.arena.scenePulseReject || 0) - 0.12) : 1.2;
+    state.arena.scenePulseTone = pulseTone;
+    state.arena.scenePulseColor = color;
+    state.arena.scenePulseAction = action;
+    state.arena.scenePulseAccepted = accepted;
+    state.arena.scenePulseAt = Date.now();
+    state.arena.pvpCinematicIntensity = Math.min(
+      2.2,
+      asNum(state.arena.pvpCinematicIntensity || 0) + (pulseTone === "reveal" ? 0.34 : pulseTone === "aggressive" ? 0.26 : 0.16)
+    );
     if (state.arena.glow && state.arena.glow.material) {
       state.arena.glow.material.color.setHex(color);
       state.arena.glow.material.opacity = 0.95;
@@ -9473,12 +9516,24 @@
       const heat = clamp(asNum(state.arena?.targetHeat || state.telemetry.combatHeat || 0), 0, 1);
       const threat = clamp(asNum(state.arena?.targetThreat || state.telemetry.threatRatio || 0), 0, 1);
       const postFxTarget = clamp(asNum(state.arena?.targetPostFx || state.telemetry.scenePostFxLevel || 0.9), 0.15, 2.5);
+      const scenePulseEnergy = clamp(asNum(state.arena?.scenePulseEnergy || 0), 0, 4);
+      const scenePulseCrate = clamp(asNum(state.arena?.scenePulseCrate || 0), 0, 4);
+      const scenePulseBridge = clamp(asNum(state.arena?.scenePulseBridge || 0), 0, 4);
+      const scenePulseAmbient = clamp(asNum(state.arena?.scenePulseAmbient || 0), 0, 4);
+      const scenePulseReject = clamp(asNum(state.arena?.scenePulseReject || 0), 0, 2);
+      const scenePulseColorHex = Number.isFinite(asNum(state.arena?.scenePulseColor))
+        ? Math.trunc(asNum(state.arena?.scenePulseColor))
+        : null;
       if (fallback.floorGrid?.material) {
         fallback.floorGrid.rotation.z = t * 0.035;
-        const floorOpacityTarget = 0.1 + heat * 0.16 + (1 - threat) * 0.04;
+        const floorOpacityTarget = 0.1 + heat * 0.16 + (1 - threat) * 0.04 + scenePulseEnergy * 0.045;
         fallback.floorGrid.material.opacity += (floorOpacityTarget - fallback.floorGrid.material.opacity) * 0.06;
         if (fallback.floorGrid.material.color?.setHSL) {
-          fallback.floorGrid.material.color.setHSL((200 + heat * 56 - threat * 32) / 360, 0.66, 0.62);
+          fallback.floorGrid.material.color.setHSL(
+            (200 + heat * 56 - threat * 32 + scenePulseBridge * 10 + scenePulseReject * 6) / 360,
+            0.66,
+            0.62
+          );
         }
       }
       const moodHueMap = {
@@ -9493,11 +9548,11 @@
       const fogColor = new THREE.Color().setHSL(hue / 360, 0.46 + heat * 0.18, 0.12 + (1 - threat) * 0.05);
       scene.fog.color.lerp(fogColor, 0.08);
       ambient.color.setHSL((hue + 42) / 360, 0.58, 0.62 + heat * 0.08);
-      ambient.intensity += ((0.64 + heat * 0.52 - threat * 0.24) - ambient.intensity) * 0.06;
+      ambient.intensity += ((0.64 + heat * 0.52 - threat * 0.24 + scenePulseAmbient * 0.08) - ambient.intensity) * 0.06;
       pointA.color.setHSL((hue + 24) / 360, 0.82, 0.56);
       pointB.color.setHSL((hue + 196) / 360, 0.78, 0.56);
-      pointA.intensity += ((1.08 + heat * 0.62) - pointA.intensity) * 0.09;
-      pointB.intensity += ((0.95 + threat * 0.7) - pointB.intensity) * 0.09;
+      pointA.intensity += ((1.08 + heat * 0.62 + scenePulseEnergy * 0.18) - pointA.intensity) * 0.09;
+      pointB.intensity += ((0.95 + threat * 0.7 + scenePulseReject * 0.2 + scenePulseBridge * 0.08) - pointB.intensity) * 0.09;
       if (state.arena?.core?.material?.emissive && typeof state.arena.core.material.emissive.setHSL === "function") {
         state.arena.core.material.emissive.setHSL((hue + 14) / 360, 0.68, 0.22 + heat * 0.24);
       }
@@ -10092,6 +10147,11 @@
       if (state.arena) {
         const decayRate = state.ui.reducedMotion ? 0.42 : 0.28;
         state.arena.pvpCinematicIntensity = Math.max(0, pvpCinematicIntensity - dt * decayRate);
+        state.arena.scenePulseEnergy = Math.max(0, scenePulseEnergy - dt * (state.ui.reducedMotion ? 1.25 : 1.05));
+        state.arena.scenePulseCrate = Math.max(0, scenePulseCrate - dt * (state.ui.reducedMotion ? 1.15 : 0.92));
+        state.arena.scenePulseBridge = Math.max(0, scenePulseBridge - dt * (state.ui.reducedMotion ? 1.35 : 1.08));
+        state.arena.scenePulseAmbient = Math.max(0, scenePulseAmbient - dt * (state.ui.reducedMotion ? 1.3 : 0.98));
+        state.arena.scenePulseReject = Math.max(0, scenePulseReject - dt * (state.ui.reducedMotion ? 1.8 : 1.55));
       }
 
       if (modelRoot) {
@@ -10141,12 +10201,23 @@
         const lane = index - (enemyRigsLive.length - 1) * 0.5;
         const bob = Math.sin(t * (1.08 + index * 0.12) + lane) * (state.ui.reducedMotion ? 0.015 : 0.07 + pvpPressure * 0.05);
         const strafe = Math.cos(t * (0.52 + index * 0.08) + lane * 0.8) * (state.ui.reducedMotion ? 0.03 : 0.12 + urgencyFactor * 0.06);
-        root.position.x += (base.x + strafe - root.position.x) * 0.08;
-        root.position.y += (base.y + bob - root.position.y) * 0.08;
-        root.position.z += (base.z + Math.sin(t * 0.4 + index) * (state.ui.reducedMotion ? 0.02 : 0.08) - root.position.z) * 0.06;
-        root.rotation.y += ((base.ry + Math.sin(t * 0.44 + index) * 0.12 + momentumDelta * 0.08) - root.rotation.y) * 0.06;
-        root.rotation.x += ((base.rx + Math.sin(t * 0.82 + index) * 0.03) - root.rotation.x) * 0.06;
-        const scale = 1 + pvpPressure * 0.04 + (Math.sin(t * (0.94 + index * 0.1) + lane) * (state.ui.reducedMotion ? 0.004 : 0.018));
+        const hitJolt = pvpLastActionRecent ? (state.ui.reducedMotion ? 0.012 : 0.035) : 0;
+        const rejectJolt = scenePulseReject * (state.ui.reducedMotion ? 0.008 : 0.028);
+        root.position.x += (base.x + strafe + Math.sin(t * 8.4 + index) * (hitJolt + rejectJolt) - root.position.x) * 0.08;
+        root.position.y += (base.y + bob + Math.sin(t * 10.6 + index * 0.7) * (scenePulseEnergy * (state.ui.reducedMotion ? 0.005 : 0.018)) - root.position.y) * 0.08;
+        root.position.z += (
+          base.z +
+          Math.sin(t * 0.4 + index) * (state.ui.reducedMotion ? 0.02 : 0.08) +
+          Math.cos(t * 7.2 + index) * (scenePulseBridge * (state.ui.reducedMotion ? 0.004 : 0.02)) -
+          root.position.z
+        ) * 0.06;
+        root.rotation.y += ((base.ry + Math.sin(t * 0.44 + index) * 0.12 + momentumDelta * 0.08 + scenePulseBridge * 0.02) - root.rotation.y) * 0.06;
+        root.rotation.x += ((base.rx + Math.sin(t * 0.82 + index) * 0.03 + scenePulseEnergy * 0.012) - root.rotation.x) * 0.06;
+        const scale =
+          1 +
+          pvpPressure * 0.04 +
+          scenePulseEnergy * 0.012 +
+          (Math.sin(t * (0.94 + index * 0.1) + lane) * (state.ui.reducedMotion ? 0.004 : 0.018));
         root.scale.set(base.sx * scale, base.sy * scale, base.sz * scale);
       });
       const rewardCratesLive = Array.isArray(sideModelGroups?.reward_crate) ? sideModelGroups.reward_crate.filter(Boolean) : [];
@@ -10157,13 +10228,52 @@
           return;
         }
         animatedSideModels.add(root);
-        const spinRate = revealReady ? 0.34 : 0.12;
+        const crateBurst = scenePulseCrate * (revealReady ? 1.1 : 0.72);
+        const spinRate = (revealReady ? 0.34 : 0.12) + crateBurst * (state.ui.reducedMotion ? 0.06 : 0.16);
         root.rotation.y += dt * (spinRate + index * 0.03);
+        root.rotation.x += Math.sin(t * (1.7 + index * 0.2)) * crateBurst * (state.ui.reducedMotion ? 0.002 : 0.01);
+        root.rotation.z += Math.cos(t * (1.45 + index * 0.12)) * crateBurst * (state.ui.reducedMotion ? 0.002 : 0.008);
         root.position.y += (
-          base.y + Math.sin(t * (1.26 + index * 0.16)) * (state.ui.reducedMotion ? 0.012 : revealReady ? 0.09 : 0.05) - root.position.y
+          base.y +
+            Math.sin(t * (1.26 + index * 0.16)) * (state.ui.reducedMotion ? 0.012 : revealReady ? 0.09 : 0.05) +
+            Math.sin(t * (7.8 + index * 0.6)) * crateBurst * (state.ui.reducedMotion ? 0.004 : 0.03) -
+            root.position.y
         ) * 0.08;
-        const scalePulse = 1 + Math.sin(t * (1.4 + index * 0.18)) * (state.ui.reducedMotion ? 0.006 : revealReady ? 0.028 : 0.014);
+        root.position.x += (base.x + Math.cos(t * (5.2 + index * 0.3)) * crateBurst * (state.ui.reducedMotion ? 0.003 : 0.02) - root.position.x) * 0.08;
+        const scalePulse =
+          1 +
+          crateBurst * (state.ui.reducedMotion ? 0.012 : revealReady ? 0.05 : 0.03) +
+          Math.sin(t * (1.4 + index * 0.18)) * (state.ui.reducedMotion ? 0.006 : revealReady ? 0.028 : 0.014);
         root.scale.set(base.sx * scalePulse, base.sy * scalePulse, base.sz * scalePulse);
+        if (!root.userData.nexusPulseMats && typeof root.traverse === "function") {
+          const mats = [];
+          root.traverse((node) => {
+            const list = Array.isArray(node.material) ? node.material : [node.material];
+            list.forEach((mat) => {
+              if (mat && (mat.emissive?.setHSL || mat.color?.setHSL || mat.color?.setHex)) {
+                mats.push(mat);
+              }
+            });
+          });
+          root.userData.nexusPulseMats = mats;
+        }
+        const mats = Array.isArray(root.userData.nexusPulseMats) ? root.userData.nexusPulseMats : [];
+        mats.forEach((mat, matIndex) => {
+          if (!mat) {
+            return;
+          }
+          if (mat.emissive?.setHSL) {
+            mat.emissive.setHSL(
+              ((scenePulseColorHex !== null ? (scenePulseColorHex % 360) : 44) + index * 9 + matIndex * 3 + t * 16) / 360,
+              0.78,
+              0.08 + crateBurst * 0.12 + (revealReady ? 0.08 : 0)
+            );
+          }
+          if (typeof mat.emissiveIntensity === "number") {
+            const target = 0.4 + crateBurst * 0.8 + (revealReady ? 0.35 : 0);
+            mat.emissiveIntensity += (target - asNum(mat.emissiveIntensity || 0)) * 0.12;
+          }
+        });
       });
       const ambientFxLive = Array.isArray(sideModelGroups?.ambient_fx) ? sideModelGroups.ambient_fx.filter(Boolean) : [];
       ambientFxLive.forEach((root, index) => {
@@ -10172,10 +10282,19 @@
           return;
         }
         animatedSideModels.add(root);
-        root.rotation.y += dt * (0.08 + heat * 0.12 + threat * 0.06 + index * 0.01);
-        root.rotation.z += dt * (0.03 + urgencyFactor * 0.05) * (index % 2 === 0 ? 1 : -1);
-        root.position.y += (base.y + Math.sin(t * (0.68 + index * 0.11)) * (state.ui.reducedMotion ? 0.015 : 0.06) - root.position.y) * 0.06;
-        const ambientScale = 1 + heat * 0.03 + Math.sin(t * (0.54 + index * 0.1)) * (state.ui.reducedMotion ? 0.004 : 0.014);
+        root.rotation.y += dt * (0.08 + heat * 0.12 + threat * 0.06 + index * 0.01 + scenePulseAmbient * 0.08);
+        root.rotation.z += dt * (0.03 + urgencyFactor * 0.05 + scenePulseReject * 0.03) * (index % 2 === 0 ? 1 : -1);
+        root.position.y += (
+          base.y +
+            Math.sin(t * (0.68 + index * 0.11)) * (state.ui.reducedMotion ? 0.015 : 0.06) +
+            Math.cos(t * (5.8 + index * 0.21)) * scenePulseAmbient * (state.ui.reducedMotion ? 0.005 : 0.025) -
+            root.position.y
+        ) * 0.06;
+        const ambientScale =
+          1 +
+          heat * 0.03 +
+          scenePulseAmbient * 0.018 +
+          Math.sin(t * (0.54 + index * 0.1)) * (state.ui.reducedMotion ? 0.004 : 0.014);
         root.scale.set(base.sx * ambientScale, base.sy * ambientScale, base.sz * ambientScale);
       });
       for (const model of sideModels) {
@@ -10232,7 +10351,13 @@
       } else if (state.arena?.cameraImpulse) {
         state.arena.cameraImpulse = 0;
       }
-      const targetFov = fovBase + heat * 3.8 + Math.min(2.8, cameraImpulse * 14) + pvpCinematicIntensity * 3.2;
+      const targetFov =
+        fovBase +
+        heat * 3.8 +
+        Math.min(2.8, cameraImpulse * 14) +
+        pvpCinematicIntensity * 3.2 +
+        scenePulseEnergy * 1.9 +
+        scenePulseReject * 0.8;
       camera.fov += (targetFov - camera.fov) * 0.08;
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0, 0);
@@ -10244,7 +10369,13 @@
         bloomPass.threshold += ((0.62 - heat * 0.16) - bloomPass.threshold) * 0.08;
         if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
           const currentAmount = asNum(rgbShiftPass.uniforms.amount.value || 0);
-          const targetAmount = (0.0005 + threat * 0.0016 + heat * 0.0008 + pvpCinematicIntensity * 0.0009) * motionBoost;
+          const targetAmount =
+            (0.0005 +
+              threat * 0.0016 +
+              heat * 0.0008 +
+              pvpCinematicIntensity * 0.0009 +
+              scenePulseEnergy * 0.0008 +
+              scenePulseReject * 0.00055) * motionBoost;
           rgbShiftPass.uniforms.amount.value = currentAmount + (targetAmount - currentAmount) * 0.12;
         }
         composer.render();
