@@ -4808,6 +4808,15 @@
     const clutchVector = clamp(asNum(options.clutchVector), 0, 1);
     const queueRatio = clamp(asNum(options.queueRatio), 0, 1);
     const driftRatio = clamp(asNum(options.driftRatio), 0, 1);
+    const syncRatio = clamp(asNum(options.syncRatio), 0, 1);
+    const windowRatio = clamp(asNum(options.windowRatio), 0, 1);
+    const ttlRatio = clamp(asNum(options.ttlRatio), 0, 1);
+    const comboSelf = Math.max(0, asNum(options.comboSelf || 0));
+    const comboOpp = Math.max(0, asNum(options.comboOpp || 0));
+    const expectedAction = normalizePvpActionKey(options.expectedAction);
+    const lastAction = normalizePvpActionKey(options.lastAction);
+    const lastAccepted = typeof options.lastAccepted === "boolean" ? Boolean(options.lastAccepted) : true;
+    const lastActionAgeMs = Math.max(0, asNum(options.lastActionAgeMs || 99999));
     const reducedMotion = Boolean(options.reducedMotion);
     const replay = Array.isArray(options.replay) ? options.replay.slice(0, 14) : [];
     const tickSeq = Math.max(0, asNum(options.tickSeq || 0));
@@ -4917,6 +4926,129 @@
     ctx.beginPath();
     ctx.arc(cx, cy, 4.3 + flowRatio * 1.8, 0, Math.PI * 2);
     ctx.fill();
+
+    const comboSelfRatio = clamp(comboSelf / 10, 0, 1);
+    const comboOppRatio = clamp(comboOpp / 10, 0, 1);
+    const ringBase = maxRadius + 16;
+    const comboStart = -Math.PI * 0.5;
+    ctx.lineCap = "round";
+    ctx.lineWidth = 3.4;
+    ctx.strokeStyle = "rgba(96, 114, 160, 0.32)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringBase, 0, Math.PI * 2);
+    ctx.stroke();
+    if (comboSelfRatio > 0.001) {
+      ctx.strokeStyle = "rgba(112, 255, 160, 0.9)";
+      ctx.shadowBlur = reducedMotion ? 0 : 12;
+      ctx.shadowColor = "rgba(112, 255, 160, 0.6)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringBase, comboStart, comboStart + Math.PI * 2 * comboSelfRatio);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    if (comboOppRatio > 0.001) {
+      ctx.strokeStyle = "rgba(255, 109, 145, 0.88)";
+      ctx.shadowBlur = reducedMotion ? 0 : 10;
+      ctx.shadowColor = "rgba(255, 109, 145, 0.56)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringBase + 5, comboStart, comboStart + Math.PI * 2 * comboOppRatio);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    const windowArcRadius = ringBase + 11;
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "rgba(118, 140, 196, 0.28)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, windowArcRadius, Math.PI * 0.12, Math.PI * 0.88);
+    ctx.stroke();
+    ctx.strokeStyle =
+      windowRatio >= 0.7
+        ? "rgba(117, 255, 176, 0.92)"
+        : windowRatio >= 0.45
+          ? "rgba(255, 205, 122, 0.9)"
+          : "rgba(255, 114, 150, 0.9)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, windowArcRadius, Math.PI * 0.12, Math.PI * (0.12 + 0.76 * windowRatio));
+    ctx.stroke();
+
+    const ttlArcRadius = ringBase + 18;
+    ctx.strokeStyle = "rgba(118, 140, 196, 0.2)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, ttlArcRadius, -Math.PI * 0.88, -Math.PI * 0.12);
+    ctx.stroke();
+    ctx.strokeStyle =
+      ttlRatio <= 0.2 ? "rgba(255, 98, 136, 0.92)" : ttlRatio <= 0.45 ? "rgba(255, 184, 92, 0.9)" : "rgba(124, 214, 255, 0.88)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, ttlArcRadius, -Math.PI * 0.88, -Math.PI * (0.88 - 0.76 * ttlRatio));
+    ctx.stroke();
+
+    const triad = [
+      { key: "strike", label: "STR", angle: -Math.PI / 2, color: "rgba(255, 104, 142, 0.96)" },
+      { key: "guard", label: "GRD", angle: Math.PI * 0.16, color: "rgba(122, 255, 176, 0.96)" },
+      { key: "charge", label: "CHG", angle: Math.PI * 0.84, color: "rgba(124, 214, 255, 0.96)" }
+    ];
+    const nodeRadius = maxRadius + 2;
+    triad.forEach((node, idx) => {
+      const x = cx + Math.cos(node.angle) * nodeRadius;
+      const y = cy + Math.sin(node.angle) * nodeRadius;
+      const isExpected = node.key === expectedAction;
+      const isLast = node.key === lastAction && lastActionAgeMs < 1800;
+      const lastAlpha = isLast ? clamp(1 - lastActionAgeMs / 1800, 0, 1) : 0;
+      const beamAlpha = Math.max(isExpected ? 0.24 : 0, isLast ? 0.18 + lastAlpha * 0.2 : 0);
+      if (beamAlpha > 0.01) {
+        ctx.strokeStyle = isLast && !lastAccepted ? "rgba(255, 96, 131, 0.85)" : node.color.replace("0.96", String(0.22 + beamAlpha * 0.55));
+        ctx.lineWidth = isExpected ? 2.2 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(8, 13, 29, 0.92)";
+      ctx.strokeStyle = isLast && !lastAccepted ? "rgba(255, 96, 131, 0.9)" : isExpected ? node.color : "rgba(163, 190, 255, 0.34)";
+      ctx.lineWidth = isExpected ? 2.4 : 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, isExpected ? 12.5 : 10.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      if (isExpected || isLast) {
+        ctx.shadowBlur = reducedMotion ? 0 : isExpected ? 14 : 8;
+        ctx.shadowColor = isLast && !lastAccepted ? "rgba(255, 96, 131, 0.7)" : node.color;
+        ctx.strokeStyle = isLast && !lastAccepted ? "rgba(255, 96, 131, 0.78)" : node.color.replace("0.96", String(isExpected ? 0.86 : 0.55 + lastAlpha * 0.2));
+        ctx.lineWidth = isExpected ? 2.2 : 1.4;
+        ctx.beginPath();
+        const haloRadius = (isExpected ? 15.4 : 13.3) + (!reducedMotion ? Math.sin(sweepSeed * 2.1 + idx * 0.7) * 0.8 : 0);
+        ctx.arc(x, y, haloRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillStyle = "rgba(225, 236, 255, 0.94)";
+      ctx.font = '10px "IBM Plex Mono", monospace';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(node.label, x, y + 0.5);
+    });
+
+    const syncAngle = -Math.PI + syncRatio * Math.PI;
+    ctx.strokeStyle = tone === "critical" ? "rgba(255, 143, 173, 0.72)" : "rgba(146, 252, 208, 0.66)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(syncAngle) * (maxRadius * 0.72), cy + Math.sin(syncAngle) * (maxRadius * 0.72));
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(197, 214, 255, 0.84)";
+    ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`WND ${Math.round(windowRatio * 100)}%`, 10, 8);
+    ctx.fillText(`TTL ${Math.round(ttlRatio * 100)}%`, 10, 22);
+    ctx.textAlign = "right";
+    ctx.fillText(`SYNC ${Math.round(syncRatio * 100)}%`, width - 10, 8);
+    if (expectedAction) {
+      ctx.fillStyle = "rgba(232, 242, 255, 0.92)";
+      ctx.fillText(`EXP ${expectedAction.toUpperCase()}`, width - 10, 22);
+    }
   }
 
   function drawMatrixScopeCanvas(canvas, options = {}) {
@@ -5090,6 +5222,9 @@
     const actionsSelf = asNum(session.action_count?.self || 0);
     const ttlSecLeft = Math.max(0, asNum(session.ttl_sec_left || 0));
     const ttlRatio = clamp(ttlSecLeft / 60, 0, 1);
+    const actionWindowMs = Math.max(120, asNum(session.action_window_ms || tickMeta?.action_window_ms || state.v3.pvpActionWindowMs || 800));
+    const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry.latencyAvgMs || 0));
+    const windowRatio = clamp((actionWindowMs - latencyMs) / actionWindowMs, 0, 1);
     const resolveReadiness = clamp(actionsSelf / 6, 0, 1);
     const momentumBase = clamp(0.5 + (scoreSelf - scoreOpp) / 16 + (comboSelf - comboOpp) / 16, 0, 1);
     const momentumSelf = clamp(asNum(state.arena?.pvpMomentumSelf ?? momentumBase), 0, 1);
@@ -5140,6 +5275,15 @@
       clutchVector,
       queueRatio,
       driftRatio,
+      syncRatio: flowRatio,
+      windowRatio,
+      ttlRatio,
+      comboSelf,
+      comboOpp,
+      expectedAction: resolveExpectedPvpAction(getPvpTickSnapshot()),
+      lastAction: resolveLastPvpAction(getPvpTickSnapshot()),
+      lastAccepted: !Boolean(state.v3.pvpLastRejected),
+      lastActionAgeMs: Math.max(0, Date.now() - asNum(state.v3.pvpLastActionAt || 0)),
       replay: state.v3.pvpReplay,
       reducedMotion: state.ui.reducedMotion,
       tickSeq: asNum(tickMeta?.tick_seq || 0)
