@@ -61,6 +61,37 @@
             <p id="sceneIntegrityOverlayLine" class="micro">Sahne asset alarm izleyicisi hazirlaniyor.</p>
             <div class="meter sceneIntegrityOverlayMeter"><span id="sceneIntegrityOverlayMeter"></span></div>
           </div>
+          <div id="resolveBurstBanner" class="resolveBurstBanner hidden" data-tone="neutral" data-state="idle" aria-live="polite">
+            <div class="resolveBurstTop">
+              <span id="resolveBurstBadge" class="badge info">RESOLVE</span>
+              <div class="resolveBurstChipRow">
+                <span id="resolveBurstOutcomeChip" class="pvpLiveChip neutral">OUT --</span>
+                <span id="resolveBurstRatingChip" class="pvpLiveChip neutral">R --</span>
+                <span id="resolveBurstRewardChip" class="pvpLiveChip neutral">SC --</span>
+                <span id="resolveBurstTickChip" class="pvpLiveChip neutral">TICK --</span>
+              </div>
+            </div>
+            <p id="resolveBurstLine" class="micro">Authoritative resolve burst bekleniyor.</p>
+            <div class="meter resolveBurstMeterWrap"><span id="resolveBurstMeter"></span></div>
+          </div>
+          <div id="combatFxOverlay" class="combatFxOverlay" data-tone="neutral" data-intense="0" aria-label="Combat FX telemetry">
+            <div class="combatFxOverlayHeader">
+              <h4>FX Telemetry</h4>
+              <span id="combatFxOverlayBadge" class="badge info">LIVE</span>
+            </div>
+            <div class="combatFxOverlayChipRow">
+              <span id="combatFxHitChip" class="pvpLiveChip neutral">HIT --</span>
+              <span id="combatFxResolveChip" class="pvpLiveChip neutral">RSLV --</span>
+              <span id="combatFxRejectChip" class="pvpLiveChip neutral">REJ --</span>
+              <span id="combatFxCamChip" class="pvpLiveChip neutral">CAM --</span>
+              <span id="combatFxAssetChip" class="pvpLiveChip neutral">AST --</span>
+            </div>
+            <p id="combatFxOverlayLine" class="micro">Hit/reject/resolve envelope ve sahne gerilim verisi.</p>
+            <div class="combatFxOverlayMeters">
+              <div class="meter"><span id="combatFxBurstMeter"></span></div>
+              <div class="meter"><span id="combatFxStressMeter"></span></div>
+            </div>
+          </div>
         </div>
         <div class="headerActions">
           <button id="refreshBtn" class="btn ghost">Yenile</button>

@@ -508,6 +508,228 @@ body:not(.reduced-motion) .sceneIntegrityOverlay[data-tone="critical"][data-stat
   animation: pvpRadarAlert 1120ms ease-in-out infinite;
 }
 
+.resolveBurstBanner {
+  --resolve-energy: 0.12;
+  --resolve-flash: 0;
+  margin-top: 8px;
+  border: 1px solid rgba(150, 182, 255, 0.22);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(123, 205, 255, 0.08), transparent 56%),
+    linear-gradient(160deg, rgba(8, 14, 34, 0.86), rgba(4, 9, 24, 0.8));
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 6px;
+  box-shadow: inset 0 0 16px rgba(123, 205, 255, 0.06);
+}
+
+.resolveBurstBanner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: calc(0.08 + var(--resolve-energy) * 0.16 + var(--resolve-flash) * 0.26);
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(127, 214, 255, 0.14) 36%, transparent 72%),
+    radial-gradient(circle at 82% 26%, rgba(255, 184, 92, 0.18), transparent 54%);
+}
+
+.resolveBurstBanner::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  opacity: calc(0.28 + var(--resolve-energy) * 0.46 + var(--resolve-flash) * 0.12);
+  background: linear-gradient(90deg, rgba(61, 248, 194, 0.28), rgba(127, 214, 255, 0.92), rgba(255, 184, 92, 0.7));
+}
+
+.resolveBurstTop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.resolveBurstChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.resolveBurstBanner .micro {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+
+.resolveBurstMeterWrap {
+  position: relative;
+  z-index: 1;
+}
+
+.resolveBurstBanner[data-tone="advantage"] {
+  border-color: rgba(112, 255, 160, 0.28);
+  box-shadow: inset 0 0 18px rgba(112, 255, 160, 0.08);
+}
+
+.resolveBurstBanner[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.34);
+  box-shadow: inset 0 0 18px rgba(255, 184, 92, 0.09);
+}
+
+.resolveBurstBanner[data-tone="critical"] {
+  border-color: rgba(255, 86, 121, 0.42);
+  box-shadow: inset 0 0 22px rgba(255, 86, 121, 0.14), 0 0 14px rgba(255, 86, 121, 0.08);
+}
+
+body:not(.reduced-motion) .resolveBurstBanner[data-state="active"] {
+  animation: pvpActionAlert 860ms ease-in-out 2;
+}
+
+body:not(.reduced-motion) .resolveBurstBanner[data-tone="critical"][data-state="active"] {
+  animation: pvpRadarAlert 920ms ease-in-out 2;
+}
+
+.resolveBurstBanner[data-tone="advantage"] #resolveBurstLine {
+  color: rgba(142, 250, 204, 0.94);
+  text-shadow: 0 0 9px rgba(61, 248, 194, 0.18);
+}
+
+.resolveBurstBanner[data-tone="pressure"] #resolveBurstLine {
+  color: rgba(255, 212, 136, 0.95);
+}
+
+.resolveBurstBanner[data-tone="critical"] #resolveBurstLine {
+  color: rgba(255, 166, 186, 0.97);
+  text-shadow: 0 0 12px rgba(255, 86, 121, 0.3);
+}
+
+.combatFxOverlay {
+  --fx-burst: 0.08;
+  --fx-stress: 0.12;
+  --fx-window: 0.7;
+  --fx-asset: 0.9;
+  margin-top: 8px;
+  border: 1px solid rgba(150, 182, 255, 0.18);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background:
+    radial-gradient(circle at 84% 18%, rgba(255, 184, 92, 0.07), transparent 56%),
+    radial-gradient(circle at 16% 74%, rgba(61, 248, 194, 0.05), transparent 58%),
+    linear-gradient(160deg, rgba(7, 12, 31, 0.86), rgba(4, 9, 24, 0.8));
+  display: grid;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 16px rgba(123, 205, 255, 0.05);
+}
+
+.combatFxOverlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: calc(0.08 + var(--fx-burst) * 0.14 + var(--fx-stress) * 0.18);
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(127, 214, 255, 0.1) 40%, transparent 74%),
+    radial-gradient(circle at 78% 22%, rgba(255, 86, 121, 0.12), transparent 56%);
+}
+
+.combatFxOverlay::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  opacity: calc(0.24 + var(--fx-burst) * 0.36 + var(--fx-stress) * 0.24);
+  background: linear-gradient(
+    90deg,
+    rgba(61, 248, 194, 0.24),
+    rgba(127, 214, 255, 0.92) calc(var(--fx-window) * 100%),
+    rgba(255, 184, 92, 0.78)
+  );
+}
+
+.combatFxOverlayHeader {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.combatFxOverlayHeader h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(205, 226, 255, 0.94);
+}
+
+.combatFxOverlayChipRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.combatFxOverlay .micro {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: rgba(173, 205, 255, 0.9);
+}
+
+.combatFxOverlayMeters {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.combatFxOverlay[data-tone="advantage"] {
+  border-color: rgba(112, 255, 160, 0.28);
+  box-shadow: inset 0 0 18px rgba(112, 255, 160, 0.08);
+}
+
+.combatFxOverlay[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.34);
+  box-shadow: inset 0 0 18px rgba(255, 184, 92, 0.1);
+}
+
+.combatFxOverlay[data-tone="critical"] {
+  border-color: rgba(255, 86, 121, 0.42);
+  box-shadow: inset 0 0 22px rgba(255, 86, 121, 0.14), 0 0 14px rgba(255, 86, 121, 0.08);
+}
+
+body:not(.reduced-motion) .combatFxOverlay[data-intense="1"][data-tone="critical"] {
+  animation: pvpRadarAlert 980ms ease-in-out infinite;
+}
+
+body:not(.reduced-motion) .combatFxOverlay[data-intense="1"]:not([data-tone="critical"]) {
+  animation: pvpActionAlert 1200ms ease-in-out infinite;
+}
+
+.combatFxOverlay[data-tone="advantage"] #combatFxOverlayLine {
+  color: rgba(142, 250, 204, 0.94);
+}
+
+.combatFxOverlay[data-tone="pressure"] #combatFxOverlayLine {
+  color: rgba(255, 212, 136, 0.95);
+}
+
+.combatFxOverlay[data-tone="critical"] #combatFxOverlayLine {
+  color: rgba(255, 166, 186, 0.97);
+  text-shadow: 0 0 10px rgba(255, 86, 121, 0.22);
+}
+
 .sceneStatusChip {
   --chip-level: 0.2;
   position: relative;
@@ -2025,6 +2247,15 @@ body:not(.reduced-motion) .pvpRejectIntelStrip[data-tone="critical"][data-recent
   }
 
   .sceneIntegrityOverlayChipRow {
+    justify-content: flex-start;
+  }
+
+  .resolveBurstTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .resolveBurstChipRow {
     justify-content: flex-start;
   }
 

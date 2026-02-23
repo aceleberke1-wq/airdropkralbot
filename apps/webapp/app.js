@@ -64,6 +64,8 @@
       lastPvpObjectiveKey: "",
       lastPvpCineKey: "",
       lastPvpCinePulseAt: 0,
+      lastPvpResolveKey: "",
+      lastPvpResolveAt: 0,
       pvpLastAction: "",
       pvpLastActionAt: 0,
       pvpLastRejected: false,
@@ -691,6 +693,159 @@
       state.arena.assetOverlayIntegrity = integrityRatio;
       if (recentReject || assetRisk >= 0.58 || integrityRatio < 0.75) {
         state.arena.scenePulseAmbient = Math.min(3.2, asNum(state.arena.scenePulseAmbient || 0) + (recentReject ? 0.14 : 0.08) + severity * 0.04);
+      }
+    }
+  }
+
+  function renderResolveBurstBanner(sessionArg, tickMetaArg) {
+    const root = byId("resolveBurstBanner");
+    const badge = byId("resolveBurstBadge");
+    const line = byId("resolveBurstLine");
+    const meter = byId("resolveBurstMeter");
+    if (!root || !badge || !line || !meter) {
+      return;
+    }
+    const session = sessionArg || state.v3?.pvpSession || null;
+    const tickMeta = tickMetaArg || state.v3?.pvpTickMeta || null;
+    const result = session?.result || null;
+    const status = String(session?.status || "").toLowerCase();
+    const isResolved = status === "resolved" && result;
+    const resolveBurst = clamp(asNum(state.arena?.pvpResolveBurst || 0) / 2.8, 0, 1);
+    const hitBurst = clamp(asNum(state.arena?.pvpHitBurst || 0) / 2.6, 0, 1);
+    const rejectShock = clamp(asNum(state.arena?.pvpRejectShock || 0) / 3.2, 0, 1);
+    const cameraImpulse = clamp(asNum(state.arena?.cameraImpulse || 0) / 1.6, 0, 1);
+    const ladder = state.v3?.pvpLeaderboardMetrics || {};
+    const ladderPressure = clamp(asNum(ladder.pressure || state.arena?.ladderPressure || 0), 0, 1);
+    const diagnostics = tickMeta?.diagnostics || tickMeta?.state_json?.diagnostics || {};
+    const tickMs = Math.max(220, asNum(session?.tick_ms || tickMeta?.tick_ms || state.v3?.pvpTickMs || 1000));
+    const actionWindowMs = clamp(asNum(session?.action_window_ms || tickMeta?.action_window_ms || state.v3?.pvpActionWindowMs || 800), 80, tickMs);
+    const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry?.latencyAvgMs || 0));
+    const windowRatio = clamp((actionWindowMs - latencyMs) / actionWindowMs, 0, 1);
+    const recentResolve = isResolved && Date.now() - asNum(state.v3?.lastPvpResolveAt || 0) < 18000;
+    const energy = clamp(resolveBurst * 0.56 + hitBurst * 0.18 + cameraImpulse * 0.12 + (1 - windowRatio) * 0.08 + ladderPressure * 0.06, 0, 1);
+    const tone = isResolved
+      ? String(result?.outcome_for_viewer || result?.outcome || "").toLowerCase() === "loss"
+        ? "critical"
+        : String(result?.outcome_for_viewer || result?.outcome || "").toLowerCase() === "draw"
+          ? "pressure"
+          : "advantage"
+      : energy >= 0.72
+        ? "critical"
+        : energy >= 0.36
+          ? "pressure"
+          : "advantage";
+    root.classList.toggle("hidden", !(recentResolve || energy > 0.08));
+    root.dataset.tone = tone;
+    root.dataset.state = recentResolve ? "active" : energy > 0.08 ? "cooldown" : "idle";
+    root.style.setProperty("--resolve-energy", energy.toFixed(3));
+    root.style.setProperty("--resolve-flash", (recentResolve ? clamp(0.28 + resolveBurst * 0.72, 0, 1) : clamp(energy * 0.35, 0, 0.6)).toFixed(3));
+
+    const outcomeLabel = isResolved ? String(result?.outcome_for_viewer || result?.outcome || "resolved").toUpperCase() : "LIVE";
+    const ratingDelta = asNum(result?.rating_delta || 0);
+    const rewardSc = asNum(result?.reward?.sc || 0);
+    const rewardRc = asNum(result?.reward?.rc || 0);
+    const transport = String(session?.transport || tickMeta?.transport || state.v3?.pvpTransport || "poll").toUpperCase();
+    const outcomeChipTone = tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage";
+    setLiveStatusChip("resolveBurstOutcomeChip", `OUT ${outcomeLabel.slice(0, 8)}`, outcomeChipTone, isResolved ? 0.95 : 0.22);
+    setLiveStatusChip(
+      "resolveBurstRatingChip",
+      `R ${ratingDelta >= 0 ? "+" : ""}${ratingDelta}`,
+      ratingDelta < 0 ? "critical" : ratingDelta > 0 ? "advantage" : "balanced",
+      clamp(Math.abs(ratingDelta) / 12, 0.16, 1)
+    );
+    setLiveStatusChip(
+      "resolveBurstRewardChip",
+      `SC +${rewardSc}${rewardRc > 0 ? `|RC+${rewardRc}` : ""}`,
+      rewardSc > 0 || rewardRc > 0 ? "advantage" : "balanced",
+      clamp((rewardSc + rewardRc * 1.4) / 8, 0.14, 1)
+    );
+    setLiveStatusChip(
+      "resolveBurstTickChip",
+      `${transport} ${tickMs}ms`,
+      windowRatio < 0.36 ? "critical" : windowRatio < 0.58 ? "pressure" : "balanced",
+      windowRatio
+    );
+
+    badge.textContent = recentResolve ? `RESOLVE ${outcomeLabel}` : energy >= 0.5 ? "RESOLVE TRACE" : "COMBAT TRACE";
+    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    animateTextSwap(
+      line,
+      recentResolve && isResolved
+        ? `Authoritative resolve | ${outcomeLabel} | rating ${ratingDelta >= 0 ? "+" : ""}${ratingDelta} | +${rewardSc} SC${rewardRc ? ` +${rewardRc} RC` : ""} | tick ${tickMs}ms`
+        : `Resolve burst ${Math.round(resolveBurst * 100)}% | hit ${Math.round(hitBurst * 100)}% | cam ${Math.round(cameraImpulse * 100)}% | wnd ${Math.round(windowRatio * 100)}%`
+    );
+    animateMeterWidth(meter, energy * 100, 0.22);
+    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+  }
+
+  function renderCombatFxOverlay() {
+    const root = byId("combatFxOverlay");
+    const badge = byId("combatFxOverlayBadge");
+    const line = byId("combatFxOverlayLine");
+    const burstMeter = byId("combatFxBurstMeter");
+    const stressMeter = byId("combatFxStressMeter");
+    if (!root || !badge || !line || !burstMeter || !stressMeter) {
+      return;
+    }
+    const hitBurst = clamp(asNum(state.arena?.pvpHitBurst || 0) / 2.6, 0, 1);
+    const resolveBurst = clamp(asNum(state.arena?.pvpResolveBurst || 0) / 2.8, 0, 1);
+    const rejectShock = clamp(asNum(state.arena?.pvpRejectShock || 0) / 3.2, 0, 1);
+    const cameraImpulse = clamp(asNum(state.arena?.cameraImpulse || 0) / 1.6, 0, 1);
+    const ladder = state.v3?.pvpLeaderboardMetrics || {};
+    const ladderPressure = clamp(asNum(ladder.pressure || state.arena?.ladderPressure || 0), 0, 1);
+    const diagnostics = state.v3?.pvpTickMeta?.diagnostics || state.v3?.pvpTickMeta?.state_json?.diagnostics || {};
+    const tickMs = Math.max(220, asNum(state.v3?.pvpTickMs || state.v3?.pvpTickMeta?.tick_ms || 1000));
+    const actionWindowMs = clamp(asNum(state.v3?.pvpActionWindowMs || state.v3?.pvpTickMeta?.action_window_ms || 800), 80, tickMs);
+    const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry?.latencyAvgMs || 0));
+    const windowRatio = clamp((actionWindowMs - latencyMs) / actionWindowMs, 0, 1);
+    const assetRuntime = state.admin?.assetRuntimeMetrics || {};
+    const assetManifest = state.v3?.assetManifestMeta || {};
+    const readyRatio = clamp(
+      asNum(
+        assetRuntime.readyRatio ??
+          assetManifest.readyRatio ??
+          (state.telemetry.assetTotalCount > 0 ? state.telemetry.assetReadyCount / Math.max(1, state.telemetry.assetTotalCount) : 1)
+      ),
+      0,
+      1
+    );
+    const integrityRatio = clamp(asNum(assetManifest.integrityRatio ?? assetRuntime.dbReadyRatio ?? assetRuntime.syncRatio ?? readyRatio), 0, 1);
+    const assetRisk = clamp((1 - readyRatio) * 0.45 + (1 - integrityRatio) * 0.55, 0, 1);
+    const burstLevel = clamp(resolveBurst * 0.42 + hitBurst * 0.32 + rejectShock * 0.18 + cameraImpulse * 0.08, 0, 1);
+    const stressLevel = clamp(rejectShock * 0.36 + ladderPressure * 0.18 + (1 - windowRatio) * 0.2 + assetRisk * 0.26, 0, 1);
+    const tone = stressLevel >= 0.72 ? "critical" : stressLevel >= 0.4 ? "pressure" : burstLevel >= 0.28 ? "advantage" : "neutral";
+    root.dataset.tone = tone;
+    root.dataset.intense = burstLevel >= 0.5 || stressLevel >= 0.55 ? "1" : "0";
+    root.style.setProperty("--fx-burst", burstLevel.toFixed(3));
+    root.style.setProperty("--fx-stress", stressLevel.toFixed(3));
+    root.style.setProperty("--fx-window", windowRatio.toFixed(3));
+    root.style.setProperty("--fx-asset", (1 - assetRisk).toFixed(3));
+
+    setLiveStatusChip("combatFxHitChip", `HIT ${Math.round(hitBurst * 100)}%`, hitBurst >= 0.6 ? "advantage" : hitBurst >= 0.28 ? "balanced" : "neutral", hitBurst);
+    setLiveStatusChip("combatFxResolveChip", `RSLV ${Math.round(resolveBurst * 100)}%`, resolveBurst >= 0.6 ? "advantage" : resolveBurst >= 0.26 ? "pressure" : "neutral", resolveBurst);
+    setLiveStatusChip("combatFxRejectChip", `REJ ${Math.round(rejectShock * 100)}%`, rejectShock >= 0.55 ? "critical" : rejectShock >= 0.24 ? "pressure" : "neutral", rejectShock);
+    setLiveStatusChip("combatFxCamChip", `CAM ${Math.round(cameraImpulse * 100)}%`, cameraImpulse >= 0.55 ? "pressure" : "balanced", cameraImpulse);
+    setLiveStatusChip("combatFxAssetChip", `AST ${Math.round(integrityRatio * 100)}%`, assetRisk >= 0.5 ? "critical" : assetRisk >= 0.24 ? "pressure" : "advantage", integrityRatio);
+
+    badge.textContent = tone === "critical" ? "FX ALERT" : tone === "pressure" ? "FX WATCH" : burstLevel >= 0.28 ? "FX LIVE" : "FX STABLE";
+    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    animateTextSwap(
+      line,
+      `Burst ${Math.round(burstLevel * 100)}% | Stress ${Math.round(stressLevel * 100)}% | wnd ${Math.round(windowRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}% | asset ${Math.round((1 - assetRisk) * 100)}%`
+    );
+    animateMeterWidth(burstMeter, burstLevel * 100, 0.2);
+    animateMeterWidth(stressMeter, stressLevel * 100, 0.22);
+    setMeterPalette(burstMeter, burstLevel >= 0.52 ? "aggressive" : "balanced");
+    setMeterPalette(stressMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
+
+    if (state.arena) {
+      const envBoost = clamp(burstLevel * 0.34 + stressLevel * 0.44 + assetRisk * 0.22, 0, 1);
+      state.arena.pvpCinematicBoost = clamp(asNum(state.arena.pvpCinematicBoost ?? envBoost) * 0.78 + envBoost * 0.22, 0, 1.35);
+      if (stressLevel >= 0.72 || (rejectShock >= 0.52 && assetRisk >= 0.25)) {
+        state.arena.scenePulseBridge = Math.min(3.2, asNum(state.arena.scenePulseBridge || 0) + 0.08 + stressLevel * 0.06);
+      }
+      if (resolveBurst >= 0.6) {
+        state.arena.scenePulseCrate = Math.min(3.2, asNum(state.arena.scenePulseCrate || 0) + 0.08 + resolveBurst * 0.08);
       }
     }
   }
@@ -7659,6 +7814,8 @@
       renderPvpLiveDuelStrip(null, null);
       renderPvpActionPulse(null, null);
       renderPvpRejectIntelStrip(null, null);
+      renderResolveBurstBanner(null, null);
+      renderCombatFxOverlay();
       ensurePvpLiveLoop();
       renderTelemetryDeck(state.data || {});
       return;
@@ -7669,6 +7826,11 @@
     setPvpPanelState(status, outcome);
     syncPvpReplayFromSession(session);
     if (status === "resolved") {
+      const resolveKey = `${sessionRef}:${asNum(session.result?.id || 0)}:${String(session.result?.outcome_for_viewer || session.result?.outcome || "done")}`;
+      if (resolveKey !== String(state.v3.lastPvpResolveKey || "")) {
+        state.v3.lastPvpResolveKey = resolveKey;
+        state.v3.lastPvpResolveAt = Date.now();
+      }
       statusBadge.textContent = outcome ? `Duel ${outcome.toUpperCase()}` : "Duel Cozuldu";
       statusBadge.className = outcome === "win" ? "badge" : outcome === "loss" ? "badge warn" : "badge info";
       appendPvpTimelineEntry({
@@ -7737,6 +7899,8 @@
     renderPvpLiveDuelStrip(session, state.v3.pvpTickMeta);
     renderPvpActionPulse(session, state.v3.pvpTickMeta);
     renderPvpRejectIntelStrip(session, state.v3.pvpTickMeta);
+    renderResolveBurstBanner(session, state.v3.pvpTickMeta);
+    renderCombatFxOverlay();
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
@@ -10461,6 +10625,8 @@
     renderCombatHudStrip(safe, heat, threat);
     renderRoundDirectorStrip(safe, heat, threat);
     renderCameraDirector(safe, heat, threat);
+    renderResolveBurstBanner(state.v3?.pvpSession || null, state.v3?.pvpTickMeta || null);
+    renderCombatFxOverlay();
 
     const deckBridge = getTelemetryDeckBridge();
     if (deckBridge) {
@@ -12057,6 +12223,10 @@
       if (state.arena) {
         const decayRate = state.ui.reducedMotion ? 0.42 : 0.28;
         state.arena.pvpCinematicIntensity = Math.max(0, pvpCinematicIntensity - dt * decayRate);
+        state.arena.pvpCinematicBoost = Math.max(
+          0,
+          asNum(state.arena.pvpCinematicBoost || 0) - dt * (state.ui.reducedMotion ? 0.85 : 0.62)
+        );
         const pvpHitBurst = clamp(asNum(state.arena.pvpHitBurst || 0), 0, 3);
         const pvpResolveBurst = clamp(asNum(state.arena.pvpResolveBurst || 0), 0, 3);
         state.arena.scenePulseEnergy = Math.max(0, scenePulseEnergy - dt * (state.ui.reducedMotion ? 1.25 : 1.05));
@@ -12274,6 +12444,7 @@
       const assetOverlayIntegrity = clamp(asNum(state.arena?.assetOverlayIntegrity || 1), 0, 1);
       const pvpHitBurst = clamp(asNum(state.arena?.pvpHitBurst || 0), 0, 3);
       const pvpResolveBurst = clamp(asNum(state.arena?.pvpResolveBurst || 0), 0, 3);
+      const pvpCinematicBoost = clamp(asNum(state.arena?.pvpCinematicBoost || 0), 0, 1.35);
       const rejectCategoryMulMap = {
         window: 1.18,
         sequence: 1.24,
@@ -12304,12 +12475,14 @@
           assetSceneRisk * 0.08 +
           assetManifestMissing * 0.08 +
           (1 - assetManifestIntegrity) * 0.06 +
+          pvpCinematicBoost * 0.2 +
           pvpRejectShock * 0.08 * rejectCategoryMul +
           sceneAlarmCinematic * 0.14 * sceneAlarmToneMul,
           assetOverlaySeverity * 0.14 +
           (1 - assetOverlaySync) * 0.06 +
           (1 - assetOverlayIntegrity) * 0.06 +
           assetOverlayRecentReject * 0.08 +
+          pvpCinematicBoost * 0.12 +
           pvpHitBurst * 0.08 +
           pvpResolveBurst * 0.12,
         0,
@@ -12319,6 +12492,7 @@
         cameraDepthBase +
         heat * (cameraMode === "tactical" ? 0.3 : cameraMode === "chase" ? -0.6 : -0.15) +
         pvpCinematicIntensity * (cameraMode === "chase" ? -0.45 : 0.18) +
+        pvpCinematicBoost * (cameraMode === "chase" ? -0.42 : 0.16) +
         duelCinematicStress * (cameraMode === "chase" ? -0.38 : 0.14) +
         sceneAlarmCinematic * (cameraMode === "chase" ? -0.22 : 0.08) +
         (1 - pvpSyncSignal) * (cameraMode === "tactical" ? 0.12 : 0.06) +
@@ -12348,7 +12522,7 @@
           camera.position.z += (Math.random() - 0.5) * alarmShake * 0.44;
         }
         if (resolveShake > 0.0001 || hitShake > 0.0001) {
-          const totalShake = resolveShake + hitShake;
+          const totalShake = resolveShake + hitShake + pvpCinematicBoost * 0.01;
           camera.position.x += (Math.random() - 0.5) * totalShake;
           camera.position.y += (Math.random() - 0.5) * totalShake * 0.64;
           camera.position.z += (Math.random() - 0.5) * totalShake * 0.38;
@@ -12362,6 +12536,7 @@
         heat * 3.8 +
         Math.min(2.8, cameraImpulse * 14) +
         pvpCinematicIntensity * 3.2 +
+        pvpCinematicBoost * 2.8 +
         scenePulseEnergy * 1.9 +
         pvpHitBurst * 0.9 +
         pvpResolveBurst * 1.35 +
@@ -12385,6 +12560,7 @@
             postFxTarget * 0.32 +
             heat * 0.4 +
             pvpCinematicIntensity * 0.2 +
+            pvpCinematicBoost * 0.14 +
             duelCinematicStress * 0.16 +
             sceneAlarmCinematic * 0.12 +
             pvpResolveSignal * 0.08 +
@@ -12412,6 +12588,7 @@
               threat * 0.0016 +
               heat * 0.0008 +
               pvpCinematicIntensity * 0.0009 +
+              pvpCinematicBoost * 0.00075 +
               duelCinematicStress * 0.0007 +
               pvpLatencyStress * 0.0005 +
               pvpRejectShock * 0.00035 +
