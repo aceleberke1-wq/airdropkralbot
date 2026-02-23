@@ -48,6 +48,19 @@
             <p id="sceneAlarmHint" class="micro">Ladder, asset ve reject baskisi burada tek hatta izlenir.</p>
             <div class="meter sceneAlarmMeterWrap"><span id="sceneAlarmMeter"></span></div>
           </div>
+          <div id="sceneIntegrityOverlay" class="sceneIntegrityOverlay hidden" data-tone="neutral" data-state="idle" aria-live="polite">
+            <div class="sceneIntegrityOverlayTop">
+              <span id="sceneIntegrityOverlayBadge" class="badge info">SCENE STABLE</span>
+              <div class="sceneIntegrityOverlayChipRow">
+                <span id="sceneIntegrityOverlayAssetChip" class="pvpLiveChip neutral">AST --</span>
+                <span id="sceneIntegrityOverlayIntegrityChip" class="pvpLiveChip neutral">INT --</span>
+                <span id="sceneIntegrityOverlaySyncChip" class="pvpLiveChip neutral">SYNC --</span>
+                <span id="sceneIntegrityOverlayRejectChip" class="pvpLiveChip neutral">REJ --</span>
+              </div>
+            </div>
+            <p id="sceneIntegrityOverlayLine" class="micro">Sahne asset alarm izleyicisi hazirlaniyor.</p>
+            <div class="meter sceneIntegrityOverlayMeter"><span id="sceneIntegrityOverlayMeter"></span></div>
+          </div>
         </div>
         <div class="headerActions">
           <button id="refreshBtn" class="btn ghost">Yenile</button>
@@ -651,6 +664,16 @@
             </div>
             <p id="pvpRejectIntelHint" class="micro">Reject gelirse burada neden ve cozum akisi gosterilir.</p>
             <p id="pvpRejectIntelPlan" class="micro">Plan: expected aksiyonu takip et, queue driftini dusur, gerekirse state yenile.</p>
+            <div id="pvpRejectIntelActionPanel" class="pvpRejectIntelActionPanel" data-tone="neutral" data-category="none">
+              <div class="pvpRejectIntelActionChipRow">
+                <span id="pvpRejectIntelDirectiveChip" class="pvpLiveChip neutral">DIR WAIT</span>
+                <span id="pvpRejectIntelExpectedChip" class="pvpLiveChip neutral">EXP --</span>
+                <span id="pvpRejectIntelQueueChip" class="pvpLiveChip neutral">Q --</span>
+                <span id="pvpRejectIntelBackoffChip" class="pvpLiveChip neutral">BACKOFF --</span>
+                <span id="pvpRejectIntelSyncChip" class="pvpLiveChip neutral">SYNC --</span>
+              </div>
+              <p id="pvpRejectIntelSolutionLine" class="micro">Recovery akisi expected aksiyon ve runtime drift verisi ile hesaplanir.</p>
+            </div>
           </section>
           <section class="pvpObjectiveGrid">
             <article id="pvpObjectivePrimary" class="pvpObjectiveCard neutral">

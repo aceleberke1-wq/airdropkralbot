@@ -400,6 +400,7 @@
         `assets ${readyAssets}/${totalAssets} | int ${Math.round(assetSyncRatio * 100)}%`;
     }
     renderSceneAlarmStrip();
+    renderSceneIntegrityOverlay();
   }
 
   function renderSceneAlarmStrip() {
@@ -593,6 +594,104 @@
               : `LADDER HEAT ${Math.round(ladderPressure * 100)}`
         }
       );
+    }
+  }
+
+  function renderSceneIntegrityOverlay() {
+    const root = byId("sceneIntegrityOverlay");
+    const badge = byId("sceneIntegrityOverlayBadge");
+    const line = byId("sceneIntegrityOverlayLine");
+    const meter = byId("sceneIntegrityOverlayMeter");
+    if (!root || !badge || !line || !meter) {
+      return;
+    }
+
+    const assetManifest = state.v3?.assetManifestMeta || {};
+    const assetRuntime = state.admin?.assetRuntimeMetrics || {};
+    const rejectInfo = classifyPvpRejectReason(state.v3?.pvpLastRejectReason || "");
+    const rejectCategory = String(rejectInfo.category || "none");
+    const rejectAgeMs = Math.max(0, Date.now() - asNum(state.v3?.pvpLastActionAt || 0));
+    const recentReject = Boolean(state.v3?.pvpLastRejected) && rejectCategory !== "none" && rejectAgeMs < 9000;
+    const queueSize = Math.max(0, asNum(state.v3?.pvpQueue?.length || 0));
+    const ladder = state.v3?.pvpLeaderboardMetrics || {};
+
+    const readyRatio = clamp(
+      asNum(
+        assetRuntime.readyRatio ??
+          assetManifest.readyRatio ??
+          (state.telemetry.assetTotalCount > 0 ? state.telemetry.assetReadyCount / Math.max(1, state.telemetry.assetTotalCount) : 0)
+      ),
+      0,
+      1
+    );
+    const syncRatio = clamp(asNum(assetRuntime.syncRatio ?? assetRuntime.dbReadyRatio ?? readyRatio), 0, 1);
+    const integrityRatio = clamp(asNum(assetManifest.integrityRatio ?? assetRuntime.dbReadyRatio ?? syncRatio ?? readyRatio), 0, 1);
+    const missingRatio = clamp(asNum(assetManifest.missingRatio ?? 1 - readyRatio), 0, 1);
+    const assetRisk = clamp((1 - readyRatio) * 0.34 + (1 - syncRatio) * 0.26 + (1 - integrityRatio) * 0.4, 0, 1);
+    const ladderPressure = clamp(asNum(ladder.pressure || state.arena?.ladderPressure || 0), 0, 1);
+    const ladderFreshness = clamp(asNum(ladder.freshnessRatio || state.arena?.ladderFreshness || 0), 0, 1);
+    const rejectShock = recentReject ? clamp(1 - rejectAgeMs / 9000, 0, 1) : 0;
+    const severity = clamp(
+      assetRisk * 0.62 + missingRatio * 0.16 + ladderPressure * 0.12 + (1 - ladderFreshness) * 0.06 + rejectShock * 0.2 + Math.min(queueSize, 5) / 5 * 0.08,
+      0,
+      1
+    );
+
+    const tone = severity >= 0.7 ? "critical" : severity >= 0.4 ? "pressure" : severity >= 0.16 ? "balanced" : "advantage";
+    const active = severity >= 0.22 || recentReject;
+    root.classList.toggle("hidden", !active);
+    root.dataset.tone = tone;
+    root.dataset.state = active ? "active" : "idle";
+    root.style.setProperty("--scene-integrity-sweep", clamp((readyRatio * 0.2 + syncRatio * 0.25 + ladderFreshness * 0.2 + rejectShock * 0.35), 0, 1).toFixed(3));
+    root.style.setProperty("--scene-integrity-flash", (recentReject ? clamp(0.24 + rejectShock * 0.76, 0, 1) : clamp(assetRisk * 0.55, 0, 0.7)).toFixed(3));
+
+    setLiveStatusChip(
+      "sceneIntegrityOverlayAssetChip",
+      `AST ${Math.round(readyRatio * 100)}%`,
+      assetRisk >= 0.58 ? "critical" : assetRisk >= 0.3 ? "pressure" : "advantage",
+      readyRatio
+    );
+    setLiveStatusChip(
+      "sceneIntegrityOverlayIntegrityChip",
+      `INT ${Math.round(integrityRatio * 100)}%`,
+      integrityRatio < 0.72 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage",
+      integrityRatio
+    );
+    setLiveStatusChip(
+      "sceneIntegrityOverlaySyncChip",
+      `SYNC ${Math.round(syncRatio * 100)}%`,
+      syncRatio < 0.7 ? "critical" : syncRatio < 0.9 ? "pressure" : "balanced",
+      syncRatio
+    );
+    setLiveStatusChip(
+      "sceneIntegrityOverlayRejectChip",
+      `REJ ${recentReject ? (rejectInfo.shortLabel || rejectCategory.toUpperCase()) : "--"}`,
+      recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral",
+      recentReject ? rejectShock : 0.18
+    );
+
+    badge.textContent =
+      tone === "critical" ? "SCENE ALARM" : tone === "pressure" ? "SCENE WATCH" : recentReject ? "SCENE REJECT" : "SCENE STABLE";
+    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+
+    animateTextSwap(
+      line,
+      recentReject
+        ? `Reject ${String(rejectInfo.label || rejectCategory).toUpperCase()} | q ${queueSize} | asset ${Math.round((1 - assetRisk) * 100)}% | rev ${String(assetManifest.manifestRevision || state.telemetry.manifestRevision || "local").slice(0, 10)}`
+        : `Asset ${Math.round(readyRatio * 100)}% ready | sync ${Math.round(syncRatio * 100)}% | integrity ${Math.round(integrityRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}%`
+    );
+    animateMeterWidth(meter, severity * 100, 0.2);
+    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+
+    if (state.arena) {
+      state.arena.assetOverlaySeverity = clamp(asNum(state.arena.assetOverlaySeverity ?? severity) * 0.72 + severity * 0.28, 0, 1);
+      state.arena.assetOverlayTone = tone;
+      state.arena.assetOverlayRecentReject = recentReject ? 1 : 0;
+      state.arena.assetOverlaySync = syncRatio;
+      state.arena.assetOverlayIntegrity = integrityRatio;
+      if (recentReject || assetRisk >= 0.58 || integrityRatio < 0.75) {
+        state.arena.scenePulseAmbient = Math.min(3.2, asNum(state.arena.scenePulseAmbient || 0) + (recentReject ? 0.14 : 0.08) + severity * 0.04);
+      }
     }
   }
 
@@ -6144,6 +6243,13 @@
     const assetChip = byId("pvpRejectIntelAssetChip");
     const recoveryMeter = byId("pvpRejectIntelRecoveryMeter");
     const riskMeter = byId("pvpRejectIntelRiskMeter");
+    const actionPanel = byId("pvpRejectIntelActionPanel");
+    const directiveChip = byId("pvpRejectIntelDirectiveChip");
+    const expectedChip = byId("pvpRejectIntelExpectedChip");
+    const queueChip = byId("pvpRejectIntelQueueChip");
+    const backoffChip = byId("pvpRejectIntelBackoffChip");
+    const syncChip = byId("pvpRejectIntelSyncChip");
+    const solutionLine = byId("pvpRejectIntelSolutionLine");
     if (
       !root ||
       !badge ||
@@ -6155,7 +6261,14 @@
       !windowChip ||
       !assetChip ||
       !recoveryMeter ||
-      !riskMeter
+      !riskMeter ||
+      !actionPanel ||
+      !directiveChip ||
+      !expectedChip ||
+      !queueChip ||
+      !backoffChip ||
+      !syncChip ||
+      !solutionLine
     ) {
       return;
     }
@@ -6186,6 +6299,14 @@
       setChip(freshChip, "AGE --", "neutral", 0.12);
       setChip(windowChip, "WND --", "neutral", 0.12);
       setChip(assetChip, "AST --", "neutral", 0.12);
+      actionPanel.dataset.tone = "neutral";
+      actionPanel.dataset.category = "none";
+      setChip(directiveChip, "DIR WAIT", "neutral", 0.12);
+      setChip(expectedChip, "EXP --", "neutral", 0.12);
+      setChip(queueChip, "Q --", "neutral", 0.12);
+      setChip(backoffChip, "BACKOFF --", "neutral", 0.12);
+      setChip(syncChip, "SYNC --", "neutral", 0.12);
+      animateTextSwap(solutionLine, "Recovery akisi expected aksiyon ve runtime drift verisi ile hesaplanir.");
       animateMeterWidth(recoveryMeter, 0, 0.18);
       animateMeterWidth(riskMeter, 0, 0.18);
       setMeterPalette(recoveryMeter, "neutral");
@@ -6361,6 +6482,72 @@
       none: "Plan: expected aksiyonu takip et, queue driftini dusur, gerekirse state yenile."
     };
     animateTextSwap(plan, planTextMap[recentReject ? category : "none"] || planTextMap.none);
+
+    const expectedAction = resolveExpectedPvpAction(getPvpTickSnapshot());
+    const expectedLabel = normalizePvpInputLabel(expectedAction || "wait").toUpperCase();
+    const syncHealth = clamp(
+      windowRatio * 0.34 + (1 - queueRatio) * 0.2 + (1 - driftRatio) * 0.2 + assetSyncRatio * 0.16 + assetIntegrityRatio * 0.1,
+      0,
+      1
+    );
+    const backoffBaseMap = {
+      window: clamp((tickMs - windowMs) + latencyMs * 0.45 + 90, 90, 1400),
+      sequence: clamp(220 + queueSize * 90 + driftRatio * 280, 160, 1600),
+      duplicate: clamp(120 + queueSize * 60 + tickMs * 0.24, 100, 1200),
+      stale: clamp(320 + tickMs * 0.45 + (1 - syncHealth) * 360, 200, 1800),
+      auth: clamp(620 + (1 - syncHealth) * 420, 420, 2200),
+      session: clamp(380 + queueSize * 80 + (1 - syncHealth) * 280, 220, 1800),
+      invalid: clamp(180 + queueSize * 50 + driftRatio * 140, 120, 1400),
+      unknown: clamp(260 + queueSize * 70 + driftRatio * 220, 180, 1800),
+      none: clamp(80 + queueSize * 40 + (1 - windowRatio) * 120, 60, 900)
+    };
+    const backoffMs = Math.round(asNum(backoffBaseMap[category] ?? backoffBaseMap.none));
+    const directiveMap = {
+      window: "DIR HOLD",
+      sequence: "DIR RESET_SEQ",
+      duplicate: "DIR WAIT_TICK",
+      stale: "DIR SYNC",
+      auth: "DIR REAUTH",
+      session: "DIR RESUME",
+      invalid: "DIR FOLLOW_EXP",
+      unknown: "DIR SOFT_RESET",
+      none: tone === "critical" ? "DIR WATCH" : "DIR FLOW"
+    };
+    const directive = String(directiveMap[recentReject ? category : "none"] || directiveMap.none);
+    const queueDriftRisk = clamp(queueRatio * 0.55 + driftRatio * 0.45, 0, 1);
+    const queueTone = queueDriftRisk >= 0.68 ? "critical" : queueDriftRisk >= 0.34 ? "pressure" : "advantage";
+    const syncTone = syncHealth < 0.45 ? "critical" : syncHealth < 0.72 ? "pressure" : "advantage";
+    const backoffTone =
+      recentReject && (category === "auth" || category === "sequence" || category === "window")
+        ? backoffMs > 650
+          ? "critical"
+          : "pressure"
+        : backoffMs > 420
+          ? "pressure"
+          : "balanced";
+    const actionPanelTone = recentReject ? (tone === "critical" ? "critical" : "pressure") : tone === "advantage" ? "advantage" : "pressure";
+    actionPanel.dataset.tone = actionPanelTone;
+    actionPanel.dataset.category = recentReject ? category : "none";
+    setChip(directiveChip, directive, actionPanelTone, recentReject ? 0.9 : 0.38);
+    setChip(expectedChip, `EXP ${expectedLabel}`, expectedAction ? "balanced" : "neutral", expectedAction ? 0.66 : 0.16);
+    setChip(queueChip, `Q ${queueSize} | D ${Math.round(driftRatio * 100)}`, queueTone, 1 - queueDriftRisk);
+    setChip(backoffChip, recentReject ? `BACKOFF ${backoffMs}ms` : `BACKOFF ${Math.round(clamp((1 - windowRatio) * 220 + queueSize * 35, 0, 520))}ms`, backoffTone, recentReject ? clamp(1 - backoffMs / 1800, 0, 1) : 0.42);
+    setChip(syncChip, `SYNC ${Math.round(syncHealth * 100)}%`, syncTone, syncHealth);
+    const solutionMap = {
+      window: `Window disi aksiyon. ${expectedLabel} icin ${backoffMs}ms bekle, sonra tek input gonder.`,
+      sequence: `Sira bozuk. Queue temizle, action_seq akisini resetle ve ${expectedLabel} ile tekrar baslat.`,
+      duplicate: `Duplicate/replay tespit edildi. Flood kes, yeni tick bekle ve tek aksiyon gonder.`,
+      stale: `State stale. PvP paneli yenile, tick sync al, sonra ${expectedLabel} aksiyonuna don.`,
+      auth: `Auth sorunu. Session auth yenile ve ${expectedLabel} aksiyonunu yeniden dene.`,
+      session: `Session drift var. Duel state refresh et, queueyu bosalt ve yeniden senkron ol.`,
+      invalid: `Beklenmeyen input. Director/expected aksiyon: ${expectedLabel}.`,
+      unknown: `Reject tanimsiz. Queue drifti azalt, state sync al ve tek aksiyonla devam et.`,
+      none:
+        syncHealth < 0.55
+          ? `Sync baskisi yuksek. Queue ${queueSize}, drift ${Math.round(driftRatio * 100)}%. Ritmi kis.`
+          : `Reject temiz. ${expectedLabel} akisini takip et, queueyu ${Math.max(0, queueSize)} seviyede tut.`
+    };
+    animateTextSwap(solutionLine, solutionMap[recentReject ? category : "none"] || solutionMap.none);
 
     setChip(reasonChip, recentReject ? `REJ ${reasonCode}` : "REJ NONE", recentReject ? (tone === "critical" ? "critical" : "pressure") : "advantage", recentReject ? 0.95 : 0.2);
     setChip(
@@ -7695,6 +7882,22 @@
       state.v3.pvpLastActionAt = Date.now();
       state.v3.pvpLastRejected = !Boolean(data.action.accepted);
       state.v3.pvpLastRejectReason = data.action.accepted ? "" : String(data.action.reject_reason || "");
+      if (state.arena) {
+        const scoreDelta = Math.abs(asNum(data.action.score_delta || 0));
+        const rejectInfo = classifyPvpRejectReason(data.action.accepted ? "" : data.action.reject_reason || "");
+        if (data.action.accepted) {
+          const hitBurst = clamp(0.16 + scoreDelta * 0.05 + (String(data.action.expected_action || "") === String(inputAction || "").toLowerCase() ? 0.08 : 0), 0.12, 1.2);
+          state.arena.pvpHitBurst = Math.min(2.6, asNum(state.arena.pvpHitBurst || 0) + hitBurst);
+          state.arena.cameraImpulse = Math.min(0.55, asNum(state.arena.cameraImpulse || 0) + 0.018 + hitBurst * 0.028);
+        } else {
+          const rejectMulMap = { window: 1.2, sequence: 1.16, auth: 1.12, session: 1.02, stale: 0.94, duplicate: 0.9, invalid: 1.04 };
+          const rejectMul = asNum(rejectMulMap[String(rejectInfo.category || "unknown")] || 1);
+          const rejectBurst = clamp(0.12 + rejectMul * 0.12 + Math.min(0.12, latencyMs / 1800), 0.1, 0.6);
+          state.arena.pvpRejectShock = Math.min(3.2, asNum(state.arena.pvpRejectShock || 0) + rejectBurst);
+          state.arena.scenePulseReject = Math.min(3.2, asNum(state.arena.scenePulseReject || 0) + rejectBurst * 0.95);
+          state.arena.cameraImpulse = Math.min(0.48, asNum(state.arena.cameraImpulse || 0) + 0.01 + rejectBurst * 0.02);
+        }
+      }
       appendPvpTimelineEntry({
         key: `${String(data.session?.session_ref || session.session_ref)}:action:${asNum(data.action.action_seq || 0)}`,
         tone: data.action.accepted ? "action" : "reject",
@@ -7790,6 +7993,19 @@
     const data = payload.data || {};
     syncPvpSessionUi(data.session || null, data);
     if (data.session?.result) {
+      if (state.arena) {
+        const result = data.session.result || {};
+        const ratingDelta = Math.abs(asNum(result.rating_delta || 0));
+        const outcome = String(result.outcome_for_viewer || result.outcome || "").toLowerCase();
+        const winLike = /(win|victory|success)/.test(outcome);
+        const loseLike = /(lose|loss|defeat)/.test(outcome);
+        const resolveBurst = clamp(0.35 + Math.min(0.85, ratingDelta / 90) + (winLike ? 0.16 : 0) + (loseLike ? 0.08 : 0), 0.28, 1.5);
+        state.arena.pvpResolveBurst = Math.min(2.8, asNum(state.arena.pvpResolveBurst || 0) + resolveBurst);
+        state.arena.pvpResolveSignal = clamp(Math.max(asNum(state.arena.pvpResolveSignal || 0), 0.35) + resolveBurst * 0.22, 0, 1.2);
+        state.arena.scenePulseCrate = Math.min(3.6, asNum(state.arena.scenePulseCrate || 0) + 0.6 + resolveBurst * 0.55);
+        state.arena.scenePulseEnergy = Math.min(3.8, asNum(state.arena.scenePulseEnergy || 0) + 0.4 + resolveBurst * 0.35);
+        state.arena.cameraImpulse = Math.min(0.68, asNum(state.arena.cameraImpulse || 0) + 0.06 + resolveBurst * 0.045);
+      }
       pushPvpReplayEntry({
         seq: asNum(data.session?.action_count?.self || 0),
         input: "resolve",
@@ -11841,11 +12057,15 @@
       if (state.arena) {
         const decayRate = state.ui.reducedMotion ? 0.42 : 0.28;
         state.arena.pvpCinematicIntensity = Math.max(0, pvpCinematicIntensity - dt * decayRate);
+        const pvpHitBurst = clamp(asNum(state.arena.pvpHitBurst || 0), 0, 3);
+        const pvpResolveBurst = clamp(asNum(state.arena.pvpResolveBurst || 0), 0, 3);
         state.arena.scenePulseEnergy = Math.max(0, scenePulseEnergy - dt * (state.ui.reducedMotion ? 1.25 : 1.05));
         state.arena.scenePulseCrate = Math.max(0, scenePulseCrate - dt * (state.ui.reducedMotion ? 1.15 : 0.92));
         state.arena.scenePulseBridge = Math.max(0, scenePulseBridge - dt * (state.ui.reducedMotion ? 1.35 : 1.08));
         state.arena.scenePulseAmbient = Math.max(0, scenePulseAmbient - dt * (state.ui.reducedMotion ? 1.3 : 0.98));
         state.arena.scenePulseReject = Math.max(0, scenePulseReject - dt * (state.ui.reducedMotion ? 1.8 : 1.55));
+        state.arena.pvpHitBurst = Math.max(0, pvpHitBurst - dt * (state.ui.reducedMotion ? 1.65 : 1.38));
+        state.arena.pvpResolveBurst = Math.max(0, pvpResolveBurst - dt * (state.ui.reducedMotion ? 1.15 : 0.9));
       }
 
       if (modelRoot) {
@@ -12048,6 +12268,12 @@
       const sceneAlarmFreshness = clamp(asNum(state.arena?.sceneAlarmFreshness || 0), 0, 1);
       const sceneAlarmRecentReject = clamp(asNum(state.arena?.sceneAlarmRecentReject || 0), 0, 1);
       const sceneAlarmTone = String(state.arena?.sceneAlarmTone || "advantage").toLowerCase();
+      const assetOverlaySeverity = clamp(asNum(state.arena?.assetOverlaySeverity || 0), 0, 1);
+      const assetOverlayRecentReject = clamp(asNum(state.arena?.assetOverlayRecentReject || 0), 0, 1);
+      const assetOverlaySync = clamp(asNum(state.arena?.assetOverlaySync || 1), 0, 1);
+      const assetOverlayIntegrity = clamp(asNum(state.arena?.assetOverlayIntegrity || 1), 0, 1);
+      const pvpHitBurst = clamp(asNum(state.arena?.pvpHitBurst || 0), 0, 3);
+      const pvpResolveBurst = clamp(asNum(state.arena?.pvpResolveBurst || 0), 0, 3);
       const rejectCategoryMulMap = {
         window: 1.18,
         sequence: 1.24,
@@ -12080,6 +12306,12 @@
           (1 - assetManifestIntegrity) * 0.06 +
           pvpRejectShock * 0.08 * rejectCategoryMul +
           sceneAlarmCinematic * 0.14 * sceneAlarmToneMul,
+          assetOverlaySeverity * 0.14 +
+          (1 - assetOverlaySync) * 0.06 +
+          (1 - assetOverlayIntegrity) * 0.06 +
+          assetOverlayRecentReject * 0.08 +
+          pvpHitBurst * 0.08 +
+          pvpResolveBurst * 0.12,
         0,
         1.8
       );
@@ -12108,10 +12340,18 @@
       if (!state.ui.reducedMotion) {
         const alarmShake =
           clamp((sceneAlarmSeverity - 0.54) / 0.46, 0, 1) * (0.018 + sceneAlarmAssetMismatch * 0.02 + sceneAlarmRecentReject * 0.025);
+        const resolveShake = pvpResolveBurst * (0.012 + pvpResolveSignal * 0.01);
+        const hitShake = pvpHitBurst * 0.007 * (1 + pvpTickPressure * 0.4);
         if (alarmShake > 0.0001) {
           camera.position.x += (Math.random() - 0.5) * alarmShake;
           camera.position.y += (Math.random() - 0.5) * alarmShake * 0.72;
           camera.position.z += (Math.random() - 0.5) * alarmShake * 0.44;
+        }
+        if (resolveShake > 0.0001 || hitShake > 0.0001) {
+          const totalShake = resolveShake + hitShake;
+          camera.position.x += (Math.random() - 0.5) * totalShake;
+          camera.position.y += (Math.random() - 0.5) * totalShake * 0.64;
+          camera.position.z += (Math.random() - 0.5) * totalShake * 0.38;
         }
       }
       if (state.arena) {
@@ -12123,6 +12363,8 @@
         Math.min(2.8, cameraImpulse * 14) +
         pvpCinematicIntensity * 3.2 +
         scenePulseEnergy * 1.9 +
+        pvpHitBurst * 0.9 +
+        pvpResolveBurst * 1.35 +
         scenePulseReject * 0.8 +
         duelCinematicStress * 2.1 +
         sceneAlarmCinematic * 1.4 +
@@ -12146,6 +12388,8 @@
             duelCinematicStress * 0.16 +
             sceneAlarmCinematic * 0.12 +
             pvpResolveSignal * 0.08 +
+            pvpResolveBurst * 0.1 +
+            pvpHitBurst * 0.06 +
             ladderSceneActivity * 0.06 +
             assetManifestMissing * 0.05
           ) * motionBoost - bloomPass.strength) * 0.08;
@@ -12171,6 +12415,8 @@
               duelCinematicStress * 0.0007 +
               pvpLatencyStress * 0.0005 +
               pvpRejectShock * 0.00035 +
+              pvpHitBurst * 0.00032 +
+              pvpResolveBurst * 0.00055 +
               scenePulseEnergy * 0.0008 +
               scenePulseReject * 0.00055 +
               sceneAlarmSeverity * 0.00042 +
