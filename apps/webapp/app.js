@@ -288,11 +288,17 @@
     const manifestSource = String(
       assetRuntime.sourceMode || manifestMeta.sourceMode || state.telemetry.manifestProvider || "fallback"
     );
+    const ladderActivity = clamp(asNum(state.arena?.ladderActivity || 0), 0, 1);
     const pressureRatio = clamp(asNum(state.telemetry.combatHeat || 0) * 0.45 + asNum(state.telemetry.threatRatio || 0) * 0.55, 0, 1);
     const manifestSyncRatio = clamp(asNum(manifestMeta.integrityRatio || 1), 0, 1);
     const assetSyncRatio = clamp(asNum(assetRuntime.syncRatio || manifestSyncRatio || 1), 0, 1);
     const assetReadyRatio = clamp(asNum(assetRuntime.readyRatio || manifestMeta.readyRatio || assetRatio), 0, 1);
     const assetRuntimeTone = String(assetRuntime.tone || manifestMeta.tone || (isLite ? "pressure" : "balanced")).toLowerCase();
+    const manifestRiskRatio = clamp(
+      (1 - assetReadyRatio) * 0.42 + (1 - assetSyncRatio) * 0.36 + (1 - manifestSyncRatio) * 0.22,
+      0,
+      1
+    );
     const perfTone =
       fps > 0 && fps < 28
         ? "critical"
@@ -351,6 +357,46 @@
         : "neutral",
       clamp(assetSyncRatio * 0.6 + assetReadyRatio * 0.25 + 0.15, 0.15, 1)
     );
+
+    const liteBadge = byId("liteSceneBadge");
+    if (liteBadge) {
+      const shouldShow = isLite || manifestRiskRatio >= 0.2;
+      liteBadge.classList.toggle("hidden", !shouldShow);
+      liteBadge.classList.remove("warn", "info");
+      let badgeText = "Lite Scene";
+      if (isLite) {
+        const reasonText =
+          manifestRiskRatio >= 0.6
+            ? `Risk ${Math.round(manifestRiskRatio * 100)}`
+            : assetReadyRatio < 0.95
+              ? `Ready ${Math.round(assetReadyRatio * 100)}%`
+              : `Int ${Math.round(assetSyncRatio * 100)}%`;
+        badgeText = `Lite Scene | ${reasonText}`;
+        liteBadge.classList.add(manifestRiskRatio >= 0.5 ? "warn" : "info");
+        liteBadge.dataset.mode = "lite";
+      } else if (manifestRiskRatio >= 0.2) {
+        badgeText = `Asset Watch | ${Math.round((1 - assetSyncRatio) * 100)}% drift`;
+        liteBadge.classList.add(manifestRiskRatio >= 0.48 ? "warn" : "info");
+        liteBadge.dataset.mode = "watch";
+      } else {
+        liteBadge.classList.add("info");
+        liteBadge.dataset.mode = "ok";
+      }
+      liteBadge.textContent = badgeText;
+      liteBadge.title =
+        `scene=${sceneMode} perf=${perfTier} ladder=${Math.round(ladderActivity * 100)}% ` +
+        `ready=${Math.round(assetReadyRatio * 100)}% sync=${Math.round(assetSyncRatio * 100)}% ` +
+        `manifest=${manifestShort} ${manifestSource}`;
+    }
+
+    const sceneProfileLine = byId("sceneProfileLine");
+    if (sceneProfileLine) {
+      const hudDensity = String(state.ui?.hudDensity || "full");
+      const postFx = Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(2);
+      sceneProfileLine.textContent =
+        `Profile: hud ${hudDensity} | postfx ${postFx} | rev ${manifestShort} | ` +
+        `assets ${readyAssets}/${totalAssets} | int ${Math.round(assetSyncRatio * 100)}%`;
+    }
   }
 
   function getPerfBridge() {
@@ -3616,7 +3662,18 @@
     const bridgeExpectedLine = expectedAction ? expectedAction.toUpperCase() : "AUTO";
     const bridgeLatestLine = latestAction ? `${latestAction.toUpperCase()} ${latestAccepted ? "OK" : "MISS"}` : "CHAIN IDLE";
     const bridgeTimelineLineText = `Beklenen: ${bridgeExpectedLine} | Son: ${bridgeLatestLine} | x${chain.length}`;
-    const bridgeTimelineBadgeText = latest && !latestAccepted ? "MISS" : urgency.toUpperCase();
+    const rejectBadgeCodeMap = {
+      window: "WND",
+      sequence: "SEQ",
+      duplicate: "DUP",
+      stale: "STA",
+      auth: "AUTH",
+      session: "SES",
+      invalid: "INV",
+      unknown: "UNK"
+    };
+    const rejectBadgeCode = rejectBadgeCodeMap[String(rejectInfo.category || "unknown")] || "UNK";
+    const bridgeTimelineBadgeText = latest && !latestAccepted ? `MISS/${rejectBadgeCode}` : urgency.toUpperCase();
     const bridgeTimelineWarn = urgency === "critical" || (latest && !latestAccepted);
     const bridgeTimelineRatio = clamp(chain.length / Math.max(6, COMBAT_CHAIN_LIMIT) * 0.58 + energy / 100 * 0.42, 0, 1);
     let bridgeTimelinePalette = "neutral";
@@ -3630,7 +3687,10 @@
       bridgeTimelinePalette = "balanced";
     }
     const bridgeQueuePct = Math.round(queuePressure * 100);
-    const bridgeTimelineHint = `Queue ${bridgeQueuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
+    const bridgeTimelineHint =
+      latest && !latestAccepted
+        ? `Reject ${String(rejectInfo.shortLabel || rejectInfo.label || "REJECT")} | Queue ${bridgeQueuePct}% | Oneri ${recommendation}`
+        : `Queue ${bridgeQueuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
     const bridgeSyncGap = Math.abs(syncDelta);
     const bridgePressurePct = Math.round(pressureRatio * 100);
     const bridgeFluxHintMap = {
@@ -3878,7 +3938,7 @@
       timelineLine.textContent = `Beklenen: ${expectedLine} | Son: ${latestLine} | x${chain.length}`;
     }
     if (timelineBadge) {
-      const badgeState = latest && !latestAccepted ? "MISS" : urgency.toUpperCase();
+      const badgeState = latest && !latestAccepted ? `MISS/${rejectBadgeCode}` : urgency.toUpperCase();
       timelineBadge.textContent = badgeState;
       timelineBadge.className = urgency === "critical" || (latest && !latestAccepted) ? "badge warn" : "badge info";
     }
@@ -3899,7 +3959,10 @@
     }
     if (timelineHint) {
       const queuePct = Math.round(queuePressure * 100);
-      timelineHint.textContent = `Queue ${queuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
+      timelineHint.textContent =
+        latest && !latestAccepted
+          ? `Reject ${String(rejectInfo.shortLabel || rejectInfo.label || "REJECT")} | Queue ${queuePct}% | Oneri ${recommendation}`
+          : `Queue ${queuePct}% | Sync ${syncState} ${syncDelta > 0 ? `+${syncDelta}` : syncDelta} | Oneri ${recommendation}`;
     }
     if (fluxLine) {
       fluxLine.textContent = `SELF ${Math.round(selfMomentum * 100)} | OPP ${Math.round(oppMomentum * 100)} | ${syncState}`;
@@ -4418,6 +4481,7 @@
     const tickChip = byId("pvpLiveTickChip");
     const flowChip = byId("pvpLiveFlowChip");
     const shadowChip = byId("pvpLiveShadowChip");
+    const rejectChip = byId("pvpLiveRejectChip");
     if (
       !root ||
       !line ||
@@ -4431,7 +4495,8 @@
       !transportChip ||
       !tickChip ||
       !flowChip ||
-      !shadowChip
+      !shadowChip ||
+      !rejectChip
     ) {
       return;
     }
@@ -4450,6 +4515,7 @@
       setPvpLiveChipState(tickChip, "TICK 1000/800", "neutral");
       setPvpLiveChipState(flowChip, "FLOW IDLE", "neutral");
       setPvpLiveChipState(shadowChip, "SHADOW WAIT", "neutral");
+      setPvpLiveChipState(rejectChip, "REJ --", "neutral");
       animateTextSwap(line, "Score 0-0 | Combo 0-0 | TTL 0s");
       animateTextSwap(scoreDeltaLine, "Skor Delta 0 | Hamle 0-0");
       animateTextSwap(comboDeltaLine, "Combo Delta 0 | Pattern neutral");
@@ -4547,6 +4613,22 @@
       shadowChip,
       shadowText,
       shadowOk === null ? "neutral" : shadowOk ? "advantage" : "pressure"
+    );
+    const rejectChipCodeMap = {
+      window: "WND",
+      sequence: "SEQ",
+      duplicate: "DUP",
+      stale: "STA",
+      auth: "AUTH",
+      session: "SES",
+      invalid: "INV",
+      unknown: "UNK"
+    };
+    const rejectChipCode = rejectChipCodeMap[String(rejectInfo.category || "unknown")] || "UNK";
+    setPvpLiveChipState(
+      rejectChip,
+      recentReject ? `REJ ${rejectChipCode}` : "REJ --",
+      recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral"
     );
 
     animateTextSwap(
@@ -6617,6 +6699,7 @@
     const latencyChip = byId("pvpActionPulseLatencyChip");
     const queueChip = byId("pvpActionPulseQueueChip");
     const flowChip = byId("pvpActionPulseFlowChip");
+    const rejectChip = byId("pvpActionPulseRejectChip");
     const strikeBtn = byId("pvpStrikeBtn");
     const guardBtn = byId("pvpGuardBtn");
     const chargeBtn = byId("pvpChargeBtn");
@@ -6665,6 +6748,7 @@
       setPulseChip(latencyChip, "LAT 0ms", "neutral", 0.12);
       setPulseChip(queueChip, "Q 0", "neutral", 0.12);
       setPulseChip(flowChip, "FLOW IDLE", "neutral", 0.12);
+      setPulseChip(rejectChip, "REJ --", "neutral", 0.12);
       animateMeterWidth(meter, 0, 0.2);
       setMeterPalette(meter, "neutral");
       return;
@@ -6684,6 +6768,17 @@
     const rejectInfo = classifyPvpRejectReason(state.v3.pvpLastRejectReason);
     const rejectReasonRaw = String(rejectInfo.raw || "").toLowerCase();
     const rejectReasonLabel = String(rejectInfo.label || "REJECT");
+    const rejectChipCodeMap = {
+      window: "WND",
+      sequence: "SEQ",
+      duplicate: "DUP",
+      stale: "STA",
+      auth: "AUTH",
+      session: "SES",
+      invalid: "INV",
+      unknown: "UNK"
+    };
+    const rejectChipCode = rejectChipCodeMap[String(rejectInfo.category || "unknown")] || "UNK";
     const tone = recentReject
       ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical")
       : pressure >= 0.72
@@ -6749,6 +6844,12 @@
             : "FLOW LOCK",
       recentReject ? "critical" : tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage",
       1 - pressure
+    );
+    setPulseChip(
+      rejectChip,
+      recentReject ? `REJ ${rejectChipCode}` : "REJ --",
+      recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral",
+      recentReject ? 0.96 : 0.12
     );
     animateMeterWidth(meter, pressure * 100, 0.22);
     setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
@@ -11428,22 +11529,40 @@
       const cameraTargetX = pointer.x * activeProfile.cameraDrift * cameraDriftMul;
       const cameraTargetY = -pointer.y * (activeProfile.cameraDrift * cameraPointerStrength);
       const ladderScenePressure = clamp(asNum(state.arena?.ladderPressure || 0), 0, 1);
+      const ladderSceneActivity = clamp(asNum(state.arena?.ladderActivity || 0), 0, 1);
       const ladderSceneFreshness = clamp(asNum(state.arena?.ladderFreshness || 0), 0, 1);
       const assetSceneRisk = clamp(asNum(state.arena?.assetRisk || 0), 0, 1);
       const assetSceneSync = clamp(asNum(state.arena?.assetSyncRatio || 1), 0, 1);
+      const assetManifestIntegrity = clamp(asNum(state.arena?.assetManifestIntegrityRatio || assetSceneSync || 1), 0, 1);
+      const assetManifestMissing = clamp(asNum(state.arena?.assetManifestMissingRatio || 0), 0, 1);
       const pvpTickPressure = clamp(asNum(state.arena?.pvpTickPressure || 0), 0, 1);
       const pvpQueueStress = clamp(asNum(state.arena?.pvpQueueStress || 0), 0, 1);
       const pvpLatencyStress = clamp(asNum(state.arena?.pvpLatencyStress || 0), 0, 1);
       const pvpResolveSignal = clamp(asNum(state.arena?.pvpResolveSignal || 0), 0, 1);
       const pvpSyncSignal = clamp(asNum(state.arena?.pvpSyncSignal || 1), 0, 1);
       const pvpRejectShock = clamp(asNum(state.arena?.pvpRejectShock || 0), 0, 3);
+      const pvpRejectCategory = String(state.arena?.pvpRejectCategory || "none").toLowerCase();
+      const rejectCategoryMulMap = {
+        window: 1.18,
+        sequence: 1.24,
+        auth: 1.12,
+        session: 1.06,
+        duplicate: 0.92,
+        stale: 0.96,
+        invalid: 1.08,
+        none: 1
+      };
+      const rejectCategoryMul = rejectCategoryMulMap[pvpRejectCategory] || 1;
       const duelCinematicStress = clamp(
         pvpTickPressure * 0.32 +
           pvpQueueStress * 0.18 +
           pvpLatencyStress * 0.16 +
-          ladderScenePressure * 0.14 +
-          assetSceneRisk * 0.12 +
-          pvpRejectShock * 0.08,
+          ladderScenePressure * 0.12 +
+          ladderSceneActivity * 0.08 +
+          assetSceneRisk * 0.08 +
+          assetManifestMissing * 0.08 +
+          (1 - assetManifestIntegrity) * 0.06 +
+          pvpRejectShock * 0.08 * rejectCategoryMul,
         0,
         1.8
       );
@@ -11453,7 +11572,9 @@
         pvpCinematicIntensity * (cameraMode === "chase" ? -0.45 : 0.18) +
         duelCinematicStress * (cameraMode === "chase" ? -0.38 : 0.14) +
         (1 - pvpSyncSignal) * (cameraMode === "tactical" ? 0.12 : 0.06) +
-        assetSceneRisk * 0.08;
+        assetSceneRisk * 0.08 +
+        assetManifestMissing * 0.06 +
+        (1 - assetManifestIntegrity) * 0.04;
       camera.position.x += (cameraTargetX - camera.position.x) * cameraLerp;
       camera.position.y += (cameraTargetY - camera.position.y + cameraLift) * cameraLerp;
       camera.position.z += (cameraTargetZ - camera.position.z) * Math.max(0.03, Math.min(0.18, cameraLerp * 1.6));
@@ -11478,8 +11599,11 @@
         scenePulseReject * 0.8 +
         duelCinematicStress * 2.1 +
         ladderScenePressure * 0.9 +
+        ladderSceneActivity * 0.72 +
         (1 - ladderSceneFreshness) * 0.55 +
-        assetSceneRisk * 0.75;
+        assetSceneRisk * 0.75 +
+        assetManifestMissing * 0.48 +
+        (1 - assetManifestIntegrity) * 0.42;
       camera.fov += (targetFov - camera.fov) * 0.08;
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0, 0);
@@ -11492,10 +11616,19 @@
             heat * 0.4 +
             pvpCinematicIntensity * 0.2 +
             duelCinematicStress * 0.16 +
-            pvpResolveSignal * 0.08
+            pvpResolveSignal * 0.08 +
+            ladderSceneActivity * 0.06 +
+            assetManifestMissing * 0.05
           ) * motionBoost - bloomPass.strength) * 0.08;
         bloomPass.radius +=
-          ((0.45 + postFxTarget * 0.18 + threat * 0.2 + ladderScenePressure * 0.08 + assetSceneRisk * 0.06) * motionBoost -
+          ((0.45 +
+              postFxTarget * 0.18 +
+              threat * 0.2 +
+              ladderScenePressure * 0.08 +
+              ladderSceneActivity * 0.05 +
+              assetSceneRisk * 0.05 +
+              assetManifestMissing * 0.04) *
+            motionBoost -
             bloomPass.radius) * 0.08;
         bloomPass.threshold += ((0.62 - heat * 0.16) - bloomPass.threshold) * 0.08;
         if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
@@ -11510,7 +11643,10 @@
               pvpRejectShock * 0.00035 +
               scenePulseEnergy * 0.0008 +
               scenePulseReject * 0.00055 +
-              assetSceneRisk * 0.00025) * motionBoost;
+              assetSceneRisk * 0.00022 +
+              ladderSceneActivity * 0.00018 +
+              assetManifestMissing * 0.00022 +
+              (1 - assetManifestIntegrity) * 0.00016) * motionBoost;
           rgbShiftPass.uniforms.amount.value = currentAmount + (targetAmount - currentAmount) * 0.12;
         }
         composer.render();

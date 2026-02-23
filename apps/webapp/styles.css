@@ -310,6 +310,15 @@ h3 {
 
 #liteSceneBadge {
   width: fit-content;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 180ms ease;
+}
+
+#liteSceneBadge[data-mode="lite"] {
+  box-shadow: 0 0 16px rgba(255, 184, 92, 0.14);
+}
+
+#liteSceneBadge[data-mode="watch"] {
+  box-shadow: 0 0 14px rgba(162, 186, 255, 0.14);
 }
 
 .sceneStatusDeck {
@@ -2155,7 +2164,7 @@ body:not(.reduced-motion) .simActions .mode[data-accept-state="rejected"]::after
 
 .pvpActionPulseTelemetry {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -2338,7 +2347,7 @@ body:not(.reduced-motion) .pvpLiveDuelStrip[data-tone="critical"] {
 
 .pvpLiveChipGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(92px, auto));
+  grid-template-columns: repeat(3, minmax(84px, auto));
   gap: 6px;
 }
 
