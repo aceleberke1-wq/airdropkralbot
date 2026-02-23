@@ -481,6 +481,33 @@
               </div>
             </div>
           </section>
+          <section id="pvpRejectIntelStrip" class="pvpRejectIntelStrip" data-tone="neutral" data-category="none" data-recent="0">
+            <div class="pvpRejectIntelTop">
+              <div class="panelHead compact">
+                <h4>Reject Intel</h4>
+                <span id="pvpRejectIntelBadge" class="badge info">CLEAN</span>
+              </div>
+              <div class="pvpRejectIntelChipRow">
+                <span id="pvpRejectIntelReasonChip" class="pvpLiveChip neutral">REJ NONE</span>
+                <span id="pvpRejectIntelFreshChip" class="pvpLiveChip neutral">AGE --</span>
+                <span id="pvpRejectIntelWindowChip" class="pvpLiveChip neutral">WND --</span>
+                <span id="pvpRejectIntelAssetChip" class="pvpLiveChip neutral">AST --</span>
+              </div>
+            </div>
+            <p id="pvpRejectIntelLine" class="value">Reject diagnostics bekleniyor.</p>
+            <div class="pvpRejectIntelMeterGrid">
+              <div class="pvpRejectIntelMeterCard">
+                <p class="micro">Recovery Window</p>
+                <div class="meter"><span id="pvpRejectIntelRecoveryMeter"></span></div>
+              </div>
+              <div class="pvpRejectIntelMeterCard">
+                <p class="micro">Risk / Drift</p>
+                <div class="meter"><span id="pvpRejectIntelRiskMeter"></span></div>
+              </div>
+            </div>
+            <p id="pvpRejectIntelHint" class="micro">Reject gelirse burada neden ve cozum akisi gosterilir.</p>
+            <p id="pvpRejectIntelPlan" class="micro">Plan: expected aksiyonu takip et, queue driftini dusur, gerekirse state yenile.</p>
+          </section>
           <section class="pvpObjectiveGrid">
             <article id="pvpObjectivePrimary" class="pvpObjectiveCard neutral">
               <p class="label">Hedef 1</p>
