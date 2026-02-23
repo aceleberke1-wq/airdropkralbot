@@ -12,7 +12,8 @@
       isAdmin: false,
       summary: null,
       runtime: null,
-      assets: null
+      assets: null,
+      queues: null
     },
     suggestion: null,
     arena: null,
@@ -222,6 +223,20 @@
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  function maskWalletAddress(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (raw.includes("...")) {
+      return raw;
+    }
+    if (raw.length <= 14) {
+      return raw;
+    }
+    return `${raw.slice(0, 6)}...${raw.slice(-5)}`;
   }
 
   function setAssetModeLine(text) {
@@ -9505,6 +9520,341 @@
     applyTokenChip("tokenAlertTertiaryChip", chipC.label, chipC.tone);
   }
 
+  function renderTokenRouteRuntimeStrip(token, quotePayload = null) {
+    const host = byId("tokenRouteRuntimeStrip");
+    if (!host) {
+      return;
+    }
+    const safe = token && typeof token === "object" ? token : {};
+    const chains = Array.isArray(safe.purchase?.chains) ? safe.purchase.chains : [];
+    const quoteData = quotePayload && typeof quotePayload === "object" ? quotePayload : state.v3.tokenQuote || null;
+    const selectedChain = String(byId("tokenChainSelect")?.value || quoteData?.chain || "").toUpperCase();
+    const selectedRoute = chains.find((row) => String(row.chain || "").toUpperCase() === selectedChain) || null;
+    const totalRoutes = chains.length;
+    const enabledRoutes = chains.filter((row) => row && row.enabled).length;
+    const missingRoutes = Math.max(0, totalRoutes - enabledRoutes);
+    const routeCoverage = totalRoutes > 0 ? clamp(enabledRoutes / totalRoutes, 0, 1) : 0;
+    const payAddress = String(quoteData?.pay_address || selectedRoute?.address || "").trim();
+    const maskedPay = maskWalletAddress(payAddress);
+    const gate = quoteData?.payout_gate || safe.payout_gate || {};
+    const gateOpen = gate.allowed === true;
+    const quorum = quoteData?.quote_quorum || {};
+    const providerCount = Math.max(0, Math.floor(asNum(quorum.provider_count || 0)));
+    const okProviderCount = Math.max(0, Math.floor(asNum(quorum.ok_provider_count || 0)));
+    const agreementRatio = clamp(asNum(quorum.agreement_ratio || 0), 0, 1);
+    const providerRatio = providerCount > 0 ? clamp(okProviderCount / providerCount, 0, 1) : 0;
+    const quorumRatio =
+      providerCount > 0 ? clamp(providerRatio * 0.58 + agreementRatio * 0.42, 0, 1) : routeCoverage > 0 ? 0.35 : 0;
+    const quorumDecision = String(quorum.decision || "").toUpperCase() || "WAIT";
+    const tone =
+      totalRoutes === 0 || enabledRoutes === 0
+        ? "critical"
+        : !selectedRoute && selectedChain
+          ? "pressure"
+          : selectedRoute && !selectedRoute.enabled
+            ? "critical"
+            : quoteData && !payAddress
+              ? "pressure"
+              : missingRoutes > 0 || (providerCount > 0 && quorumRatio < 0.45)
+                ? "pressure"
+                : gateOpen
+                  ? "advantage"
+                  : "balanced";
+
+    const badge = byId("tokenRouteBadge");
+    const line = byId("tokenRouteLine");
+    const coverageMeter = byId("tokenRouteCoverageMeter");
+    const quorumMeter = byId("tokenRouteQuorumMeter");
+    const routeList = byId("tokenRouteList");
+    host.dataset.tone = tone;
+    host.style.setProperty("--route-coverage", routeCoverage.toFixed(3));
+    host.style.setProperty("--route-quorum", quorumRatio.toFixed(3));
+
+    if (badge) {
+      badge.textContent = tone === "critical" ? "ROUTE ALERT" : tone === "pressure" ? "ROUTE WATCH" : gateOpen ? "ROUTE LIVE" : "ROUTE READY";
+      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    }
+    if (line) {
+      const chainLabel = selectedChain || "CHAIN?";
+      const payLine = maskedPay || (selectedRoute?.enabled ? String(selectedRoute.address || "") : "adres yok");
+      line.textContent =
+        `${chainLabel} | ${payLine || "odeme rotasi bekleniyor"} | ` +
+        `Gate ${gateOpen ? "OPEN" : "LOCKED"} | Quorum ${providerCount > 0 ? Math.round(quorumRatio * 100) + "%" : "WAIT"}`;
+    }
+
+    setLiveStatusChip(
+      "tokenRouteCoverageChip",
+      `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 0)}`,
+      routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "pressure" : "advantage",
+      routeCoverage
+    );
+    setLiveStatusChip(
+      "tokenRouteChainChip",
+      `CHAIN ${selectedChain || "--"}`,
+      selectedRoute ? (selectedRoute.enabled ? "balanced" : "critical") : selectedChain ? "pressure" : "neutral",
+      selectedRoute?.enabled ? 0.66 : selectedChain ? 0.42 : 0.18
+    );
+    setLiveStatusChip(
+      "tokenRoutePayChip",
+      payAddress ? `PAY ${maskWalletAddress(payAddress)}` : "PAY WAIT",
+      payAddress ? "advantage" : quoteData ? "pressure" : "neutral",
+      payAddress ? 0.82 : quoteData ? 0.36 : 0.16
+    );
+    setLiveStatusChip(
+      "tokenRouteQuorumChip",
+      `QRM ${providerCount > 0 ? `${okProviderCount}/${providerCount}` : quorumDecision}`,
+      providerCount === 0 ? "neutral" : quorumRatio < 0.35 ? "critical" : quorumRatio < 0.6 ? "pressure" : "advantage",
+      providerCount === 0 ? 0.16 : quorumRatio
+    );
+
+    if (coverageMeter) {
+      animateMeterWidth(coverageMeter, routeCoverage * 100, 0.24);
+      setMeterPalette(coverageMeter, routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "aggressive" : "safe");
+    }
+    if (quorumMeter) {
+      animateMeterWidth(quorumMeter, quorumRatio * 100, 0.24);
+      setMeterPalette(quorumMeter, providerCount === 0 ? "balanced" : quorumRatio < 0.35 ? "critical" : quorumRatio < 0.6 ? "aggressive" : "safe");
+    }
+
+    if (routeList) {
+      routeList.innerHTML = "";
+      if (!chains.length) {
+        const item = document.createElement("li");
+        item.className = "muted";
+        item.textContent = "Token alimi icin odeme rotasi tanimli degil (admin env cold wallet adreslerini kontrol etmeli).";
+        routeList.appendChild(item);
+      } else {
+        chains.slice(0, 8).forEach((row) => {
+          const chain = String(row.chain || "-").toUpperCase();
+          const payCurrency = String(row.pay_currency || chain).toUpperCase();
+          const enabled = Boolean(row.enabled);
+          const isSelected = selectedChain && chain === selectedChain;
+          const li = document.createElement("li");
+          li.className = `tokenRouteRow ${enabled ? "ready" : "missing"}${isSelected ? " selected" : ""}`;
+          const left = document.createElement("div");
+          const strong = document.createElement("strong");
+          strong.textContent = `${chain} (${payCurrency})`;
+          const meta = document.createElement("p");
+          meta.className = "micro";
+          meta.textContent = enabled ? maskWalletAddress(row.address) : "Adres tanimli degil";
+          left.appendChild(strong);
+          left.appendChild(meta);
+          const chip = document.createElement("span");
+          chip.className = `adminAssetState ${enabled ? "ready" : "missing"}`;
+          chip.textContent = enabled ? (isSelected ? "ACTIVE" : "READY") : "MISSING";
+          li.appendChild(left);
+          li.appendChild(chip);
+          routeList.appendChild(li);
+        });
+      }
+    }
+
+    state.v3.tokenRouteMetrics = {
+      totalRoutes,
+      enabledRoutes,
+      missingRoutes,
+      routeCoverage,
+      providerCount,
+      okProviderCount,
+      quorumRatio,
+      selectedChain,
+      gateOpen,
+      tone
+    };
+    const routeSignalKey = `${selectedChain}:${enabledRoutes}/${totalRoutes}:${providerCount}:${okProviderCount}:${Math.round(quorumRatio * 100)}:${gateOpen ? 1 : 0}`;
+    const now = Date.now();
+    if (routeSignalKey !== state.v3.lastTokenRouteSignalKey && now - asNum(state.v3.lastTokenRouteSignalAt || 0) > 2400) {
+      state.v3.lastTokenRouteSignalKey = routeSignalKey;
+      state.v3.lastTokenRouteSignalAt = now;
+      if (providerCount > 0 || totalRoutes > 0) {
+        triggerArenaPulse(tone === "critical" ? "aggressive" : tone === "pressure" ? "warn" : "info", {
+          label: tone === "critical" ? "TREASURY ROUTE ALERT" : `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 1)}`
+        });
+      }
+    }
+  }
+
+  function renderAdminTreasuryRuntimeStrip(summary, tokenBootstrap = {}) {
+    const host = byId("adminTreasuryRuntimeStrip");
+    if (!host) {
+      return;
+    }
+    const safeSummary = summary && typeof summary === "object" ? summary : {};
+    const token = safeSummary.token && typeof safeSummary.token === "object" ? safeSummary.token : {};
+    const queues = safeSummary.queues && typeof safeSummary.queues === "object" ? safeSummary.queues : state.admin.queues || {};
+    const routing =
+      token.routing && typeof token.routing === "object"
+        ? token.routing
+        : {
+            total_routes: Array.isArray(tokenBootstrap.purchase?.chains) ? tokenBootstrap.purchase.chains.length : 0,
+            enabled_routes: Array.isArray(tokenBootstrap.purchase?.chains)
+              ? tokenBootstrap.purchase.chains.filter((row) => row && row.enabled).length
+              : 0,
+            chains: Array.isArray(tokenBootstrap.purchase?.chains) ? tokenBootstrap.purchase.chains : []
+          };
+    const routeChains = Array.isArray(routing.chains) ? routing.chains : [];
+    const totalRoutes = Math.max(0, asNum(routing.total_routes || routeChains.length));
+    const enabledRoutes = Math.max(0, asNum(routing.enabled_routes || routeChains.filter((row) => row.enabled).length));
+    const routeCoverage = totalRoutes > 0 ? clamp(enabledRoutes / totalRoutes, 0, 1) : 0;
+    const gate = token.payout_gate || {};
+    const gateOpen = gate.allowed === true;
+    const apiRows = Array.isArray(queues.external_api_health) ? queues.external_api_health : [];
+    const apiTotal = apiRows.length;
+    const apiOk = apiRows.filter((row) => row && row.ok === true).length;
+    const apiRatio = apiTotal > 0 ? clamp(apiOk / apiTotal, 0, 1) : 0.35;
+    const apiLatencyAvg =
+      apiTotal > 0
+        ? apiRows.reduce((sum, row) => sum + asNum(row?.latency_ms || 0), 0) / apiTotal
+        : 0;
+    const latestApi = apiRows[0] || null;
+    const manualQueueCount = Array.isArray(queues.token_manual_queue) ? queues.token_manual_queue.length : 0;
+    const autoDecisionCount = Array.isArray(queues.token_auto_decisions) ? queues.token_auto_decisions.length : 0;
+    const pendingPayoutCount = Array.isArray(queues.payout_queue) ? queues.payout_queue.length : asNum(safeSummary.pending_payout_count || 0);
+    const queuePressure = clamp((manualQueueCount * 0.45 + pendingPayoutCount * 0.35 + Math.max(0, autoDecisionCount - 8) * 0.2) / 12, 0, 1);
+    const autoPolicy = token.auto_policy || {};
+    const autoPolicyEnabled = autoPolicy.enabled === true;
+    const routeMissing = Math.max(0, totalRoutes - enabledRoutes);
+    const tone =
+      totalRoutes === 0 || enabledRoutes === 0
+        ? "critical"
+        : routeMissing > 0 || !gateOpen || apiRatio < 0.5
+          ? apiRatio < 0.25 || routeMissing >= 2 ? "critical" : "pressure"
+          : queuePressure > 0.7
+            ? "pressure"
+            : "advantage";
+
+    host.dataset.tone = tone;
+    host.style.setProperty("--treasury-route", routeCoverage.toFixed(3));
+    host.style.setProperty("--treasury-api", apiRatio.toFixed(3));
+    host.style.setProperty("--treasury-queue", queuePressure.toFixed(3));
+
+    const badge = byId("adminTreasuryBadge");
+    const line = byId("adminTreasuryLine");
+    const signalLine = byId("adminTreasurySignalLine");
+    if (badge) {
+      badge.textContent = tone === "critical" ? "TREASURY ALERT" : tone === "pressure" ? "TREASURY WATCH" : "TREASURY LIVE";
+      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    }
+    if (line) {
+      line.textContent =
+        `Routes ${enabledRoutes}/${Math.max(totalRoutes, 0)} | Gate ${gateOpen ? "OPEN" : "LOCKED"} | ` +
+        `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"} | AUTO ${autoPolicyEnabled ? "ON" : "OFF"}`;
+    }
+    if (signalLine) {
+      const latestProvider = latestApi ? String(latestApi.provider || "provider") : "provider";
+      const latestStatus = latestApi ? `${latestApi.ok ? "OK" : "FAIL"} ${asNum(latestApi.status_code || 0) || "-"}` : "WAIT";
+      signalLine.textContent =
+        `${latestProvider} ${latestStatus} | avg ${Math.round(apiLatencyAvg)}ms | manual ${manualQueueCount} | auto ${autoDecisionCount} | payout ${pendingPayoutCount}`;
+    }
+
+    setLiveStatusChip(
+      "adminTreasuryGateChip",
+      gateOpen ? "GATE OPEN" : "GATE LOCK",
+      gateOpen ? "advantage" : "critical",
+      gateOpen ? 0.88 : 0.22
+    );
+    setLiveStatusChip(
+      "adminTreasuryRouteChip",
+      `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 0)}`,
+      routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "pressure" : "advantage",
+      routeCoverage
+    );
+    setLiveStatusChip(
+      "adminTreasuryApiChip",
+      `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"}`,
+      apiTotal === 0 ? "neutral" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "pressure" : "advantage",
+      apiTotal === 0 ? 0.18 : apiRatio
+    );
+    setLiveStatusChip(
+      "adminTreasuryQueueChip",
+      `Q ${manualQueueCount}/${pendingPayoutCount}`,
+      queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "pressure" : "balanced",
+      queuePressure
+    );
+    setLiveStatusChip(
+      "adminTreasuryAutoChip",
+      autoPolicyEnabled ? `AUTO $${asNum(autoPolicy.auto_usd_limit || 10).toFixed(0)}` : "AUTO OFF",
+      autoPolicyEnabled ? "balanced" : "neutral",
+      autoPolicyEnabled ? clamp(asNum(autoPolicy.risk_threshold || 0.35), 0, 1) : 0.12
+    );
+
+    const routeMeter = byId("adminTreasuryRouteMeter");
+    const apiMeter = byId("adminTreasuryApiMeter");
+    const queueMeter = byId("adminTreasuryQueueMeter");
+    if (routeMeter) {
+      animateMeterWidth(routeMeter, routeCoverage * 100, 0.24);
+      setMeterPalette(routeMeter, routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "aggressive" : "safe");
+    }
+    if (apiMeter) {
+      animateMeterWidth(apiMeter, apiRatio * 100, 0.24);
+      setMeterPalette(apiMeter, apiTotal === 0 ? "balanced" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "aggressive" : "safe");
+    }
+    if (queueMeter) {
+      animateMeterWidth(queueMeter, queuePressure * 100, 0.24);
+      setMeterPalette(queueMeter, queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "aggressive" : "balanced");
+    }
+
+    const routeList = byId("adminTreasuryRouteList");
+    if (routeList) {
+      routeList.innerHTML = "";
+      if (!routeChains.length) {
+        const empty = document.createElement("li");
+        empty.className = "muted";
+        empty.textContent = "Cold wallet route tablosu bos. Token purchase chain adresleri env/config tarafinda kontrol edilmeli.";
+        routeList.appendChild(empty);
+      } else {
+        routeChains.slice(0, 8).forEach((row) => {
+          const chain = String(row.chain || "-").toUpperCase();
+          const payCurrency = String(row.pay_currency || chain).toUpperCase();
+          const enabled = Boolean(row.enabled);
+          const li = document.createElement("li");
+          li.className = `tokenRouteRow ${enabled ? "ready" : "missing"}`;
+          const left = document.createElement("div");
+          const title = document.createElement("strong");
+          title.textContent = `${chain} (${payCurrency})`;
+          const meta = document.createElement("p");
+          meta.className = "micro";
+          meta.textContent = enabled ? maskWalletAddress(row.address) : "Adres tanimli degil";
+          left.appendChild(title);
+          left.appendChild(meta);
+          const chip = document.createElement("span");
+          chip.className = `adminAssetState ${enabled ? "ready" : "missing"}`;
+          chip.textContent = enabled ? "ROUTE OK" : "MISSING";
+          li.appendChild(left);
+          li.appendChild(chip);
+          routeList.appendChild(li);
+        });
+      }
+    }
+
+    state.admin.treasuryRuntimeMetrics = {
+      routeCoverage,
+      totalRoutes,
+      enabledRoutes,
+      apiRatio,
+      apiOk,
+      apiTotal,
+      apiLatencyAvg,
+      queuePressure,
+      manualQueueCount,
+      pendingPayoutCount,
+      autoDecisionCount,
+      gateOpen,
+      tone
+    };
+
+    const signalKey = `${enabledRoutes}/${totalRoutes}:${apiOk}/${apiTotal}:${Math.round(queuePressure * 100)}:${gateOpen ? 1 : 0}:${autoPolicyEnabled ? 1 : 0}`;
+    const now = Date.now();
+    if (signalKey !== state.admin.lastTreasurySignalKey && now - asNum(state.admin.lastTreasurySignalAt || 0) > 2600) {
+      state.admin.lastTreasurySignalKey = signalKey;
+      state.admin.lastTreasurySignalAt = now;
+      triggerArenaPulse(
+        tone === "critical" ? "aggressive" : tone === "pressure" ? "warn" : "info",
+        { label: tone === "critical" ? "TREASURY ALERT" : `TREASURY ${enabledRoutes}/${Math.max(totalRoutes, 1)}` }
+      );
+    }
+  }
+
   function renderToken(token) {
     const safe = token && typeof token === "object" ? token : {};
     const symbol = String(safe.symbol || "NXT").toUpperCase();
@@ -9558,6 +9908,7 @@
       scheduleTokenQuote();
     }
     renderTreasuryPulse(safe, state.v3.tokenQuote || null);
+    renderTokenRouteRuntimeStrip(safe, state.v3.tokenQuote || null);
   }
 
   function renderAdmin(adminData) {
@@ -9597,6 +9948,7 @@
     state.admin.runtime = runtime || null;
     renderAdminRuntime(runtime);
     renderAdminAssetStatus(state.admin.assets);
+    renderAdminTreasuryRuntimeStrip(summary, state.data?.token || {});
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
@@ -9863,7 +10215,8 @@
       throw new Error(payload.error || `admin_queues_failed:${res.status}`);
     }
     renewAuth(payload);
-    return payload.data || {};
+    state.admin.queues = payload.data || {};
+    return state.admin.queues;
   }
 
   async function fetchAdminMetrics() {

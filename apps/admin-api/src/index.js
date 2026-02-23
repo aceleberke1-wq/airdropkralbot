@@ -1728,6 +1728,18 @@ async function buildAdminSummary(db, runtimeConfig) {
   );
   const pendingPayouts = await payoutStore.listRequests(db, { status: "requested", limit: 20 });
   const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
+  const addressBook = getPaymentAddressBook();
+  const routingChains = Object.keys(tokenConfig.purchase?.chains || {}).map((chainKey) => {
+    const chainConfig = tokenEngine.getChainConfig(tokenConfig, chainKey);
+    const address = tokenEngine.resolvePaymentAddress({ addresses: addressBook }, chainConfig);
+    return {
+      chain: chainKey,
+      pay_currency: chainConfig?.payCurrency || chainKey,
+      address: maskAddress(address),
+      enabled: Boolean(address)
+    };
+  });
+  const enabledRouteCount = routingChains.filter((row) => row.enabled).length;
   let tokenRows = [];
   try {
     tokenRows = await tokenStore.listPurchaseRequests(db, { limit: 50 });
@@ -1814,6 +1826,13 @@ async function buildAdminSummary(db, runtimeConfig) {
         risk_threshold: Number(curveState.autoPolicy.riskThreshold || 0.35),
         velocity_per_hour: Number(curveState.autoPolicy.velocityPerHour || 8),
         require_onchain_verified: Boolean(curveState.autoPolicy.requireOnchainVerified)
+      },
+      routing: {
+        total_routes: routingChains.length,
+        enabled_routes: enabledRouteCount,
+        missing_routes: Math.max(0, routingChains.length - enabledRouteCount),
+        cold_wallets_configured: enabledRouteCount > 0,
+        chains: routingChains
       }
     }
   };

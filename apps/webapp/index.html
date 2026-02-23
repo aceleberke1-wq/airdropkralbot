@@ -683,6 +683,36 @@
               <p id="tokenUnits" class="micro">Unify Units: 0</p>
             </div>
           </div>
+          <section id="tokenRouteRuntimeStrip" class="tokenRouteRuntimeStrip" data-tone="neutral">
+            <div class="tokenRouteHead">
+              <div>
+                <div class="panelHead compact">
+                  <h4>Token Route Runtime</h4>
+                  <span id="tokenRouteBadge" class="badge info">ROUTE</span>
+                </div>
+                <p id="tokenRouteLine" class="micro">Odeme rotalari ve quote quorum verisi bekleniyor.</p>
+              </div>
+              <div class="tokenRouteChipRow">
+                <span id="tokenRouteCoverageChip" class="pvpLiveChip neutral">ROUTE 0/0</span>
+                <span id="tokenRouteChainChip" class="pvpLiveChip neutral">CHAIN --</span>
+                <span id="tokenRoutePayChip" class="pvpLiveChip neutral">PAY WAIT</span>
+                <span id="tokenRouteQuorumChip" class="pvpLiveChip neutral">QRM WAIT</span>
+              </div>
+            </div>
+            <div class="tokenRouteMeterGrid">
+              <div class="tokenRouteMeterCard">
+                <p class="micro">Route Coverage</p>
+                <div class="meter"><span id="tokenRouteCoverageMeter"></span></div>
+              </div>
+              <div class="tokenRouteMeterCard">
+                <p class="micro">Quote Quorum / Provider Health</p>
+                <div class="meter"><span id="tokenRouteQuorumMeter"></span></div>
+              </div>
+            </div>
+            <ul id="tokenRouteList" class="tokenRouteList">
+              <li class="muted">Odeme rotalari yukleniyor...</li>
+            </ul>
+          </section>
           <div class="tokenActions">
             <div class="tokenRow">
               <label for="tokenUsdInput" class="label">USD Alim Talebi</label>
@@ -830,6 +860,40 @@
             <p id="adminQueue" class="micro">Queue: -</p>
             <p id="adminAssetSummary" class="micro">Assets: -</p>
             <p id="adminManifestRevision" class="micro">Manifest: -</p>
+            <section id="adminTreasuryRuntimeStrip" class="adminTreasuryRuntimeStrip" data-tone="neutral">
+              <div class="adminTreasuryRuntimeHead">
+                <div class="panelHead compact">
+                  <h4>Treasury Runtime Pulse</h4>
+                  <span id="adminTreasuryBadge" class="badge info">TREASURY</span>
+                </div>
+                <p id="adminTreasuryLine" class="micro">Token route / gate / queue / provider sagligi bekleniyor.</p>
+                <div class="adminTreasuryChipRow">
+                  <span id="adminTreasuryGateChip" class="pvpLiveChip neutral">GATE -</span>
+                  <span id="adminTreasuryRouteChip" class="pvpLiveChip neutral">ROUTE 0/0</span>
+                  <span id="adminTreasuryApiChip" class="pvpLiveChip neutral">API -</span>
+                  <span id="adminTreasuryQueueChip" class="pvpLiveChip neutral">Q -</span>
+                  <span id="adminTreasuryAutoChip" class="pvpLiveChip neutral">AUTO -</span>
+                </div>
+              </div>
+              <div class="adminTreasuryRuntimeMeters">
+                <div class="adminTreasuryMeterCard">
+                  <p class="micro">Route Coverage</p>
+                  <div class="meter"><span id="adminTreasuryRouteMeter"></span></div>
+                </div>
+                <div class="adminTreasuryMeterCard">
+                  <p class="micro">Provider Health</p>
+                  <div class="meter"><span id="adminTreasuryApiMeter"></span></div>
+                </div>
+                <div class="adminTreasuryMeterCard full">
+                  <p class="micro">Queue Pressure</p>
+                  <div class="meter"><span id="adminTreasuryQueueMeter"></span></div>
+                </div>
+              </div>
+              <p id="adminTreasurySignalLine" class="micro">Provider health ve queue durumu bekleniyor.</p>
+              <ul id="adminTreasuryRouteList" class="tokenRouteList">
+                <li class="muted">Cold wallet route tablosu yukleniyor...</li>
+              </ul>
+            </section>
             <section id="adminAssetRuntimeStrip" class="adminAssetRuntimeStrip" data-tone="neutral">
               <div class="adminAssetRuntimeHead">
                 <p class="label">Asset Runtime Pulse</p>
