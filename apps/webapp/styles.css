@@ -2557,6 +2557,77 @@ body:not(.reduced-motion) .tokenRouteRuntimeStrip[data-tone="critical"] {
   overflow: auto;
 }
 
+.tokenTxLifecycleStrip {
+  --token-lifecycle-progress: 0;
+  --token-lifecycle-verify: 0;
+  margin-top: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background:
+    radial-gradient(
+      140% 120% at 8% 0%,
+      rgba(127, 214, 255, calc(0.02 + (var(--token-lifecycle-progress) * 0.08))) 0%,
+      transparent 64%
+    ),
+    radial-gradient(
+      130% 130% at 92% 100%,
+      rgba(61, 248, 194, calc(0.02 + (var(--token-lifecycle-verify) * 0.08))) 0%,
+      transparent 68%
+    ),
+    linear-gradient(145deg, rgba(8, 14, 34, 0.82), rgba(6, 11, 29, 0.78));
+}
+
+.tokenTxLifecycleStrip[data-tone="critical"] {
+  border-color: rgba(255, 93, 125, 0.46);
+  box-shadow: 0 0 16px rgba(255, 93, 125, 0.12);
+}
+
+.tokenTxLifecycleStrip[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.34);
+}
+
+.tokenTxLifecycleStrip[data-tone="advantage"] {
+  border-color: rgba(112, 255, 160, 0.28);
+}
+
+body:not(.reduced-motion) .tokenTxLifecycleStrip[data-tone="critical"] {
+  animation: pvpActionAlert 1400ms ease-in-out infinite;
+}
+
+.tokenTxLifecycleHead {
+  display: grid;
+  gap: 6px;
+}
+
+.tokenTxLifecycleChipRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tokenTxLifecycleMeters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tokenTxLifecycleMeterCard {
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(7, 13, 31, 0.64);
+  display: grid;
+  gap: 5px;
+}
+
+.tokenTxLifecycleMeterCard .micro,
+#tokenTxLifecycleSignalLine {
+  margin: 0;
+}
+
 .tokenRouteRow {
   border: 1px solid rgba(162, 186, 255, 0.15);
   border-radius: 10px;
@@ -3901,6 +3972,11 @@ body:not(.reduced-motion) .timelineNode[data-flow="reject"] {
   color: #ffc0cf;
 }
 
+.adminAssetState.warn {
+  border-color: rgba(255, 184, 92, 0.46);
+  color: #ffd9a2;
+}
+
 .panelHead.compact {
   gap: 8px;
   align-items: center;
@@ -4239,6 +4315,83 @@ body:not(.reduced-motion) .adminTreasuryRuntimeStrip[data-tone="critical"] {
 
 .adminPanel .tokenRouteList {
   max-height: 182px;
+}
+
+.adminProviderAlertStrip {
+  --provider-health: 0;
+  --provider-timeout: 0;
+  --provider-stale: 0;
+  margin-top: 6px;
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background:
+    radial-gradient(
+      130% 140% at 8% 0%,
+      rgba(61, 248, 194, calc(0.02 + (var(--provider-health) * 0.08))) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      130% 140% at 95% 0%,
+      rgba(255, 93, 125, calc(0.02 + (var(--provider-timeout) * 0.08))) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      120% 120% at 50% 100%,
+      rgba(255, 184, 92, calc(0.02 + (var(--provider-stale) * 0.08))) 0%,
+      transparent 70%
+    ),
+    rgba(7, 13, 31, 0.74);
+}
+
+.adminProviderAlertStrip[data-tone="critical"] {
+  border-color: rgba(255, 93, 125, 0.46);
+  box-shadow: 0 0 14px rgba(255, 93, 125, 0.12);
+}
+
+.adminProviderAlertStrip[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.36);
+}
+
+body:not(.reduced-motion) .adminProviderAlertStrip[data-tone="critical"] {
+  animation: pvpActionAlert 1300ms ease-in-out infinite;
+}
+
+.adminProviderAlertHead {
+  display: grid;
+  gap: 6px;
+}
+
+.adminProviderChipRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.adminProviderMeters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.adminProviderMeterCard {
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(6, 12, 29, 0.65);
+  display: grid;
+  gap: 5px;
+}
+
+.adminProviderMeterCard.full {
+  grid-column: 1 / -1;
+}
+
+.adminProviderMeterCard .micro,
+#adminProviderSignalLine {
+  margin: 0;
 }
 
 .pvpBoard {

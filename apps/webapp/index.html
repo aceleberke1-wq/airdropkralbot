@@ -713,6 +713,36 @@
               <li class="muted">Odeme rotalari yukleniyor...</li>
             </ul>
           </section>
+          <section id="tokenTxLifecycleStrip" class="tokenTxLifecycleStrip" data-tone="neutral">
+            <div class="tokenTxLifecycleHead">
+              <div class="panelHead compact">
+                <h4>Token TX Lifecycle</h4>
+                <span id="tokenTxLifecycleBadge" class="badge info">IDLE</span>
+              </div>
+              <p id="tokenTxLifecycleLine" class="micro">Quote -> Talep -> TX -> Verify -> Final akisi bekleniyor.</p>
+              <div class="tokenTxLifecycleChipRow">
+                <span id="tokenTxQuoteChip" class="pvpLiveChip neutral">QUOTE WAIT</span>
+                <span id="tokenTxRequestChip" class="pvpLiveChip neutral">REQ WAIT</span>
+                <span id="tokenTxHashChip" class="pvpLiveChip neutral">TX IDLE</span>
+                <span id="tokenTxVerifyChip" class="pvpLiveChip neutral">VERIFY WAIT</span>
+                <span id="tokenTxFinalChip" class="pvpLiveChip neutral">FINAL WAITING</span>
+              </div>
+            </div>
+            <div class="tokenTxLifecycleMeters">
+              <div class="tokenTxLifecycleMeterCard">
+                <p class="micro">Pipeline Progress</p>
+                <div class="meter"><span id="tokenTxLifecycleProgressMeter"></span></div>
+              </div>
+              <div class="tokenTxLifecycleMeterCard">
+                <p class="micro">Verify Confidence (Quorum)</p>
+                <div class="meter"><span id="tokenTxLifecycleVerifyMeter"></span></div>
+              </div>
+            </div>
+            <p id="tokenTxLifecycleSignalLine" class="micro">TX / verify / queue verisi bekleniyor.</p>
+            <ul id="tokenTxLifecycleList" class="tokenRouteList">
+              <li class="muted">Talep akisi yukleniyor...</li>
+            </ul>
+          </section>
           <div class="tokenActions">
             <div class="tokenRow">
               <label for="tokenUsdInput" class="label">USD Alim Talebi</label>
@@ -892,6 +922,39 @@
               <p id="adminTreasurySignalLine" class="micro">Provider health ve queue durumu bekleniyor.</p>
               <ul id="adminTreasuryRouteList" class="tokenRouteList">
                 <li class="muted">Cold wallet route tablosu yukleniyor...</li>
+              </ul>
+            </section>
+            <section id="adminProviderAlertStrip" class="adminProviderAlertStrip" data-tone="neutral">
+              <div class="adminProviderAlertHead">
+                <div class="panelHead compact">
+                  <h4>Provider / Auto Decision Watch</h4>
+                  <span id="adminProviderBadge" class="badge info">PROVIDER</span>
+                </div>
+                <p id="adminProviderLine" class="micro">External provider sagligi ve auto policy karar izi bekleniyor.</p>
+                <div class="adminProviderChipRow">
+                  <span id="adminProviderHealthChip" class="pvpLiveChip neutral">API WAIT</span>
+                  <span id="adminProviderLatencyChip" class="pvpLiveChip neutral">LAT -</span>
+                  <span id="adminProviderTimeoutChip" class="pvpLiveChip neutral">TO 0</span>
+                  <span id="adminProviderDecisionChip" class="pvpLiveChip neutral">AUTO -</span>
+                </div>
+              </div>
+              <div class="adminProviderMeters">
+                <div class="adminProviderMeterCard">
+                  <p class="micro">Provider Health</p>
+                  <div class="meter"><span id="adminProviderHealthMeter"></span></div>
+                </div>
+                <div class="adminProviderMeterCard">
+                  <p class="micro">Timeout Ratio</p>
+                  <div class="meter"><span id="adminProviderTimeoutMeter"></span></div>
+                </div>
+                <div class="adminProviderMeterCard full">
+                  <p class="micro">Staleness / Freshness Drift</p>
+                  <div class="meter"><span id="adminProviderStaleMeter"></span></div>
+                </div>
+              </div>
+              <p id="adminProviderSignalLine" class="micro">Provider telemetry bekleniyor.</p>
+              <ul id="adminProviderAlertList" class="tokenRouteList">
+                <li class="muted">Provider ve auto decision kayitlari yukleniyor...</li>
               </ul>
             </section>
             <section id="adminAssetRuntimeStrip" class="adminAssetRuntimeStrip" data-tone="neutral">
