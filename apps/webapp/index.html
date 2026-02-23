@@ -34,6 +34,20 @@
             <span id="sceneDeckTransportChip" class="sceneStatusChip tone-balanced">PVP POLL</span>
             <span id="sceneDeckManifestChip" class="sceneStatusChip tone-neutral">REV local</span>
           </div>
+          <div id="sceneAlarmStrip" class="sceneAlarmStrip" data-tone="neutral" data-category="none" data-recent="0" aria-label="Scene alarm telemetry">
+            <div class="sceneAlarmTop">
+              <span id="sceneAlarmBadge" class="badge info">SCENE OK</span>
+              <div class="sceneAlarmChipRow">
+                <span id="sceneAlarmPressureChip" class="pvpLiveChip neutral">PRES --</span>
+                <span id="sceneAlarmAssetChip" class="pvpLiveChip neutral">AST --</span>
+                <span id="sceneAlarmRejectChip" class="pvpLiveChip neutral">REJ --</span>
+                <span id="sceneAlarmFreshChip" class="pvpLiveChip neutral">FRESH --</span>
+              </div>
+            </div>
+            <p id="sceneAlarmLine" class="micro">Scene telemetry birlesik alarm akisi hazirlaniyor.</p>
+            <p id="sceneAlarmHint" class="micro">Ladder, asset ve reject baskisi burada tek hatta izlenir.</p>
+            <div class="meter sceneAlarmMeterWrap"><span id="sceneAlarmMeter"></span></div>
+          </div>
         </div>
         <div class="headerActions">
           <button id="refreshBtn" class="btn ghost">Yenile</button>

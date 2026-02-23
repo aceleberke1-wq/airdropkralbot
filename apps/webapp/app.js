@@ -399,6 +399,201 @@
         `Profile: hud ${hudDensity} | postfx ${postFx} | rev ${manifestShort} | ` +
         `assets ${readyAssets}/${totalAssets} | int ${Math.round(assetSyncRatio * 100)}%`;
     }
+    renderSceneAlarmStrip();
+  }
+
+  function renderSceneAlarmStrip() {
+    const root = byId("sceneAlarmStrip");
+    const badge = byId("sceneAlarmBadge");
+    const line = byId("sceneAlarmLine");
+    const hint = byId("sceneAlarmHint");
+    const meter = byId("sceneAlarmMeter");
+    const pressureChip = byId("sceneAlarmPressureChip");
+    const assetChip = byId("sceneAlarmAssetChip");
+    const rejectChip = byId("sceneAlarmRejectChip");
+    const freshChip = byId("sceneAlarmFreshChip");
+    if (!root || !badge || !line || !hint || !meter || !pressureChip || !assetChip || !rejectChip || !freshChip) {
+      return;
+    }
+
+    const ladder = state.v3?.pvpLeaderboardMetrics || {};
+    const assetRuntime = state.admin?.assetRuntimeMetrics || {};
+    const assetManifest = state.v3?.assetManifestMeta || {};
+    const diagnostics = state.v3?.pvpTickMeta?.diagnostics || state.v3?.pvpTickMeta?.state_json?.diagnostics || {};
+    const queueSize = Math.max(0, asNum(state.v3?.pvpQueue?.length || 0));
+    const tickMs = Math.max(220, asNum(state.v3?.pvpTickMs || state.v3?.pvpTickMeta?.tick_ms || 1000));
+    const windowMs = clamp(asNum(state.v3?.pvpActionWindowMs || state.v3?.pvpTickMeta?.action_window_ms || 800), 80, tickMs);
+    const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || state.telemetry?.latencyAvgMs || 0));
+    const windowSafety = clamp((windowMs - latencyMs) / Math.max(1, windowMs), 0, 1);
+    const driftRatio = clamp(Math.abs(asNum(diagnostics.score_drift || 0)) / 6, 0, 1);
+
+    const ladderPressure = clamp(asNum(ladder.pressure || state.arena?.ladderPressure || 0), 0, 1);
+    const ladderFreshness = clamp(asNum(ladder.freshnessRatio || state.arena?.ladderFreshness || 0), 0, 1);
+    const ladderActivity = clamp(asNum(ladder.activityRatio || state.arena?.ladderActivity || 0), 0, 1);
+
+    const assetReadyRatio = clamp(
+      asNum(
+        assetRuntime.readyRatio ??
+          assetManifest.readyRatio ??
+          (state.telemetry.assetTotalCount > 0 ? state.telemetry.assetReadyCount / Math.max(1, state.telemetry.assetTotalCount) : 1)
+      ),
+      0,
+      1
+    );
+    const assetSyncRatio = clamp(asNum(assetRuntime.syncRatio ?? assetManifest.readyRatio ?? 1), 0, 1);
+    const assetIntegrityRatio = clamp(
+      asNum(assetManifest.integrityRatio ?? assetRuntime.dbReadyRatio ?? assetRuntime.syncRatio ?? assetReadyRatio),
+      0,
+      1
+    );
+    const assetMismatch = clamp((1 - assetIntegrityRatio) * 0.46 + (1 - assetSyncRatio) * 0.3 + (1 - assetReadyRatio) * 0.24, 0, 1);
+
+    const rejectInfo = classifyPvpRejectReason(state.v3?.pvpLastRejectReason || "");
+    const rejectCategory = String(rejectInfo.category || "none");
+    const rejectAgeMs = Math.max(0, Date.now() - asNum(state.v3?.pvpLastActionAt || 0));
+    const recentReject = Boolean(state.v3?.pvpLastRejected) && rejectCategory !== "none" && rejectAgeMs < 12000;
+    const rejectFreshness = recentReject ? clamp(1 - rejectAgeMs / 12000, 0, 1) : 0;
+
+    const queueRatio = clamp(queueSize / 8, 0, 1);
+    const heatRatio = clamp(asNum(state.telemetry?.combatHeat || 0), 0, 1);
+    const threatRatio = clamp(asNum(state.telemetry?.threatRatio || 0), 0, 1);
+    const rejectSeverityMap = {
+      none: 0.08,
+      duplicate: 0.24,
+      stale: 0.32,
+      invalid: 0.44,
+      session: 0.52,
+      sequence: 0.66,
+      window: 0.72,
+      auth: 0.8,
+      unknown: 0.58
+    };
+    const rejectSeverity = clamp(asNum(rejectSeverityMap[rejectCategory] ?? rejectSeverityMap.unknown), 0, 1);
+
+    const severity = clamp(
+      heatRatio * 0.16 +
+        threatRatio * 0.18 +
+        ladderPressure * 0.19 +
+        (1 - ladderFreshness) * 0.08 +
+        ladderActivity * 0.08 +
+        assetMismatch * 0.21 +
+        queueRatio * 0.05 +
+        (1 - windowSafety) * 0.08 +
+        driftRatio * 0.04 +
+        (recentReject ? (0.11 + rejectSeverity * 0.14 + rejectFreshness * 0.06) : rejectSeverity * 0.02),
+      0,
+      1
+    );
+
+    let tone = "advantage";
+    if (recentReject && (rejectCategory === "window" || rejectCategory === "sequence" || rejectCategory === "auth")) {
+      tone = "critical";
+    } else if (severity >= 0.68 || assetMismatch >= 0.55) {
+      tone = "critical";
+    } else if (severity >= 0.36 || ladderPressure >= 0.56 || assetMismatch >= 0.28) {
+      tone = "pressure";
+    } else {
+      tone = "advantage";
+    }
+
+    root.dataset.tone = tone;
+    root.dataset.category = recentReject ? rejectCategory : "none";
+    root.dataset.recent = recentReject ? "1" : "0";
+    root.style.setProperty("--scene-alarm-stress", severity.toFixed(3));
+    root.style.setProperty("--scene-alarm-flash", (recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0).toFixed(3));
+
+    badge.textContent =
+      tone === "critical"
+        ? recentReject
+          ? "SCENE ALERT"
+          : "SCENE RISK"
+        : tone === "pressure"
+          ? "SCENE WATCH"
+          : "SCENE OK";
+    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+
+    const rejectCodeMap = { window: "WND", sequence: "SEQ", duplicate: "DUP", stale: "STA", auth: "AUTH", session: "SES", invalid: "INV", unknown: "UNK", none: "--" };
+    setLiveStatusChip(
+      "sceneAlarmPressureChip",
+      `PRES ${Math.round(ladderPressure * 100)}%`,
+      ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
+      ladderPressure
+    );
+    setLiveStatusChip(
+      "sceneAlarmAssetChip",
+      `AST ${Math.round(assetIntegrityRatio * 100)}%`,
+      assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
+      1 - assetMismatch
+    );
+    setLiveStatusChip(
+      "sceneAlarmRejectChip",
+      `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
+      recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
+      recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
+    );
+    setLiveStatusChip(
+      "sceneAlarmFreshChip",
+      `FRESH ${Math.round(ladderFreshness * 100)}%`,
+      ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
+      ladderFreshness
+    );
+
+    animateTextSwap(
+      line,
+      recentReject
+        ? `Reject ${String(rejectInfo.label || rejectCategory || "unknown")} | queue ${queueSize} | wnd ${Math.round(windowSafety * 100)}% | asset int ${Math.round(assetIntegrityRatio * 100)}%`
+        : `Scene ${tone.toUpperCase()} | ladder ${Math.round(ladderPressure * 100)}% | asset risk ${Math.round(assetMismatch * 100)}% | heat ${Math.round(heatRatio * 100)}%`
+    );
+    animateTextSwap(
+      hint,
+      recentReject
+        ? String(rejectInfo.hint || "Reject tespit edildi. Queue drift ve tick penceresini stabilize et, sonra expected aksiyona don.")
+        : tone === "critical"
+          ? "Asset integrity / ladder pressure / reject birikimi sahneyi stress moduna tasiyor. Window ve queue kontrolu oncelikli."
+          : tone === "pressure"
+            ? "Scene watch modunda: ladder baskisi ve asset sync durumunu izle, reject cikarsa ritmi kis."
+            : "Scene stabil: ladder taze, asset sync saglam, reject baskisi dusuk."
+    );
+    animateMeterWidth(meter, severity * 100, 0.22);
+    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+
+    if (state.arena) {
+      state.arena.sceneAlarmSeverity = clamp(asNum(state.arena.sceneAlarmSeverity ?? severity) * 0.76 + severity * 0.24, 0, 1);
+      state.arena.sceneAlarmFreshness = clamp(asNum(state.arena.sceneAlarmFreshness ?? ladderFreshness) * 0.72 + ladderFreshness * 0.28, 0, 1);
+      state.arena.sceneAlarmAssetMismatch = clamp(asNum(state.arena.sceneAlarmAssetMismatch ?? assetMismatch) * 0.76 + assetMismatch * 0.24, 0, 1);
+      state.arena.sceneAlarmRejectCategory = recentReject ? rejectCategory : "none";
+      state.arena.sceneAlarmRecentReject = recentReject ? 1 : 0;
+      state.arena.sceneAlarmTone = tone;
+      if (recentReject && tone === "critical") {
+        state.arena.cameraImpulse = Math.min(1.75, asNum(state.arena.cameraImpulse || 0) + 0.06 + rejectSeverity * 0.08);
+      }
+    }
+
+    const pulseKey = [
+      Math.round(severity * 100),
+      Math.round(assetMismatch * 100),
+      Math.round(ladderPressure * 100),
+      recentReject ? rejectCategory : "none"
+    ].join(":");
+    const now = Date.now();
+    if (
+      pulseKey !== state.v3.sceneAlarmPulseKey &&
+      now - asNum(state.v3.sceneAlarmPulseAt || 0) > 2800 &&
+      (recentReject || severity >= 0.6 || assetMismatch >= 0.55)
+    ) {
+      state.v3.sceneAlarmPulseKey = pulseKey;
+      state.v3.sceneAlarmPulseAt = now;
+      triggerArenaPulse(
+        recentReject ? (tone === "critical" ? "aggressive" : "balanced") : tone === "critical" ? "aggressive" : "balanced",
+        {
+          label: recentReject
+            ? `SCENE REJ ${(rejectCodeMap[rejectCategory] || "UNK")}`
+            : assetMismatch >= 0.55
+              ? `ASSET DRIFT ${Math.round((1 - assetIntegrityRatio) * 100)}`
+              : `LADDER HEAT ${Math.round(ladderPressure * 100)}`
+        }
+      );
+    }
   }
 
   function getPerfBridge() {
@@ -11848,6 +12043,11 @@
       const pvpSyncSignal = clamp(asNum(state.arena?.pvpSyncSignal || 1), 0, 1);
       const pvpRejectShock = clamp(asNum(state.arena?.pvpRejectShock || 0), 0, 3);
       const pvpRejectCategory = String(state.arena?.pvpRejectCategory || "none").toLowerCase();
+      const sceneAlarmSeverity = clamp(asNum(state.arena?.sceneAlarmSeverity || 0), 0, 1);
+      const sceneAlarmAssetMismatch = clamp(asNum(state.arena?.sceneAlarmAssetMismatch || 0), 0, 1);
+      const sceneAlarmFreshness = clamp(asNum(state.arena?.sceneAlarmFreshness || 0), 0, 1);
+      const sceneAlarmRecentReject = clamp(asNum(state.arena?.sceneAlarmRecentReject || 0), 0, 1);
+      const sceneAlarmTone = String(state.arena?.sceneAlarmTone || "advantage").toLowerCase();
       const rejectCategoryMulMap = {
         window: 1.18,
         sequence: 1.24,
@@ -11859,6 +12059,16 @@
         none: 1
       };
       const rejectCategoryMul = rejectCategoryMulMap[pvpRejectCategory] || 1;
+      const sceneAlarmToneMul =
+        sceneAlarmTone === "critical" ? 1.22 : sceneAlarmTone === "pressure" ? 1.08 : sceneAlarmTone === "advantage" ? 0.92 : 1;
+      const sceneAlarmCinematic = clamp(
+        sceneAlarmSeverity * 0.64 +
+          sceneAlarmAssetMismatch * 0.22 +
+          (1 - sceneAlarmFreshness) * 0.14 +
+          sceneAlarmRecentReject * 0.12,
+        0,
+        1.6
+      );
       const duelCinematicStress = clamp(
         pvpTickPressure * 0.32 +
           pvpQueueStress * 0.18 +
@@ -11868,7 +12078,8 @@
           assetSceneRisk * 0.08 +
           assetManifestMissing * 0.08 +
           (1 - assetManifestIntegrity) * 0.06 +
-          pvpRejectShock * 0.08 * rejectCategoryMul,
+          pvpRejectShock * 0.08 * rejectCategoryMul +
+          sceneAlarmCinematic * 0.14 * sceneAlarmToneMul,
         0,
         1.8
       );
@@ -11877,6 +12088,7 @@
         heat * (cameraMode === "tactical" ? 0.3 : cameraMode === "chase" ? -0.6 : -0.15) +
         pvpCinematicIntensity * (cameraMode === "chase" ? -0.45 : 0.18) +
         duelCinematicStress * (cameraMode === "chase" ? -0.38 : 0.14) +
+        sceneAlarmCinematic * (cameraMode === "chase" ? -0.22 : 0.08) +
         (1 - pvpSyncSignal) * (cameraMode === "tactical" ? 0.12 : 0.06) +
         assetSceneRisk * 0.08 +
         assetManifestMissing * 0.06 +
@@ -11893,6 +12105,15 @@
       } else if (state.arena?.cameraImpulse) {
         state.arena.cameraImpulse = 0;
       }
+      if (!state.ui.reducedMotion) {
+        const alarmShake =
+          clamp((sceneAlarmSeverity - 0.54) / 0.46, 0, 1) * (0.018 + sceneAlarmAssetMismatch * 0.02 + sceneAlarmRecentReject * 0.025);
+        if (alarmShake > 0.0001) {
+          camera.position.x += (Math.random() - 0.5) * alarmShake;
+          camera.position.y += (Math.random() - 0.5) * alarmShake * 0.72;
+          camera.position.z += (Math.random() - 0.5) * alarmShake * 0.44;
+        }
+      }
       if (state.arena) {
         state.arena.pvpRejectShock = Math.max(0, pvpRejectShock - dt * (0.7 + pvpTickPressure * 0.35 + pvpResolveSignal * 0.2));
       }
@@ -11904,6 +12125,7 @@
         scenePulseEnergy * 1.9 +
         scenePulseReject * 0.8 +
         duelCinematicStress * 2.1 +
+        sceneAlarmCinematic * 1.4 +
         ladderScenePressure * 0.9 +
         ladderSceneActivity * 0.72 +
         (1 - ladderSceneFreshness) * 0.55 +
@@ -11922,6 +12144,7 @@
             heat * 0.4 +
             pvpCinematicIntensity * 0.2 +
             duelCinematicStress * 0.16 +
+            sceneAlarmCinematic * 0.12 +
             pvpResolveSignal * 0.08 +
             ladderSceneActivity * 0.06 +
             assetManifestMissing * 0.05
@@ -11932,11 +12155,12 @@
               threat * 0.2 +
               ladderScenePressure * 0.08 +
               ladderSceneActivity * 0.05 +
+              sceneAlarmSeverity * 0.07 +
               assetSceneRisk * 0.05 +
               assetManifestMissing * 0.04) *
             motionBoost -
             bloomPass.radius) * 0.08;
-        bloomPass.threshold += ((0.62 - heat * 0.16) - bloomPass.threshold) * 0.08;
+        bloomPass.threshold += ((0.62 - heat * 0.16 - sceneAlarmSeverity * 0.03) - bloomPass.threshold) * 0.08;
         if (rgbShiftPass.uniforms && rgbShiftPass.uniforms.amount) {
           const currentAmount = asNum(rgbShiftPass.uniforms.amount.value || 0);
           const targetAmount =
@@ -11949,6 +12173,8 @@
               pvpRejectShock * 0.00035 +
               scenePulseEnergy * 0.0008 +
               scenePulseReject * 0.00055 +
+              sceneAlarmSeverity * 0.00042 +
+              sceneAlarmRecentReject * 0.00022 +
               assetSceneRisk * 0.00022 +
               ladderSceneActivity * 0.00018 +
               assetManifestMissing * 0.00022 +
