@@ -6,6 +6,7 @@ import { installPvpEventBridge } from "./ui/pvpEventBridge";
 import { installCombatHudBridge } from "./ui/combatHudBridge";
 import { installPvpDirectorBridge } from "./ui/pvpDirectorBridge";
 import { installPvpDuelBridge } from "./ui/pvpDuelBridge";
+import { installCombatFxBridge } from "./ui/combatFxBridge";
 
 installPerfBridge();
 installTelemetryDeckBridge();
@@ -14,6 +15,7 @@ installPvpEventBridge();
 installCombatHudBridge();
 installPvpDirectorBridge();
 installPvpDuelBridge();
+installCombatFxBridge();
 
 // Legacy runtime stays source of truth while V3.2 TS bundle rolls out.
 import("../app.js").catch((err) => {

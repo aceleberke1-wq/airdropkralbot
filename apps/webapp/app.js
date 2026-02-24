@@ -749,18 +749,66 @@
         : energy >= 0.36
           ? "pressure"
           : "advantage";
-    root.classList.toggle("hidden", !(recentResolve || energy > 0.08));
-    root.dataset.tone = tone;
-    root.dataset.state = recentResolve ? "active" : energy > 0.08 ? "cooldown" : "idle";
-    root.style.setProperty("--resolve-energy", energy.toFixed(3));
-    root.style.setProperty("--resolve-flash", (recentResolve ? clamp(0.28 + resolveBurst * 0.72, 0, 1) : clamp(energy * 0.35, 0, 0.6)).toFixed(3));
-
     const outcomeLabel = isResolved ? String(result?.outcome_for_viewer || result?.outcome || "resolved").toUpperCase() : "LIVE";
     const ratingDelta = asNum(result?.rating_delta || 0);
     const rewardSc = asNum(result?.reward?.sc || 0);
     const rewardRc = asNum(result?.reward?.rc || 0);
     const transport = String(session?.transport || tickMeta?.transport || state.v3?.pvpTransport || "poll").toUpperCase();
     const outcomeChipTone = tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage";
+    const combatFxBridge = getCombatFxBridge();
+    if (combatFxBridge) {
+      const handled = combatFxBridge.render({
+        resolve: {
+          visible: recentResolve || energy > 0.08,
+          tone,
+          state: recentResolve ? "active" : energy > 0.08 ? "cooldown" : "idle",
+          energy,
+          flash: recentResolve ? clamp(0.28 + resolveBurst * 0.72, 0, 1) : clamp(energy * 0.35, 0, 0.6),
+          badgeText: recentResolve ? `RESOLVE ${outcomeLabel}` : energy >= 0.5 ? "RESOLVE TRACE" : "COMBAT TRACE",
+          badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+          lineText:
+            recentResolve && isResolved
+              ? `Authoritative resolve | ${outcomeLabel} | rating ${ratingDelta >= 0 ? "+" : ""}${ratingDelta} | +${rewardSc} SC${rewardRc ? ` +${rewardRc} RC` : ""} | tick ${tickMs}ms`
+              : `Resolve burst ${Math.round(resolveBurst * 100)}% | hit ${Math.round(hitBurst * 100)}% | cam ${Math.round(cameraImpulse * 100)}% | wnd ${Math.round(windowRatio * 100)}%`,
+          meterPct: energy * 100,
+          meterPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+          chips: [
+            {
+              id: "resolveBurstOutcomeChip",
+              text: `OUT ${outcomeLabel.slice(0, 8)}`,
+              tone: outcomeChipTone,
+              level: isResolved ? 0.95 : 0.22
+            },
+            {
+              id: "resolveBurstRatingChip",
+              text: `R ${ratingDelta >= 0 ? "+" : ""}${ratingDelta}`,
+              tone: ratingDelta < 0 ? "critical" : ratingDelta > 0 ? "advantage" : "balanced",
+              level: clamp(Math.abs(ratingDelta) / 12, 0.16, 1)
+            },
+            {
+              id: "resolveBurstRewardChip",
+              text: `SC +${rewardSc}${rewardRc > 0 ? `|RC+${rewardRc}` : ""}`,
+              tone: rewardSc > 0 || rewardRc > 0 ? "advantage" : "balanced",
+              level: clamp((rewardSc + rewardRc * 1.4) / 8, 0.14, 1)
+            },
+            {
+              id: "resolveBurstTickChip",
+              text: `${transport} ${tickMs}ms`,
+              tone: windowRatio < 0.36 ? "critical" : windowRatio < 0.58 ? "pressure" : "balanced",
+              level: windowRatio
+            }
+          ]
+        }
+      });
+      if (handled) {
+        return;
+      }
+    }
+    root.classList.toggle("hidden", !(recentResolve || energy > 0.08));
+    root.dataset.tone = tone;
+    root.dataset.state = recentResolve ? "active" : energy > 0.08 ? "cooldown" : "idle";
+    root.style.setProperty("--resolve-energy", energy.toFixed(3));
+    root.style.setProperty("--resolve-flash", (recentResolve ? clamp(0.28 + resolveBurst * 0.72, 0, 1) : clamp(energy * 0.35, 0, 0.6)).toFixed(3));
     setLiveStatusChip("resolveBurstOutcomeChip", `OUT ${outcomeLabel.slice(0, 8)}`, outcomeChipTone, isResolved ? 0.95 : 0.22);
     setLiveStatusChip(
       "resolveBurstRatingChip",
@@ -861,6 +909,52 @@
       1
     );
     const tone = stressLevel >= 0.72 ? "critical" : stressLevel >= 0.4 ? "pressure" : burstLevel >= 0.28 ? "advantage" : "neutral";
+    if (state.arena) {
+      const envBoost = clamp(burstLevel * 0.34 + stressLevel * 0.44 + assetRisk * 0.22, 0, 1);
+      state.arena.pvpCinematicBoost = clamp(asNum(state.arena.pvpCinematicBoost ?? envBoost) * 0.78 + envBoost * 0.22, 0, 1.35);
+      state.arena.treasuryStress = treasuryStress;
+      state.arena.treasuryRouteRisk = tokenRouteRisk;
+      state.arena.treasuryQueuePressure = treasuryQueuePressure;
+      if (stressLevel >= 0.72 || (rejectShock >= 0.52 && assetRisk >= 0.25)) {
+        state.arena.scenePulseBridge = Math.min(3.2, asNum(state.arena.scenePulseBridge || 0) + 0.08 + stressLevel * 0.06);
+      }
+      if (treasuryStress >= 0.58 || tokenRouteRisk >= 0.58) {
+        state.arena.scenePulseReject = Math.min(3.2, asNum(state.arena.scenePulseReject || 0) + 0.04 + treasuryStress * 0.06);
+      }
+      if (resolveBurst >= 0.6) {
+        state.arena.scenePulseCrate = Math.min(3.2, asNum(state.arena.scenePulseCrate || 0) + 0.08 + resolveBurst * 0.08);
+      }
+    }
+    const combatFxBridge = getCombatFxBridge();
+    if (combatFxBridge) {
+      const handled = combatFxBridge.render({
+        fx: {
+          tone,
+          intense: burstLevel >= 0.5 || stressLevel >= 0.55,
+          burst: burstLevel,
+          stress: stressLevel,
+          window: windowRatio,
+          asset: 1 - assetRisk,
+          badgeText: tone === "critical" ? "FX ALERT" : tone === "pressure" ? "FX WATCH" : burstLevel >= 0.28 ? "FX LIVE" : "FX STABLE",
+          badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+          lineText: `Burst ${Math.round(burstLevel * 100)}% | Stress ${Math.round(stressLevel * 100)}% | wnd ${Math.round(windowRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}% | asset ${Math.round((1 - assetRisk) * 100)}% | treasury ${Math.round((1 - treasuryStress) * 100)}%`,
+          burstMeterPct: burstLevel * 100,
+          stressMeterPct: stressLevel * 100,
+          burstPalette: burstLevel >= 0.52 ? "aggressive" : "balanced",
+          stressPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe",
+          chips: [
+            { id: "combatFxHitChip", text: `HIT ${Math.round(hitBurst * 100)}%`, tone: hitBurst >= 0.6 ? "advantage" : hitBurst >= 0.28 ? "balanced" : "neutral", level: hitBurst },
+            { id: "combatFxResolveChip", text: `RSLV ${Math.round(resolveBurst * 100)}%`, tone: resolveBurst >= 0.6 ? "advantage" : resolveBurst >= 0.26 ? "pressure" : "neutral", level: resolveBurst },
+            { id: "combatFxRejectChip", text: `REJ ${Math.round(rejectShock * 100)}%`, tone: rejectShock >= 0.55 ? "critical" : rejectShock >= 0.24 ? "pressure" : "neutral", level: rejectShock },
+            { id: "combatFxCamChip", text: `CAM ${Math.round(cameraImpulse * 100)}%`, tone: cameraImpulse >= 0.55 ? "pressure" : "balanced", level: cameraImpulse },
+            { id: "combatFxAssetChip", text: `AST ${Math.round(integrityRatio * 100)}%`, tone: assetRisk >= 0.5 ? "critical" : assetRisk >= 0.24 ? "pressure" : "advantage", level: integrityRatio }
+          ]
+        }
+      });
+      if (handled) {
+        return;
+      }
+    }
     root.dataset.tone = tone;
     root.dataset.intense = burstLevel >= 0.5 || stressLevel >= 0.55 ? "1" : "0";
     root.style.setProperty("--fx-burst", burstLevel.toFixed(3));
@@ -884,23 +978,6 @@
     animateMeterWidth(stressMeter, stressLevel * 100, 0.22);
     setMeterPalette(burstMeter, burstLevel >= 0.52 ? "aggressive" : "balanced");
     setMeterPalette(stressMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe");
-
-    if (state.arena) {
-      const envBoost = clamp(burstLevel * 0.34 + stressLevel * 0.44 + assetRisk * 0.22, 0, 1);
-      state.arena.pvpCinematicBoost = clamp(asNum(state.arena.pvpCinematicBoost ?? envBoost) * 0.78 + envBoost * 0.22, 0, 1.35);
-      state.arena.treasuryStress = treasuryStress;
-      state.arena.treasuryRouteRisk = tokenRouteRisk;
-      state.arena.treasuryQueuePressure = treasuryQueuePressure;
-      if (stressLevel >= 0.72 || (rejectShock >= 0.52 && assetRisk >= 0.25)) {
-        state.arena.scenePulseBridge = Math.min(3.2, asNum(state.arena.scenePulseBridge || 0) + 0.08 + stressLevel * 0.06);
-      }
-      if (treasuryStress >= 0.58 || tokenRouteRisk >= 0.58) {
-        state.arena.scenePulseReject = Math.min(3.2, asNum(state.arena.scenePulseReject || 0) + 0.04 + treasuryStress * 0.06);
-      }
-      if (resolveBurst >= 0.6) {
-        state.arena.scenePulseCrate = Math.min(3.2, asNum(state.arena.scenePulseCrate || 0) + 0.08 + resolveBurst * 0.08);
-      }
-    }
   }
 
   function getPerfBridge() {
@@ -968,6 +1045,17 @@
 
   function getPvpDuelBridge() {
     const bridge = window.__AKR_PVP_DUEL__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getCombatFxBridge() {
+    const bridge = window.__AKR_COMBAT_FX__;
     if (!bridge || typeof bridge !== "object") {
       return null;
     }
