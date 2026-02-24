@@ -1190,6 +1190,17 @@
     return bridge;
   }
 
+  function getNetSchedulerBridge() {
+    const bridge = window.__AKR_NET_SCHEDULER__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.scheduleTimeout !== "function" || typeof bridge.clearTimeout !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -1891,26 +1902,38 @@
   }
 
   function scheduleSceneProfileSync(force = false) {
+    const scheduler = getNetSchedulerBridge();
     if (state.telemetry.sceneTimer) {
       clearTimeout(state.telemetry.sceneTimer);
       state.telemetry.sceneTimer = null;
     }
+    if (scheduler) {
+      scheduler.clearTimeout("sceneProfileSync");
+    }
     const delay = force ? 280 : 950;
-    state.telemetry.sceneTimer = setTimeout(() => {
+    const run = () => {
+      state.telemetry.sceneTimer = null;
       postSceneProfile(force).catch(() => {});
-    }, delay);
+    };
+    state.telemetry.sceneTimer = scheduler ? scheduler.scheduleTimeout("sceneProfileSync", delay, run) : setTimeout(run, delay);
   }
 
   function schedulePerfProfile(force = false) {
+    const scheduler = getNetSchedulerBridge();
     if (state.telemetry.perfTimer) {
       clearTimeout(state.telemetry.perfTimer);
       state.telemetry.perfTimer = null;
     }
+    if (scheduler) {
+      scheduler.clearTimeout("perfProfileSync");
+    }
     const delay = force ? 300 : 1200;
-    state.telemetry.perfTimer = setTimeout(() => {
+    const run = () => {
+      state.telemetry.perfTimer = null;
       postPerfProfile(force).catch(() => {});
       scheduleSceneProfileSync(false);
-    }, delay);
+    };
+    state.telemetry.perfTimer = scheduler ? scheduler.scheduleTimeout("perfProfileSync", delay, run) : setTimeout(run, delay);
   }
 
   function renewAuth(payload) {
@@ -7638,12 +7661,16 @@
   }
 
   function scheduleAssetManifestRefresh(force = false) {
+    const scheduler = getNetSchedulerBridge();
     if (state.v3.assetManifestTimer) {
       clearTimeout(state.v3.assetManifestTimer);
       state.v3.assetManifestTimer = null;
     }
+    if (scheduler) {
+      scheduler.clearTimeout("assetManifestRefresh");
+    }
     const delay = force ? 1400 : 45000;
-    state.v3.assetManifestTimer = setTimeout(async () => {
+    const run = async () => {
       state.v3.assetManifestTimer = null;
       try {
         await fetchActiveAssetManifestMeta();
@@ -7652,7 +7679,8 @@
       } finally {
         scheduleAssetManifestRefresh(false);
       }
-    }, delay);
+    };
+    state.v3.assetManifestTimer = scheduler ? scheduler.scheduleTimeout("assetManifestRefresh", delay, run) : setTimeout(run, delay);
   }
 
   function renderPvpLeaderboardStrip(list = [], meta = state.v3.pvpLeaderboardMeta) {
@@ -9621,10 +9649,16 @@
   }
 
   function scheduleTokenQuote() {
+    const scheduler = getNetSchedulerBridge();
     if (state.v3.quoteTimer) {
       clearTimeout(state.v3.quoteTimer);
+      state.v3.quoteTimer = null;
     }
-    state.v3.quoteTimer = setTimeout(() => {
+    if (scheduler) {
+      scheduler.clearTimeout("tokenQuoteRefresh");
+    }
+    const run = () => {
+      state.v3.quoteTimer = null;
       refreshTokenQuote().catch((err) => {
         const msg = String(err?.message || "");
         if (
@@ -9643,7 +9677,8 @@
         }
         showError(err);
       });
-    }, 300);
+    };
+    state.v3.quoteTimer = scheduler ? scheduler.scheduleTimeout("tokenQuoteRefresh", 300, run) : setTimeout(run, 300);
   }
 
   function renderTreasuryPulse(token, quotePayload = null) {
