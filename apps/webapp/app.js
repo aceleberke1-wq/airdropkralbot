@@ -11262,112 +11262,195 @@
             ? "pressure"
             : "advantage";
 
-    host.dataset.tone = tone;
-    host.style.setProperty("--decision-flow", decisionFlow.toFixed(3));
-    host.style.setProperty("--decision-risk", riskPressure.toFixed(3));
+    const adminTreasuryBridge = getAdminTreasuryBridge();
+    let decisionBridgeHandled = false;
+    if (adminTreasuryBridge && typeof adminTreasuryBridge.render === "function") {
+      const bridgeTopRows = reasonEntries.slice(0, 5).map(([reason, count]) => {
+        const toneKey =
+          /risk|verify|gate|tx/.test(reason) ? "warn" :
+          /velocity/.test(reason) ? "missing" :
+          /manual/.test(reason) ? "warn" : "ready";
+        return {
+          title: `Reason ${String(reason).toUpperCase()}`,
+          meta: `${count} karar | reject ${rejectCount} | approve ${approveCount} | avg risk ${Math.round(avgRisk * 100)}%`,
+          tone: toneKey,
+          chip: `${count}`
+        };
+      });
+      const bridgeRecentRows = recent.slice(0, 3).map((row) => {
+        const decision = String(row?.decision || "").toLowerCase();
+        const bad = /reject|fail/.test(decision);
+        return {
+          title: `#${asNum(row?.request_id) || "-"} ${String(row?.decision || "-").toUpperCase()}`,
+          meta: `${String(row?.reason || "reason yok")} | $${asNum(row?.usd_amount || 0).toFixed(2)} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`,
+          tone: bad ? "warn" : "ready",
+          chip: bad ? "REVIEW" : "AUTO"
+        };
+      });
+      decisionBridgeHandled =
+        adminTreasuryBridge.render({
+          decisionTrace: {
+            tone,
+            flowRatio: decisionFlow,
+            riskRatio: riskPressure,
+            badgeText:
+              tone === "critical" ? "TRACE ALERT" : tone === "pressure" ? "TRACE WATCH" : recent.length > 0 ? "TRACE LIVE" : "TRACE WAIT",
+            badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+            lineText: `Auto ${recent.length} | approve ${approveCount} | reject ${rejectCount} | fallback ${fallbackCount} | manual ${manualQueue.length}`,
+            signalLineText: `Top reason ${String(topReason).toUpperCase()} (${topReasonCount}) | avg risk ${Math.round(avgRisk * 100)}% | payout ${payoutQueue.length} | flow ${Math.round(decisionFlow * 100)}%`,
+            chips: [
+              {
+                id: "adminDecisionApproveChip",
+                text: `APP ${approveCount}`,
+                tone: approveCount > 0 ? "advantage" : "neutral",
+                level: clamp(approveCount / 8, 0.12, 1)
+              },
+              {
+                id: "adminDecisionRejectChip",
+                text: `REJ ${rejectCount}`,
+                tone: rejectCount > approveCount ? "critical" : rejectCount > 0 ? "pressure" : "neutral",
+                level: rejectCount > 0 ? clamp(rejectCount / 8, 0.16, 1) : 0.12
+              },
+              {
+                id: "adminDecisionManualChip",
+                text: `MAN ${manualQueue.length}`,
+                tone:
+                  manualQueue.length > 8 ? "critical" : manualQueue.length > 3 ? "pressure" : manualQueue.length > 0 ? "balanced" : "neutral",
+                level: manualQueue.length > 0 ? clamp(manualQueue.length / 15, 0.14, 1) : 0.12
+              },
+              {
+                id: "adminDecisionRiskChip",
+                text: `RISK ${Math.round(avgRisk * 100)}%`,
+                tone: avgRisk >= 0.65 ? "critical" : avgRisk >= 0.35 ? "pressure" : recent.length > 0 ? "balanced" : "neutral",
+                level: recent.length > 0 ? Math.max(avgRisk, 0.16) : 0.12
+              }
+            ],
+            meters: [
+              {
+                id: "adminDecisionFlowMeter",
+                pct: decisionFlow * 100,
+                palette: decisionFlow >= 0.72 ? "safe" : decisionFlow >= 0.44 ? "balanced" : "aggressive"
+              },
+              {
+                id: "adminDecisionRiskMeter",
+                pct: riskPressure * 100,
+                palette: riskPressure >= 0.72 ? "critical" : riskPressure >= 0.44 ? "aggressive" : "balanced"
+              }
+            ],
+            rows: [...bridgeTopRows, ...bridgeRecentRows],
+            emptyText: "Decision traces bekleniyor."
+          }
+        }) === true;
+    }
 
-    const badge = byId("adminDecisionTraceBadge");
-    const line = byId("adminDecisionTraceLine");
-    const signalLine = byId("adminDecisionTraceSignalLine");
-    if (badge) {
-      badge.textContent =
-        tone === "critical" ? "TRACE ALERT" : tone === "pressure" ? "TRACE WATCH" : recent.length > 0 ? "TRACE LIVE" : "TRACE WAIT";
-      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
-    }
-    if (line) {
-      line.textContent =
-        `Auto ${recent.length} | approve ${approveCount} | reject ${rejectCount} | fallback ${fallbackCount} | manual ${manualQueue.length}`;
-    }
-    if (signalLine) {
-      signalLine.textContent =
-        `Top reason ${String(topReason).toUpperCase()} (${topReasonCount}) | avg risk ${Math.round(avgRisk * 100)}% | payout ${payoutQueue.length} | flow ${Math.round(decisionFlow * 100)}%`;
-    }
+    if (!decisionBridgeHandled) {
+      host.dataset.tone = tone;
+      host.style.setProperty("--decision-flow", decisionFlow.toFixed(3));
+      host.style.setProperty("--decision-risk", riskPressure.toFixed(3));
 
-    setLiveStatusChip("adminDecisionApproveChip", `APP ${approveCount}`, approveCount > 0 ? "advantage" : "neutral", clamp(approveCount / 8, 0.12, 1));
-    setLiveStatusChip(
-      "adminDecisionRejectChip",
-      `REJ ${rejectCount}`,
-      rejectCount > approveCount ? "critical" : rejectCount > 0 ? "pressure" : "neutral",
-      rejectCount > 0 ? clamp(rejectCount / 8, 0.16, 1) : 0.12
-    );
-    setLiveStatusChip(
-      "adminDecisionManualChip",
-      `MAN ${manualQueue.length}`,
-      manualQueue.length > 8 ? "critical" : manualQueue.length > 3 ? "pressure" : manualQueue.length > 0 ? "balanced" : "neutral",
-      manualQueue.length > 0 ? clamp(manualQueue.length / 15, 0.14, 1) : 0.12
-    );
-    setLiveStatusChip(
-      "adminDecisionRiskChip",
-      `RISK ${Math.round(avgRisk * 100)}%`,
-      avgRisk >= 0.65 ? "critical" : avgRisk >= 0.35 ? "pressure" : recent.length > 0 ? "balanced" : "neutral",
-      recent.length > 0 ? Math.max(avgRisk, 0.16) : 0.12
-    );
+      const badge = byId("adminDecisionTraceBadge");
+      const line = byId("adminDecisionTraceLine");
+      const signalLine = byId("adminDecisionTraceSignalLine");
+      if (badge) {
+        badge.textContent =
+          tone === "critical" ? "TRACE ALERT" : tone === "pressure" ? "TRACE WATCH" : recent.length > 0 ? "TRACE LIVE" : "TRACE WAIT";
+        badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+      }
+      if (line) {
+        line.textContent =
+          `Auto ${recent.length} | approve ${approveCount} | reject ${rejectCount} | fallback ${fallbackCount} | manual ${manualQueue.length}`;
+      }
+      if (signalLine) {
+        signalLine.textContent =
+          `Top reason ${String(topReason).toUpperCase()} (${topReasonCount}) | avg risk ${Math.round(avgRisk * 100)}% | payout ${payoutQueue.length} | flow ${Math.round(decisionFlow * 100)}%`;
+      }
 
-    const flowMeter = byId("adminDecisionFlowMeter");
-    const riskMeter = byId("adminDecisionRiskMeter");
-    if (flowMeter) {
-      animateMeterWidth(flowMeter, decisionFlow * 100, 0.24);
-      setMeterPalette(flowMeter, decisionFlow >= 0.72 ? "safe" : decisionFlow >= 0.44 ? "balanced" : "aggressive");
-    }
-    if (riskMeter) {
-      animateMeterWidth(riskMeter, riskPressure * 100, 0.24);
-      setMeterPalette(riskMeter, riskPressure >= 0.72 ? "critical" : riskPressure >= 0.44 ? "aggressive" : "balanced");
-    }
+      setLiveStatusChip("adminDecisionApproveChip", `APP ${approveCount}`, approveCount > 0 ? "advantage" : "neutral", clamp(approveCount / 8, 0.12, 1));
+      setLiveStatusChip(
+        "adminDecisionRejectChip",
+        `REJ ${rejectCount}`,
+        rejectCount > approveCount ? "critical" : rejectCount > 0 ? "pressure" : "neutral",
+        rejectCount > 0 ? clamp(rejectCount / 8, 0.16, 1) : 0.12
+      );
+      setLiveStatusChip(
+        "adminDecisionManualChip",
+        `MAN ${manualQueue.length}`,
+        manualQueue.length > 8 ? "critical" : manualQueue.length > 3 ? "pressure" : manualQueue.length > 0 ? "balanced" : "neutral",
+        manualQueue.length > 0 ? clamp(manualQueue.length / 15, 0.14, 1) : 0.12
+      );
+      setLiveStatusChip(
+        "adminDecisionRiskChip",
+        `RISK ${Math.round(avgRisk * 100)}%`,
+        avgRisk >= 0.65 ? "critical" : avgRisk >= 0.35 ? "pressure" : recent.length > 0 ? "balanced" : "neutral",
+        recent.length > 0 ? Math.max(avgRisk, 0.16) : 0.12
+      );
 
-    const list = byId("adminDecisionTraceList");
-    if (list) {
-      list.innerHTML = "";
-      if (!recent.length && !manualQueue.length && !payoutQueue.length) {
-        const empty = document.createElement("li");
-        empty.className = "muted";
-        empty.textContent = "Decision traces bekleniyor.";
-        list.appendChild(empty);
-      } else {
-        const topRows = reasonEntries.slice(0, 5);
-        if (topRows.length > 0) {
-          topRows.forEach(([reason, count]) => {
+      const flowMeter = byId("adminDecisionFlowMeter");
+      const riskMeter = byId("adminDecisionRiskMeter");
+      if (flowMeter) {
+        animateMeterWidth(flowMeter, decisionFlow * 100, 0.24);
+        setMeterPalette(flowMeter, decisionFlow >= 0.72 ? "safe" : decisionFlow >= 0.44 ? "balanced" : "aggressive");
+      }
+      if (riskMeter) {
+        animateMeterWidth(riskMeter, riskPressure * 100, 0.24);
+        setMeterPalette(riskMeter, riskPressure >= 0.72 ? "critical" : riskPressure >= 0.44 ? "aggressive" : "balanced");
+      }
+
+      const list = byId("adminDecisionTraceList");
+      if (list) {
+        list.innerHTML = "";
+        if (!recent.length && !manualQueue.length && !payoutQueue.length) {
+          const empty = document.createElement("li");
+          empty.className = "muted";
+          empty.textContent = "Decision traces bekleniyor.";
+          list.appendChild(empty);
+        } else {
+          const topRows = reasonEntries.slice(0, 5);
+          if (topRows.length > 0) {
+            topRows.forEach(([reason, count]) => {
+              const li = document.createElement("li");
+              const toneKey =
+                /risk|verify|gate|tx/.test(reason) ? "warn" :
+                /velocity/.test(reason) ? "missing" :
+                /manual/.test(reason) ? "warn" : "ready";
+              li.className = `tokenRouteRow ${toneKey === "missing" ? "missing" : "ready"}`;
+              const left = document.createElement("div");
+              const title = document.createElement("strong");
+              title.textContent = `Reason ${String(reason).toUpperCase()}`;
+              const meta = document.createElement("p");
+              meta.className = "micro";
+              meta.textContent = `${count} karar | reject ${rejectCount} | approve ${approveCount} | avg risk ${Math.round(avgRisk * 100)}%`;
+              left.appendChild(title);
+              left.appendChild(meta);
+              const chip = document.createElement("span");
+              chip.className = `adminAssetState ${toneKey === "missing" ? "missing" : toneKey === "warn" ? "warn" : "ready"}`;
+              chip.textContent = `${count}`;
+              li.appendChild(left);
+              li.appendChild(chip);
+              list.appendChild(li);
+            });
+          }
+          recent.slice(0, 3).forEach((row) => {
+            const decision = String(row?.decision || "").toLowerCase();
+            const bad = /reject|fail/.test(decision);
             const li = document.createElement("li");
-            const toneKey =
-              /risk|verify|gate|tx/.test(reason) ? "warn" :
-              /velocity/.test(reason) ? "missing" :
-              /manual/.test(reason) ? "warn" : "ready";
-            li.className = `tokenRouteRow ${toneKey === "missing" ? "missing" : "ready"}`;
+            li.className = `tokenRouteRow ${bad ? "missing" : "ready"}`;
             const left = document.createElement("div");
             const title = document.createElement("strong");
-            title.textContent = `Reason ${String(reason).toUpperCase()}`;
+            title.textContent = `#${asNum(row?.request_id) || "-"} ${String(row?.decision || "-").toUpperCase()}`;
             const meta = document.createElement("p");
             meta.className = "micro";
-            meta.textContent = `${count} karar | reject ${rejectCount} | approve ${approveCount} | avg risk ${Math.round(avgRisk * 100)}%`;
+            meta.textContent = `${String(row?.reason || "reason yok")} | $${asNum(row?.usd_amount || 0).toFixed(2)} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`;
             left.appendChild(title);
             left.appendChild(meta);
             const chip = document.createElement("span");
-            chip.className = `adminAssetState ${toneKey === "missing" ? "missing" : toneKey === "warn" ? "warn" : "ready"}`;
-            chip.textContent = `${count}`;
+            chip.className = `adminAssetState ${bad ? "warn" : "ready"}`;
+            chip.textContent = bad ? "REVIEW" : "AUTO";
             li.appendChild(left);
             li.appendChild(chip);
             list.appendChild(li);
           });
         }
-        recent.slice(0, 3).forEach((row) => {
-          const decision = String(row?.decision || "").toLowerCase();
-          const bad = /reject|fail/.test(decision);
-          const li = document.createElement("li");
-          li.className = `tokenRouteRow ${bad ? "missing" : "ready"}`;
-          const left = document.createElement("div");
-          const title = document.createElement("strong");
-          title.textContent = `#${asNum(row?.request_id) || "-"} ${String(row?.decision || "-").toUpperCase()}`;
-          const meta = document.createElement("p");
-          meta.className = "micro";
-          meta.textContent = `${String(row?.reason || "reason yok")} | $${asNum(row?.usd_amount || 0).toFixed(2)} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`;
-          left.appendChild(title);
-          left.appendChild(meta);
-          const chip = document.createElement("span");
-          chip.className = `adminAssetState ${bad ? "warn" : "ready"}`;
-          chip.textContent = bad ? "REVIEW" : "AUTO";
-          li.appendChild(left);
-          li.appendChild(chip);
-          list.appendChild(li);
-        });
       }
     }
 

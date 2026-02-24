@@ -52,9 +52,24 @@ type ProviderPayload = {
   emptyText?: string;
 };
 
+type DecisionTracePayload = {
+  tone: Tone;
+  flowRatio: number;
+  riskRatio: number;
+  badgeText: string;
+  badgeTone: BadgeTone;
+  lineText: string;
+  signalLineText: string;
+  chips: LiveChipPayload[];
+  meters: MeterPayload[];
+  rows: ListRowPayload[];
+  emptyText?: string;
+};
+
 export type AdminTreasuryBridgePayload = {
   treasury?: TreasuryPayload;
   provider?: ProviderPayload;
+  decisionTrace?: DecisionTracePayload;
 };
 
 type AdminTreasuryBridge = {
@@ -220,14 +235,35 @@ function renderProvider(payload: ProviderPayload): boolean {
   return true;
 }
 
+function renderDecisionTrace(payload: DecisionTracePayload): boolean {
+  const host = byId<HTMLElement>("adminDecisionTraceStrip");
+  const badge = byId<HTMLElement>("adminDecisionTraceBadge");
+  const line = byId<HTMLElement>("adminDecisionTraceLine");
+  const signal = byId<HTMLElement>("adminDecisionTraceSignalLine");
+  if (!host || !badge || !line || !signal) return false;
+  host.dataset.tone = String(payload.tone || "neutral");
+  host.style.setProperty("--decision-flow", clamp(payload.flowRatio, 0, 1).toFixed(3));
+  host.style.setProperty("--decision-risk", clamp(payload.riskRatio, 0, 1).toFixed(3));
+  badge.textContent = String(payload.badgeText || "TRACE");
+  setBadgeClass(badge, payload.badgeTone || "info");
+  line.textContent = String(payload.lineText || "Decision trace runtime");
+  signal.textContent = String(payload.signalLineText || "Decision trace signals");
+  pulseOnce(line);
+  pulseOnce(signal);
+  (payload.chips || []).forEach(setLiveChip);
+  applyMeters(payload.meters || []);
+  renderRowList("adminDecisionTraceList", payload.rows || [], payload.emptyText);
+  return true;
+}
+
 function render(payload: AdminTreasuryBridgePayload): boolean {
   let handled = false;
   if (payload?.treasury) handled = renderTreasury(payload.treasury) || handled;
   if (payload?.provider) handled = renderProvider(payload.provider) || handled;
+  if (payload?.decisionTrace) handled = renderDecisionTrace(payload.decisionTrace) || handled;
   return handled;
 }
 
 export function installAdminTreasuryBridge(): void {
   window.__AKR_ADMIN_TREASURY__ = { render };
 }
-
