@@ -1179,6 +1179,17 @@
     return bridge;
   }
 
+  function getAdminTreasuryBridge() {
+    const bridge = window.__AKR_ADMIN_TREASURY__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -10737,108 +10748,193 @@
           : queuePressure > 0.7
             ? "pressure"
             : "advantage";
-
-    host.dataset.tone = tone;
-    host.style.setProperty("--treasury-route", routeCoverage.toFixed(3));
-    host.style.setProperty("--treasury-api", apiRatio.toFixed(3));
-    host.style.setProperty("--treasury-queue", queuePressure.toFixed(3));
-
-    const badge = byId("adminTreasuryBadge");
-    const line = byId("adminTreasuryLine");
-    const signalLine = byId("adminTreasurySignalLine");
-    if (badge) {
-      badge.textContent = tone === "critical" ? "TREASURY ALERT" : tone === "pressure" ? "TREASURY WATCH" : "TREASURY LIVE";
-      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
-    }
-    if (line) {
-      line.textContent =
-        `Routes ${enabledRoutes}/${Math.max(totalRoutes, 0)} | Gate ${gateOpen ? "OPEN" : "LOCKED"} | ` +
-        `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"} | AUTO ${autoPolicyEnabled ? "ON" : "OFF"}`;
-    }
-    if (signalLine) {
+    const adminTreasuryBridge = getAdminTreasuryBridge();
+    let treasuryBridgeHandled = false;
+    if (adminTreasuryBridge) {
       const latestProvider = latestApi ? String(latestApi.provider || "provider") : "provider";
       const latestStatus = latestApi ? `${latestApi.ok ? "OK" : "FAIL"} ${asNum(latestApi.status_code || 0) || "-"}` : "WAIT";
-      signalLine.textContent =
-        `${latestProvider} ${latestStatus} | avg ${Math.round(apiLatencyAvg)}ms | manual ${manualQueueCount} | auto ${autoDecisionCount} | payout ${pendingPayoutCount}`;
+      treasuryBridgeHandled =
+        adminTreasuryBridge.render({
+          treasury: {
+            tone,
+            routeRatio: routeCoverage,
+            apiRatio,
+            queueRatio: queuePressure,
+            badgeText: tone === "critical" ? "TREASURY ALERT" : tone === "pressure" ? "TREASURY WATCH" : "TREASURY LIVE",
+            badgeTone: tone === "critical" ? "warn" : "info",
+            lineText:
+              `Routes ${enabledRoutes}/${Math.max(totalRoutes, 0)} | Gate ${gateOpen ? "OPEN" : "LOCKED"} | ` +
+              `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"} | AUTO ${autoPolicyEnabled ? "ON" : "OFF"}`,
+            signalLineText:
+              `${latestProvider} ${latestStatus} | avg ${Math.round(apiLatencyAvg)}ms | manual ${manualQueueCount} | auto ${autoDecisionCount} | payout ${pendingPayoutCount}`,
+            chips: [
+              {
+                id: "adminTreasuryGateChip",
+                text: gateOpen ? "GATE OPEN" : "GATE LOCK",
+                tone: gateOpen ? "advantage" : "critical",
+                level: gateOpen ? 0.88 : 0.22
+              },
+              {
+                id: "adminTreasuryRouteChip",
+                text: `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 0)}`,
+                tone: routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "pressure" : "advantage",
+                level: routeCoverage
+              },
+              {
+                id: "adminTreasuryApiChip",
+                text: `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"}`,
+                tone: apiTotal === 0 ? "neutral" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "pressure" : "advantage",
+                level: apiTotal === 0 ? 0.18 : apiRatio
+              },
+              {
+                id: "adminTreasuryQueueChip",
+                text: `Q ${manualQueueCount}/${pendingPayoutCount}`,
+                tone: queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "pressure" : "balanced",
+                level: queuePressure
+              },
+              {
+                id: "adminTreasuryAutoChip",
+                text: autoPolicyEnabled ? `AUTO $${asNum(autoPolicy.auto_usd_limit || 10).toFixed(0)}` : "AUTO OFF",
+                tone: autoPolicyEnabled ? "balanced" : "neutral",
+                level: autoPolicyEnabled ? clamp(asNum(autoPolicy.risk_threshold || 0.35), 0, 1) : 0.12
+              }
+            ],
+            meters: [
+              {
+                id: "adminTreasuryRouteMeter",
+                pct: routeCoverage * 100,
+                palette: routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "aggressive" : "safe"
+              },
+              {
+                id: "adminTreasuryApiMeter",
+                pct: apiRatio * 100,
+                palette: apiTotal === 0 ? "balanced" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "aggressive" : "safe"
+              },
+              {
+                id: "adminTreasuryQueueMeter",
+                pct: queuePressure * 100,
+                palette: queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "aggressive" : "balanced"
+              }
+            ],
+            rows: routeChains.slice(0, 8).map((row) => {
+              const chain = String(row?.chain || "-").toUpperCase();
+              const payCurrency = String(row?.pay_currency || chain).toUpperCase();
+              const enabled = Boolean(row?.enabled);
+              return {
+                title: `${chain} (${payCurrency})`,
+                meta: enabled ? maskWalletAddress(row?.address) : "Adres tanimli degil",
+                tone: enabled ? "ready" : "missing",
+                chip: enabled ? "ROUTE OK" : "MISSING"
+              };
+            }),
+            emptyText: "Cold wallet route tablosu bos. Token purchase chain adresleri env/config tarafinda kontrol edilmeli."
+          }
+        }) === true;
     }
 
-    setLiveStatusChip(
-      "adminTreasuryGateChip",
-      gateOpen ? "GATE OPEN" : "GATE LOCK",
-      gateOpen ? "advantage" : "critical",
-      gateOpen ? 0.88 : 0.22
-    );
-    setLiveStatusChip(
-      "adminTreasuryRouteChip",
-      `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 0)}`,
-      routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "pressure" : "advantage",
-      routeCoverage
-    );
-    setLiveStatusChip(
-      "adminTreasuryApiChip",
-      `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"}`,
-      apiTotal === 0 ? "neutral" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "pressure" : "advantage",
-      apiTotal === 0 ? 0.18 : apiRatio
-    );
-    setLiveStatusChip(
-      "adminTreasuryQueueChip",
-      `Q ${manualQueueCount}/${pendingPayoutCount}`,
-      queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "pressure" : "balanced",
-      queuePressure
-    );
-    setLiveStatusChip(
-      "adminTreasuryAutoChip",
-      autoPolicyEnabled ? `AUTO $${asNum(autoPolicy.auto_usd_limit || 10).toFixed(0)}` : "AUTO OFF",
-      autoPolicyEnabled ? "balanced" : "neutral",
-      autoPolicyEnabled ? clamp(asNum(autoPolicy.risk_threshold || 0.35), 0, 1) : 0.12
-    );
+    if (!treasuryBridgeHandled) {
+      host.dataset.tone = tone;
+      host.style.setProperty("--treasury-route", routeCoverage.toFixed(3));
+      host.style.setProperty("--treasury-api", apiRatio.toFixed(3));
+      host.style.setProperty("--treasury-queue", queuePressure.toFixed(3));
 
-    const routeMeter = byId("adminTreasuryRouteMeter");
-    const apiMeter = byId("adminTreasuryApiMeter");
-    const queueMeter = byId("adminTreasuryQueueMeter");
-    if (routeMeter) {
-      animateMeterWidth(routeMeter, routeCoverage * 100, 0.24);
-      setMeterPalette(routeMeter, routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "aggressive" : "safe");
-    }
-    if (apiMeter) {
-      animateMeterWidth(apiMeter, apiRatio * 100, 0.24);
-      setMeterPalette(apiMeter, apiTotal === 0 ? "balanced" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "aggressive" : "safe");
-    }
-    if (queueMeter) {
-      animateMeterWidth(queueMeter, queuePressure * 100, 0.24);
-      setMeterPalette(queueMeter, queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "aggressive" : "balanced");
-    }
+      const badge = byId("adminTreasuryBadge");
+      const line = byId("adminTreasuryLine");
+      const signalLine = byId("adminTreasurySignalLine");
+      if (badge) {
+        badge.textContent = tone === "critical" ? "TREASURY ALERT" : tone === "pressure" ? "TREASURY WATCH" : "TREASURY LIVE";
+        badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+      }
+      if (line) {
+        line.textContent =
+          `Routes ${enabledRoutes}/${Math.max(totalRoutes, 0)} | Gate ${gateOpen ? "OPEN" : "LOCKED"} | ` +
+          `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"} | AUTO ${autoPolicyEnabled ? "ON" : "OFF"}`;
+      }
+      if (signalLine) {
+        const latestProvider = latestApi ? String(latestApi.provider || "provider") : "provider";
+        const latestStatus = latestApi ? `${latestApi.ok ? "OK" : "FAIL"} ${asNum(latestApi.status_code || 0) || "-"}` : "WAIT";
+        signalLine.textContent =
+          `${latestProvider} ${latestStatus} | avg ${Math.round(apiLatencyAvg)}ms | manual ${manualQueueCount} | auto ${autoDecisionCount} | payout ${pendingPayoutCount}`;
+      }
 
-    const routeList = byId("adminTreasuryRouteList");
-    if (routeList) {
-      routeList.innerHTML = "";
-      if (!routeChains.length) {
-        const empty = document.createElement("li");
-        empty.className = "muted";
-        empty.textContent = "Cold wallet route tablosu bos. Token purchase chain adresleri env/config tarafinda kontrol edilmeli.";
-        routeList.appendChild(empty);
-      } else {
-        routeChains.slice(0, 8).forEach((row) => {
-          const chain = String(row.chain || "-").toUpperCase();
-          const payCurrency = String(row.pay_currency || chain).toUpperCase();
-          const enabled = Boolean(row.enabled);
-          const li = document.createElement("li");
-          li.className = `tokenRouteRow ${enabled ? "ready" : "missing"}`;
-          const left = document.createElement("div");
-          const title = document.createElement("strong");
-          title.textContent = `${chain} (${payCurrency})`;
-          const meta = document.createElement("p");
-          meta.className = "micro";
-          meta.textContent = enabled ? maskWalletAddress(row.address) : "Adres tanimli degil";
-          left.appendChild(title);
-          left.appendChild(meta);
-          const chip = document.createElement("span");
-          chip.className = `adminAssetState ${enabled ? "ready" : "missing"}`;
-          chip.textContent = enabled ? "ROUTE OK" : "MISSING";
-          li.appendChild(left);
-          li.appendChild(chip);
-          routeList.appendChild(li);
-        });
+      setLiveStatusChip(
+        "adminTreasuryGateChip",
+        gateOpen ? "GATE OPEN" : "GATE LOCK",
+        gateOpen ? "advantage" : "critical",
+        gateOpen ? 0.88 : 0.22
+      );
+      setLiveStatusChip(
+        "adminTreasuryRouteChip",
+        `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 0)}`,
+        routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "pressure" : "advantage",
+        routeCoverage
+      );
+      setLiveStatusChip(
+        "adminTreasuryApiChip",
+        `API ${apiTotal > 0 ? `${apiOk}/${apiTotal}` : "WAIT"}`,
+        apiTotal === 0 ? "neutral" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "pressure" : "advantage",
+        apiTotal === 0 ? 0.18 : apiRatio
+      );
+      setLiveStatusChip(
+        "adminTreasuryQueueChip",
+        `Q ${manualQueueCount}/${pendingPayoutCount}`,
+        queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "pressure" : "balanced",
+        queuePressure
+      );
+      setLiveStatusChip(
+        "adminTreasuryAutoChip",
+        autoPolicyEnabled ? `AUTO $${asNum(autoPolicy.auto_usd_limit || 10).toFixed(0)}` : "AUTO OFF",
+        autoPolicyEnabled ? "balanced" : "neutral",
+        autoPolicyEnabled ? clamp(asNum(autoPolicy.risk_threshold || 0.35), 0, 1) : 0.12
+      );
+
+      const routeMeter = byId("adminTreasuryRouteMeter");
+      const apiMeter = byId("adminTreasuryApiMeter");
+      const queueMeter = byId("adminTreasuryQueueMeter");
+      if (routeMeter) {
+        animateMeterWidth(routeMeter, routeCoverage * 100, 0.24);
+        setMeterPalette(routeMeter, routeCoverage < 0.5 ? "critical" : routeCoverage < 1 ? "aggressive" : "safe");
+      }
+      if (apiMeter) {
+        animateMeterWidth(apiMeter, apiRatio * 100, 0.24);
+        setMeterPalette(apiMeter, apiTotal === 0 ? "balanced" : apiRatio < 0.4 ? "critical" : apiRatio < 0.75 ? "aggressive" : "safe");
+      }
+      if (queueMeter) {
+        animateMeterWidth(queueMeter, queuePressure * 100, 0.24);
+        setMeterPalette(queueMeter, queuePressure > 0.75 ? "critical" : queuePressure > 0.45 ? "aggressive" : "balanced");
+      }
+
+      const routeList = byId("adminTreasuryRouteList");
+      if (routeList) {
+        routeList.innerHTML = "";
+        if (!routeChains.length) {
+          const empty = document.createElement("li");
+          empty.className = "muted";
+          empty.textContent = "Cold wallet route tablosu bos. Token purchase chain adresleri env/config tarafinda kontrol edilmeli.";
+          routeList.appendChild(empty);
+        } else {
+          routeChains.slice(0, 8).forEach((row) => {
+            const chain = String(row.chain || "-").toUpperCase();
+            const payCurrency = String(row.pay_currency || chain).toUpperCase();
+            const enabled = Boolean(row.enabled);
+            const li = document.createElement("li");
+            li.className = `tokenRouteRow ${enabled ? "ready" : "missing"}`;
+            const left = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = `${chain} (${payCurrency})`;
+            const meta = document.createElement("p");
+            meta.className = "micro";
+            meta.textContent = enabled ? maskWalletAddress(row.address) : "Adres tanimli degil";
+            left.appendChild(title);
+            left.appendChild(meta);
+            const chip = document.createElement("span");
+            chip.className = `adminAssetState ${enabled ? "ready" : "missing"}`;
+            chip.textContent = enabled ? "ROUTE OK" : "MISSING";
+            li.appendChild(left);
+            li.appendChild(chip);
+            routeList.appendChild(li);
+          });
+        }
       }
     }
 
@@ -10906,100 +11002,186 @@
           : providerRatio < 0.7 || timeoutRatio > 0.2 || staleRatio > 0.5
             ? "pressure"
             : "advantage";
-
-    host.dataset.tone = tone;
-    host.style.setProperty("--provider-health", providerRatio.toFixed(3));
-    host.style.setProperty("--provider-timeout", timeoutRatio.toFixed(3));
-    host.style.setProperty("--provider-stale", staleRatio.toFixed(3));
-
-    const badge = byId("adminProviderBadge");
-    const line = byId("adminProviderLine");
-    const signal = byId("adminProviderSignalLine");
-    if (badge) {
-      badge.textContent =
-        tone === "critical" ? "PROVIDER ALERT" : tone === "pressure" ? "PROVIDER WATCH" : providerTotal > 0 ? "PROVIDER LIVE" : "PROVIDER WAIT";
-      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
-    }
-    if (line) {
-      const p = latest ? `${String(latest.provider || "api").toUpperCase()} ${String(latest.check_name || "check")}` : "API health bekleniyor";
-      line.textContent = `${p} | OK ${providerOk}/${providerTotal} | timeout ${timeoutCount} | avg ${Math.round(avgLatency)}ms`;
-    }
-    if (signal) {
+    const adminTreasuryBridge = getAdminTreasuryBridge();
+    let providerBridgeHandled = false;
+    if (adminTreasuryBridge) {
       const latestStatus = latest
         ? `${latest.ok ? "OK" : "FAIL"} ${asNum(latest.status_code || 0) || "-"}`
         : "WAIT";
-      signal.textContent =
-        `Latest ${latestStatus}${latestAgeSec != null ? ` | age ${latestAgeSec}s` : ""} | auto approve ${autoApproveCount} | auto reject ${autoRejectCount}`;
+      providerBridgeHandled =
+        adminTreasuryBridge.render({
+          provider: {
+            tone,
+            healthRatio: providerRatio,
+            timeoutRatio,
+            staleRatio,
+            badgeText:
+              tone === "critical" ? "PROVIDER ALERT" : tone === "pressure" ? "PROVIDER WATCH" : providerTotal > 0 ? "PROVIDER LIVE" : "PROVIDER WAIT",
+            badgeTone: tone === "critical" ? "warn" : "info",
+            lineText: `${latest ? `${String(latest.provider || "api").toUpperCase()} ${String(latest.check_name || "check")}` : "API health bekleniyor"} | OK ${providerOk}/${providerTotal} | timeout ${timeoutCount} | avg ${Math.round(avgLatency)}ms`,
+            signalLineText:
+              `Latest ${latestStatus}${latestAgeSec != null ? ` | age ${latestAgeSec}s` : ""} | auto approve ${autoApproveCount} | auto reject ${autoRejectCount}`,
+            chips: [
+              {
+                id: "adminProviderHealthChip",
+                text: providerTotal > 0 ? `OK ${providerOk}/${providerTotal}` : "API WAIT",
+                tone: providerTotal === 0 ? "neutral" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "pressure" : "advantage",
+                level: providerTotal === 0 ? 0.12 : providerRatio
+              },
+              {
+                id: "adminProviderLatencyChip",
+                text: `LAT ${Math.round(avgLatency)}ms`,
+                tone: providerTotal === 0 ? "neutral" : avgLatency > 2200 ? "critical" : avgLatency > 900 ? "pressure" : "balanced",
+                level: providerTotal === 0 ? 0.12 : clamp(1 - Math.min(avgLatency, 3000) / 3000, 0, 1)
+              },
+              {
+                id: "adminProviderTimeoutChip",
+                text: `TO ${timeoutCount}`,
+                tone: providerTotal === 0 ? "neutral" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "pressure" : "advantage",
+                level: providerTotal === 0 ? 0.12 : 1 - timeoutRatio
+              },
+              {
+                id: "adminProviderDecisionChip",
+                text: `AUTO ${autoApproveCount}/${autoRejectCount}`,
+                tone: recentDecisions.length === 0 ? "neutral" : autoRejectCount > autoApproveCount ? "pressure" : "balanced",
+                level: recentDecisions.length === 0 ? 0.12 : clamp((autoApproveCount + autoRejectCount) / 6, 0, 1)
+              }
+            ],
+            meters: [
+              {
+                id: "adminProviderHealthMeter",
+                pct: providerRatio * 100,
+                palette: providerTotal === 0 ? "balanced" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "aggressive" : "safe"
+              },
+              {
+                id: "adminProviderTimeoutMeter",
+                pct: timeoutRatio * 100,
+                palette: providerTotal === 0 ? "balanced" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "aggressive" : "safe"
+              },
+              {
+                id: "adminProviderStaleMeter",
+                pct: staleRatio * 100,
+                palette: latestAgeSec == null ? "balanced" : staleRatio > 0.9 ? "critical" : staleRatio > 0.5 ? "aggressive" : "safe"
+              }
+            ],
+            rows: [
+              ...rows.slice(0, 3).map((row) => ({
+                title: `${String(row?.provider || "api").toUpperCase()} / ${String(row?.check_name || "check")}`,
+                meta: `${row?.ok ? "OK" : "FAIL"} ${asNum(row?.status_code || 0) || "-"} | ${Math.round(asNum(row?.latency_ms || 0))}ms | ${formatTime(row?.checked_at)}`,
+                tone: row?.ok ? "ready" : "missing",
+                chip: row?.ok ? "LIVE" : "FAIL"
+              })),
+              ...recentDecisions.slice(0, 2).map((row) => {
+                const decision = String(row?.decision || "decision").toLowerCase();
+                const bad = decision.includes("reject") || decision.includes("fail");
+                return {
+                  title: `AUTO ${String(row?.decision || "-").toUpperCase()} #${asNum(row?.request_id) || "-"}`,
+                  meta: `${String(row?.reason || "reason yok")} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`,
+                  tone: bad ? "warn" : "ready",
+                  chip: bad ? "REVIEW" : "AUTO"
+                };
+              })
+            ],
+            emptyText: "Provider health ve auto decision verisi bekleniyor."
+          }
+        }) === true;
     }
 
-    setLiveStatusChip("adminProviderHealthChip", providerTotal > 0 ? `OK ${providerOk}/${providerTotal}` : "API WAIT", providerTotal === 0 ? "neutral" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "pressure" : "advantage", providerTotal === 0 ? 0.12 : providerRatio);
-    setLiveStatusChip("adminProviderLatencyChip", `LAT ${Math.round(avgLatency)}ms`, providerTotal === 0 ? "neutral" : avgLatency > 2200 ? "critical" : avgLatency > 900 ? "pressure" : "balanced", providerTotal === 0 ? 0.12 : clamp(1 - Math.min(avgLatency, 3000) / 3000, 0, 1));
-    setLiveStatusChip("adminProviderTimeoutChip", `TO ${timeoutCount}`, providerTotal === 0 ? "neutral" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "pressure" : "advantage", providerTotal === 0 ? 0.12 : 1 - timeoutRatio);
-    setLiveStatusChip("adminProviderDecisionChip", `AUTO ${autoApproveCount}/${autoRejectCount}`, recentDecisions.length === 0 ? "neutral" : autoRejectCount > autoApproveCount ? "pressure" : "balanced", recentDecisions.length === 0 ? 0.12 : clamp((autoApproveCount + autoRejectCount) / 6, 0, 1));
+    if (!providerBridgeHandled) {
+      host.dataset.tone = tone;
+      host.style.setProperty("--provider-health", providerRatio.toFixed(3));
+      host.style.setProperty("--provider-timeout", timeoutRatio.toFixed(3));
+      host.style.setProperty("--provider-stale", staleRatio.toFixed(3));
 
-    const healthMeter = byId("adminProviderHealthMeter");
-    const timeoutMeter = byId("adminProviderTimeoutMeter");
-    const staleMeter = byId("adminProviderStaleMeter");
-    if (healthMeter) {
-      animateMeterWidth(healthMeter, providerRatio * 100, 0.24);
-      setMeterPalette(healthMeter, providerTotal === 0 ? "balanced" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "aggressive" : "safe");
-    }
-    if (timeoutMeter) {
-      animateMeterWidth(timeoutMeter, timeoutRatio * 100, 0.24);
-      setMeterPalette(timeoutMeter, providerTotal === 0 ? "balanced" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "aggressive" : "safe");
-    }
-    if (staleMeter) {
-      animateMeterWidth(staleMeter, staleRatio * 100, 0.24);
-      setMeterPalette(staleMeter, latestAgeSec == null ? "balanced" : staleRatio > 0.9 ? "critical" : staleRatio > 0.5 ? "aggressive" : "safe");
-    }
+      const badge = byId("adminProviderBadge");
+      const line = byId("adminProviderLine");
+      const signal = byId("adminProviderSignalLine");
+      if (badge) {
+        badge.textContent =
+          tone === "critical" ? "PROVIDER ALERT" : tone === "pressure" ? "PROVIDER WATCH" : providerTotal > 0 ? "PROVIDER LIVE" : "PROVIDER WAIT";
+        badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+      }
+      if (line) {
+        const p = latest ? `${String(latest.provider || "api").toUpperCase()} ${String(latest.check_name || "check")}` : "API health bekleniyor";
+        line.textContent = `${p} | OK ${providerOk}/${providerTotal} | timeout ${timeoutCount} | avg ${Math.round(avgLatency)}ms`;
+      }
+      if (signal) {
+        const latestStatus = latest
+          ? `${latest.ok ? "OK" : "FAIL"} ${asNum(latest.status_code || 0) || "-"}`
+          : "WAIT";
+        signal.textContent =
+          `Latest ${latestStatus}${latestAgeSec != null ? ` | age ${latestAgeSec}s` : ""} | auto approve ${autoApproveCount} | auto reject ${autoRejectCount}`;
+      }
 
-    const list = byId("adminProviderAlertList");
-    if (list) {
-      list.innerHTML = "";
-      if (!rows.length && !recentDecisions.length) {
-        const li = document.createElement("li");
-        li.className = "muted";
-        li.textContent = "Provider health ve auto decision verisi bekleniyor.";
-        list.appendChild(li);
-      } else {
-        rows.slice(0, 3).forEach((row) => {
+      setLiveStatusChip("adminProviderHealthChip", providerTotal > 0 ? `OK ${providerOk}/${providerTotal}` : "API WAIT", providerTotal === 0 ? "neutral" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "pressure" : "advantage", providerTotal === 0 ? 0.12 : providerRatio);
+      setLiveStatusChip("adminProviderLatencyChip", `LAT ${Math.round(avgLatency)}ms`, providerTotal === 0 ? "neutral" : avgLatency > 2200 ? "critical" : avgLatency > 900 ? "pressure" : "balanced", providerTotal === 0 ? 0.12 : clamp(1 - Math.min(avgLatency, 3000) / 3000, 0, 1));
+      setLiveStatusChip("adminProviderTimeoutChip", `TO ${timeoutCount}`, providerTotal === 0 ? "neutral" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "pressure" : "advantage", providerTotal === 0 ? 0.12 : 1 - timeoutRatio);
+      setLiveStatusChip("adminProviderDecisionChip", `AUTO ${autoApproveCount}/${autoRejectCount}`, recentDecisions.length === 0 ? "neutral" : autoRejectCount > autoApproveCount ? "pressure" : "balanced", recentDecisions.length === 0 ? 0.12 : clamp((autoApproveCount + autoRejectCount) / 6, 0, 1));
+
+      const healthMeter = byId("adminProviderHealthMeter");
+      const timeoutMeter = byId("adminProviderTimeoutMeter");
+      const staleMeter = byId("adminProviderStaleMeter");
+      if (healthMeter) {
+        animateMeterWidth(healthMeter, providerRatio * 100, 0.24);
+        setMeterPalette(healthMeter, providerTotal === 0 ? "balanced" : providerRatio < 0.35 ? "critical" : providerRatio < 0.7 ? "aggressive" : "safe");
+      }
+      if (timeoutMeter) {
+        animateMeterWidth(timeoutMeter, timeoutRatio * 100, 0.24);
+        setMeterPalette(timeoutMeter, providerTotal === 0 ? "balanced" : timeoutRatio > 0.5 ? "critical" : timeoutRatio > 0.2 ? "aggressive" : "safe");
+      }
+      if (staleMeter) {
+        animateMeterWidth(staleMeter, staleRatio * 100, 0.24);
+        setMeterPalette(staleMeter, latestAgeSec == null ? "balanced" : staleRatio > 0.9 ? "critical" : staleRatio > 0.5 ? "aggressive" : "safe");
+      }
+
+      const list = byId("adminProviderAlertList");
+      if (list) {
+        list.innerHTML = "";
+        if (!rows.length && !recentDecisions.length) {
           const li = document.createElement("li");
-          li.className = `tokenRouteRow ${row?.ok ? "ready" : "missing"}`;
-          const left = document.createElement("div");
-          const title = document.createElement("strong");
-          title.textContent = `${String(row.provider || "api").toUpperCase()} / ${String(row.check_name || "check")}`;
-          const meta = document.createElement("p");
-          meta.className = "micro";
-          meta.textContent = `${row.ok ? "OK" : "FAIL"} ${asNum(row.status_code || 0) || "-"} | ${Math.round(asNum(row.latency_ms || 0))}ms | ${formatTime(row.checked_at)}`;
-          left.appendChild(title);
-          left.appendChild(meta);
-          const chip = document.createElement("span");
-          chip.className = `adminAssetState ${row?.ok ? "ready" : "missing"}`;
-          chip.textContent = row?.ok ? "LIVE" : "FAIL";
-          li.appendChild(left);
-          li.appendChild(chip);
+          li.className = "muted";
+          li.textContent = "Provider health ve auto decision verisi bekleniyor.";
           list.appendChild(li);
-        });
-        recentDecisions.slice(0, 2).forEach((row) => {
-          const li = document.createElement("li");
-          const decision = String(row?.decision || "decision").toLowerCase();
-          const bad = decision.includes("reject") || decision.includes("fail");
-          li.className = `tokenRouteRow ${bad ? "missing" : "ready"}`;
-          const left = document.createElement("div");
-          const title = document.createElement("strong");
-          title.textContent = `AUTO ${String(row?.decision || "-").toUpperCase()} #${asNum(row?.request_id) || "-"}`;
-          const meta = document.createElement("p");
-          meta.className = "micro";
-          meta.textContent = `${String(row?.reason || "reason yok")} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`;
-          left.appendChild(title);
-          left.appendChild(meta);
-          const chip = document.createElement("span");
-          chip.className = `adminAssetState ${bad ? "warn" : "ready"}`;
-          chip.textContent = bad ? "REVIEW" : "AUTO";
-          li.appendChild(left);
-          li.appendChild(chip);
-          list.appendChild(li);
-        });
+        } else {
+          rows.slice(0, 3).forEach((row) => {
+            const li = document.createElement("li");
+            li.className = `tokenRouteRow ${row?.ok ? "ready" : "missing"}`;
+            const left = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = `${String(row.provider || "api").toUpperCase()} / ${String(row.check_name || "check")}`;
+            const meta = document.createElement("p");
+            meta.className = "micro";
+            meta.textContent = `${row.ok ? "OK" : "FAIL"} ${asNum(row.status_code || 0) || "-"} | ${Math.round(asNum(row.latency_ms || 0))}ms | ${formatTime(row.checked_at)}`;
+            left.appendChild(title);
+            left.appendChild(meta);
+            const chip = document.createElement("span");
+            chip.className = `adminAssetState ${row?.ok ? "ready" : "missing"}`;
+            chip.textContent = row?.ok ? "LIVE" : "FAIL";
+            li.appendChild(left);
+            li.appendChild(chip);
+            list.appendChild(li);
+          });
+          recentDecisions.slice(0, 2).forEach((row) => {
+            const li = document.createElement("li");
+            const decision = String(row?.decision || "decision").toLowerCase();
+            const bad = decision.includes("reject") || decision.includes("fail");
+            li.className = `tokenRouteRow ${bad ? "missing" : "ready"}`;
+            const left = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = `AUTO ${String(row?.decision || "-").toUpperCase()} #${asNum(row?.request_id) || "-"}`;
+            const meta = document.createElement("p");
+            meta.className = "micro";
+            meta.textContent = `${String(row?.reason || "reason yok")} | risk ${Math.round(clamp(asNum(row?.risk_score || 0), 0, 1) * 100)}% | ${formatTime(row?.decided_at)}`;
+            left.appendChild(title);
+            left.appendChild(meta);
+            const chip = document.createElement("span");
+            chip.className = `adminAssetState ${bad ? "warn" : "ready"}`;
+            chip.textContent = bad ? "REVIEW" : "AUTO";
+            li.appendChild(left);
+            li.appendChild(chip);
+            list.appendChild(li);
+          });
+        }
       }
     }
 
