@@ -514,13 +514,10 @@
       tone = "advantage";
     }
 
-    root.dataset.tone = tone;
-    root.dataset.category = recentReject ? rejectCategory : "none";
-    root.dataset.recent = recentReject ? "1" : "0";
-    root.style.setProperty("--scene-alarm-stress", severity.toFixed(3));
-    root.style.setProperty("--scene-alarm-flash", (recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0).toFixed(3));
-
-    badge.textContent =
+    const rejectCodeMap = { window: "WND", sequence: "SEQ", duplicate: "DUP", stale: "STA", auth: "AUTH", session: "SES", invalid: "INV", unknown: "UNK", none: "--" };
+    const sceneTelemetryBridge = getSceneTelemetryBridge();
+    const sceneAlarmFlash = recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0;
+    const alarmBadgeText =
       tone === "critical"
         ? recentReject
           ? "SCENE ALERT"
@@ -528,52 +525,100 @@
         : tone === "pressure"
           ? "SCENE WATCH"
           : "SCENE OK";
-    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    const alarmBadgeTone = tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info";
+    const alarmLineText = recentReject
+      ? `Reject ${String(rejectInfo.label || rejectCategory || "unknown")} | queue ${queueSize} | wnd ${Math.round(windowSafety * 100)}% | asset int ${Math.round(assetIntegrityRatio * 100)}%`
+      : `Scene ${tone.toUpperCase()} | ladder ${Math.round(ladderPressure * 100)}% | asset risk ${Math.round(assetMismatch * 100)}% | heat ${Math.round(heatRatio * 100)}%`;
+    const alarmHintText = recentReject
+      ? String(rejectInfo.hint || "Reject tespit edildi. Queue drift ve tick penceresini stabilize et, sonra expected aksiyona don.")
+      : tone === "critical"
+        ? "Asset integrity / ladder pressure / reject birikimi sahneyi stress moduna tasiyor. Window ve queue kontrolu oncelikli."
+        : tone === "pressure"
+          ? "Scene watch modunda: ladder baskisi ve asset sync durumunu izle, reject cikarsa ritmi kis."
+          : "Scene stabil: ladder taze, asset sync saglam, reject baskisi dusuk.";
+    const bridgeHandled = sceneTelemetryBridge
+      ? sceneTelemetryBridge.render({
+          alarm: {
+            tone,
+            category: recentReject ? rejectCategory : "none",
+            recent: recentReject,
+            stress: severity,
+            flash: sceneAlarmFlash,
+            badgeText: alarmBadgeText,
+            badgeTone: alarmBadgeTone,
+            lineText: alarmLineText,
+            hintText: alarmHintText,
+            meterPct: severity * 100,
+            meterPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+            chips: [
+              {
+                id: "sceneAlarmPressureChip",
+                text: `PRES ${Math.round(ladderPressure * 100)}%`,
+                tone: ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
+                level: ladderPressure
+              },
+              {
+                id: "sceneAlarmAssetChip",
+                text: `AST ${Math.round(assetIntegrityRatio * 100)}%`,
+                tone: assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
+                level: 1 - assetMismatch
+              },
+              {
+                id: "sceneAlarmRejectChip",
+                text: `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
+                tone: recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
+                level: recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
+              },
+              {
+                id: "sceneAlarmFreshChip",
+                text: `FRESH ${Math.round(ladderFreshness * 100)}%`,
+                tone: ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
+                level: ladderFreshness
+              }
+            ]
+          }
+        })
+      : false;
+    if (!bridgeHandled) {
+      root.dataset.tone = tone;
+      root.dataset.category = recentReject ? rejectCategory : "none";
+      root.dataset.recent = recentReject ? "1" : "0";
+      root.style.setProperty("--scene-alarm-stress", severity.toFixed(3));
+      root.style.setProperty("--scene-alarm-flash", sceneAlarmFlash.toFixed(3));
 
-    const rejectCodeMap = { window: "WND", sequence: "SEQ", duplicate: "DUP", stale: "STA", auth: "AUTH", session: "SES", invalid: "INV", unknown: "UNK", none: "--" };
-    setLiveStatusChip(
-      "sceneAlarmPressureChip",
-      `PRES ${Math.round(ladderPressure * 100)}%`,
-      ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
-      ladderPressure
-    );
-    setLiveStatusChip(
-      "sceneAlarmAssetChip",
-      `AST ${Math.round(assetIntegrityRatio * 100)}%`,
-      assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
-      1 - assetMismatch
-    );
-    setLiveStatusChip(
-      "sceneAlarmRejectChip",
-      `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
-      recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
-      recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
-    );
-    setLiveStatusChip(
-      "sceneAlarmFreshChip",
-      `FRESH ${Math.round(ladderFreshness * 100)}%`,
-      ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
-      ladderFreshness
-    );
+      badge.textContent = alarmBadgeText;
+      badge.className = alarmBadgeTone === "warn" ? "badge warn" : alarmBadgeTone === "default" ? "badge" : "badge info";
 
-    animateTextSwap(
-      line,
-      recentReject
-        ? `Reject ${String(rejectInfo.label || rejectCategory || "unknown")} | queue ${queueSize} | wnd ${Math.round(windowSafety * 100)}% | asset int ${Math.round(assetIntegrityRatio * 100)}%`
-        : `Scene ${tone.toUpperCase()} | ladder ${Math.round(ladderPressure * 100)}% | asset risk ${Math.round(assetMismatch * 100)}% | heat ${Math.round(heatRatio * 100)}%`
-    );
-    animateTextSwap(
-      hint,
-      recentReject
-        ? String(rejectInfo.hint || "Reject tespit edildi. Queue drift ve tick penceresini stabilize et, sonra expected aksiyona don.")
-        : tone === "critical"
-          ? "Asset integrity / ladder pressure / reject birikimi sahneyi stress moduna tasiyor. Window ve queue kontrolu oncelikli."
-          : tone === "pressure"
-            ? "Scene watch modunda: ladder baskisi ve asset sync durumunu izle, reject cikarsa ritmi kis."
-            : "Scene stabil: ladder taze, asset sync saglam, reject baskisi dusuk."
-    );
-    animateMeterWidth(meter, severity * 100, 0.22);
-    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+      setLiveStatusChip(
+        "sceneAlarmPressureChip",
+        `PRES ${Math.round(ladderPressure * 100)}%`,
+        ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
+        ladderPressure
+      );
+      setLiveStatusChip(
+        "sceneAlarmAssetChip",
+        `AST ${Math.round(assetIntegrityRatio * 100)}%`,
+        assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
+        1 - assetMismatch
+      );
+      setLiveStatusChip(
+        "sceneAlarmRejectChip",
+        `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
+        recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
+        recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
+      );
+      setLiveStatusChip(
+        "sceneAlarmFreshChip",
+        `FRESH ${Math.round(ladderFreshness * 100)}%`,
+        ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
+        ladderFreshness
+      );
+
+      animateTextSwap(line, alarmLineText);
+      animateTextSwap(hint, alarmHintText);
+      animateMeterWidth(meter, severity * 100, 0.22);
+      setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+    }
 
     if (state.arena) {
       state.arena.sceneAlarmSeverity = clamp(asNum(state.arena.sceneAlarmSeverity ?? severity) * 0.76 + severity * 0.24, 0, 1);
@@ -656,49 +701,96 @@
 
     const tone = severity >= 0.7 ? "critical" : severity >= 0.4 ? "pressure" : severity >= 0.16 ? "balanced" : "advantage";
     const active = severity >= 0.22 || recentReject;
-    root.classList.toggle("hidden", !active);
-    root.dataset.tone = tone;
-    root.dataset.state = active ? "active" : "idle";
-    root.style.setProperty("--scene-integrity-sweep", clamp((readyRatio * 0.2 + syncRatio * 0.25 + ladderFreshness * 0.2 + rejectShock * 0.35), 0, 1).toFixed(3));
-    root.style.setProperty("--scene-integrity-flash", (recentReject ? clamp(0.24 + rejectShock * 0.76, 0, 1) : clamp(assetRisk * 0.55, 0, 0.7)).toFixed(3));
-
-    setLiveStatusChip(
-      "sceneIntegrityOverlayAssetChip",
-      `AST ${Math.round(readyRatio * 100)}%`,
-      assetRisk >= 0.58 ? "critical" : assetRisk >= 0.3 ? "pressure" : "advantage",
-      readyRatio
-    );
-    setLiveStatusChip(
-      "sceneIntegrityOverlayIntegrityChip",
-      `INT ${Math.round(integrityRatio * 100)}%`,
-      integrityRatio < 0.72 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage",
-      integrityRatio
-    );
-    setLiveStatusChip(
-      "sceneIntegrityOverlaySyncChip",
-      `SYNC ${Math.round(syncRatio * 100)}%`,
-      syncRatio < 0.7 ? "critical" : syncRatio < 0.9 ? "pressure" : "balanced",
-      syncRatio
-    );
-    setLiveStatusChip(
-      "sceneIntegrityOverlayRejectChip",
-      `REJ ${recentReject ? (rejectInfo.shortLabel || rejectCategory.toUpperCase()) : "--"}`,
-      recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral",
-      recentReject ? rejectShock : 0.18
-    );
-
-    badge.textContent =
+    const sceneTelemetryBridge = getSceneTelemetryBridge();
+    const integritySweep = clamp((readyRatio * 0.2 + syncRatio * 0.25 + ladderFreshness * 0.2 + rejectShock * 0.35), 0, 1);
+    const integrityFlash = recentReject ? clamp(0.24 + rejectShock * 0.76, 0, 1) : clamp(assetRisk * 0.55, 0, 0.7);
+    const integrityBadgeText =
       tone === "critical" ? "SCENE ALARM" : tone === "pressure" ? "SCENE WATCH" : recentReject ? "SCENE REJECT" : "SCENE STABLE";
-    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    const integrityBadgeTone = tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info";
+    const integrityLineText = recentReject
+      ? `Reject ${String(rejectInfo.label || rejectCategory).toUpperCase()} | q ${queueSize} | asset ${Math.round((1 - assetRisk) * 100)}% | rev ${String(assetManifest.manifestRevision || state.telemetry.manifestRevision || "local").slice(0, 10)}`
+      : `Asset ${Math.round(readyRatio * 100)}% ready | sync ${Math.round(syncRatio * 100)}% | integrity ${Math.round(integrityRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}%`;
+    const integrityHandled = sceneTelemetryBridge
+      ? sceneTelemetryBridge.render({
+          integrity: {
+            visible: active,
+            tone,
+            state: active ? "active" : "idle",
+            sweep: integritySweep,
+            flash: integrityFlash,
+            badgeText: integrityBadgeText,
+            badgeTone: integrityBadgeTone,
+            lineText: integrityLineText,
+            meterPct: severity * 100,
+            meterPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+            chips: [
+              {
+                id: "sceneIntegrityOverlayAssetChip",
+                text: `AST ${Math.round(readyRatio * 100)}%`,
+                tone: assetRisk >= 0.58 ? "critical" : assetRisk >= 0.3 ? "pressure" : "advantage",
+                level: readyRatio
+              },
+              {
+                id: "sceneIntegrityOverlayIntegrityChip",
+                text: `INT ${Math.round(integrityRatio * 100)}%`,
+                tone: integrityRatio < 0.72 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage",
+                level: integrityRatio
+              },
+              {
+                id: "sceneIntegrityOverlaySyncChip",
+                text: `SYNC ${Math.round(syncRatio * 100)}%`,
+                tone: syncRatio < 0.7 ? "critical" : syncRatio < 0.9 ? "pressure" : "balanced",
+                level: syncRatio
+              },
+              {
+                id: "sceneIntegrityOverlayRejectChip",
+                text: `REJ ${recentReject ? (rejectInfo.shortLabel || rejectCategory.toUpperCase()) : "--"}`,
+                tone: recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral",
+                level: recentReject ? rejectShock : 0.18
+              }
+            ]
+          }
+        })
+      : false;
+    if (!integrityHandled) {
+      root.classList.toggle("hidden", !active);
+      root.dataset.tone = tone;
+      root.dataset.state = active ? "active" : "idle";
+      root.style.setProperty("--scene-integrity-sweep", integritySweep.toFixed(3));
+      root.style.setProperty("--scene-integrity-flash", integrityFlash.toFixed(3));
 
-    animateTextSwap(
-      line,
-      recentReject
-        ? `Reject ${String(rejectInfo.label || rejectCategory).toUpperCase()} | q ${queueSize} | asset ${Math.round((1 - assetRisk) * 100)}% | rev ${String(assetManifest.manifestRevision || state.telemetry.manifestRevision || "local").slice(0, 10)}`
-        : `Asset ${Math.round(readyRatio * 100)}% ready | sync ${Math.round(syncRatio * 100)}% | integrity ${Math.round(integrityRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}%`
-    );
-    animateMeterWidth(meter, severity * 100, 0.2);
-    setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+      setLiveStatusChip(
+        "sceneIntegrityOverlayAssetChip",
+        `AST ${Math.round(readyRatio * 100)}%`,
+        assetRisk >= 0.58 ? "critical" : assetRisk >= 0.3 ? "pressure" : "advantage",
+        readyRatio
+      );
+      setLiveStatusChip(
+        "sceneIntegrityOverlayIntegrityChip",
+        `INT ${Math.round(integrityRatio * 100)}%`,
+        integrityRatio < 0.72 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage",
+        integrityRatio
+      );
+      setLiveStatusChip(
+        "sceneIntegrityOverlaySyncChip",
+        `SYNC ${Math.round(syncRatio * 100)}%`,
+        syncRatio < 0.7 ? "critical" : syncRatio < 0.9 ? "pressure" : "balanced",
+        syncRatio
+      );
+      setLiveStatusChip(
+        "sceneIntegrityOverlayRejectChip",
+        `REJ ${recentReject ? (rejectInfo.shortLabel || rejectCategory.toUpperCase()) : "--"}`,
+        recentReject ? (String(rejectInfo.tone || "critical") === "pressure" ? "pressure" : "critical") : "neutral",
+        recentReject ? rejectShock : 0.18
+      );
+
+      badge.textContent = integrityBadgeText;
+      badge.className = integrityBadgeTone === "warn" ? "badge warn" : integrityBadgeTone === "default" ? "badge" : "badge info";
+
+      animateTextSwap(line, integrityLineText);
+      animateMeterWidth(meter, severity * 100, 0.2);
+      setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+    }
 
     if (state.arena) {
       state.arena.assetOverlaySeverity = clamp(asNum(state.arena.assetOverlaySeverity ?? severity) * 0.72 + severity * 0.28, 0, 1);
@@ -1056,6 +1148,17 @@
 
   function getCombatFxBridge() {
     const bridge = window.__AKR_COMBAT_FX__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getSceneTelemetryBridge() {
+    const bridge = window.__AKR_SCENE_TELEMETRY__;
     if (!bridge || typeof bridge !== "object") {
       return null;
     }
