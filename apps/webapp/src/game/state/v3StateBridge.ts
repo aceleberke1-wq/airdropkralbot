@@ -159,6 +159,36 @@ type TreasuryRuntimeMetrics = {
   tone: string;
 };
 
+type SceneAlarmMetrics = {
+  ladderPressure: number;
+  ladderFreshness: number;
+  ladderActivity: number;
+  assetReadyRatio: number;
+  assetSyncRatio: number;
+  assetIntegrityRatio: number;
+  assetMismatch: number;
+  queueSize: number;
+  queueRatio: number;
+  windowSafety: number;
+  driftRatio: number;
+  rejectCategory: string;
+  rejectLabel: string;
+  rejectHint: string;
+  rejectShort: string;
+  rejectTone: string;
+  rejectSeverity: number;
+  recentReject: boolean;
+  rejectFreshness: number;
+  severity: number;
+  tone: string;
+  sceneAlarmFlash: number;
+  alarmBadgeText: string;
+  alarmBadgeTone: "warn" | "default" | "info";
+  alarmLineText: string;
+  alarmHintText: string;
+  rejectCode: string;
+};
+
 type V3StateMutatorBridge = {
   computeAssetManifestMetrics: (manifestPayload: any) => AssetManifestMetrics;
   computePvpLeaderboardState: (payloadData: any, currentTransport?: string) => PvpLeaderboardState;
@@ -169,6 +199,7 @@ type V3StateMutatorBridge = {
   computeTokenDirectorMetrics: (input: any) => TokenDirectorMetrics;
   computeDecisionTraceMetrics: (decisions: any[], manualQueue: any[], payoutQueue: any[]) => DecisionTraceMetrics;
   computeTreasuryRuntimeMetrics: (input: any) => TreasuryRuntimeMetrics;
+  computeSceneAlarmMetrics: (input: any) => SceneAlarmMetrics;
 };
 
 declare global {
@@ -189,6 +220,41 @@ function clamp(value: number, min: number, max: number): number {
 function asString(value: unknown, fallback = ""): string {
   const text = String(value ?? "");
   return text || fallback;
+}
+
+function classifyRejectReasonBridge(reason: unknown): {
+  category: string;
+  label: string;
+  hint: string;
+  shortLabel: string;
+  tone: string;
+} {
+  const raw = asString(reason).trim().toLowerCase();
+  if (!raw) {
+    return { category: "none", label: "No Reject", hint: "Reject kaydi yok.", shortLabel: "NONE", tone: "neutral" };
+  }
+  if (/duplicate|replay/.test(raw)) {
+    return { category: "duplicate", label: "Duplicate/Replay", hint: "Ayni aksiyon tekrarlandi. Yeni tick bekle.", shortLabel: "DUP", tone: "pressure" };
+  }
+  if (/stale|expired|timeout/.test(raw)) {
+    return { category: "stale", label: "Stale Tick", hint: "Tick zamani gecti. State/tick yenile.", shortLabel: "STA", tone: "pressure" };
+  }
+  if (/auth|signature|sig|uid|ts/.test(raw)) {
+    return { category: "auth", label: "Auth/Signature", hint: "Mini App auth yenile ve tekrar dene.", shortLabel: "AUTH", tone: "critical" };
+  }
+  if (/sequence|seq/.test(raw)) {
+    return { category: "sequence", label: "Sequence Drift", hint: "action_seq sirasi bozuk. Queue temizle.", shortLabel: "SEQ", tone: "critical" };
+  }
+  if (/window|latency|late|early/.test(raw)) {
+    return { category: "window", label: "Timing Window", hint: "Aksiyon pencere disi. Tick ritmine don.", shortLabel: "WND", tone: "critical" };
+  }
+  if (/session|match/.test(raw)) {
+    return { category: "session", label: "Session Drift", hint: "Duel state sync al ve sessioni dogrula.", shortLabel: "SES", tone: "pressure" };
+  }
+  if (/invalid|unexpected|action/.test(raw)) {
+    return { category: "invalid", label: "Invalid Action", hint: "Expected aksiyona geri don.", shortLabel: "INV", tone: "pressure" };
+  }
+  return { category: "unknown", label: "Unknown Reject", hint: "Queue ve state sync kontrolu yap.", shortLabel: "UNK", tone: "pressure" };
 }
 
 function computeAssetManifestMetrics(manifestPayload: any): AssetManifestMetrics {
@@ -757,6 +823,150 @@ function computeTreasuryRuntimeMetrics(input: any): TreasuryRuntimeMetrics {
   };
 }
 
+function computeSceneAlarmMetrics(input: any): SceneAlarmMetrics {
+  const data = input && typeof input === "object" ? input : {};
+  const diagnostics = data.diagnostics && typeof data.diagnostics === "object" ? data.diagnostics : {};
+  const ladder = data.ladder && typeof data.ladder === "object" ? data.ladder : {};
+  const assetRuntime = data.assetRuntime && typeof data.assetRuntime === "object" ? data.assetRuntime : {};
+  const assetManifest = data.assetManifest && typeof data.assetManifest === "object" ? data.assetManifest : {};
+  const telemetry = data.telemetry && typeof data.telemetry === "object" ? data.telemetry : {};
+  const pvp = data.pvp && typeof data.pvp === "object" ? data.pvp : {};
+  const nowMs = asNum(data.nowMs || Date.now());
+
+  const queueSize = Math.max(0, Math.floor(asNum(data.queueSize || 0)));
+  const windowMs = Math.max(80, asNum(data.windowMs || 800));
+  const latencyMs = Math.max(0, asNum(data.latencyMs || diagnostics.latency_ms || telemetry.latencyAvgMs || 0));
+  const windowSafety = clamp((windowMs - latencyMs) / Math.max(1, windowMs), 0, 1);
+  const driftRatio = clamp(Math.abs(asNum(data.drift || diagnostics.score_drift || 0)) / 6, 0, 1);
+
+  const ladderPressure = clamp(asNum(data.ladderPressure ?? ladder.pressure ?? 0), 0, 1);
+  const ladderFreshness = clamp(asNum(data.ladderFreshness ?? ladder.freshnessRatio ?? 0), 0, 1);
+  const ladderActivity = clamp(asNum(data.ladderActivity ?? ladder.activityRatio ?? 0), 0, 1);
+
+  const assetReadyRatio = clamp(
+    asNum(
+      data.assetReadyRatio ??
+        assetRuntime.readyRatio ??
+        assetManifest.readyRatio ??
+        (asNum(telemetry.assetTotalCount || 0) > 0
+          ? asNum(telemetry.assetReadyCount || 0) / Math.max(1, asNum(telemetry.assetTotalCount || 0))
+          : 1)
+    ),
+    0,
+    1
+  );
+  const assetSyncRatio = clamp(asNum(data.assetSyncRatio ?? assetRuntime.syncRatio ?? assetManifest.readyRatio ?? 1), 0, 1);
+  const assetIntegrityRatio = clamp(
+    asNum(data.assetIntegrityRatio ?? assetManifest.integrityRatio ?? assetRuntime.dbReadyRatio ?? assetRuntime.syncRatio ?? assetReadyRatio),
+    0,
+    1
+  );
+  const assetMismatch = clamp((1 - assetIntegrityRatio) * 0.46 + (1 - assetSyncRatio) * 0.3 + (1 - assetReadyRatio) * 0.24, 0, 1);
+
+  const rejectInfo = classifyRejectReasonBridge(pvp.lastRejectReason);
+  const rejectCategory = asString(rejectInfo.category || "none", "none");
+  const lastActionAt = Math.max(0, asNum(pvp.lastActionAt || 0));
+  const rejectAgeMs = lastActionAt > 0 ? Math.max(0, nowMs - lastActionAt) : Number.MAX_SAFE_INTEGER;
+  const recentReject = Boolean(pvp.lastRejected) && rejectCategory !== "none" && rejectAgeMs < 12000;
+  const rejectFreshness = recentReject ? clamp(1 - rejectAgeMs / 12000, 0, 1) : 0;
+
+  const queueRatio = clamp(queueSize / 8, 0, 1);
+  const heatRatio = clamp(asNum(data.heatRatio ?? telemetry.combatHeat ?? 0), 0, 1);
+  const threatRatio = clamp(asNum(data.threatRatio ?? telemetry.threatRatio ?? 0), 0, 1);
+  const rejectSeverityMap: Record<string, number> = {
+    none: 0.08,
+    duplicate: 0.24,
+    stale: 0.32,
+    invalid: 0.44,
+    session: 0.52,
+    sequence: 0.66,
+    window: 0.72,
+    auth: 0.8,
+    unknown: 0.58
+  };
+  const rejectSeverity = clamp(asNum(rejectSeverityMap[rejectCategory] ?? rejectSeverityMap.unknown), 0, 1);
+
+  const severity = clamp(
+    heatRatio * 0.16 +
+      threatRatio * 0.18 +
+      ladderPressure * 0.19 +
+      (1 - ladderFreshness) * 0.08 +
+      ladderActivity * 0.08 +
+      assetMismatch * 0.21 +
+      queueRatio * 0.05 +
+      (1 - windowSafety) * 0.08 +
+      driftRatio * 0.04 +
+      (recentReject ? 0.11 + rejectSeverity * 0.14 + rejectFreshness * 0.06 : rejectSeverity * 0.02),
+    0,
+    1
+  );
+
+  let tone = "advantage";
+  if (recentReject && (rejectCategory === "window" || rejectCategory === "sequence" || rejectCategory === "auth")) {
+    tone = "critical";
+  } else if (severity >= 0.68 || assetMismatch >= 0.55) {
+    tone = "critical";
+  } else if (severity >= 0.36 || ladderPressure >= 0.56 || assetMismatch >= 0.28) {
+    tone = "pressure";
+  }
+
+  const sceneAlarmFlash = recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0;
+  const rejectCodeMap: Record<string, string> = {
+    window: "WND",
+    sequence: "SEQ",
+    duplicate: "DUP",
+    stale: "STA",
+    auth: "AUTH",
+    session: "SES",
+    invalid: "INV",
+    unknown: "UNK",
+    none: "--"
+  };
+  const alarmBadgeText =
+    tone === "critical" ? (recentReject ? "SCENE ALERT" : "SCENE RISK") : tone === "pressure" ? "SCENE WATCH" : "SCENE OK";
+  const alarmBadgeTone: "warn" | "default" | "info" = tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info";
+  const alarmLineText = recentReject
+    ? `Reject ${asString(rejectInfo.label || rejectCategory || "unknown")} | queue ${queueSize} | wnd ${Math.round(windowSafety * 100)}% | asset int ${Math.round(assetIntegrityRatio * 100)}%`
+    : `Scene ${tone.toUpperCase()} | ladder ${Math.round(ladderPressure * 100)}% | asset risk ${Math.round(assetMismatch * 100)}% | heat ${Math.round(heatRatio * 100)}%`;
+  const alarmHintText = recentReject
+    ? asString(rejectInfo.hint || "Reject tespit edildi. Queue drift ve tick penceresini stabilize et, sonra expected aksiyona don.")
+    : tone === "critical"
+      ? "Asset integrity / ladder pressure / reject birikimi sahneyi stress moduna tasiyor. Window ve queue kontrolu oncelikli."
+      : tone === "pressure"
+        ? "Scene watch modunda: ladder baskisi ve asset sync durumunu izle, reject cikarsa ritmi kis."
+        : "Scene stabil: ladder taze, asset sync saglam, reject baskisi dusuk.";
+
+  return {
+    ladderPressure,
+    ladderFreshness,
+    ladderActivity,
+    assetReadyRatio,
+    assetSyncRatio,
+    assetIntegrityRatio,
+    assetMismatch,
+    queueSize,
+    queueRatio,
+    windowSafety,
+    driftRatio,
+    rejectCategory,
+    rejectLabel: rejectInfo.label,
+    rejectHint: rejectInfo.hint,
+    rejectShort: rejectInfo.shortLabel,
+    rejectTone: rejectInfo.tone,
+    rejectSeverity,
+    recentReject,
+    rejectFreshness,
+    severity,
+    tone,
+    sceneAlarmFlash,
+    alarmBadgeText,
+    alarmBadgeTone,
+    alarmLineText,
+    alarmHintText,
+    rejectCode: asString(rejectCodeMap[rejectCategory] || "UNK")
+  };
+}
+
 export function installV3StateMutatorBridge(): void {
   window.__AKR_STATE_MUTATORS__ = {
     computeAssetManifestMetrics,
@@ -767,6 +977,7 @@ export function installV3StateMutatorBridge(): void {
     computeTokenLifecycleMetrics,
     computeTokenDirectorMetrics,
     computeDecisionTraceMetrics,
-    computeTreasuryRuntimeMetrics
+    computeTreasuryRuntimeMetrics,
+    computeSceneAlarmMetrics
   };
 }

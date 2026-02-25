@@ -555,10 +555,44 @@
       tone = "advantage";
     }
 
+    const derivedSceneAlarm =
+      stateMutatorBridge && typeof stateMutatorBridge.computeSceneAlarmMetrics === "function"
+        ? (() => {
+            try {
+              return stateMutatorBridge.computeSceneAlarmMetrics({
+                diagnostics,
+                ladder,
+                assetRuntime,
+                assetManifest,
+                telemetry: state.telemetry || {},
+                pvp: {
+                  lastRejected: state.v3?.pvpLastRejected,
+                  lastRejectReason: state.v3?.pvpLastRejectReason,
+                  lastActionAt: state.v3?.pvpLastActionAt
+                },
+                queueSize,
+                windowMs,
+                latencyMs,
+                drift: asNum(diagnostics.score_drift || 0),
+                heatRatio,
+                threatRatio,
+                ladderPressure,
+                ladderFreshness,
+                ladderActivity,
+                assetReadyRatio,
+                assetSyncRatio,
+                assetIntegrityRatio,
+                nowMs: Date.now()
+              });
+            } catch (err) {
+              console.warn("[v3-state-bridge] computeSceneAlarmMetrics failed", err);
+              return null;
+            }
+          })()
+        : null;
     const rejectCodeMap = { window: "WND", sequence: "SEQ", duplicate: "DUP", stale: "STA", auth: "AUTH", session: "SES", invalid: "INV", unknown: "UNK", none: "--" };
-    const sceneTelemetryBridge = getSceneTelemetryBridge();
-    const sceneAlarmFlash = recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0;
-    const alarmBadgeText =
+    const sceneAlarmFlashFallback = recentReject ? clamp(0.28 + rejectFreshness * 0.72, 0, 1) : severity > 0.55 ? 0.2 : 0;
+    const alarmBadgeTextFallback =
       tone === "critical"
         ? recentReject
           ? "SCENE ALERT"
@@ -566,135 +600,153 @@
         : tone === "pressure"
           ? "SCENE WATCH"
           : "SCENE OK";
-    const alarmBadgeTone = tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info";
-    const alarmLineText = recentReject
+    const alarmBadgeToneFallback = tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info";
+    const alarmLineTextFallback = recentReject
       ? `Reject ${String(rejectInfo.label || rejectCategory || "unknown")} | queue ${queueSize} | wnd ${Math.round(windowSafety * 100)}% | asset int ${Math.round(assetIntegrityRatio * 100)}%`
       : `Scene ${tone.toUpperCase()} | ladder ${Math.round(ladderPressure * 100)}% | asset risk ${Math.round(assetMismatch * 100)}% | heat ${Math.round(heatRatio * 100)}%`;
-    const alarmHintText = recentReject
+    const alarmHintTextFallback = recentReject
       ? String(rejectInfo.hint || "Reject tespit edildi. Queue drift ve tick penceresini stabilize et, sonra expected aksiyona don.")
       : tone === "critical"
         ? "Asset integrity / ladder pressure / reject birikimi sahneyi stress moduna tasiyor. Window ve queue kontrolu oncelikli."
         : tone === "pressure"
           ? "Scene watch modunda: ladder baskisi ve asset sync durumunu izle, reject cikarsa ritmi kis."
           : "Scene stabil: ladder taze, asset sync saglam, reject baskisi dusuk.";
+
+    const sceneAlarmSeverity = clamp(asNum(derivedSceneAlarm?.severity ?? severity), 0, 1);
+    const sceneAlarmTone = String(derivedSceneAlarm?.tone || tone || "balanced");
+    const sceneAlarmRecentReject = Boolean(derivedSceneAlarm?.recentReject ?? recentReject);
+    const sceneAlarmRejectCategory = String(derivedSceneAlarm?.rejectCategory || rejectCategory || "none");
+    const sceneAlarmRejectFreshness = clamp(asNum(derivedSceneAlarm?.rejectFreshness ?? rejectFreshness), 0, 1);
+    const sceneAlarmRejectSeverity = clamp(asNum(derivedSceneAlarm?.rejectSeverity ?? rejectSeverity), 0, 1);
+    const sceneAlarmAssetMismatch = clamp(asNum(derivedSceneAlarm?.assetMismatch ?? assetMismatch), 0, 1);
+    const sceneAlarmAssetIntegrityRatio = clamp(asNum(derivedSceneAlarm?.assetIntegrityRatio ?? assetIntegrityRatio), 0, 1);
+    const sceneAlarmLadderPressure = clamp(asNum(derivedSceneAlarm?.ladderPressure ?? ladderPressure), 0, 1);
+    const sceneAlarmLadderFreshness = clamp(asNum(derivedSceneAlarm?.ladderFreshness ?? ladderFreshness), 0, 1);
+    const sceneAlarmFlash = clamp(asNum(derivedSceneAlarm?.sceneAlarmFlash ?? sceneAlarmFlashFallback), 0, 1);
+    const sceneAlarmBadgeText = String(derivedSceneAlarm?.alarmBadgeText || alarmBadgeTextFallback);
+    const sceneAlarmBadgeTone = String(derivedSceneAlarm?.alarmBadgeTone || alarmBadgeToneFallback);
+    const sceneAlarmLineText = String(derivedSceneAlarm?.alarmLineText || alarmLineTextFallback);
+    const sceneAlarmHintText = String(derivedSceneAlarm?.alarmHintText || alarmHintTextFallback);
+    const sceneAlarmRejectCode = String(derivedSceneAlarm?.rejectCode || (rejectCodeMap[sceneAlarmRejectCategory] || "UNK"));
+    const sceneTelemetryBridge = getSceneTelemetryBridge();
     const bridgeHandled = sceneTelemetryBridge
       ? sceneTelemetryBridge.render({
           alarm: {
-            tone,
-            category: recentReject ? rejectCategory : "none",
-            recent: recentReject,
-            stress: severity,
+            tone: sceneAlarmTone,
+            category: sceneAlarmRecentReject ? sceneAlarmRejectCategory : "none",
+            recent: sceneAlarmRecentReject,
+            stress: sceneAlarmSeverity,
             flash: sceneAlarmFlash,
-            badgeText: alarmBadgeText,
-            badgeTone: alarmBadgeTone,
-            lineText: alarmLineText,
-            hintText: alarmHintText,
-            meterPct: severity * 100,
-            meterPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+            badgeText: sceneAlarmBadgeText,
+            badgeTone: sceneAlarmBadgeTone,
+            lineText: sceneAlarmLineText,
+            hintText: sceneAlarmHintText,
+            meterPct: sceneAlarmSeverity * 100,
+            meterPalette: sceneAlarmTone === "critical" ? "critical" : sceneAlarmTone === "pressure" ? "aggressive" : "balanced",
             chips: [
               {
                 id: "sceneAlarmPressureChip",
-                text: `PRES ${Math.round(ladderPressure * 100)}%`,
-                tone: ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
-                level: ladderPressure
+                text: `PRES ${Math.round(sceneAlarmLadderPressure * 100)}%`,
+                tone: sceneAlarmLadderPressure >= 0.72 ? "critical" : sceneAlarmLadderPressure >= 0.45 ? "pressure" : "advantage",
+                level: sceneAlarmLadderPressure
               },
               {
                 id: "sceneAlarmAssetChip",
-                text: `AST ${Math.round(assetIntegrityRatio * 100)}%`,
-                tone: assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
-                level: 1 - assetMismatch
+                text: `AST ${Math.round(sceneAlarmAssetIntegrityRatio * 100)}%`,
+                tone: sceneAlarmAssetMismatch >= 0.58 ? "critical" : sceneAlarmAssetMismatch >= 0.3 ? "pressure" : "advantage",
+                level: 1 - sceneAlarmAssetMismatch
               },
               {
                 id: "sceneAlarmRejectChip",
-                text: `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
-                tone: recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
-                level: recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
+                text: `REJ ${sceneAlarmRecentReject ? sceneAlarmRejectCode : "--"}`,
+                tone: sceneAlarmRecentReject ? (sceneAlarmTone === "critical" ? "critical" : "pressure") : "balanced",
+                level: sceneAlarmRecentReject ? sceneAlarmRejectFreshness : clamp(1 - sceneAlarmRejectSeverity * 0.45, 0.12, 0.9)
               },
               {
                 id: "sceneAlarmFreshChip",
-                text: `FRESH ${Math.round(ladderFreshness * 100)}%`,
-                tone: ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
-                level: ladderFreshness
+                text: `FRESH ${Math.round(sceneAlarmLadderFreshness * 100)}%`,
+                tone: sceneAlarmLadderFreshness < 0.2 ? "critical" : sceneAlarmLadderFreshness < 0.45 ? "pressure" : "advantage",
+                level: sceneAlarmLadderFreshness
               }
             ]
           }
         })
       : false;
     if (!bridgeHandled) {
-      root.dataset.tone = tone;
-      root.dataset.category = recentReject ? rejectCategory : "none";
-      root.dataset.recent = recentReject ? "1" : "0";
-      root.style.setProperty("--scene-alarm-stress", severity.toFixed(3));
+      root.dataset.tone = sceneAlarmTone;
+      root.dataset.category = sceneAlarmRecentReject ? sceneAlarmRejectCategory : "none";
+      root.dataset.recent = sceneAlarmRecentReject ? "1" : "0";
+      root.style.setProperty("--scene-alarm-stress", sceneAlarmSeverity.toFixed(3));
       root.style.setProperty("--scene-alarm-flash", sceneAlarmFlash.toFixed(3));
 
-      badge.textContent = alarmBadgeText;
-      badge.className = alarmBadgeTone === "warn" ? "badge warn" : alarmBadgeTone === "default" ? "badge" : "badge info";
+      badge.textContent = sceneAlarmBadgeText;
+      badge.className = sceneAlarmBadgeTone === "warn" ? "badge warn" : sceneAlarmBadgeTone === "default" ? "badge" : "badge info";
 
       setLiveStatusChip(
         "sceneAlarmPressureChip",
-        `PRES ${Math.round(ladderPressure * 100)}%`,
-        ladderPressure >= 0.72 ? "critical" : ladderPressure >= 0.45 ? "pressure" : "advantage",
-        ladderPressure
+        `PRES ${Math.round(sceneAlarmLadderPressure * 100)}%`,
+        sceneAlarmLadderPressure >= 0.72 ? "critical" : sceneAlarmLadderPressure >= 0.45 ? "pressure" : "advantage",
+        sceneAlarmLadderPressure
       );
       setLiveStatusChip(
         "sceneAlarmAssetChip",
-        `AST ${Math.round(assetIntegrityRatio * 100)}%`,
-        assetMismatch >= 0.58 ? "critical" : assetMismatch >= 0.3 ? "pressure" : "advantage",
-        1 - assetMismatch
+        `AST ${Math.round(sceneAlarmAssetIntegrityRatio * 100)}%`,
+        sceneAlarmAssetMismatch >= 0.58 ? "critical" : sceneAlarmAssetMismatch >= 0.3 ? "pressure" : "advantage",
+        1 - sceneAlarmAssetMismatch
       );
       setLiveStatusChip(
         "sceneAlarmRejectChip",
-        `REJ ${recentReject ? (rejectCodeMap[rejectCategory] || "UNK") : "--"}`,
-        recentReject ? (tone === "critical" ? "critical" : "pressure") : "balanced",
-        recentReject ? rejectFreshness : clamp(1 - rejectSeverity * 0.45, 0.12, 0.9)
+        `REJ ${sceneAlarmRecentReject ? sceneAlarmRejectCode : "--"}`,
+        sceneAlarmRecentReject ? (sceneAlarmTone === "critical" ? "critical" : "pressure") : "balanced",
+        sceneAlarmRecentReject ? sceneAlarmRejectFreshness : clamp(1 - sceneAlarmRejectSeverity * 0.45, 0.12, 0.9)
       );
       setLiveStatusChip(
         "sceneAlarmFreshChip",
-        `FRESH ${Math.round(ladderFreshness * 100)}%`,
-        ladderFreshness < 0.2 ? "critical" : ladderFreshness < 0.45 ? "pressure" : "advantage",
-        ladderFreshness
+        `FRESH ${Math.round(sceneAlarmLadderFreshness * 100)}%`,
+        sceneAlarmLadderFreshness < 0.2 ? "critical" : sceneAlarmLadderFreshness < 0.45 ? "pressure" : "advantage",
+        sceneAlarmLadderFreshness
       );
 
-      animateTextSwap(line, alarmLineText);
-      animateTextSwap(hint, alarmHintText);
-      animateMeterWidth(meter, severity * 100, 0.22);
-      setMeterPalette(meter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+      animateTextSwap(line, sceneAlarmLineText);
+      animateTextSwap(hint, sceneAlarmHintText);
+      animateMeterWidth(meter, sceneAlarmSeverity * 100, 0.22);
+      setMeterPalette(meter, sceneAlarmTone === "critical" ? "critical" : sceneAlarmTone === "pressure" ? "aggressive" : "balanced");
     }
 
     if (state.arena) {
-      state.arena.sceneAlarmSeverity = clamp(asNum(state.arena.sceneAlarmSeverity ?? severity) * 0.76 + severity * 0.24, 0, 1);
-      state.arena.sceneAlarmFreshness = clamp(asNum(state.arena.sceneAlarmFreshness ?? ladderFreshness) * 0.72 + ladderFreshness * 0.28, 0, 1);
-      state.arena.sceneAlarmAssetMismatch = clamp(asNum(state.arena.sceneAlarmAssetMismatch ?? assetMismatch) * 0.76 + assetMismatch * 0.24, 0, 1);
-      state.arena.sceneAlarmRejectCategory = recentReject ? rejectCategory : "none";
-      state.arena.sceneAlarmRecentReject = recentReject ? 1 : 0;
-      state.arena.sceneAlarmTone = tone;
-      if (recentReject && tone === "critical") {
-        state.arena.cameraImpulse = Math.min(1.75, asNum(state.arena.cameraImpulse || 0) + 0.06 + rejectSeverity * 0.08);
+      state.arena.sceneAlarmSeverity = clamp(asNum(state.arena.sceneAlarmSeverity ?? sceneAlarmSeverity) * 0.76 + sceneAlarmSeverity * 0.24, 0, 1);
+      state.arena.sceneAlarmFreshness = clamp(asNum(state.arena.sceneAlarmFreshness ?? sceneAlarmLadderFreshness) * 0.72 + sceneAlarmLadderFreshness * 0.28, 0, 1);
+      state.arena.sceneAlarmAssetMismatch = clamp(asNum(state.arena.sceneAlarmAssetMismatch ?? sceneAlarmAssetMismatch) * 0.76 + sceneAlarmAssetMismatch * 0.24, 0, 1);
+      state.arena.sceneAlarmRejectCategory = sceneAlarmRecentReject ? sceneAlarmRejectCategory : "none";
+      state.arena.sceneAlarmRecentReject = sceneAlarmRecentReject ? 1 : 0;
+      state.arena.sceneAlarmTone = sceneAlarmTone;
+      if (sceneAlarmRecentReject && sceneAlarmTone === "critical") {
+        state.arena.cameraImpulse = Math.min(1.75, asNum(state.arena.cameraImpulse || 0) + 0.06 + sceneAlarmRejectSeverity * 0.08);
       }
     }
 
     const pulseKey = [
-      Math.round(severity * 100),
-      Math.round(assetMismatch * 100),
-      Math.round(ladderPressure * 100),
-      recentReject ? rejectCategory : "none"
+      Math.round(sceneAlarmSeverity * 100),
+      Math.round(sceneAlarmAssetMismatch * 100),
+      Math.round(sceneAlarmLadderPressure * 100),
+      sceneAlarmRecentReject ? sceneAlarmRejectCategory : "none"
     ].join(":");
     const now = Date.now();
     if (
       pulseKey !== state.v3.sceneAlarmPulseKey &&
       now - asNum(state.v3.sceneAlarmPulseAt || 0) > 2800 &&
-      (recentReject || severity >= 0.6 || assetMismatch >= 0.55)
+      (sceneAlarmRecentReject || sceneAlarmSeverity >= 0.6 || sceneAlarmAssetMismatch >= 0.55)
     ) {
       state.v3.sceneAlarmPulseKey = pulseKey;
       state.v3.sceneAlarmPulseAt = now;
       triggerArenaPulse(
-        recentReject ? (tone === "critical" ? "aggressive" : "balanced") : tone === "critical" ? "aggressive" : "balanced",
+        sceneAlarmRecentReject ? (sceneAlarmTone === "critical" ? "aggressive" : "balanced") : sceneAlarmTone === "critical" ? "aggressive" : "balanced",
         {
-          label: recentReject
-            ? `SCENE REJ ${(rejectCodeMap[rejectCategory] || "UNK")}`
-            : assetMismatch >= 0.55
-              ? `ASSET DRIFT ${Math.round((1 - assetIntegrityRatio) * 100)}`
-              : `LADDER HEAT ${Math.round(ladderPressure * 100)}`
+          label: sceneAlarmRecentReject
+            ? `SCENE REJ ${sceneAlarmRejectCode}`
+            : sceneAlarmAssetMismatch >= 0.55
+              ? `ASSET DRIFT ${Math.round((1 - sceneAlarmAssetIntegrityRatio) * 100)}`
+              : `LADDER HEAT ${Math.round(sceneAlarmLadderPressure * 100)}`
         }
       );
     }
