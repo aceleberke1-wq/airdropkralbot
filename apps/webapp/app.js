@@ -1276,7 +1276,9 @@
       typeof bridge.computeAssetManifestMetrics !== "function" ||
       typeof bridge.computePvpLeaderboardState !== "function" ||
       typeof bridge.computeSceneEffectiveProfile !== "function" ||
-      typeof bridge.computeProviderRuntimeMetrics !== "function"
+      typeof bridge.computeProviderRuntimeMetrics !== "function" ||
+      typeof bridge.computeTokenRouteRuntimeMetrics !== "function" ||
+      typeof bridge.computeDecisionTraceMetrics !== "function"
     ) {
       return null;
     }
@@ -10031,6 +10033,20 @@
                 : gateOpen
                   ? "advantage"
                   : "balanced";
+    let derivedRouteMetrics = null;
+    const stateMutatorBridge = getStateMutatorBridge();
+    if (stateMutatorBridge && typeof stateMutatorBridge.computeTokenRouteRuntimeMetrics === "function") {
+      try {
+        derivedRouteMetrics = stateMutatorBridge.computeTokenRouteRuntimeMetrics({
+          chains,
+          quoteData,
+          payoutGate: safe.payout_gate || {},
+          selectedChain
+        });
+      } catch (err) {
+        console.warn("[v3-state-bridge] computeTokenRouteRuntimeMetrics failed", err);
+      }
+    }
 
     const tokenTreasuryBridge = getTokenTreasuryBridge();
     let tokenRouteBridgeHandled = false;
@@ -10193,7 +10209,7 @@
       }
     }
 
-    state.v3.tokenRouteMetrics = {
+    state.v3.tokenRouteMetrics = derivedRouteMetrics || {
       totalRoutes,
       enabledRoutes,
       missingRoutes,
@@ -10205,14 +10221,19 @@
       gateOpen,
       tone
     };
-    const routeSignalKey = `${selectedChain}:${enabledRoutes}/${totalRoutes}:${providerCount}:${okProviderCount}:${Math.round(quorumRatio * 100)}:${gateOpen ? 1 : 0}`;
+    const routeMetrics = state.v3.tokenRouteMetrics || {};
+    const routeSignalKey = `${String(routeMetrics.selectedChain || selectedChain)}:${asNum(routeMetrics.enabledRoutes || enabledRoutes)}/${asNum(routeMetrics.totalRoutes || totalRoutes)}:${asNum(routeMetrics.providerCount || providerCount)}:${asNum(routeMetrics.okProviderCount || okProviderCount)}:${Math.round(asNum(routeMetrics.quorumRatio || quorumRatio) * 100)}:${routeMetrics.gateOpen === true ? 1 : 0}`;
     const now = Date.now();
     if (routeSignalKey !== state.v3.lastTokenRouteSignalKey && now - asNum(state.v3.lastTokenRouteSignalAt || 0) > 2400) {
       state.v3.lastTokenRouteSignalKey = routeSignalKey;
       state.v3.lastTokenRouteSignalAt = now;
-      if (providerCount > 0 || totalRoutes > 0) {
-        triggerArenaPulse(tone === "critical" ? "aggressive" : tone === "pressure" ? "warn" : "info", {
-          label: tone === "critical" ? "TREASURY ROUTE ALERT" : `ROUTE ${enabledRoutes}/${Math.max(totalRoutes, 1)}`
+      const signalTone = String(routeMetrics.tone || tone);
+      const signalEnabled = asNum(routeMetrics.enabledRoutes || enabledRoutes);
+      const signalTotal = asNum(routeMetrics.totalRoutes || totalRoutes);
+      const signalProviders = asNum(routeMetrics.providerCount || providerCount);
+      if (signalProviders > 0 || signalTotal > 0) {
+        triggerArenaPulse(signalTone === "critical" ? "aggressive" : signalTone === "pressure" ? "warn" : "info", {
+          label: signalTone === "critical" ? "TREASURY ROUTE ALERT" : `ROUTE ${signalEnabled}/${Math.max(signalTotal, 1)}`
         });
       }
     }
@@ -11496,6 +11517,15 @@
           : riskPressure >= 0.44 || manualPressure >= 0.42
             ? "pressure"
             : "advantage";
+    let derivedDecisionMetrics = null;
+    const stateMutatorBridge = getStateMutatorBridge();
+    if (stateMutatorBridge && typeof stateMutatorBridge.computeDecisionTraceMetrics === "function") {
+      try {
+        derivedDecisionMetrics = stateMutatorBridge.computeDecisionTraceMetrics(decisions, manualQueue, payoutQueue);
+      } catch (err) {
+        console.warn("[v3-state-bridge] computeDecisionTraceMetrics failed", err);
+      }
+    }
 
     const adminTreasuryBridge = getAdminTreasuryBridge();
     let decisionBridgeHandled = false;
@@ -11689,7 +11719,7 @@
       }
     }
 
-    state.admin.decisionTraceMetrics = {
+    state.admin.decisionTraceMetrics = derivedDecisionMetrics || {
       sampleCount: recent.length,
       approveCount,
       rejectCount,
@@ -11705,19 +11735,23 @@
       topReasonCount,
       tone
     };
+    const decisionMetrics = state.admin.decisionTraceMetrics || {};
     if (state.arena) {
-      state.arena.treasuryDecisionStress = riskPressure;
-      state.arena.treasuryDecisionFlow = decisionFlow;
+      state.arena.treasuryDecisionStress = clamp(asNum(decisionMetrics.riskPressure ?? riskPressure), 0, 1);
+      state.arena.treasuryDecisionFlow = clamp(asNum(decisionMetrics.decisionFlow ?? decisionFlow), 0, 1);
     }
-    const signalKey = `${approveCount}/${rejectCount}/${manualQueue.length}:${Math.round(avgRisk * 100)}:${String(topReason)}:${Math.round(riskPressure * 100)}`;
+    const signalKey = `${asNum(decisionMetrics.approveCount || approveCount)}/${asNum(decisionMetrics.rejectCount || rejectCount)}/${asNum(decisionMetrics.manualQueueCount || manualQueue.length)}:${Math.round(asNum(decisionMetrics.avgRisk ?? avgRisk) * 100)}:${String(decisionMetrics.topReason || topReason)}:${Math.round(asNum(decisionMetrics.riskPressure ?? riskPressure) * 100)}`;
     const now = Date.now();
     if (signalKey !== state.admin.lastDecisionTraceSignalKey && now - asNum(state.admin.lastDecisionTraceSignalAt || 0) > 2600) {
       state.admin.lastDecisionTraceSignalKey = signalKey;
       state.admin.lastDecisionTraceSignalAt = now;
-      if (recent.length > 0 || manualQueue.length > 0) {
+      const signalSample = asNum(decisionMetrics.sampleCount || recent.length);
+      const signalManual = asNum(decisionMetrics.manualQueueCount || manualQueue.length);
+      const signalTone = String(decisionMetrics.tone || tone);
+      if (signalSample > 0 || signalManual > 0) {
         triggerArenaPulse(
-          tone === "critical" ? "aggressive" : tone === "pressure" ? "warn" : "info",
-          { label: tone === "critical" ? "DECISION ALERT" : `DECISION ${approveCount}/${Math.max(recent.length, 1)}` }
+          signalTone === "critical" ? "aggressive" : signalTone === "pressure" ? "warn" : "info",
+          { label: signalTone === "critical" ? "DECISION ALERT" : `DECISION ${asNum(decisionMetrics.approveCount || approveCount)}/${Math.max(signalSample, 1)}` }
         );
       }
     }

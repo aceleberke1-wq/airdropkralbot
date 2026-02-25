@@ -74,11 +74,48 @@ type ProviderRuntimeMetrics = {
   latestStatus: string;
 };
 
+type TokenRouteRuntimeMetrics = {
+  totalRoutes: number;
+  enabledRoutes: number;
+  missingRoutes: number;
+  routeCoverage: number;
+  providerCount: number;
+  okProviderCount: number;
+  agreementRatio: number;
+  providerRatio: number;
+  quorumRatio: number;
+  quorumDecision: string;
+  selectedChain: string;
+  gateOpen: boolean;
+  tone: string;
+};
+
+type DecisionTraceMetrics = {
+  sampleCount: number;
+  approveCount: number;
+  rejectCount: number;
+  fallbackCount: number;
+  manualQueueCount: number;
+  payoutQueueCount: number;
+  avgRisk: number;
+  rejectRatio: number;
+  approveRatio: number;
+  decisionFlow: number;
+  riskPressure: number;
+  topReason: string;
+  topReasonCount: number;
+  manualPressure: number;
+  tone: string;
+  reasonEntries: Array<[string, number]>;
+};
+
 type V3StateMutatorBridge = {
   computeAssetManifestMetrics: (manifestPayload: any) => AssetManifestMetrics;
   computePvpLeaderboardState: (payloadData: any, currentTransport?: string) => PvpLeaderboardState;
   computeSceneEffectiveProfile: (input: any) => SceneEffectiveProfile;
   computeProviderRuntimeMetrics: (rows: any[], decisions: any[], nowMs?: number) => ProviderRuntimeMetrics;
+  computeTokenRouteRuntimeMetrics: (input: any) => TokenRouteRuntimeMetrics;
+  computeDecisionTraceMetrics: (decisions: any[], manualQueue: any[], payoutQueue: any[]) => DecisionTraceMetrics;
 };
 
 declare global {
@@ -334,11 +371,128 @@ function computeProviderRuntimeMetrics(rowsInput: any[], decisionsInput: any[], 
   };
 }
 
+function computeTokenRouteRuntimeMetrics(input: any): TokenRouteRuntimeMetrics {
+  const data = input && typeof input === "object" ? input : {};
+  const chains = Array.isArray(data.chains) ? data.chains : [];
+  const quoteData = data.quoteData && typeof data.quoteData === "object" ? data.quoteData : {};
+  const payoutGate = data.payoutGate && typeof data.payoutGate === "object" ? data.payoutGate : {};
+  const selectedChain = asString(data.selectedChain || quoteData.chain || "").toUpperCase();
+  const selectedRoute =
+    chains.find((row) => asString(row?.chain).toUpperCase() === selectedChain) || null;
+  const totalRoutes = chains.length;
+  const enabledRoutes = chains.filter((row) => row && row.enabled).length;
+  const missingRoutes = Math.max(0, totalRoutes - enabledRoutes);
+  const routeCoverage = totalRoutes > 0 ? clamp(enabledRoutes / totalRoutes, 0, 1) : 0;
+  const payAddress = asString(quoteData.pay_address || selectedRoute?.address || "").trim();
+  const gate = quoteData.payout_gate && typeof quoteData.payout_gate === "object" ? quoteData.payout_gate : payoutGate;
+  const gateOpen = gate?.allowed === true;
+  const quorum = quoteData.quote_quorum && typeof quoteData.quote_quorum === "object" ? quoteData.quote_quorum : {};
+  const providerCount = Math.max(0, Math.floor(asNum(quorum.provider_count || 0)));
+  const okProviderCount = Math.max(0, Math.floor(asNum(quorum.ok_provider_count || 0)));
+  const agreementRatio = clamp(asNum(quorum.agreement_ratio || 0), 0, 1);
+  const providerRatio = providerCount > 0 ? clamp(okProviderCount / providerCount, 0, 1) : 0;
+  const quorumRatio =
+    providerCount > 0 ? clamp(providerRatio * 0.58 + agreementRatio * 0.42, 0, 1) : routeCoverage > 0 ? 0.35 : 0;
+  const quorumDecision = asString(quorum.decision || "WAIT").toUpperCase() || "WAIT";
+  const tone =
+    totalRoutes === 0 || enabledRoutes === 0
+      ? "critical"
+      : !selectedRoute && selectedChain
+        ? "pressure"
+        : selectedRoute && !selectedRoute.enabled
+          ? "critical"
+          : quoteData && Object.keys(quoteData).length > 0 && !payAddress
+            ? "pressure"
+            : missingRoutes > 0 || (providerCount > 0 && quorumRatio < 0.45)
+              ? "pressure"
+              : gateOpen
+                ? "advantage"
+                : "balanced";
+  return {
+    totalRoutes,
+    enabledRoutes,
+    missingRoutes,
+    routeCoverage,
+    providerCount,
+    okProviderCount,
+    agreementRatio,
+    providerRatio,
+    quorumRatio,
+    quorumDecision,
+    selectedChain,
+    gateOpen,
+    tone
+  };
+}
+
+function computeDecisionTraceMetrics(decisionsInput: any[], manualQueueInput: any[], payoutQueueInput: any[]): DecisionTraceMetrics {
+  const decisions = Array.isArray(decisionsInput) ? decisionsInput : [];
+  const manualQueue = Array.isArray(manualQueueInput) ? manualQueueInput : [];
+  const payoutQueue = Array.isArray(payoutQueueInput) ? payoutQueueInput : [];
+  const recent = decisions.slice(0, 20);
+  const approveCount = recent.filter((row) => /approve|approved|auto_approved/i.test(asString(row?.decision))).length;
+  const rejectCount = recent.filter((row) => /reject|rejected|deny|failed/i.test(asString(row?.decision))).length;
+  const fallbackCount = recent.filter((row) => /fallback|skip|manual/i.test(asString(row?.decision))).length;
+  const avgRisk =
+    recent.length > 0 ? recent.reduce((sum, row) => sum + clamp(asNum(row?.risk_score || 0), 0, 1), 0) / recent.length : 0;
+  const reasonBuckets = recent.reduce((acc, row) => {
+    const reason = asString(row?.reason).toLowerCase();
+    const plus = (k: string) => {
+      acc[k] = (acc[k] || 0) + 1;
+    };
+    if (!reason) plus("none");
+    if (/risk/.test(reason)) plus("risk");
+    if (/velocity|rate/.test(reason)) plus("velocity");
+    if (/verify|quorum|provider|oracle/.test(reason)) plus("verify");
+    if (/gate|cap/.test(reason)) plus("gate");
+    if (/tx|hash|chain/.test(reason)) plus("tx");
+    if (/manual|review/.test(reason)) plus("manual");
+    if (!/(risk|velocity|rate|verify|quorum|provider|oracle|gate|cap|tx|hash|chain|manual|review)/.test(reason)) plus("other");
+    return acc;
+  }, {} as Record<string, number>);
+  const reasonEntries = Object.entries(reasonBuckets).sort((a, b) => Number(b[1]) - Number(a[1])) as Array<[string, number]>;
+  const topReason = reasonEntries[0]?.[0] || "none";
+  const topReasonCount = Number(reasonEntries[0]?.[1] || 0);
+  const manualPressure = clamp((manualQueue.length * 0.65 + payoutQueue.length * 0.35) / 18, 0, 1);
+  const rejectRatio = recent.length > 0 ? clamp(rejectCount / recent.length, 0, 1) : 0;
+  const approveRatio = recent.length > 0 ? clamp(approveCount / recent.length, 0, 1) : 0;
+  const decisionFlow = clamp((recent.length / 20) * 0.35 + approveRatio * 0.25 + (1 - rejectRatio) * 0.2 + (1 - manualPressure) * 0.2, 0, 1);
+  const riskPressure = clamp(avgRisk * 0.46 + rejectRatio * 0.24 + manualPressure * 0.2 + clamp(topReasonCount / 8, 0, 1) * 0.1, 0, 1);
+  const tone =
+    recent.length === 0 && manualQueue.length === 0 && payoutQueue.length === 0
+      ? "neutral"
+      : riskPressure >= 0.72 || manualPressure >= 0.75
+        ? "critical"
+        : riskPressure >= 0.44 || manualPressure >= 0.42
+          ? "pressure"
+          : "advantage";
+  return {
+    sampleCount: recent.length,
+    approveCount,
+    rejectCount,
+    fallbackCount,
+    manualQueueCount: manualQueue.length,
+    payoutQueueCount: payoutQueue.length,
+    avgRisk,
+    rejectRatio,
+    approveRatio,
+    decisionFlow,
+    riskPressure,
+    topReason,
+    topReasonCount,
+    manualPressure,
+    tone,
+    reasonEntries
+  };
+}
+
 export function installV3StateMutatorBridge(): void {
   window.__AKR_STATE_MUTATORS__ = {
     computeAssetManifestMetrics,
     computePvpLeaderboardState,
     computeSceneEffectiveProfile,
-    computeProviderRuntimeMetrics
+    computeProviderRuntimeMetrics,
+    computeTokenRouteRuntimeMetrics,
+    computeDecisionTraceMetrics
   };
 }
