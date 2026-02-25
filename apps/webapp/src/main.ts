@@ -12,6 +12,7 @@ import { installTokenTreasuryBridge } from "./ui/tokenTreasuryBridge";
 import { installAdminTreasuryBridge } from "./ui/adminTreasuryBridge";
 import { installNetSchedulerBridge } from "./net/schedulerBridge";
 import { installNetApiBridge } from "./net/apiBridge";
+import { installV3StateMutatorBridge } from "./game/state/v3StateBridge";
 
 installPerfBridge();
 installTelemetryDeckBridge();
@@ -26,6 +27,7 @@ installTokenTreasuryBridge();
 installAdminTreasuryBridge();
 installNetSchedulerBridge();
 installNetApiBridge();
+installV3StateMutatorBridge();
 
 // Legacy runtime stays source of truth while V3.2 TS bundle rolls out.
 import("../app.js").catch((err) => {

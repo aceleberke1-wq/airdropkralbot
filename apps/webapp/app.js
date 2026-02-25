@@ -1226,6 +1226,20 @@
     return bridge;
   }
 
+  function getStateMutatorBridge() {
+    const bridge = window.__AKR_STATE_MUTATORS__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (
+      typeof bridge.computeAssetManifestMetrics !== "function" ||
+      typeof bridge.computePvpLeaderboardState !== "function"
+    ) {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -7585,67 +7599,84 @@
 
   function ingestActiveAssetManifestMeta(manifestPayload) {
     const data = manifestPayload && typeof manifestPayload === "object" ? manifestPayload : {};
-    const revision = data.active_revision && typeof data.active_revision === "object" ? data.active_revision : null;
-    const entries = Array.isArray(data.entries) ? data.entries : [];
-    const totalEntries = entries.length;
-    const readyEntries = entries.filter((row) => row && row.exists_local === true).length;
-    const missingEntries = Math.max(0, totalEntries - readyEntries);
-    const integrityBuckets = entries.reduce(
-      (acc, row) => {
-        const raw = String(row?.integrity_status || "").toLowerCase();
-        if (!raw) {
-          acc.unknown += 1;
-        } else if (/(ok|pass|ready|valid|verified)/.test(raw)) {
-          acc.ok += 1;
-        } else if (/(missing|mismatch|fail|error|bad)/.test(raw)) {
-          acc.bad += 1;
-        } else {
-          acc.unknown += 1;
-        }
-        return acc;
-      },
-      { ok: 0, bad: 0, unknown: 0 }
-    );
-    const integrityKnownTotal = Math.max(0, integrityBuckets.ok + integrityBuckets.bad);
-    const integrityRatio =
-      totalEntries > 0
-        ? integrityKnownTotal > 0
-          ? clamp(integrityBuckets.ok / integrityKnownTotal, 0, 1)
-          : readyEntries > 0
-            ? clamp(readyEntries / Math.max(1, totalEntries), 0, 1)
-            : 0
-        : 0;
-    const readyRatio = totalEntries > 0 ? clamp(readyEntries / totalEntries, 0, 1) : 0;
-    const missingRatio = totalEntries > 0 ? clamp(missingEntries / totalEntries, 0, 1) : 0;
-    const sourceMode = String(revision?.source || (data.available ? "registry" : "fallback") || "fallback");
-    const manifestRevision = String(revision?.manifest_revision || data.manifest_revision || "local");
-    const manifestHash = String(revision?.manifest_hash || "");
-    const tone =
-      missingEntries >= 2 || (totalEntries > 0 && integrityRatio < 0.62)
-        ? "critical"
-        : missingEntries > 0 || (totalEntries > 0 && integrityRatio < 0.9)
-          ? "pressure"
-          : totalEntries > 0
-            ? "advantage"
-            : "balanced";
-    const metrics = {
-      available: data.available !== false,
-      sourceMode,
-      manifestRevision,
-      manifestHash,
-      hashShort: manifestHash ? manifestHash.slice(0, 10) : "--",
-      activatedAt: revision?.activated_at || revision?.updated_at || revision?.created_at || null,
-      totalEntries,
-      readyEntries,
-      missingEntries,
-      missingRatio,
-      integrityOkEntries: integrityBuckets.ok,
-      integrityBadEntries: integrityBuckets.bad,
-      integrityUnknownEntries: integrityBuckets.unknown,
-      integrityRatio,
-      readyRatio,
-      tone
-    };
+    const stateBridge = getStateMutatorBridge();
+    let metrics = null;
+    if (stateBridge) {
+      try {
+        metrics = stateBridge.computeAssetManifestMetrics(data);
+      } catch (_) {
+        metrics = null;
+      }
+    }
+    if (!metrics) {
+      const revision = data.active_revision && typeof data.active_revision === "object" ? data.active_revision : null;
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      const totalEntries = entries.length;
+      const readyEntries = entries.filter((row) => row && row.exists_local === true).length;
+      const missingEntries = Math.max(0, totalEntries - readyEntries);
+      const integrityBuckets = entries.reduce(
+        (acc, row) => {
+          const raw = String(row?.integrity_status || "").toLowerCase();
+          if (!raw) {
+            acc.unknown += 1;
+          } else if (/(ok|pass|ready|valid|verified)/.test(raw)) {
+            acc.ok += 1;
+          } else if (/(missing|mismatch|fail|error|bad)/.test(raw)) {
+            acc.bad += 1;
+          } else {
+            acc.unknown += 1;
+          }
+          return acc;
+        },
+        { ok: 0, bad: 0, unknown: 0 }
+      );
+      const integrityKnownTotal = Math.max(0, integrityBuckets.ok + integrityBuckets.bad);
+      const integrityRatio =
+        totalEntries > 0
+          ? integrityKnownTotal > 0
+            ? clamp(integrityBuckets.ok / integrityKnownTotal, 0, 1)
+            : readyEntries > 0
+              ? clamp(readyEntries / Math.max(1, totalEntries), 0, 1)
+              : 0
+          : 0;
+      const readyRatio = totalEntries > 0 ? clamp(readyEntries / totalEntries, 0, 1) : 0;
+      const missingRatio = totalEntries > 0 ? clamp(missingEntries / totalEntries, 0, 1) : 0;
+      const sourceMode = String(revision?.source || (data.available ? "registry" : "fallback") || "fallback");
+      const manifestRevision = String(revision?.manifest_revision || data.manifest_revision || "local");
+      const manifestHash = String(revision?.manifest_hash || "");
+      const tone =
+        missingEntries >= 2 || (totalEntries > 0 && integrityRatio < 0.62)
+          ? "critical"
+          : missingEntries > 0 || (totalEntries > 0 && integrityRatio < 0.9)
+            ? "pressure"
+            : totalEntries > 0
+              ? "advantage"
+              : "balanced";
+      metrics = {
+        available: data.available !== false,
+        sourceMode,
+        manifestRevision,
+        manifestHash,
+        hashShort: manifestHash ? manifestHash.slice(0, 10) : "--",
+        activatedAt: revision?.activated_at || revision?.updated_at || revision?.created_at || null,
+        totalEntries,
+        readyEntries,
+        missingEntries,
+        missingRatio,
+        integrityOkEntries: integrityBuckets.ok,
+        integrityBadEntries: integrityBuckets.bad,
+        integrityUnknownEntries: integrityBuckets.unknown,
+        integrityRatio,
+        readyRatio,
+        tone
+      };
+    }
+    const totalEntries = asNum(metrics.totalEntries || 0);
+    const readyEntries = asNum(metrics.readyEntries || 0);
+    const missingEntries = asNum(metrics.missingEntries || 0);
+    const integrityRatio = clamp(asNum(metrics.integrityRatio || 0), 0, 1);
+    const manifestRevision = String(metrics.manifestRevision || "local");
+    const sourceMode = String(metrics.sourceMode || "fallback");
     state.v3.assetManifestMeta = metrics;
     if (!state.admin.assetRuntimeMetrics) {
       state.telemetry.assetReadyCount = readyEntries;
@@ -8580,8 +8611,17 @@
     }
     renewAuth(payload);
     const data = payload.data || {};
-    const list = Array.isArray(data.leaderboard) ? data.leaderboard : [];
-    state.v3.pvpLeaderboardMeta = {
+    const stateBridge = getStateMutatorBridge();
+    let derived = null;
+    if (stateBridge) {
+      try {
+        derived = stateBridge.computePvpLeaderboardState(data, state.v3.pvpTransport || "poll");
+      } catch (_) {
+        derived = null;
+      }
+    }
+    const list = Array.isArray(derived?.list) ? derived.list : Array.isArray(data.leaderboard) ? data.leaderboard : [];
+    state.v3.pvpLeaderboardMeta = derived?.meta || {
       transport: String(data.transport || state.v3.pvpTransport || "poll"),
       server_tick: asNum(data.server_tick || Date.now()),
       limit: list.length
