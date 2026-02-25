@@ -1209,7 +1209,11 @@
     if (
       typeof bridge.fetchActiveAssetManifestMeta !== "function" ||
       typeof bridge.fetchTokenQuote !== "function" ||
-      typeof bridge.fetchAdminQueues !== "function"
+      typeof bridge.fetchAdminQueues !== "function" ||
+      typeof bridge.fetchAdminMetrics !== "function" ||
+      typeof bridge.fetchAdminRuntime !== "function" ||
+      typeof bridge.fetchAdminAssetStatus !== "function" ||
+      typeof bridge.postAdmin !== "function"
     ) {
       return null;
     }
@@ -11927,11 +11931,17 @@
   }
 
   async function fetchAdminMetrics() {
-    const query = new URLSearchParams(state.auth).toString();
-    const res = await fetch(`/webapp/api/admin/metrics?${query}`);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      throw new Error(payload.error || `admin_metrics_failed:${res.status}`);
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      payload = await bridge.fetchAdminMetrics(state.auth);
+    } else {
+      const query = new URLSearchParams(state.auth).toString();
+      const res = await fetch(`/webapp/api/admin/metrics?${query}`);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || `admin_metrics_failed:${res.status}`);
+      }
     }
     renewAuth(payload);
     if (state.admin.summary && typeof state.admin.summary === "object") {
@@ -11942,14 +11952,20 @@
   }
 
   async function fetchAdminRuntime(limit = 20) {
-    const query = new URLSearchParams({
-      ...state.auth,
-      limit: String(Math.max(1, Math.min(100, Number(limit || 20))))
-    }).toString();
-    const res = await fetch(`/webapp/api/admin/runtime/bot?${query}`);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      throw new Error(payload.error || `admin_runtime_failed:${res.status}`);
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      payload = await bridge.fetchAdminRuntime(state.auth, limit);
+    } else {
+      const query = new URLSearchParams({
+        ...state.auth,
+        limit: String(Math.max(1, Math.min(100, Number(limit || 20))))
+      }).toString();
+      const res = await fetch(`/webapp/api/admin/runtime/bot?${query}`);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || `admin_runtime_failed:${res.status}`);
+      }
     }
     renewAuth(payload);
     state.admin.runtime = payload.data || null;
@@ -11958,11 +11974,17 @@
   }
 
   async function fetchAdminAssetStatus() {
-    const query = new URLSearchParams(state.auth).toString();
-    const res = await fetch(`/webapp/api/admin/assets/status?${query}`);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      throw new Error(payload.error || `admin_assets_status_failed:${res.status}`);
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      payload = await bridge.fetchAdminAssetStatus(state.auth);
+    } else {
+      const query = new URLSearchParams(state.auth).toString();
+      const res = await fetch(`/webapp/api/admin/assets/status?${query}`);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || `admin_assets_status_failed:${res.status}`);
+      }
     }
     renewAuth(payload);
     state.admin.assets = payload.data || null;
@@ -12010,21 +12032,29 @@
   }
 
   async function postAdmin(path, extraBody = {}) {
-    const t0 = performance.now();
-    const res = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid: state.auth.uid,
-        ts: state.auth.ts,
-        sig: state.auth.sig,
-      ...extraBody
-      })
-    });
-    markLatency(performance.now() - t0);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      throw new Error(payload.error || `admin_action_failed:${res.status}`);
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      const t0 = performance.now();
+      payload = await bridge.postAdmin(state.auth, path, extraBody);
+      markLatency(performance.now() - t0);
+    } else {
+      const t0 = performance.now();
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: state.auth.uid,
+          ts: state.auth.ts,
+          sig: state.auth.sig,
+          ...extraBody
+        })
+      });
+      markLatency(performance.now() - t0);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || `admin_action_failed:${res.status}`);
+      }
     }
     renewAuth(payload);
     return payload.data || {};

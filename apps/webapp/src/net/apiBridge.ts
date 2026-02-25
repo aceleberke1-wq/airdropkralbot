@@ -12,6 +12,10 @@ type NetApiBridge = {
   fetchActiveAssetManifestMeta: (auth: AuthPayload, extra?: Record<string, string>) => Promise<any>;
   fetchTokenQuote: (auth: AuthPayload, usdAmount: number, chain: string) => Promise<any>;
   fetchAdminQueues: (auth: AuthPayload) => Promise<any>;
+  fetchAdminMetrics: (auth: AuthPayload) => Promise<any>;
+  fetchAdminRuntime: (auth: AuthPayload, limit?: number) => Promise<any>;
+  fetchAdminAssetStatus: (auth: AuthPayload) => Promise<any>;
+  postAdmin: (auth: AuthPayload, path: string, extraBody?: Record<string, unknown>) => Promise<any>;
 };
 
 declare global {
@@ -88,11 +92,67 @@ async function fetchAdminQueues(auth: AuthPayload): Promise<any> {
   return fetchJson(`/webapp/api/admin/queues?${query}`);
 }
 
+async function fetchAdminMetrics(auth: AuthPayload): Promise<any> {
+  const query = buildQuery({
+    uid: auth?.uid,
+    ts: auth?.ts,
+    sig: auth?.sig
+  });
+  return fetchJson(`/webapp/api/admin/metrics?${query}`);
+}
+
+async function fetchAdminRuntime(auth: AuthPayload, limit = 20): Promise<any> {
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(asNumber(limit) || 20)));
+  const query = buildQuery({
+    uid: auth?.uid,
+    ts: auth?.ts,
+    sig: auth?.sig,
+    limit: String(safeLimit)
+  });
+  return fetchJson(`/webapp/api/admin/runtime/bot?${query}`);
+}
+
+async function fetchAdminAssetStatus(auth: AuthPayload): Promise<any> {
+  const query = buildQuery({
+    uid: auth?.uid,
+    ts: auth?.ts,
+    sig: auth?.sig
+  });
+  return fetchJson(`/webapp/api/admin/assets/status?${query}`);
+}
+
+async function postAdmin(
+  auth: AuthPayload,
+  path: string,
+  extraBody: Record<string, unknown> = {}
+): Promise<any> {
+  const res = await fetch(asString(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      uid: auth?.uid,
+      ts: auth?.ts,
+      sig: auth?.sig,
+      ...extraBody
+    })
+  });
+  const payload = await res.json();
+  if (!res.ok || !payload?.success) {
+    const err = new Error(payload?.error || `admin_action_failed:${res.status}`);
+    (err as any).code = res.status;
+    throw err;
+  }
+  return payload;
+}
+
 export function installNetApiBridge(): void {
   window.__AKR_NET_API__ = {
     fetchActiveAssetManifestMeta,
     fetchTokenQuote,
-    fetchAdminQueues
+    fetchAdminQueues,
+    fetchAdminMetrics,
+    fetchAdminRuntime,
+    fetchAdminAssetStatus,
+    postAdmin
   };
 }
-
