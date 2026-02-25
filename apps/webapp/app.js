@@ -1201,6 +1201,21 @@
     return bridge;
   }
 
+  function getNetApiBridge() {
+    const bridge = window.__AKR_NET_API__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (
+      typeof bridge.fetchActiveAssetManifestMeta !== "function" ||
+      typeof bridge.fetchTokenQuote !== "function" ||
+      typeof bridge.fetchAdminQueues !== "function"
+    ) {
+      return null;
+    }
+    return bridge;
+  }
+
   function initPerfBridge() {
     const bridge = getPerfBridge();
     if (!bridge) {
@@ -7642,19 +7657,27 @@
   }
 
   async function fetchActiveAssetManifestMeta() {
-    const query = new URLSearchParams({
-      ...state.auth,
-      include_entries: "1",
-      limit: "200"
-    }).toString();
-    const t0 = performance.now();
-    const res = await fetch(`/webapp/api/assets/manifest/active?${query}`, { cache: "no-store" });
-    markLatency(performance.now() - t0);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      const error = new Error(payload.error || `asset_manifest_active_failed:${res.status}`);
-      error.code = res.status;
-      throw error;
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      const t0 = performance.now();
+      payload = await bridge.fetchActiveAssetManifestMeta(state.auth);
+      markLatency(performance.now() - t0);
+    } else {
+      const query = new URLSearchParams({
+        ...state.auth,
+        include_entries: "1",
+        limit: "200"
+      }).toString();
+      const t0 = performance.now();
+      const res = await fetch(`/webapp/api/assets/manifest/active?${query}`, { cache: "no-store" });
+      markLatency(performance.now() - t0);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        const error = new Error(payload.error || `asset_manifest_active_failed:${res.status}`);
+        error.code = res.status;
+        throw error;
+      }
     }
     renewAuth(payload);
     return ingestActiveAssetManifestMeta(payload.data || {});
@@ -9603,19 +9626,25 @@
     if (!usd || !chainKey) {
       return null;
     }
-    const query = new URLSearchParams({
-      uid: state.auth.uid,
-      ts: state.auth.ts,
-      sig: state.auth.sig,
-      usd: String(usd),
-      chain: chainKey
-    }).toString();
-    const res = await fetch(`/webapp/api/token/quote?${query}`);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      const error = new Error(payload.error || `token_quote_failed:${res.status}`);
-      error.code = res.status;
-      throw error;
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      payload = await bridge.fetchTokenQuote(state.auth, usd, chainKey);
+    } else {
+      const query = new URLSearchParams({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig,
+        usd: String(usd),
+        chain: chainKey
+      }).toString();
+      const res = await fetch(`/webapp/api/token/quote?${query}`);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        const error = new Error(payload.error || `token_quote_failed:${res.status}`);
+        error.code = res.status;
+        throw error;
+      }
     }
     renewAuth(payload);
     return payload.data || null;
@@ -11880,11 +11909,17 @@
   }
 
   async function fetchAdminQueues() {
-    const query = new URLSearchParams(state.auth).toString();
-    const res = await fetch(`/webapp/api/admin/queues?${query}`);
-    const payload = await res.json();
-    if (!res.ok || !payload.success) {
-      throw new Error(payload.error || `admin_queues_failed:${res.status}`);
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge) {
+      payload = await bridge.fetchAdminQueues(state.auth);
+    } else {
+      const query = new URLSearchParams(state.auth).toString();
+      const res = await fetch(`/webapp/api/admin/queues?${query}`);
+      payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || `admin_queues_failed:${res.status}`);
+      }
     }
     renewAuth(payload);
     state.admin.queues = payload.data || {};

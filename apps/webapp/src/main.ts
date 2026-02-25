@@ -11,6 +11,7 @@ import { installSceneTelemetryBridge } from "./ui/sceneTelemetryBridge";
 import { installTokenTreasuryBridge } from "./ui/tokenTreasuryBridge";
 import { installAdminTreasuryBridge } from "./ui/adminTreasuryBridge";
 import { installNetSchedulerBridge } from "./net/schedulerBridge";
+import { installNetApiBridge } from "./net/apiBridge";
 
 installPerfBridge();
 installTelemetryDeckBridge();
@@ -24,6 +25,7 @@ installSceneTelemetryBridge();
 installTokenTreasuryBridge();
 installAdminTreasuryBridge();
 installNetSchedulerBridge();
+installNetApiBridge();
 
 // Legacy runtime stays source of truth while V3.2 TS bundle rolls out.
 import("../app.js").catch((err) => {
