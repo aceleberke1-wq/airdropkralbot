@@ -1471,6 +1471,17 @@
     return bridge;
   }
 
+  function getPublicTelemetryBridge() {
+    const bridge = window.__AKR_PUBLIC_TELEMETRY__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.renderAssetManifest !== "function" || typeof bridge.renderPvpLeaderboard !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function getNetSchedulerBridge() {
     const bridge = window.__AKR_NET_SCHEDULER__;
     if (!bridge || typeof bridge !== "object") {
@@ -7921,9 +7932,41 @@
     if (!host || !badge || !line || !hint || !readyMeter || !integrityMeter) {
       return;
     }
+    const publicTelemetryBridge = getPublicTelemetryBridge();
 
     const meta = metaInput && typeof metaInput === "object" ? metaInput : null;
     if (!meta || meta.available === false) {
+      let bridgeRendered = false;
+      if (publicTelemetryBridge) {
+        try {
+          bridgeRendered = publicTelemetryBridge.renderAssetManifest({
+            tone: "neutral",
+            badgeText: "MANIFEST",
+            badgeTone: "info",
+            lineText: "Aktif asset manifest verisi bekleniyor.",
+            hintText: "Registry tablolari yoksa local/procedural fallback calismaya devam eder.",
+            readyPct: 0,
+            integrityPct: 0,
+            readyPalette: "neutral",
+            integrityPalette: "neutral",
+            manifestReady: 0,
+            manifestIntegrity: 0,
+            manifestRisk: 0,
+            chips: {
+              source: { text: "SRC WAIT", tone: "neutral", level: 0.12 },
+              revision: { text: "REV --", tone: "neutral", level: 0.12 },
+              ready: { text: "READY --", tone: "neutral", level: 0.12 },
+              integrity: { text: "INT --", tone: "neutral", level: 0.12 }
+            }
+          });
+        } catch (_) {
+          bridgeRendered = false;
+        }
+      }
+      if (bridgeRendered) {
+        renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
+        return;
+      }
       host.dataset.tone = "neutral";
       badge.textContent = "MANIFEST";
       badge.className = "badge info";
@@ -7955,11 +7998,53 @@
     const hashShort = String(meta.hashShort || "--").slice(0, 10);
     const revShort = revision.length > 12 ? revision.slice(0, 12) : revision;
     const activated = meta.activatedAt ? formatRuntimeTime(meta.activatedAt) : "--";
+    const manifestRisk = clamp(1 - (readyRatio * 0.55 + integrityRatio * 0.45), 0, 1);
+    const sourceTone = sourceMode.includes("registry") ? "advantage" : "balanced";
+    const sourceLevel = sourceMode.includes("registry") ? 0.9 : 0.45;
+    const revisionTone = tone === "critical" ? "pressure" : "balanced";
+    const readyTone = missing > 0 ? (missing >= 2 ? "critical" : "pressure") : "advantage";
+    const integrityTone = integrityRatio < 0.7 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage";
+    let bridgeRendered = false;
+    if (publicTelemetryBridge) {
+      try {
+        bridgeRendered = publicTelemetryBridge.renderAssetManifest({
+          tone,
+          badgeText: tone === "critical" ? "MANIFEST RISK" : tone === "pressure" ? "MANIFEST WATCH" : "MANIFEST LIVE",
+          badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+          lineText: `REV ${revision} | SRC ${sourceMode} | READY ${ready}/${Math.max(total, 1)} | INT ${Math.round(integrityRatio * 100)}% | ACT ${activated}`,
+          hintText:
+            missing > 0
+              ? `Missing ${missing} asset | integrity bad ${integrityBad} | unknown ${integrityUnknown}. Lite scene fallback devrede kalabilir.`
+              : integrityBad > 0
+                ? `Integrity mismatch ${integrityBad}. Revision ${revShort} / ${hashShort} takipte.`
+                : `Manifest senkron: ${sourceMode} | hash ${hashShort} | ${Math.max(total, 0)} entry.`,
+          readyPct: readyRatio * 100,
+          integrityPct: integrityRatio * 100,
+          readyPalette: missing > 0 ? "aggressive" : "safe",
+          integrityPalette: integrityRatio < 0.7 ? "critical" : integrityRatio < 0.92 ? "aggressive" : "safe",
+          manifestReady: readyRatio,
+          manifestIntegrity: integrityRatio,
+          manifestRisk,
+          chips: {
+            source: { text: `SRC ${sourceShort}`, tone: sourceTone, level: sourceLevel },
+            revision: { text: `REV ${revShort}`, tone: revisionTone, level: 0.38 },
+            ready: { text: `READY ${ready}/${Math.max(total, 1)}`, tone: readyTone, level: readyRatio },
+            integrity: { text: `INT ${Math.round(integrityRatio * 100)}%`, tone: integrityTone, level: integrityRatio }
+          }
+        });
+      } catch (_) {
+        bridgeRendered = false;
+      }
+    }
+    if (bridgeRendered) {
+      renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
+      return;
+    }
 
     host.dataset.tone = tone;
     host.style.setProperty("--manifest-ready", readyRatio.toFixed(3));
     host.style.setProperty("--manifest-integrity", integrityRatio.toFixed(3));
-    host.style.setProperty("--manifest-risk", clamp(1 - (readyRatio * 0.55 + integrityRatio * 0.45), 0, 1).toFixed(3));
+    host.style.setProperty("--manifest-risk", manifestRisk.toFixed(3));
 
     badge.textContent =
       tone === "critical" ? "MANIFEST RISK" : tone === "pressure" ? "MANIFEST WATCH" : "MANIFEST LIVE";
@@ -7973,10 +8058,10 @@
           ? `Integrity mismatch ${integrityBad}. Revision ${revShort} / ${hashShort} takipte.`
           : `Manifest senkron: ${sourceMode} | hash ${hashShort} | ${Math.max(total, 0)} entry.`;
 
-    setLiveStatusChip("assetManifestSourceChip", `SRC ${sourceShort}`, sourceMode.includes("registry") ? "advantage" : "balanced", sourceMode.includes("registry") ? 0.9 : 0.45);
-    setLiveStatusChip("assetManifestRevisionChip", `REV ${revShort}`, tone === "critical" ? "pressure" : "balanced", 0.38);
-    setLiveStatusChip("assetManifestReadyChip", `READY ${ready}/${Math.max(total, 1)}`, missing > 0 ? (missing >= 2 ? "critical" : "pressure") : "advantage", readyRatio);
-    setLiveStatusChip("assetManifestIntegrityChip", `INT ${Math.round(integrityRatio * 100)}%`, integrityRatio < 0.7 ? "critical" : integrityRatio < 0.92 ? "pressure" : "advantage", integrityRatio);
+    setLiveStatusChip("assetManifestSourceChip", `SRC ${sourceShort}`, sourceTone, sourceLevel);
+    setLiveStatusChip("assetManifestRevisionChip", `REV ${revShort}`, revisionTone, 0.38);
+    setLiveStatusChip("assetManifestReadyChip", `READY ${ready}/${Math.max(total, 1)}`, readyTone, readyRatio);
+    setLiveStatusChip("assetManifestIntegrityChip", `INT ${Math.round(integrityRatio * 100)}%`, integrityTone, integrityRatio);
     animateMeterWidth(readyMeter, readyRatio * 100, 0.22);
     animateMeterWidth(integrityMeter, integrityRatio * 100, 0.22);
     setMeterPalette(readyMeter, missing > 0 ? "aggressive" : "safe");
@@ -8143,8 +8228,37 @@
     if (!strip || !badge || !line || !heatMeter || !freshMeter) {
       return;
     }
+    const publicTelemetryBridge = getPublicTelemetryBridge();
     const rows = Array.isArray(list) ? list : [];
     if (!rows.length) {
+      let bridgeRendered = false;
+      if (publicTelemetryBridge) {
+        try {
+          bridgeRendered = publicTelemetryBridge.renderPvpLeaderboard({
+            tone: "neutral",
+            badgeText: "BOARD",
+            badgeTone: "info",
+            lineText: "Liderlik verisi bekleniyor.",
+            heatPct: 0,
+            freshPct: 0,
+            heatPalette: "neutral",
+            freshPalette: "neutral",
+            leaderPressure: 0,
+            chips: {
+              spread: { text: "SPREAD 0", tone: "neutral", level: 0.12 },
+              volume: { text: "24H 0", tone: "neutral", level: 0.12 },
+              fresh: { text: "FRESH --", tone: "neutral", level: 0.12 },
+              transport: { text: `TR ${(meta && meta.transport) || "poll"}`, tone: "neutral", level: 0.12 }
+            }
+          });
+        } catch (_) {
+          bridgeRendered = false;
+        }
+      }
+      if (bridgeRendered) {
+        renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
+        return;
+      }
       strip.dataset.tone = "neutral";
       badge.textContent = "BOARD";
       badge.className = "badge info";
@@ -8188,22 +8302,12 @@
     const transport = String((meta && meta.transport) || state.v3.pvpTransport || "poll").toUpperCase();
     const serverTickAgoSec = asNum(meta && meta.server_tick) > 0 ? Math.max(0, (Date.now() - asNum(meta.server_tick)) / 1000) : 0;
     const lineTag = spread <= 12 ? "close race" : spread >= 100 ? "leader gap" : "mid spread";
-
-    strip.dataset.tone = tone;
-    strip.style.setProperty("--leader-pressure", pressure.toFixed(3));
-    badge.textContent = tone === "critical" ? "LADDER HOT" : tone === "pressure" ? "LADDER LIVE" : "LADDER";
-    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
-    line.textContent =
+    const spreadTone = spread <= 12 ? "critical" : spread <= 32 ? "pressure" : "advantage";
+    const volumeTone = total24h >= 12 ? "critical" : total24h >= 4 ? "pressure" : "balanced";
+    const freshTone = freshnessRatio < 0.2 ? "critical" : freshnessRatio < 0.45 ? "pressure" : "advantage";
+    const transportTone = transport === "WS" ? "advantage" : "balanced";
+    const bridgeLine =
       `#1 ${String(top.public_name || "u")} | spread ${spread} | 24h ${total24h} mac | ${lineTag} | ${transport} ${serverTickAgoSec > 0 ? `| ${Math.round(serverTickAgoSec)}s` : ""}`;
-    setLiveStatusChip("pvpLeaderSpreadChip", `SPREAD ${spread}`, spread <= 12 ? "critical" : spread <= 32 ? "pressure" : "advantage", closeRatio);
-    setLiveStatusChip("pvpLeaderVolumeChip", `24H ${total24h}`, total24h >= 12 ? "critical" : total24h >= 4 ? "pressure" : "balanced", activityRatio);
-    setLiveStatusChip("pvpLeaderFreshChip", latestTs > 0 ? `FRESH ${Math.max(0, Math.round(ageMin))}m` : "FRESH --", freshnessRatio < 0.2 ? "critical" : freshnessRatio < 0.45 ? "pressure" : "advantage", freshnessRatio);
-    setLiveStatusChip("pvpLeaderTransportChip", `TR ${transport}`, transport === "WS" ? "advantage" : "balanced", transport === "WS" ? 0.92 : 0.42);
-
-    animateMeterWidth(heatMeter, pressure * 100, 0.24);
-    animateMeterWidth(freshMeter, freshnessRatio * 100, 0.24);
-    setMeterPalette(heatMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
-    setMeterPalette(freshMeter, freshnessRatio < 0.2 ? "critical" : freshnessRatio < 0.45 ? "aggressive" : "safe");
 
     state.v3.pvpLeaderboardMetrics = {
       topUser: String(top.public_name || `u${asNum(top.user_id || 0)}`),
@@ -8217,6 +8321,51 @@
       lineTag
     };
     applyPvpLeaderboardSceneSignal(state.v3.pvpLeaderboardMetrics);
+
+    let bridgeRendered = false;
+    if (publicTelemetryBridge) {
+      try {
+        bridgeRendered = publicTelemetryBridge.renderPvpLeaderboard({
+          tone,
+          badgeText: tone === "critical" ? "LADDER HOT" : tone === "pressure" ? "LADDER LIVE" : "LADDER",
+          badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+          lineText: bridgeLine,
+          heatPct: pressure * 100,
+          freshPct: freshnessRatio * 100,
+          heatPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+          freshPalette: freshnessRatio < 0.2 ? "critical" : freshnessRatio < 0.45 ? "aggressive" : "safe",
+          leaderPressure: pressure,
+          chips: {
+            spread: { text: `SPREAD ${spread}`, tone: spreadTone, level: closeRatio },
+            volume: { text: `24H ${total24h}`, tone: volumeTone, level: activityRatio },
+            fresh: { text: latestTs > 0 ? `FRESH ${Math.max(0, Math.round(ageMin))}m` : "FRESH --", tone: freshTone, level: freshnessRatio },
+            transport: { text: `TR ${transport}`, tone: transportTone, level: transport === "WS" ? 0.92 : 0.42 }
+          }
+        });
+      } catch (_) {
+        bridgeRendered = false;
+      }
+    }
+    if (bridgeRendered) {
+      renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
+      return;
+    }
+
+    strip.dataset.tone = tone;
+    strip.style.setProperty("--leader-pressure", pressure.toFixed(3));
+    badge.textContent = tone === "critical" ? "LADDER HOT" : tone === "pressure" ? "LADDER LIVE" : "LADDER";
+    badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    line.textContent = bridgeLine;
+    setLiveStatusChip("pvpLeaderSpreadChip", `SPREAD ${spread}`, spreadTone, closeRatio);
+    setLiveStatusChip("pvpLeaderVolumeChip", `24H ${total24h}`, volumeTone, activityRatio);
+    setLiveStatusChip("pvpLeaderFreshChip", latestTs > 0 ? `FRESH ${Math.max(0, Math.round(ageMin))}m` : "FRESH --", freshTone, freshnessRatio);
+    setLiveStatusChip("pvpLeaderTransportChip", `TR ${transport}`, transportTone, transport === "WS" ? 0.92 : 0.42);
+
+    animateMeterWidth(heatMeter, pressure * 100, 0.24);
+    animateMeterWidth(freshMeter, freshnessRatio * 100, 0.24);
+    setMeterPalette(heatMeter, tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced");
+    setMeterPalette(freshMeter, freshnessRatio < 0.2 ? "critical" : freshnessRatio < 0.45 ? "aggressive" : "safe");
+
     renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
   }
 
