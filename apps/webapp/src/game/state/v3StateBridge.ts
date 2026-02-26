@@ -212,6 +212,52 @@ type SceneIntegrityOverlayMetrics = {
   rejectChipLevel: number;
 };
 
+type UiChip = {
+  id: string;
+  text: string;
+  tone: string;
+  level: number;
+};
+
+type ResolveBurstMetrics = {
+  visible: boolean;
+  tone: string;
+  stateMode: "active" | "cooldown" | "idle";
+  energy: number;
+  flash: number;
+  badgeText: string;
+  badgeTone: "warn" | "default" | "info";
+  lineText: string;
+  meterPct: number;
+  meterPalette: string;
+  chips: UiChip[];
+};
+
+type CombatFxOverlayMetrics = {
+  tone: string;
+  intense: boolean;
+  burstLevel: number;
+  stressLevel: number;
+  windowRatio: number;
+  assetIntegrityRatio: number;
+  assetRisk: number;
+  ladderPressure: number;
+  treasuryStress: number;
+  tokenRouteRisk: number;
+  envBoost: number;
+  scenePulseBridgeDelta: number;
+  scenePulseRejectDelta: number;
+  scenePulseCrateDelta: number;
+  badgeText: string;
+  badgeTone: "warn" | "default" | "info";
+  lineText: string;
+  burstMeterPct: number;
+  stressMeterPct: number;
+  burstPalette: string;
+  stressPalette: string;
+  chips: UiChip[];
+};
+
 type V3StateMutatorBridge = {
   computeAssetManifestMetrics: (manifestPayload: any) => AssetManifestMetrics;
   computePvpLeaderboardState: (payloadData: any, currentTransport?: string) => PvpLeaderboardState;
@@ -224,6 +270,8 @@ type V3StateMutatorBridge = {
   computeTreasuryRuntimeMetrics: (input: any) => TreasuryRuntimeMetrics;
   computeSceneAlarmMetrics: (input: any) => SceneAlarmMetrics;
   computeSceneIntegrityOverlayMetrics: (input: any) => SceneIntegrityOverlayMetrics;
+  computeResolveBurstMetrics: (input: any) => ResolveBurstMetrics;
+  computeCombatFxOverlayMetrics: (input: any) => CombatFxOverlayMetrics;
 };
 
 declare global {
@@ -1077,6 +1125,176 @@ function computeSceneIntegrityOverlayMetrics(input: any): SceneIntegrityOverlayM
   };
 }
 
+function computeResolveBurstMetrics(input: any): ResolveBurstMetrics {
+  const data = input && typeof input === "object" ? input : {};
+  const session = data.session && typeof data.session === "object" ? data.session : null;
+  const tickMeta = data.tickMeta && typeof data.tickMeta === "object" ? data.tickMeta : null;
+  const arena = data.arena && typeof data.arena === "object" ? data.arena : {};
+  const v3 = data.v3 && typeof data.v3 === "object" ? data.v3 : {};
+  const telemetry = data.telemetry && typeof data.telemetry === "object" ? data.telemetry : {};
+  const nowMs = asNum(data.nowMs || Date.now());
+  const result = session?.result && typeof session.result === "object" ? session.result : null;
+  const status = asString(session?.status).toLowerCase();
+  const isResolved = status === "resolved" && !!result;
+  const resolveBurst = clamp(asNum(arena.pvpResolveBurst || 0) / 2.8, 0, 1);
+  const hitBurst = clamp(asNum(arena.pvpHitBurst || 0) / 2.6, 0, 1);
+  const cameraImpulse = clamp(asNum(arena.cameraImpulse || 0) / 1.6, 0, 1);
+  const ladder = data.ladder && typeof data.ladder === "object" ? data.ladder : v3.pvpLeaderboardMetrics && typeof v3.pvpLeaderboardMetrics === "object" ? v3.pvpLeaderboardMetrics : {};
+  const ladderPressure = clamp(asNum(ladder.pressure || arena.ladderPressure || 0), 0, 1);
+  const diagnostics = tickMeta?.diagnostics && typeof tickMeta.diagnostics === "object"
+    ? tickMeta.diagnostics
+    : tickMeta?.state_json?.diagnostics && typeof tickMeta.state_json.diagnostics === "object"
+      ? tickMeta.state_json.diagnostics
+      : {};
+  const tickMs = Math.max(220, asNum(session?.tick_ms || tickMeta?.tick_ms || v3.pvpTickMs || 1000));
+  const actionWindowMs = clamp(asNum(session?.action_window_ms || tickMeta?.action_window_ms || v3.pvpActionWindowMs || 800), 80, tickMs);
+  const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || telemetry.latencyAvgMs || 0));
+  const windowRatio = clamp((actionWindowMs - latencyMs) / Math.max(1, actionWindowMs), 0, 1);
+  const recentResolve = isResolved && nowMs - asNum(v3.lastPvpResolveAt || 0) < 18000;
+  const energy = clamp(resolveBurst * 0.56 + hitBurst * 0.18 + cameraImpulse * 0.12 + (1 - windowRatio) * 0.08 + ladderPressure * 0.06, 0, 1);
+  const outcome = asString(result?.outcome_for_viewer || result?.outcome || "resolved").toLowerCase();
+  const tone = isResolved
+    ? outcome === "loss"
+      ? "critical"
+      : outcome === "draw"
+        ? "pressure"
+        : "advantage"
+    : energy >= 0.72
+      ? "critical"
+      : energy >= 0.36
+        ? "pressure"
+        : "advantage";
+  const outcomeLabel = (isResolved ? asString(result?.outcome_for_viewer || result?.outcome || "resolved") : "LIVE").toUpperCase();
+  const ratingDelta = asNum(result?.rating_delta || 0);
+  const rewardSc = asNum(result?.reward?.sc || 0);
+  const rewardRc = asNum(result?.reward?.rc || 0);
+  const transport = asString(session?.transport || tickMeta?.transport || v3.pvpTransport || "poll").toUpperCase();
+  const outcomeChipTone = tone === "critical" ? "critical" : tone === "pressure" ? "pressure" : "advantage";
+  return {
+    visible: recentResolve || energy > 0.08,
+    tone,
+    stateMode: recentResolve ? "active" : energy > 0.08 ? "cooldown" : "idle",
+    energy,
+    flash: recentResolve ? clamp(0.28 + resolveBurst * 0.72, 0, 1) : clamp(energy * 0.35, 0, 0.6),
+    badgeText: recentResolve ? `RESOLVE ${outcomeLabel}` : energy >= 0.5 ? "RESOLVE TRACE" : "COMBAT TRACE",
+    badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+    lineText:
+      recentResolve && isResolved
+        ? `Authoritative resolve | ${outcomeLabel} | rating ${ratingDelta >= 0 ? "+" : ""}${ratingDelta} | +${rewardSc} SC${rewardRc ? ` +${rewardRc} RC` : ""} | tick ${tickMs}ms`
+        : `Resolve burst ${Math.round(resolveBurst * 100)}% | hit ${Math.round(hitBurst * 100)}% | cam ${Math.round(cameraImpulse * 100)}% | wnd ${Math.round(windowRatio * 100)}%`,
+    meterPct: energy * 100,
+    meterPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "balanced",
+    chips: [
+      { id: "resolveBurstOutcomeChip", text: `OUT ${outcomeLabel.slice(0, 8)}`, tone: outcomeChipTone, level: isResolved ? 0.95 : 0.22 },
+      { id: "resolveBurstRatingChip", text: `R ${ratingDelta >= 0 ? "+" : ""}${ratingDelta}`, tone: ratingDelta < 0 ? "critical" : ratingDelta > 0 ? "advantage" : "balanced", level: clamp(Math.abs(ratingDelta) / 12, 0.16, 1) },
+      { id: "resolveBurstRewardChip", text: `SC +${rewardSc}${rewardRc > 0 ? `|RC+${rewardRc}` : ""}`, tone: rewardSc > 0 || rewardRc > 0 ? "advantage" : "balanced", level: clamp((rewardSc + rewardRc * 1.4) / 8, 0.14, 1) },
+      { id: "resolveBurstTickChip", text: `${transport} ${tickMs}ms`, tone: windowRatio < 0.36 ? "critical" : windowRatio < 0.58 ? "pressure" : "balanced", level: windowRatio }
+    ]
+  };
+}
+
+function computeCombatFxOverlayMetrics(input: any): CombatFxOverlayMetrics {
+  const data = input && typeof input === "object" ? input : {};
+  const arena = data.arena && typeof data.arena === "object" ? data.arena : {};
+  const v3 = data.v3 && typeof data.v3 === "object" ? data.v3 : {};
+  const admin = data.admin && typeof data.admin === "object" ? data.admin : {};
+  const telemetry = data.telemetry && typeof data.telemetry === "object" ? data.telemetry : {};
+  const hitBurst = clamp(asNum(arena.pvpHitBurst || 0) / 2.6, 0, 1);
+  const resolveBurst = clamp(asNum(arena.pvpResolveBurst || 0) / 2.8, 0, 1);
+  const rejectShock = clamp(asNum(arena.pvpRejectShock || 0) / 3.2, 0, 1);
+  const cameraImpulse = clamp(asNum(arena.cameraImpulse || 0) / 1.6, 0, 1);
+  const ladder = v3.pvpLeaderboardMetrics && typeof v3.pvpLeaderboardMetrics === "object" ? v3.pvpLeaderboardMetrics : {};
+  const ladderPressure = clamp(asNum(ladder.pressure || arena.ladderPressure || 0), 0, 1);
+  const tickMeta = v3.pvpTickMeta && typeof v3.pvpTickMeta === "object" ? v3.pvpTickMeta : {};
+  const diagnostics = tickMeta.diagnostics && typeof tickMeta.diagnostics === "object"
+    ? tickMeta.diagnostics
+    : tickMeta.state_json?.diagnostics && typeof tickMeta.state_json.diagnostics === "object"
+      ? tickMeta.state_json.diagnostics
+      : {};
+  const tokenDirector = v3.tokenDirectorMetrics && typeof v3.tokenDirectorMetrics === "object" ? v3.tokenDirectorMetrics : {};
+  const decisionTrace = admin.decisionTraceMetrics && typeof admin.decisionTraceMetrics === "object" ? admin.decisionTraceMetrics : {};
+  const providerRuntime = admin.providerRuntimeMetrics && typeof admin.providerRuntimeMetrics === "object" ? admin.providerRuntimeMetrics : {};
+  const treasuryRuntime = admin.treasuryRuntimeMetrics && typeof admin.treasuryRuntimeMetrics === "object" ? admin.treasuryRuntimeMetrics : {};
+  const tickMs = Math.max(220, asNum(v3.pvpTickMs || tickMeta.tick_ms || 1000));
+  const actionWindowMs = clamp(asNum(v3.pvpActionWindowMs || tickMeta.action_window_ms || 800), 80, tickMs);
+  const latencyMs = Math.max(0, asNum(diagnostics.latency_ms || telemetry.latencyAvgMs || 0));
+  const windowRatio = clamp((actionWindowMs - latencyMs) / Math.max(1, actionWindowMs), 0, 1);
+  const assetRuntime = admin.assetRuntimeMetrics && typeof admin.assetRuntimeMetrics === "object" ? admin.assetRuntimeMetrics : {};
+  const assetManifest = v3.assetManifestMeta && typeof v3.assetManifestMeta === "object" ? v3.assetManifestMeta : {};
+  const readyRatio = clamp(asNum(assetRuntime.readyRatio ?? assetManifest.readyRatio ?? (asNum(telemetry.assetTotalCount || 0) > 0 ? asNum(telemetry.assetReadyCount || 0) / Math.max(1, asNum(telemetry.assetTotalCount || 0)) : 1)), 0, 1);
+  const integrityRatio = clamp(asNum(assetManifest.integrityRatio ?? assetRuntime.dbReadyRatio ?? assetRuntime.syncRatio ?? readyRatio), 0, 1);
+  const assetRisk = clamp((1 - readyRatio) * 0.45 + (1 - integrityRatio) * 0.55, 0, 1);
+  const tokenDirectorStress = clamp(asNum((tokenDirector.riskRatio ?? arena.tokenDirectorStress) || 0), 0, 1);
+  const tokenDirectorUrgency = clamp(
+    asNum(tokenDirector.readinessRatio != null ? 1 - tokenDirector.readinessRatio : (arena.tokenDirectorUrgency || 0)),
+    0,
+    1
+  );
+  const tokenRouteRisk = clamp((1 - clamp(asNum(tokenDirector.routeCoverage ?? treasuryRuntime.routeCoverage ?? 0), 0, 1)) * 0.55 + (1 - clamp(asNum(tokenDirector.providerRatio ?? providerRuntime.providerRatio ?? 0), 0, 1)) * 0.45, 0, 1);
+  const decisionRiskPressure = clamp(asNum((decisionTrace.riskPressure ?? arena.treasuryDecisionStress) || 0), 0, 1);
+  const decisionFlow = clamp(asNum(decisionTrace.decisionFlow ?? arena.treasuryDecisionFlow ?? 1), 0, 1);
+  const providerTimeoutRatio = clamp(asNum(providerRuntime.timeoutRatio ?? 0), 0, 1);
+  const providerStaleRatio = clamp(asNum(providerRuntime.staleRatio ?? 0), 0, 1);
+  const treasuryQueuePressure = clamp(asNum(treasuryRuntime.queuePressure ?? tokenDirector.queuePressure ?? 0), 0, 1);
+  const treasuryStress = clamp(
+    tokenDirectorStress * 0.24 +
+      tokenDirectorUrgency * 0.14 +
+      decisionRiskPressure * 0.22 +
+      (1 - decisionFlow) * 0.12 +
+      providerTimeoutRatio * 0.12 +
+      providerStaleRatio * 0.08 +
+      treasuryQueuePressure * 0.08,
+    0,
+    1
+  );
+  const burstLevel = clamp(resolveBurst * 0.42 + hitBurst * 0.32 + rejectShock * 0.18 + cameraImpulse * 0.08, 0, 1);
+  const stressLevel = clamp(
+    rejectShock * 0.28 +
+      ladderPressure * 0.14 +
+      (1 - windowRatio) * 0.16 +
+      assetRisk * 0.2 +
+      treasuryStress * 0.22 +
+      tokenRouteRisk * 0.08,
+    0,
+    1
+  );
+  const tone = stressLevel >= 0.72 ? "critical" : stressLevel >= 0.4 ? "pressure" : burstLevel >= 0.28 ? "advantage" : "neutral";
+  const envBoost = clamp(burstLevel * 0.34 + stressLevel * 0.44 + assetRisk * 0.22, 0, 1);
+  const scenePulseBridgeDelta = stressLevel >= 0.72 || (rejectShock >= 0.52 && assetRisk >= 0.25) ? 0.08 + stressLevel * 0.06 : 0;
+  const scenePulseRejectDelta = treasuryStress >= 0.58 || tokenRouteRisk >= 0.58 ? 0.04 + treasuryStress * 0.06 : 0;
+  const scenePulseCrateDelta = resolveBurst >= 0.6 ? 0.08 + resolveBurst * 0.08 : 0;
+  return {
+    tone,
+    intense: burstLevel >= 0.5 || stressLevel >= 0.55,
+    burstLevel,
+    stressLevel,
+    windowRatio,
+    assetIntegrityRatio: integrityRatio,
+    assetRisk,
+    ladderPressure,
+    treasuryStress,
+    tokenRouteRisk,
+    envBoost,
+    scenePulseBridgeDelta,
+    scenePulseRejectDelta,
+    scenePulseCrateDelta,
+    badgeText: tone === "critical" ? "FX ALERT" : tone === "pressure" ? "FX WATCH" : burstLevel >= 0.28 ? "FX LIVE" : "FX STABLE",
+    badgeTone: tone === "critical" ? "warn" : tone === "pressure" ? "default" : "info",
+    lineText: `Burst ${Math.round(burstLevel * 100)}% | Stress ${Math.round(stressLevel * 100)}% | wnd ${Math.round(windowRatio * 100)}% | ladder ${Math.round(ladderPressure * 100)}% | asset ${Math.round((1 - assetRisk) * 100)}% | treasury ${Math.round((1 - treasuryStress) * 100)}%`,
+    burstMeterPct: burstLevel * 100,
+    stressMeterPct: stressLevel * 100,
+    burstPalette: burstLevel >= 0.52 ? "aggressive" : "balanced",
+    stressPalette: tone === "critical" ? "critical" : tone === "pressure" ? "aggressive" : "safe",
+    chips: [
+      { id: "combatFxHitChip", text: `HIT ${Math.round(hitBurst * 100)}%`, tone: hitBurst >= 0.6 ? "advantage" : hitBurst >= 0.28 ? "balanced" : "neutral", level: hitBurst },
+      { id: "combatFxResolveChip", text: `RSLV ${Math.round(resolveBurst * 100)}%`, tone: resolveBurst >= 0.6 ? "advantage" : resolveBurst >= 0.26 ? "pressure" : "neutral", level: resolveBurst },
+      { id: "combatFxRejectChip", text: `REJ ${Math.round(rejectShock * 100)}%`, tone: rejectShock >= 0.55 ? "critical" : rejectShock >= 0.24 ? "pressure" : "neutral", level: rejectShock },
+      { id: "combatFxCamChip", text: `CAM ${Math.round(cameraImpulse * 100)}%`, tone: cameraImpulse >= 0.55 ? "pressure" : "balanced", level: cameraImpulse },
+      { id: "combatFxAssetChip", text: `AST ${Math.round(integrityRatio * 100)}%`, tone: assetRisk >= 0.5 ? "critical" : assetRisk >= 0.24 ? "pressure" : "advantage", level: integrityRatio }
+    ]
+  };
+}
+
 export function installV3StateMutatorBridge(): void {
   window.__AKR_STATE_MUTATORS__ = {
     computeAssetManifestMetrics,
@@ -1089,6 +1307,8 @@ export function installV3StateMutatorBridge(): void {
     computeDecisionTraceMetrics,
     computeTreasuryRuntimeMetrics,
     computeSceneAlarmMetrics,
-    computeSceneIntegrityOverlayMetrics
+    computeSceneIntegrityOverlayMetrics,
+    computeResolveBurstMetrics,
+    computeCombatFxOverlayMetrics
   };
 }

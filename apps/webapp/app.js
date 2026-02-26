@@ -958,6 +958,60 @@
     }
     const session = sessionArg || state.v3?.pvpSession || null;
     const tickMeta = tickMetaArg || state.v3?.pvpTickMeta || null;
+    const stateMutatorBridge = getStateMutatorBridge();
+    if (stateMutatorBridge && typeof stateMutatorBridge.computeResolveBurstMetrics === "function") {
+      try {
+        const metrics = stateMutatorBridge.computeResolveBurstMetrics({
+          session,
+          tickMeta,
+          arena: state.arena,
+          v3: state.v3,
+          telemetry: state.telemetry,
+          ladder: state.v3?.pvpLeaderboardMetrics,
+          nowMs: Date.now()
+        });
+        const combatFxBridge = getCombatFxBridge();
+        if (combatFxBridge) {
+          const handled = combatFxBridge.render({
+            resolve: {
+              visible: Boolean(metrics.visible),
+              tone: metrics.tone,
+              state: metrics.stateMode,
+              energy: metrics.energy,
+              flash: metrics.flash,
+              badgeText: metrics.badgeText,
+              badgeTone: metrics.badgeTone,
+              lineText: metrics.lineText,
+              meterPct: metrics.meterPct,
+              meterPalette: metrics.meterPalette,
+              chips: Array.isArray(metrics.chips) ? metrics.chips : []
+            }
+          });
+          if (handled) {
+            return;
+          }
+        }
+        root.classList.toggle("hidden", !metrics.visible);
+        root.dataset.tone = metrics.tone;
+        root.dataset.state = metrics.stateMode;
+        root.style.setProperty("--resolve-energy", (Number(metrics.energy) || 0).toFixed(3));
+        root.style.setProperty("--resolve-flash", (Number(metrics.flash) || 0).toFixed(3));
+        if (Array.isArray(metrics.chips)) {
+          for (const chip of metrics.chips) {
+            if (!chip || !chip.id) continue;
+            setLiveStatusChip(chip.id, chip.text, chip.tone, chip.level);
+          }
+        }
+        badge.textContent = metrics.badgeText;
+        badge.className = metrics.badgeTone === "warn" ? "badge warn" : metrics.badgeTone === "default" ? "badge" : "badge info";
+        animateTextSwap(line, metrics.lineText);
+        animateMeterWidth(meter, Number(metrics.meterPct) || 0, 0.22);
+        setMeterPalette(meter, metrics.meterPalette || "balanced");
+        return;
+      } catch (err) {
+        console.warn("[v3-state-bridge] computeResolveBurstMetrics failed", err);
+      }
+    }
     const result = session?.result || null;
     const status = String(session?.status || "").toLowerCase();
     const isResolved = status === "resolved" && result;
@@ -1085,6 +1139,78 @@
     const stressMeter = byId("combatFxStressMeter");
     if (!root || !badge || !line || !burstMeter || !stressMeter) {
       return;
+    }
+    const stateMutatorBridge = getStateMutatorBridge();
+    if (stateMutatorBridge && typeof stateMutatorBridge.computeCombatFxOverlayMetrics === "function") {
+      try {
+        const metrics = stateMutatorBridge.computeCombatFxOverlayMetrics({
+          arena: state.arena,
+          v3: state.v3,
+          admin: state.admin,
+          telemetry: state.telemetry
+        });
+        if (state.arena) {
+          state.arena.pvpCinematicBoost = clamp(asNum(state.arena.pvpCinematicBoost ?? metrics.envBoost) * 0.78 + asNum(metrics.envBoost) * 0.22, 0, 1.35);
+          state.arena.treasuryStress = asNum(metrics.treasuryStress);
+          state.arena.treasuryRouteRisk = asNum(metrics.tokenRouteRisk);
+          state.arena.treasuryQueuePressure = clamp(asNum(state.admin?.treasuryRuntimeMetrics?.queuePressure ?? 0), 0, 1);
+          if (asNum(metrics.scenePulseBridgeDelta) > 0) {
+            state.arena.scenePulseBridge = Math.min(3.2, asNum(state.arena.scenePulseBridge || 0) + asNum(metrics.scenePulseBridgeDelta));
+          }
+          if (asNum(metrics.scenePulseRejectDelta) > 0) {
+            state.arena.scenePulseReject = Math.min(3.2, asNum(state.arena.scenePulseReject || 0) + asNum(metrics.scenePulseRejectDelta));
+          }
+          if (asNum(metrics.scenePulseCrateDelta) > 0) {
+            state.arena.scenePulseCrate = Math.min(3.2, asNum(state.arena.scenePulseCrate || 0) + asNum(metrics.scenePulseCrateDelta));
+          }
+        }
+        const combatFxBridge = getCombatFxBridge();
+        if (combatFxBridge) {
+          const handled = combatFxBridge.render({
+            fx: {
+              tone: metrics.tone,
+              intense: Boolean(metrics.intense),
+              burst: metrics.burstLevel,
+              stress: metrics.stressLevel,
+              window: metrics.windowRatio,
+              asset: clamp(1 - asNum(metrics.assetRisk), 0, 1),
+              badgeText: metrics.badgeText,
+              badgeTone: metrics.badgeTone,
+              lineText: metrics.lineText,
+              burstMeterPct: metrics.burstMeterPct,
+              stressMeterPct: metrics.stressMeterPct,
+              burstPalette: metrics.burstPalette,
+              stressPalette: metrics.stressPalette,
+              chips: Array.isArray(metrics.chips) ? metrics.chips : []
+            }
+          });
+          if (handled) {
+            return;
+          }
+        }
+        root.dataset.tone = metrics.tone;
+        root.dataset.intense = metrics.intense ? "1" : "0";
+        root.style.setProperty("--fx-burst", (Number(metrics.burstLevel) || 0).toFixed(3));
+        root.style.setProperty("--fx-stress", (Number(metrics.stressLevel) || 0).toFixed(3));
+        root.style.setProperty("--fx-window", (Number(metrics.windowRatio) || 0).toFixed(3));
+        root.style.setProperty("--fx-asset", clamp(1 - asNum(metrics.assetRisk), 0, 1).toFixed(3));
+        if (Array.isArray(metrics.chips)) {
+          for (const chip of metrics.chips) {
+            if (!chip || !chip.id) continue;
+            setLiveStatusChip(chip.id, chip.text, chip.tone, chip.level);
+          }
+        }
+        badge.textContent = metrics.badgeText;
+        badge.className = metrics.badgeTone === "warn" ? "badge warn" : metrics.badgeTone === "default" ? "badge" : "badge info";
+        animateTextSwap(line, metrics.lineText);
+        animateMeterWidth(burstMeter, Number(metrics.burstMeterPct) || 0, 0.2);
+        animateMeterWidth(stressMeter, Number(metrics.stressMeterPct) || 0, 0.22);
+        setMeterPalette(burstMeter, metrics.burstPalette || "balanced");
+        setMeterPalette(stressMeter, metrics.stressPalette || "safe");
+        return;
+      } catch (err) {
+        console.warn("[v3-state-bridge] computeCombatFxOverlayMetrics failed", err);
+      }
     }
     const hitBurst = clamp(asNum(state.arena?.pvpHitBurst || 0) / 2.6, 0, 1);
     const resolveBurst = clamp(asNum(state.arena?.pvpResolveBurst || 0) / 2.8, 0, 1);
