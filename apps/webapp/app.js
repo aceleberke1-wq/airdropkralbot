@@ -13591,8 +13591,30 @@
     const tickMs = asNum(state.v3.pvpTickMs || 1000);
     const heat = computeCombatHeat(safe);
     const threat = computeThreatRatio(safe);
-    const heatPct = Math.round(heat * 100);
-    const threatPct = Math.round(threat * 100);
+    let telemetryMetrics = null;
+    const stateMutatorBridge = getStateMutatorBridge();
+    if (stateMutatorBridge && typeof stateMutatorBridge.computeTelemetryDeckMetrics === "function") {
+      try {
+        telemetryMetrics = stateMutatorBridge.computeTelemetryDeckMetrics({
+          fps,
+          latencyMs: latency,
+          frameTimeMs: frame,
+          transport,
+          tickMs,
+          qualityMode: String(getEffectiveQualityMode() || "normal"),
+          heat,
+          threat,
+          sceneHudDensity: state.telemetry.sceneHudDensity || "full",
+          scenePostFxLevel: state.telemetry.scenePostFxLevel || 0.9,
+          cameraLabel: cameraModeLabel(state.ui.cameraMode),
+          sceneMood: state.telemetry.sceneMood || "balanced"
+        });
+      } catch (err) {
+        console.warn("[v3-state-bridge] computeTelemetryDeckMetrics failed", err);
+      }
+    }
+    const heatPct = telemetryMetrics ? asNum(telemetryMetrics.heatPct) : Math.round(heat * 100);
+    const threatPct = telemetryMetrics ? asNum(telemetryMetrics.threatPct) : Math.round(threat * 100);
     applySceneMood(safe, heat, threat);
     renderCombatHudStrip(safe, heat, threat);
     renderRoundDirectorStrip(safe, heat, threat);
@@ -13614,11 +13636,13 @@
       });
       const runtimeSceneLine = byId("runtimeSceneLine");
       if (runtimeSceneLine) {
-        runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
-          state.telemetry.scenePostFxLevel || 0.9
-        ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
-          state.telemetry.sceneMood || "balanced"
-        ).toUpperCase()}`;
+        runtimeSceneLine.textContent =
+          (telemetryMetrics && telemetryMetrics.runtimeSceneLine) ||
+          `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
+            state.telemetry.scenePostFxLevel || 0.9
+          ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
+            state.telemetry.sceneMood || "balanced"
+          ).toUpperCase()}`;
       }
       return;
     }
@@ -13630,23 +13654,27 @@
 
     const modeLine = byId("runtimeModeLine");
     if (modeLine) {
-      modeLine.textContent = `Transport ${transport} | Tick ${tickMs}ms`;
+      modeLine.textContent = (telemetryMetrics && telemetryMetrics.modeLine) || `Transport ${transport} | Tick ${tickMs}ms`;
     }
     const perfLine = byId("runtimePerfLine");
     if (perfLine) {
-      perfLine.textContent = `FPS ${Math.round(fps)} | ${Math.round(frame)}ms`;
+      perfLine.textContent = (telemetryMetrics && telemetryMetrics.perfLine) || `FPS ${Math.round(fps)} | ${Math.round(frame)}ms`;
     }
     const latencyLine = byId("runtimeLatencyLine");
     if (latencyLine) {
-      latencyLine.textContent = `Net ${Math.round(latency)}ms | Perf ${String(getEffectiveQualityMode()).toUpperCase()}`;
+      latencyLine.textContent =
+        (telemetryMetrics && telemetryMetrics.latencyLine) ||
+        `Net ${Math.round(latency)}ms | Perf ${String(getEffectiveQualityMode()).toUpperCase()}`;
     }
     const runtimeSceneLine = byId("runtimeSceneLine");
     if (runtimeSceneLine) {
-      runtimeSceneLine.textContent = `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
-        state.telemetry.scenePostFxLevel || 0.9
-      ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
-        state.telemetry.sceneMood || "balanced"
-      ).toUpperCase()}`;
+      runtimeSceneLine.textContent =
+        (telemetryMetrics && telemetryMetrics.runtimeSceneLine) ||
+        `HUD ${String(state.telemetry.sceneHudDensity || "full")} | PostFX ${Number(
+          state.telemetry.scenePostFxLevel || 0.9
+        ).toFixed(2)} | Cam ${cameraModeLabel(state.ui.cameraMode).toUpperCase()} | Mood ${String(
+          state.telemetry.sceneMood || "balanced"
+        ).toUpperCase()}`;
     }
     const heatLine = byId("combatHeatLine");
     if (heatLine) {
@@ -13654,7 +13682,9 @@
     }
     const heatHint = byId("combatHeatHint");
     if (heatHint) {
-      heatHint.textContent = heatPct >= 75 ? "Momentum penceresi acik" : heatPct >= 45 ? "Denge modu korunuyor" : "Ritim toplaniyor";
+      heatHint.textContent =
+        (telemetryMetrics && telemetryMetrics.heatHint) ||
+        (heatPct >= 75 ? "Momentum penceresi acik" : heatPct >= 45 ? "Denge modu korunuyor" : "Ritim toplaniyor");
     }
     const heatMeter = byId("combatHeatMeter");
     if (heatMeter) {
@@ -13667,7 +13697,8 @@
     const threatHint = byId("threatHint");
     if (threatHint) {
       threatHint.textContent =
-        threatPct >= 78 ? "Kritik anomali: SAFE cizgisine don" : threatPct >= 45 ? "Kontrat baskisi yukseliyor" : "Stabil pencere";
+        (telemetryMetrics && telemetryMetrics.threatHint) ||
+        (threatPct >= 78 ? "Kritik anomali: SAFE cizgisine don" : threatPct >= 45 ? "Kontrat baskisi yukseliyor" : "Stabil pencere");
     }
     const threatMeter = byId("threatMeter");
     if (threatMeter) {
@@ -13675,7 +13706,10 @@
     }
     const badge = byId("telemetryBadge");
     if (badge) {
-      if (threatPct >= 78) {
+      if (telemetryMetrics) {
+        badge.textContent = telemetryMetrics.badgeText;
+        badge.className = telemetryMetrics.badgeClass;
+      } else if (threatPct >= 78) {
         badge.textContent = "CRITICAL";
         badge.className = "badge warn";
       } else if (heatPct >= 68) {

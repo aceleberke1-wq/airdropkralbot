@@ -316,6 +316,19 @@ type PvpRejectIntelMetrics = {
   };
 };
 
+type TelemetryDeckMetrics = {
+  heatPct: number;
+  threatPct: number;
+  modeLine: string;
+  perfLine: string;
+  latencyLine: string;
+  runtimeSceneLine: string;
+  heatHint: string;
+  threatHint: string;
+  badgeText: string;
+  badgeClass: string;
+};
+
 type V3StateMutatorBridge = {
   computeAssetManifestMetrics: (manifestPayload: any) => AssetManifestMetrics;
   computePvpLeaderboardState: (payloadData: any, currentTransport?: string) => PvpLeaderboardState;
@@ -331,6 +344,7 @@ type V3StateMutatorBridge = {
   computeResolveBurstMetrics: (input: any) => ResolveBurstMetrics;
   computeCombatFxOverlayMetrics: (input: any) => CombatFxOverlayMetrics;
   computePvpRejectIntelMetrics: (input: any) => PvpRejectIntelMetrics;
+  computeTelemetryDeckMetrics: (input: any) => TelemetryDeckMetrics;
 };
 
 declare global {
@@ -463,6 +477,46 @@ function computePvpLeaderboardState(payloadData: any, currentTransport = "poll")
       server_tick: asNum(data.server_tick || Date.now()),
       limit: list.length
     }
+  };
+}
+
+function computeTelemetryDeckMetrics(input: any): TelemetryDeckMetrics {
+  const data = input && typeof input === "object" ? input : {};
+  const heat = clamp(asNum(data.heat || 0), 0, 1);
+  const threat = clamp(asNum(data.threat || 0), 0, 1);
+  const heatPct = Math.round(heat * 100);
+  const threatPct = Math.round(threat * 100);
+  const fps = asNum(data.fps || 0);
+  const frameTimeMs = asNum(data.frameTimeMs || 0);
+  const latencyMs = asNum(data.latencyMs || 0);
+  const transport = asString(data.transport || "poll").toUpperCase();
+  const tickMs = Math.max(1, Math.round(asNum(data.tickMs || 1000)));
+  const qualityMode = asString(data.qualityMode || "auto").toUpperCase();
+  const sceneHudDensity = asString(data.sceneHudDensity || "full");
+  const scenePostFxLevel = asNum(data.scenePostFxLevel || 0.9);
+  const cameraLabel = asString(data.cameraLabel || "broadcast").toUpperCase();
+  const sceneMood = asString(data.sceneMood || "balanced").toUpperCase();
+  let badgeText = "LIVE";
+  let badgeClass = "badge info";
+  if (threatPct >= 78) {
+    badgeText = "CRITICAL";
+    badgeClass = "badge warn";
+  } else if (heatPct >= 68) {
+    badgeText = "PRESSURE";
+    badgeClass = "badge";
+  }
+  return {
+    heatPct,
+    threatPct,
+    modeLine: `Transport ${transport} | Tick ${tickMs}ms`,
+    perfLine: `FPS ${Math.round(fps)} | ${Math.round(frameTimeMs)}ms`,
+    latencyLine: `Net ${Math.round(latencyMs)}ms | Perf ${qualityMode}`,
+    runtimeSceneLine: `HUD ${sceneHudDensity} | PostFX ${scenePostFxLevel.toFixed(2)} | Cam ${cameraLabel} | Mood ${sceneMood}`,
+    heatHint: heatPct >= 75 ? "Momentum penceresi acik" : heatPct >= 45 ? "Denge modu korunuyor" : "Ritim toplaniyor",
+    threatHint:
+      threatPct >= 78 ? "Kritik anomali: SAFE cizgisine don" : threatPct >= 45 ? "Kontrat baskisi yukseliyor" : "Stabil pencere",
+    badgeText,
+    badgeClass
   };
 }
 
@@ -1667,6 +1721,7 @@ export function installV3StateMutatorBridge(): void {
     computeSceneIntegrityOverlayMetrics,
     computeResolveBurstMetrics,
     computeCombatFxOverlayMetrics,
-    computePvpRejectIntelMetrics
+    computePvpRejectIntelMetrics,
+    computeTelemetryDeckMetrics
   };
 }
