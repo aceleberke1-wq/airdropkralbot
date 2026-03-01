@@ -743,13 +743,82 @@ function buildTaskKeyboard(offers) {
 function buildStartKeyboard() {
   return Markup.inlineKeyboard(
     [
-      [Markup.button.callback("Arena 3D Ac", "OPEN_PLAY")],
-      [Markup.button.callback("Onboard", "OPEN_ONBOARD"), Markup.button.callback("Gorev Al", "OPEN_TASKS")],
-      [Markup.button.callback("Cuzdan", "OPEN_WALLET"), Markup.button.callback("Durum", "OPEN_STATUS")],
-      [Markup.button.callback("Daha Fazla", "OPEN_MORE_MENU")]
+      [Markup.button.callback("🎮 Oyna", "OPEN_PLAY_MENU"), Markup.button.callback("💰 Kazan", "OPEN_EARN_MENU")],
+      [Markup.button.callback("👛 Cuzdan", "OPEN_WALLET_MENU"), Markup.button.callback("👑 Profil", "OPEN_PROFILE_MENU")],
+      [Markup.button.callback("🚀 Arena 3D", "OPEN_PLAY")]
     ],
     { columns: 2 }
   );
+}
+
+function buildPlayMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("🚀 Arena 3D Ac", "OPEN_PLAY")],
+      [Markup.button.callback("🧭 Gorev Paneli", "OPEN_TASKS"), Markup.button.callback("⚔️ Raid (Dengeli)", "ARENA_RAID:balanced")],
+      [Markup.button.callback("🏆 Arena Rank", "OPEN_ARENA_RANK"), Markup.button.callback("📊 Durum", "OPEN_STATUS")],
+      [Markup.button.callback("🏠 Ana Menu", "OPEN_HOME_MENU")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildEarnMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("🧭 Gorev Al", "OPEN_TASKS"), Markup.button.callback("🎯 Misyonlar", "OPEN_MISSIONS")],
+      [Markup.button.callback("📅 Gunluk", "OPEN_DAILY"), Markup.button.callback("🌌 Nexus", "OPEN_NEXUS")],
+      [Markup.button.callback("🏟️ War Room", "OPEN_WAR"), Markup.button.callback("💸 Cekim", "OPEN_PAYOUT")],
+      [Markup.button.callback("🏠 Ana Menu", "OPEN_HOME_MENU")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildWalletMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("👛 Cuzdan Ozeti", "OPEN_WALLET"), Markup.button.callback("🪙 Token", "OPEN_TOKEN")],
+      [Markup.button.callback("🛒 Dukkan", "OPEN_SHOP"), Markup.button.callback("📈 Sezon", "OPEN_SEASON")],
+      [Markup.button.callback("🏠 Ana Menu", "OPEN_HOME_MENU")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildProfileMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("👋 Onboard", "OPEN_ONBOARD"), Markup.button.callback("📘 Hizli Rehber", "OPEN_GUIDE")],
+      [Markup.button.callback("🏰 Kingdom", "OPEN_KINGDOM"), Markup.button.callback("🥇 Liderlik", "OPEN_LEADERBOARD")],
+      [Markup.button.callback("➕ Daha Fazla", "OPEN_MORE_MENU"), Markup.button.callback("🏠 Ana Menu", "OPEN_HOME_MENU")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function mainMenuText() {
+  return "*Ana Menu*\nBolum sec: Oyna, Kazan, Cuzdan veya Profil.";
+}
+
+async function sendMainMenu(ctx) {
+  await ctx.replyWithMarkdown(mainMenuText(), buildStartKeyboard());
+}
+
+async function sendPlayMenu(ctx) {
+  await ctx.replyWithMarkdown("*🎮 Oyna*\nArena aksiyonlari ve anlik oyun girisi:", buildPlayMenuKeyboard());
+}
+
+async function sendEarnMenu(ctx) {
+  await ctx.replyWithMarkdown("*💰 Kazan*\nOdul ve ilerleme odakli aksiyonlar:", buildEarnMenuKeyboard());
+}
+
+async function sendWalletMenu(ctx) {
+  await ctx.replyWithMarkdown("*👛 Cuzdan*\nBakiye, token ve ekonomik islemler:", buildWalletMenuKeyboard());
+}
+
+async function sendProfileMenu(ctx) {
+  await ctx.replyWithMarkdown("*👑 Profil*\nKimlik, onboarding ve rekabet panelleri:", buildProfileMenuKeyboard());
 }
 
 function buildMoreMenuKeyboard() {
@@ -758,7 +827,8 @@ function buildMoreMenuKeyboard() {
       [Markup.button.callback("Hizli Rehber", "OPEN_GUIDE"), Markup.button.callback("Ana Launcher", "OPEN_HOME_MENU")],
       [Markup.button.callback("Misyonlar", "OPEN_MISSIONS"), Markup.button.callback("Gunluk", "OPEN_DAILY")],
       [Markup.button.callback("Kingdom", "OPEN_KINGDOM"), Markup.button.callback("Nexus", "OPEN_NEXUS")],
-      [Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"), Markup.button.callback("War Room", "OPEN_WAR")],
+      [Markup.button.callback("Arena Raid", "ARENA_RAID:balanced"), Markup.button.callback("Arena Rank", "OPEN_ARENA_RANK")],
+      [Markup.button.callback("War Room", "OPEN_WAR"), Markup.button.callback("Durum", "OPEN_STATUS")],
       [Markup.button.callback("Sezon", "OPEN_SEASON"), Markup.button.callback("Dukkan", "OPEN_SHOP")],
       [Markup.button.callback("Token", "OPEN_TOKEN"), Markup.button.callback("Cekim", "OPEN_PAYOUT")]
     ],
@@ -3589,6 +3659,21 @@ function resolveTextIntent(input) {
   if (/^(guide|rehber|nasil oynanir|yardim)\b/.test(normalized)) {
     return { action: "guide" };
   }
+  if (/^(menu|ana menu|launcher|men(u|u)?)\b/.test(normalized)) {
+    return { action: "menu" };
+  }
+  if (/^(oyna|play menu|play hub)\b/.test(normalized)) {
+    return { action: "play_menu" };
+  }
+  if (/^(kazan|earn menu|earn hub)\b/.test(normalized)) {
+    return { action: "earn_menu" };
+  }
+  if (/^(profil|profile menu|profile hub)\b/.test(normalized)) {
+    return { action: "profile_menu" };
+  }
+  if (/^(cuzdan menu|wallet menu|wallet hub)\b/.test(normalized)) {
+    return { action: "wallet_menu" };
+  }
 
   return null;
 }
@@ -3711,6 +3796,31 @@ async function handleTextIntent(ctx, pool, appConfig) {
   }
   if (intent.action === "guide") {
     await sendGuide(ctx, pool);
+    return true;
+  }
+  if (intent.action === "menu") {
+    await ensureProfile(pool, ctx);
+    await sendMainMenu(ctx);
+    return true;
+  }
+  if (intent.action === "play_menu") {
+    await ensureProfile(pool, ctx);
+    await sendPlayMenu(ctx);
+    return true;
+  }
+  if (intent.action === "earn_menu") {
+    await ensureProfile(pool, ctx);
+    await sendEarnMenu(ctx);
+    return true;
+  }
+  if (intent.action === "wallet_menu") {
+    await ensureProfile(pool, ctx);
+    await sendWalletMenu(ctx);
+    return true;
+  }
+  if (intent.action === "profile_menu") {
+    await ensureProfile(pool, ctx);
+    await sendProfileMenu(ctx);
     return true;
   }
 
@@ -4107,7 +4217,7 @@ async function start() {
 
   bot.command("menu", async (ctx) => {
     await ensureProfile(pool, ctx);
-    await ctx.replyWithMarkdown("*Launcher Menu*\nAna giris paneli:", buildStartKeyboard());
+    await sendMainMenu(ctx);
   });
 
   bot.command("guide", async (ctx) => {
@@ -4305,9 +4415,29 @@ async function start() {
     await ctx.replyWithMarkdown("*Ek Komut Merkezi*\nIleri paneller ve ekonomik islemler:", buildMoreMenuKeyboard());
   });
 
+  bot.action("OPEN_PLAY_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendPlayMenu(ctx);
+  });
+
+  bot.action("OPEN_EARN_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendEarnMenu(ctx);
+  });
+
+  bot.action("OPEN_WALLET_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendWalletMenu(ctx);
+  });
+
+  bot.action("OPEN_PROFILE_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendProfileMenu(ctx);
+  });
+
   bot.action("OPEN_HOME_MENU", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.replyWithMarkdown("*Launcher*\nArena 3D girisi ve hizli akislara don:", buildStartKeyboard());
+    await sendMainMenu(ctx);
   });
 
   bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
