@@ -1493,6 +1493,39 @@
     return bridge;
   }
 
+  function getAdminRuntimeBridge() {
+    const bridge = window.__AKR_ADMIN_RUNTIME__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getAdminAssetStatusBridge() {
+    const bridge = window.__AKR_ADMIN_ASSET_STATUS__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getAdminOverviewBridge() {
+    const bridge = window.__AKR_ADMIN_OVERVIEW__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function getPvpRejectIntelBridge() {
     const bridge = window.__AKR_PVP_REJECT_INTEL__;
     if (!bridge || typeof bridge !== "object") {
@@ -12576,12 +12609,6 @@
     const gate = token.payout_gate || {};
     const curve = token.curve || {};
     const autoPolicy = token.auto_policy || {};
-    byId("adminBadge").textContent = freeze.freeze ? "FREEZE ON" : "ADMIN";
-    byId("adminBadge").className = freeze.freeze ? "badge warn" : "badge info";
-    byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
-    byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
-    byId("adminMetrics").textContent =
-      `24s: active ${asNum(metrics.users_active_24h)} | start ${asNum(metrics.attempts_started_24h)} | complete ${asNum(metrics.attempts_completed_24h)} | reveal ${asNum(metrics.reveals_24h)} | token $${asNum(metrics.token_usd_volume_24h).toFixed(2)}`;
     const runtimeMode = String(runtimeFlags?.source_mode || summary.feature_flag_runtime?.source_mode || "env_locked").toLowerCase();
     const deployRev = String(
       deployStatus?.release_latest?.git_revision ||
@@ -12592,20 +12619,9 @@
     )
       .trim()
       .slice(0, 10);
-    byId("adminQueue").textContent =
+    const queueText =
       `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}` +
       ` | manual ${manualTokenQueue} | auto ${autoDecisions} | flags ${runtimeMode} | rev ${deployRev}`;
-    state.admin.runtime = runtime || null;
-    state.admin.runtimeFlags = runtimeFlags || state.admin.runtimeFlags || null;
-    state.admin.deployStatus = deployStatus || state.admin.deployStatus || null;
-    state.admin.auditPhaseStatus = summary.audit_phase_status || state.admin.auditPhaseStatus || null;
-    state.admin.dataIntegrity = summary.data_integrity || state.admin.dataIntegrity || null;
-    renderAdminRuntime(runtime);
-    renderAdminAuditRuntimeStrip(summary, runtimeFlags, deployStatus);
-    renderAdminAssetStatus(state.admin.assets);
-    renderAdminTreasuryRuntimeStrip(summary, state.data?.token || {});
-    renderAdminProviderAlertStrip();
-    renderAdminDecisionTraceStrip();
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
@@ -12617,19 +12633,69 @@
     const autoUsdLimit = asNum(autoPolicy.auto_usd_limit);
     const autoRisk = asNum(autoPolicy.risk_threshold);
     const autoVelocity = asNum(autoPolicy.velocity_per_hour);
-    byId("adminTokenPriceInput").value = spot > 0 ? spot.toFixed(8) : "";
-    byId("adminTokenGateMinInput").value = minCap > 0 ? String(Math.floor(minCap)) : "";
-    byId("adminTokenGateMaxInput").value = targetMax > 0 ? String(Math.floor(targetMax)) : "";
-    byId("adminCurveEnabledInput").value = curve.enabled ? "1" : "0";
-    byId("adminCurveFloorInput").value = curveFloor > 0 ? curveFloor.toFixed(8) : "";
-    byId("adminCurveBaseInput").value = curveBase > 0 ? curveBase.toFixed(8) : "";
-    byId("adminCurveKInput").value = curveK >= 0 ? String(curveK) : "";
-    byId("adminCurveDemandInput").value = curveDemand > 0 ? String(curveDemand) : "";
-    byId("adminCurveDivisorInput").value = curveDivisor > 0 ? String(Math.floor(curveDivisor)) : "";
-    byId("adminAutoPolicyEnabledInput").value = autoPolicy.enabled ? "1" : "0";
-    byId("adminAutoUsdLimitInput").value = autoUsdLimit > 0 ? String(autoUsdLimit) : "";
-    byId("adminAutoRiskInput").value = autoRisk >= 0 ? String(autoRisk) : "";
-    byId("adminAutoVelocityInput").value = autoVelocity > 0 ? String(Math.floor(autoVelocity)) : "";
+
+    const adminOverviewBridge = getAdminOverviewBridge();
+    const overviewHandled =
+      adminOverviewBridge &&
+      adminOverviewBridge.render({
+        badgeText: freeze.freeze ? "FREEZE ON" : "ADMIN",
+        badgeTone: freeze.freeze ? "warn" : "info",
+        metaText: `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`,
+        tokenCapText: `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`,
+        metricsText:
+          `24s: active ${asNum(metrics.users_active_24h)} | start ${asNum(metrics.attempts_started_24h)} | complete ${asNum(metrics.attempts_completed_24h)} | reveal ${asNum(metrics.reveals_24h)} | token $${asNum(metrics.token_usd_volume_24h).toFixed(2)}`,
+        queueText,
+        form: {
+          tokenPrice: spot > 0 ? spot.toFixed(8) : "",
+          gateMin: minCap > 0 ? String(Math.floor(minCap)) : "",
+          gateMax: targetMax > 0 ? String(Math.floor(targetMax)) : "",
+          curveEnabled: curve.enabled ? "1" : "0",
+          curveFloor: curveFloor > 0 ? curveFloor.toFixed(8) : "",
+          curveBase: curveBase > 0 ? curveBase.toFixed(8) : "",
+          curveK: curveK >= 0 ? String(curveK) : "",
+          curveDemand: curveDemand > 0 ? String(curveDemand) : "",
+          curveDivisor: curveDivisor > 0 ? String(Math.floor(curveDivisor)) : "",
+          autoPolicyEnabled: autoPolicy.enabled ? "1" : "0",
+          autoUsdLimit: autoUsdLimit > 0 ? String(autoUsdLimit) : "",
+          autoRisk: autoRisk >= 0 ? String(autoRisk) : "",
+          autoVelocity: autoVelocity > 0 ? String(Math.floor(autoVelocity)) : ""
+        }
+      }) === true;
+
+    if (!overviewHandled) {
+      byId("adminBadge").textContent = freeze.freeze ? "FREEZE ON" : "ADMIN";
+      byId("adminBadge").className = freeze.freeze ? "badge warn" : "badge info";
+      byId("adminMeta").textContent = `Users ${asNum(summary.total_users)} | Active ${asNum(summary.active_attempts)}`;
+      byId("adminTokenCap").textContent = `Cap $${asNum(token.market_cap_usd).toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"} (${asNum(gate.current).toFixed(2)} / ${asNum(gate.min).toFixed(2)})`;
+      byId("adminMetrics").textContent =
+        `24s: active ${asNum(metrics.users_active_24h)} | start ${asNum(metrics.attempts_started_24h)} | complete ${asNum(metrics.attempts_completed_24h)} | reveal ${asNum(metrics.reveals_24h)} | token $${asNum(metrics.token_usd_volume_24h).toFixed(2)}`;
+      byId("adminQueue").textContent = queueText;
+      byId("adminTokenPriceInput").value = spot > 0 ? spot.toFixed(8) : "";
+      byId("adminTokenGateMinInput").value = minCap > 0 ? String(Math.floor(minCap)) : "";
+      byId("adminTokenGateMaxInput").value = targetMax > 0 ? String(Math.floor(targetMax)) : "";
+      byId("adminCurveEnabledInput").value = curve.enabled ? "1" : "0";
+      byId("adminCurveFloorInput").value = curveFloor > 0 ? curveFloor.toFixed(8) : "";
+      byId("adminCurveBaseInput").value = curveBase > 0 ? curveBase.toFixed(8) : "";
+      byId("adminCurveKInput").value = curveK >= 0 ? String(curveK) : "";
+      byId("adminCurveDemandInput").value = curveDemand > 0 ? String(curveDemand) : "";
+      byId("adminCurveDivisorInput").value = curveDivisor > 0 ? String(Math.floor(curveDivisor)) : "";
+      byId("adminAutoPolicyEnabledInput").value = autoPolicy.enabled ? "1" : "0";
+      byId("adminAutoUsdLimitInput").value = autoUsdLimit > 0 ? String(autoUsdLimit) : "";
+      byId("adminAutoRiskInput").value = autoRisk >= 0 ? String(autoRisk) : "";
+      byId("adminAutoVelocityInput").value = autoVelocity > 0 ? String(Math.floor(autoVelocity)) : "";
+    }
+
+    state.admin.runtime = runtime || null;
+    state.admin.runtimeFlags = runtimeFlags || state.admin.runtimeFlags || null;
+    state.admin.deployStatus = deployStatus || state.admin.deployStatus || null;
+    state.admin.auditPhaseStatus = summary.audit_phase_status || state.admin.auditPhaseStatus || null;
+    state.admin.dataIntegrity = summary.data_integrity || state.admin.dataIntegrity || null;
+    renderAdminRuntime(runtime);
+    renderAdminAuditRuntimeStrip(summary, runtimeFlags, deployStatus);
+    renderAdminAssetStatus(state.admin.assets);
+    renderAdminTreasuryRuntimeStrip(summary, state.data?.token || {});
+    renderAdminProviderAlertStrip();
+    renderAdminDecisionTraceStrip();
   }
 
   function formatRuntimeTime(value) {
@@ -12644,12 +12710,6 @@
   }
 
   function renderAdminRuntime(runtimeData) {
-    const line = byId("adminRuntimeLine");
-    const eventsLine = byId("adminRuntimeEvents");
-    if (!line || !eventsLine) {
-      return;
-    }
-
     const runtime = runtimeData && typeof runtimeData === "object" ? runtimeData : {};
     const health = runtime.health || {};
     const stateRow = runtime.state || runtime.runtime_state || {};
@@ -12663,17 +12723,29 @@
     const alive = health.alive === true || stateRow.alive === true;
     const lock = health.lock_acquired === true || stateRow.lock_acquired === true;
     const hb = formatRuntimeTime(health.last_heartbeat_at || stateRow.last_heartbeat_at);
-    line.textContent = `Bot Runtime: ${alive ? "ON" : "OFF"} | ${lock ? "LOCK" : "NOLOCK"} | ${mode} | hb ${hb}`;
-
-    if (events.length === 0) {
-      eventsLine.textContent = "Runtime events: kayit yok";
-      return;
-    }
+    const lineText = `Bot Runtime: ${alive ? "ON" : "OFF"} | ${lock ? "LOCK" : "NOLOCK"} | ${mode} | hb ${hb}`;
     const preview = events
       .slice(0, 3)
       .map((event) => String(event.event_type || event.type || "runtime"))
       .join(" | ");
-    eventsLine.textContent = `Runtime events: ${preview}`;
+    const eventsLineText = events.length === 0 ? "Runtime events: kayit yok" : `Runtime events: ${preview}`;
+    const adminRuntimeBridge = getAdminRuntimeBridge();
+    const bridgeHandled =
+      adminRuntimeBridge &&
+      adminRuntimeBridge.render({
+        lineText,
+        eventsLineText
+      }) === true;
+    if (bridgeHandled) {
+      return;
+    }
+    const line = byId("adminRuntimeLine");
+    const eventsLine = byId("adminRuntimeEvents");
+    if (!line || !eventsLine) {
+      return;
+    }
+    line.textContent = lineText;
+    eventsLine.textContent = eventsLineText;
   }
 
   function renderAdminAuditRuntimeStrip(summaryData, runtimeFlagsData, deployStatusData) {
@@ -12825,25 +12897,50 @@
     const total = asNum(summary.total_assets);
     const ready = asNum(summary.ready_assets);
     const missing = asNum(summary.missing_assets);
-    summaryLine.textContent = `Assets: ready ${ready}/${total} | missing ${missing}`;
+    const summaryLineText = `Assets: ready ${ready}/${total} | missing ${missing}`;
 
     const manifest = payload.active_manifest || payload.local_manifest || {};
     const revision = String(manifest.manifest_revision || manifest.revision || "local");
     const updatedAt = formatRuntimeTime(manifest.updated_at || manifest.generated_at);
-    revisionLine.textContent = `Manifest: ${revision} | updated ${updatedAt}`;
+    const revisionLineText = `Manifest: ${revision} | updated ${updatedAt}`;
     renderAdminAssetRuntimeStrip(payload);
-
-    if (!list) {
-      return;
-    }
-    list.innerHTML = "";
 
     const rows = Array.isArray(payload?.local_manifest?.rows)
       ? payload.local_manifest.rows
       : Array.isArray(payload?.db_registry)
         ? payload.db_registry
         : [];
+    const assetRows = rows.slice(0, 12).map((row) => {
+      const key = String(row.asset_key || row.key || "asset");
+      const exists = row.exists === true || String(row.load_status || "").toLowerCase() === "ready";
+      const size = formatBytesShort(row.size_bytes || row.bytes_size || 0);
+      const path = String(row.web_path || row.manifest_path || row.asset_path || "").trim();
+      return {
+        title: key,
+        meta: `${size}${path ? ` | ${path}` : ""}`,
+        tone: exists ? "ready" : "missing",
+        chip: exists ? "READY" : "MISSING"
+      };
+    });
+    const adminAssetStatusBridge = getAdminAssetStatusBridge();
+    const bridgeHandled =
+      adminAssetStatusBridge &&
+      adminAssetStatusBridge.render({
+        summaryLineText,
+        revisionLineText,
+        rows: assetRows,
+        emptyText: "Asset kaydi bulunmuyor"
+      }) === true;
+    if (bridgeHandled) {
+      return;
+    }
 
+    summaryLine.textContent = summaryLineText;
+    revisionLine.textContent = revisionLineText;
+    if (!list) {
+      return;
+    }
+    list.innerHTML = "";
     if (!rows.length) {
       const empty = document.createElement("li");
       empty.className = "muted";
