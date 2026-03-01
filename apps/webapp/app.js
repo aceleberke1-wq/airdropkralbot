@@ -10678,6 +10678,7 @@
 
   function renderTreasuryPulse(token, quotePayload = null) {
     const safe = token && typeof token === "object" ? token : {};
+    const routeStatusPayload = state.v3.tokenRouteStatus || {};
     const quoteData = quotePayload && typeof quotePayload === "object" ? quotePayload : state.v3.tokenQuote || null;
     const gate = quoteData?.payout_gate || routeStatusPayload?.payout_gate || safe.payout_gate || {};
     const guardrail = gate.guardrail || {};
@@ -10805,9 +10806,104 @@
         ? { label: "MANUAL WATCH", tone: "balanced" }
         : { label: "POLICY HOLD", tone: "aggressive" };
 
-    applyTokenChip("tokenAlertPrimaryChip", chipA.label, chipA.tone);
-    applyTokenChip("tokenAlertSecondaryChip", chipB.label, chipB.tone);
-    applyTokenChip("tokenAlertTertiaryChip", chipC.label, chipC.tone);
+    const tokenTreasuryBridge = getTokenTreasuryBridge();
+    let tokenPulseBridgeHandled = false;
+    if (tokenTreasuryBridge) {
+      tokenPulseBridgeHandled =
+        tokenTreasuryBridge.render({
+          pulse: {
+            tone:
+              stateTone === "critical"
+                ? "critical"
+                : stateTone === "aggressive"
+                  ? "pressure"
+                  : stateTone === "safe"
+                    ? "advantage"
+                    : stateTone === "balanced"
+                      ? "balanced"
+                      : "neutral",
+            badgeText,
+            badgeTone:
+              stateTone === "critical"
+                ? "warn"
+                : stateTone === "aggressive"
+                  ? "default"
+                  : "info",
+            stateLineText:
+              `${gateOpen ? "Gate acik" : "Gate kilitli"} | ` +
+              `Quorum ${Math.round(quorumRatio * 100)}% | Policy ${Math.round(policyRatio * 100)}%`,
+            gateLineText: `CAP ${Math.round(gateRatio * 100)}% | ${gateOpen ? "OPEN" : "LOCKED"}`,
+            curveLineText: `NORM ${supplyNorm.toFixed(2)} | DEM ${demandFactor.toFixed(2)}`,
+            quorumLineText:
+              providerCount > 0
+                ? `OK ${okProviderCount}/${providerCount} | AGR ${Math.round(agreementRatio * 100)}%`
+                : "Provider bekleniyor",
+            policyLineText: `Risk ${Math.round(riskScore * 100)}% | AUTO <= $${autoUsdLimit.toFixed(2)}`,
+            chips: [
+              { id: "tokenAlertPrimaryChip", text: chipA.label, tone: chipA.tone, level: clamp(gateRatio, 0, 1) },
+              { id: "tokenAlertSecondaryChip", text: chipB.label, tone: chipB.tone, level: clamp(quorumRatio, 0, 1) },
+              { id: "tokenAlertTertiaryChip", text: chipC.label, tone: chipC.tone, level: clamp(policyRatio, 0, 1) }
+            ],
+            meters: [
+              {
+                id: "tokenGateMeter",
+                pct: clamp(gateRatio * 100, 0, 100),
+                palette: gateOpen ? (gateRatio >= 1 ? "safe" : "balanced") : gateRatio >= 0.85 ? "aggressive" : "critical"
+              },
+              {
+                id: "tokenCurveMeter",
+                pct: curvePressure * 100,
+                palette: curvePressure >= 0.78 ? "critical" : curvePressure >= 0.52 ? "aggressive" : curvePressure >= 0.3 ? "balanced" : "safe"
+              },
+              {
+                id: "tokenQuorumMeter",
+                pct: quorumRatio * 100,
+                palette: quorumRatio >= 0.75 ? "safe" : quorumRatio >= 0.56 ? "balanced" : quorumRatio >= 0.36 ? "aggressive" : "critical"
+              },
+              {
+                id: "tokenPolicyMeter",
+                pct: policyRatio * 100,
+                palette: policyRatio >= 0.72 ? "safe" : policyRatio >= 0.52 ? "balanced" : policyRatio >= 0.32 ? "aggressive" : "critical"
+              }
+            ]
+          }
+        }) === true;
+    }
+
+    if (!tokenPulseBridgeHandled) {
+      applyTokenChip("tokenAlertPrimaryChip", chipA.label, chipA.tone);
+      applyTokenChip("tokenAlertSecondaryChip", chipB.label, chipB.tone);
+      applyTokenChip("tokenAlertTertiaryChip", chipC.label, chipC.tone);
+    }
+
+    state.v3.tokenPulseMetrics = {
+      gateRatio,
+      gateOpen,
+      curvePressure,
+      quorumRatio,
+      policyRatio,
+      stateTone,
+      riskScore,
+      autoUsdLimit,
+      providerCount,
+      okProviderCount,
+      agreementRatio
+    };
+    const pulseSignalKey =
+      `${gateOpen ? 1 : 0}:${Math.round(gateRatio * 100)}:${Math.round(curvePressure * 100)}:` +
+      `${Math.round(quorumRatio * 100)}:${Math.round(policyRatio * 100)}:${stateTone}`;
+    const pulseNow = Date.now();
+    if (pulseSignalKey !== state.v3.lastTokenPulseSignalKey && pulseNow - asNum(state.v3.lastTokenPulseSignalAt || 0) > 1600) {
+      state.v3.lastTokenPulseSignalKey = pulseSignalKey;
+      state.v3.lastTokenPulseSignalAt = pulseNow;
+      if (stateTone === "critical" || stateTone === "aggressive") {
+        triggerArenaPulse("aggressive", {
+          label: stateTone === "critical" ? "TREASURY LOCKDOWN" : "TREASURY PRESSURE"
+        });
+      } else if (stateTone === "safe" && gateOpen) {
+        triggerArenaPulse("info", { label: "TREASURY STABLE" });
+      }
+    }
   }
 
   function renderTokenRouteRuntimeStrip(token, quotePayload = null) {

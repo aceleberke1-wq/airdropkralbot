@@ -64,7 +64,30 @@ type DirectorPayload = {
   emptyText?: string;
 };
 
+type TreasuryPulseChipTone = "neutral" | "safe" | "balanced" | "aggressive" | "critical";
+
+type TreasuryPulseChipPayload = {
+  id: string;
+  text: string;
+  tone: TreasuryPulseChipTone;
+  level: number;
+};
+
+type TreasuryPulsePayload = {
+  tone: Tone;
+  badgeText: string;
+  badgeTone: BadgeTone;
+  stateLineText: string;
+  gateLineText: string;
+  curveLineText: string;
+  quorumLineText: string;
+  policyLineText: string;
+  chips: TreasuryPulseChipPayload[];
+  meters: MeterPayload[];
+};
+
 export type TokenTreasuryBridgePayload = {
+  pulse?: TreasuryPulsePayload;
   route?: RoutePayload;
   txLifecycle?: TxLifecyclePayload;
   actionDirector?: DirectorPayload;
@@ -166,6 +189,28 @@ function setLiveChip(payload: LiveChipPayload): void {
   el.style.setProperty("--chip-level", clamp(asNum(payload.level), 0, 1).toFixed(3));
 }
 
+function setTreasuryPulseChip(payload: TreasuryPulseChipPayload): void {
+  const node = byId<HTMLElement>(payload.id);
+  if (!node) {
+    return;
+  }
+  node.textContent = String(payload.text || "--");
+  node.className = "combatAlertChip";
+  const tone = String(payload.tone || "neutral").toLowerCase();
+  if (tone === "critical") {
+    node.classList.add("critical");
+  } else if (tone === "aggressive") {
+    node.classList.add("aggressive");
+  } else if (tone === "balanced") {
+    node.classList.add("balanced");
+  } else if (tone === "safe") {
+    node.classList.add("safe");
+  } else {
+    node.classList.add("neutral");
+  }
+  node.style.setProperty("--chip-level", clamp(asNum(payload.level), 0, 1).toFixed(3));
+}
+
 function renderRowList(listId: string, rows: ListRowPayload[], emptyText?: string): void {
   const list = byId<HTMLElement>(listId);
   if (!list) {
@@ -205,6 +250,31 @@ function applyMeters(meters: MeterPayload[]): void {
     const el = byId<HTMLElement>(meter.id);
     setMeter(el, meter.pct, meter.palette);
   });
+}
+
+function renderPulse(pulse: TreasuryPulsePayload): boolean {
+  const host = byId<HTMLElement>("tokenTreasuryPulseStrip");
+  const badge = byId<HTMLElement>("treasuryStateBadge");
+  const stateLine = byId<HTMLElement>("treasuryStateLine");
+  const gateLine = byId<HTMLElement>("tokenGateLine");
+  const curveLine = byId<HTMLElement>("tokenCurveLine");
+  const quorumLine = byId<HTMLElement>("tokenQuorumLine");
+  const policyLine = byId<HTMLElement>("tokenPolicyLine");
+  if (!host || !badge || !stateLine || !gateLine || !curveLine || !quorumLine || !policyLine) {
+    return false;
+  }
+  host.dataset.tone = String(pulse.tone || "neutral");
+  badge.textContent = String(pulse.badgeText || "STABLE");
+  setBadgeClass(badge, pulse.badgeTone || "info");
+  stateLine.textContent = String(pulse.stateLineText || "Gate/curve/quorum degerleri yukleniyor.");
+  gateLine.textContent = String(pulse.gateLineText || "CAP 0% | LOCKED");
+  curveLine.textContent = String(pulse.curveLineText || "SUPPLY NORM 0.00");
+  quorumLine.textContent = String(pulse.quorumLineText || "Provider 0/0");
+  policyLine.textContent = String(pulse.policyLineText || "Risk 0% | AUTO OFF");
+  pulseOnce(stateLine);
+  (Array.isArray(pulse.chips) ? pulse.chips : []).forEach(setTreasuryPulseChip);
+  applyMeters(pulse.meters || []);
+  return true;
 }
 
 function renderRoute(route: RoutePayload): boolean {
@@ -275,6 +345,9 @@ function renderActionDirector(director: DirectorPayload): boolean {
 
 function render(payload: TokenTreasuryBridgePayload): boolean {
   let handled = false;
+  if (payload?.pulse) {
+    handled = renderPulse(payload.pulse) || handled;
+  }
   if (payload?.route) {
     handled = renderRoute(payload.route) || handled;
   }
@@ -290,4 +363,3 @@ function render(payload: TokenTreasuryBridgePayload): boolean {
 export function installTokenTreasuryBridge(): void {
   window.__AKR_TOKEN_TREASURY__ = { render };
 }
-
