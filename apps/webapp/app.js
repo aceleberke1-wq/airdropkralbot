@@ -379,93 +379,169 @@
       state.v3.sceneEffectiveProfile = sceneEffectiveProfile;
     }
 
-    setSceneDeckChip("sceneDeckModeChip", `SCENE ${sceneMode}`, isLite ? "pressure" : "balanced", isLite ? 0.42 : 0.28);
-    setSceneDeckChip(
-      "sceneDeckPerfChip",
-      fps > 0 ? `PERF ${perfTier} ${fps}FPS` : `PERF ${perfTier}`,
-      perfTone,
-      fps > 0 ? clamp(fps / 60, 0.15, 1) : perfTier === "HIGH" ? 0.85 : perfTier === "LOW" ? 0.35 : 0.6
-    );
-    setSceneDeckChip(
-      "sceneDeckAssetChip",
-      isLite ? `ASSET LITE ${readyAssets}/${totalAssets}` : `ASSET ${readyAssets}/${totalAssets}`,
-      assetRuntimeTone === "critical"
-        ? "critical"
-        : assetRuntimeTone === "pressure"
-          ? "pressure"
-          : isLite
-            ? "pressure"
-            : assetRatio >= 0.9
-              ? "safe"
-              : "balanced",
-      clamp(assetRatio * 0.6 + assetSyncRatio * 0.25 + assetReadyRatio * 0.15, 0, 1)
-    );
-    setSceneDeckChip(
-      "sceneDeckTransportChip",
-      `PVP ${transport}${pvpStatus === "active" ? " LIVE" : pvpStatus === "resolved" ? " END" : ""}`,
-      transportTone,
-      pvpStatus === "active" ? Math.max(0.3, 1 - pressureRatio * 0.45) : 0.2
-    );
-    setSceneDeckChip(
-      "sceneDeckManifestChip",
-      `REV ${manifestShort} ${manifestSource.slice(0, 3).toUpperCase()}`,
-      manifestSource.toLowerCase().includes("registry")
-        ? assetRuntimeTone === "critical"
-          ? "critical"
-          : assetRuntimeTone === "pressure"
-            ? "pressure"
-            : "safe"
-        : "neutral",
-      clamp(assetSyncRatio * 0.6 + assetReadyRatio * 0.25 + 0.15, 0.15, 1)
-    );
-
-    const liteBadge = byId("liteSceneBadge");
-    if (liteBadge) {
-      const bridgeLiteBadge = sceneEffectiveProfile && sceneEffectiveProfile.liteBadge ? sceneEffectiveProfile.liteBadge : null;
-      const shouldShow = bridgeLiteBadge ? !!bridgeLiteBadge.shouldShow : isLite || manifestRiskRatio >= 0.2;
-      liteBadge.classList.toggle("hidden", !shouldShow);
-      liteBadge.classList.remove("warn", "info");
-      let badgeText = "Lite Scene";
+    const sceneDeckBridge = getSceneStatusDeckBridge();
+    const bridgeLiteBadge = sceneEffectiveProfile && sceneEffectiveProfile.liteBadge ? sceneEffectiveProfile.liteBadge : null;
+    const shouldShowLiteBadge = bridgeLiteBadge ? !!bridgeLiteBadge.shouldShow : isLite || manifestRiskRatio >= 0.2;
+    const liteBadgeText = (() => {
       if (bridgeLiteBadge) {
-        badgeText = String(bridgeLiteBadge.text || "Lite Scene");
-        liteBadge.classList.add(bridgeLiteBadge.tone === "warn" ? "warn" : "info");
-        liteBadge.dataset.mode = String(bridgeLiteBadge.mode || "ok");
-      } else if (isLite) {
+        return String(bridgeLiteBadge.text || "Lite Scene");
+      }
+      if (isLite) {
         const reasonText =
           manifestRiskRatio >= 0.6
             ? `Risk ${Math.round(manifestRiskRatio * 100)}`
             : assetReadyRatio < 0.95
               ? `Ready ${Math.round(assetReadyRatio * 100)}%`
               : `Int ${Math.round(assetSyncRatio * 100)}%`;
-        badgeText = `Lite Scene | ${reasonText}`;
-        liteBadge.classList.add(manifestRiskRatio >= 0.5 ? "warn" : "info");
-        liteBadge.dataset.mode = "lite";
-      } else if (manifestRiskRatio >= 0.2) {
-        badgeText = `Asset Watch | ${Math.round((1 - assetSyncRatio) * 100)}% drift`;
-        liteBadge.classList.add(manifestRiskRatio >= 0.48 ? "warn" : "info");
-        liteBadge.dataset.mode = "watch";
-      } else {
-        liteBadge.classList.add("info");
-        liteBadge.dataset.mode = "ok";
+        return `Lite Scene | ${reasonText}`;
       }
-      liteBadge.textContent = badgeText;
-      liteBadge.title = bridgeLiteBadge && bridgeLiteBadge.title
-        ? String(bridgeLiteBadge.title)
-        : `scene=${sceneMode} perf=${perfTier} ladder=${Math.round(ladderActivity * 100)}% ` +
-          `ready=${Math.round(assetReadyRatio * 100)}% sync=${Math.round(assetSyncRatio * 100)}% ` +
-          `manifest=${manifestShort} ${manifestSource}`;
-    }
+      if (manifestRiskRatio >= 0.2) {
+        return `Asset Watch | ${Math.round((1 - assetSyncRatio) * 100)}% drift`;
+      }
+      return "Lite Scene";
+    })();
+    const liteBadgeTone = bridgeLiteBadge
+      ? bridgeLiteBadge.tone === "warn"
+        ? "warn"
+        : "info"
+      : isLite
+        ? manifestRiskRatio >= 0.5
+          ? "warn"
+          : "info"
+        : manifestRiskRatio >= 0.48
+          ? "warn"
+          : "info";
+    const liteBadgeMode = bridgeLiteBadge
+      ? String(bridgeLiteBadge.mode || "ok")
+      : isLite
+        ? "lite"
+        : manifestRiskRatio >= 0.2
+          ? "watch"
+          : "ok";
+    const liteBadgeTitle = bridgeLiteBadge && bridgeLiteBadge.title
+      ? String(bridgeLiteBadge.title)
+      : `scene=${sceneMode} perf=${perfTier} ladder=${Math.round(ladderActivity * 100)}% ` +
+        `ready=${Math.round(assetReadyRatio * 100)}% sync=${Math.round(assetSyncRatio * 100)}% ` +
+        `manifest=${manifestShort} ${manifestSource}`;
+    const profileLineText =
+      sceneEffectiveProfile && sceneEffectiveProfile.profileLine
+        ? String(sceneEffectiveProfile.profileLine)
+        : (() => {
+            const hudDensity = String(state.ui?.hudDensity || "full");
+            const postFx = Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(2);
+            return (
+              `Profile: hud ${hudDensity} | postfx ${postFx} | rev ${manifestShort} | ` +
+              `assets ${readyAssets}/${totalAssets} | int ${Math.round(assetSyncRatio * 100)}%`
+            );
+          })();
+    const sceneDeckHandled = sceneDeckBridge
+      ? sceneDeckBridge.render({
+          chips: [
+            { id: "sceneDeckModeChip", text: `SCENE ${sceneMode}`, tone: isLite ? "pressure" : "balanced", level: isLite ? 0.42 : 0.28 },
+            {
+              id: "sceneDeckPerfChip",
+              text: fps > 0 ? `PERF ${perfTier} ${fps}FPS` : `PERF ${perfTier}`,
+              tone: perfTone,
+              level: fps > 0 ? clamp(fps / 60, 0.15, 1) : perfTier === "HIGH" ? 0.85 : perfTier === "LOW" ? 0.35 : 0.6
+            },
+            {
+              id: "sceneDeckAssetChip",
+              text: isLite ? `ASSET LITE ${readyAssets}/${totalAssets}` : `ASSET ${readyAssets}/${totalAssets}`,
+              tone: assetRuntimeTone === "critical"
+                ? "critical"
+                : assetRuntimeTone === "pressure"
+                  ? "pressure"
+                  : isLite
+                    ? "pressure"
+                    : assetRatio >= 0.9
+                      ? "safe"
+                      : "balanced",
+              level: clamp(assetRatio * 0.6 + assetSyncRatio * 0.25 + assetReadyRatio * 0.15, 0, 1)
+            },
+            {
+              id: "sceneDeckTransportChip",
+              text: `PVP ${transport}${pvpStatus === "active" ? " LIVE" : pvpStatus === "resolved" ? " END" : ""}`,
+              tone: transportTone,
+              level: pvpStatus === "active" ? Math.max(0.3, 1 - pressureRatio * 0.45) : 0.2
+            },
+            {
+              id: "sceneDeckManifestChip",
+              text: `REV ${manifestShort} ${manifestSource.slice(0, 3).toUpperCase()}`,
+              tone: manifestSource.toLowerCase().includes("registry")
+                ? assetRuntimeTone === "critical"
+                  ? "critical"
+                  : assetRuntimeTone === "pressure"
+                    ? "pressure"
+                    : "safe"
+                : "neutral",
+              level: clamp(assetSyncRatio * 0.6 + assetReadyRatio * 0.25 + 0.15, 0.15, 1)
+            }
+          ],
+          profileLine: profileLineText,
+          liteBadge: {
+            shouldShow: shouldShowLiteBadge,
+            text: liteBadgeText,
+            tone: liteBadgeTone,
+            mode: liteBadgeMode,
+            title: liteBadgeTitle
+          }
+        })
+      : false;
 
-    const sceneProfileLine = byId("sceneProfileLine");
-    if (sceneProfileLine) {
-      if (sceneEffectiveProfile && sceneEffectiveProfile.profileLine) {
-        sceneProfileLine.textContent = String(sceneEffectiveProfile.profileLine);
-      } else {
-        const hudDensity = String(state.ui?.hudDensity || "full");
-        const postFx = Number(state.telemetry.scenePostFxLevel || 0.9).toFixed(2);
-        sceneProfileLine.textContent =
-          `Profile: hud ${hudDensity} | postfx ${postFx} | rev ${manifestShort} | ` +
-          `assets ${readyAssets}/${totalAssets} | int ${Math.round(assetSyncRatio * 100)}%`;
+    if (!sceneDeckHandled) {
+      setSceneDeckChip("sceneDeckModeChip", `SCENE ${sceneMode}`, isLite ? "pressure" : "balanced", isLite ? 0.42 : 0.28);
+      setSceneDeckChip(
+        "sceneDeckPerfChip",
+        fps > 0 ? `PERF ${perfTier} ${fps}FPS` : `PERF ${perfTier}`,
+        perfTone,
+        fps > 0 ? clamp(fps / 60, 0.15, 1) : perfTier === "HIGH" ? 0.85 : perfTier === "LOW" ? 0.35 : 0.6
+      );
+      setSceneDeckChip(
+        "sceneDeckAssetChip",
+        isLite ? `ASSET LITE ${readyAssets}/${totalAssets}` : `ASSET ${readyAssets}/${totalAssets}`,
+        assetRuntimeTone === "critical"
+          ? "critical"
+          : assetRuntimeTone === "pressure"
+            ? "pressure"
+            : isLite
+              ? "pressure"
+              : assetRatio >= 0.9
+                ? "safe"
+                : "balanced",
+        clamp(assetRatio * 0.6 + assetSyncRatio * 0.25 + assetReadyRatio * 0.15, 0, 1)
+      );
+      setSceneDeckChip(
+        "sceneDeckTransportChip",
+        `PVP ${transport}${pvpStatus === "active" ? " LIVE" : pvpStatus === "resolved" ? " END" : ""}`,
+        transportTone,
+        pvpStatus === "active" ? Math.max(0.3, 1 - pressureRatio * 0.45) : 0.2
+      );
+      setSceneDeckChip(
+        "sceneDeckManifestChip",
+        `REV ${manifestShort} ${manifestSource.slice(0, 3).toUpperCase()}`,
+        manifestSource.toLowerCase().includes("registry")
+          ? assetRuntimeTone === "critical"
+            ? "critical"
+            : assetRuntimeTone === "pressure"
+              ? "pressure"
+              : "safe"
+          : "neutral",
+        clamp(assetSyncRatio * 0.6 + assetReadyRatio * 0.25 + 0.15, 0.15, 1)
+      );
+
+      const liteBadge = byId("liteSceneBadge");
+      if (liteBadge) {
+        liteBadge.classList.toggle("hidden", !shouldShowLiteBadge);
+        liteBadge.classList.remove("warn", "info");
+        liteBadge.classList.add(liteBadgeTone === "warn" ? "warn" : "info");
+        liteBadge.dataset.mode = liteBadgeMode;
+        liteBadge.textContent = liteBadgeText;
+        liteBadge.title = liteBadgeTitle;
+      }
+
+      const sceneProfileLine = byId("sceneProfileLine");
+      if (sceneProfileLine) {
+        sceneProfileLine.textContent = profileLineText;
       }
     }
     renderSceneAlarmStrip();
@@ -1449,8 +1525,41 @@
     return bridge;
   }
 
+  function getSceneStatusDeckBridge() {
+    const bridge = window.__AKR_SCENE_STATUS_DECK__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getTokenOverviewBridge() {
+    const bridge = window.__AKR_TOKEN_OVERVIEW__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
   function getTokenTreasuryBridge() {
     const bridge = window.__AKR_TOKEN_TREASURY__;
+    if (!bridge || typeof bridge !== "object") {
+      return null;
+    }
+    if (typeof bridge.render !== "function") {
+      return null;
+    }
+    return bridge;
+  }
+
+  function getOperationsDeckBridge() {
+    const bridge = window.__AKR_OPERATIONS_DECK__;
     if (!bridge || typeof bridge !== "object") {
       return null;
     }
@@ -10304,12 +10413,40 @@
 
   function renderOffers(offers) {
     const host = byId("offersList");
-    byId("offerBadge").textContent = `${offers.length} aktif`;
-    if (!offers.length) {
+    const list = Array.isArray(offers) ? offers : [];
+    const deckBridge = getOperationsDeckBridge();
+    const bridgeHandled = deckBridge
+      ? deckBridge.render({
+          offers: {
+            badgeText: `${list.length} aktif`,
+            emptyText: "Acil gorev yok. Panel yenileyebilirsin.",
+            items: list.map((task) => {
+              const expiresAt = new Date(task.expires_at).getTime();
+              const remainingMins = Number.isFinite(expiresAt)
+                ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000))
+                : 0;
+              return {
+                id: task.id,
+                title: task.title,
+                family: String(task.family || "core"),
+                durationMinutes: asNum(task.duration_minutes),
+                difficultyPct: asNum(task.difficulty) * 100,
+                rewardPreview: String(task.reward_preview || "-"),
+                remainingMins
+              };
+            })
+          }
+        })
+      : false;
+    if (bridgeHandled) {
+      return;
+    }
+    byId("offerBadge").textContent = `${list.length} aktif`;
+    if (!list.length) {
       host.innerHTML = `<p class="muted">Acil gorev yok. Panel yenileyebilirsin.</p>`;
       return;
     }
-    host.innerHTML = offers
+    host.innerHTML = list
       .map((task) => {
         const expireMins = Math.max(0, Math.ceil((new Date(task.expires_at).getTime() - Date.now()) / 60000));
         return `
@@ -10331,6 +10468,28 @@
 
   function renderMissions(missions) {
     const list = missions.list || [];
+    const deckBridge = getOperationsDeckBridge();
+    const bridgeHandled = deckBridge
+      ? deckBridge.render({
+          missions: {
+            badgeText: `${asNum(missions.ready)} hazir`,
+            emptyText: "Misyon verisi yok.",
+            items: list.map((m) => {
+              const status = m.claimed ? "ALINDI" : m.completed ? "HAZIR" : "DEVAM";
+              return {
+                key: String(m.key || ""),
+                title: String(m.title || "Misyon"),
+                status,
+                progressText: `${asNum(m.progress)}/${asNum(m.target)} | ${String(m.description || "")}`,
+                canClaim: Boolean(m.completed && !m.claimed)
+              };
+            })
+          }
+        })
+      : false;
+    if (bridgeHandled) {
+      return;
+    }
     byId("missionBadge").textContent = `${asNum(missions.ready)} hazir`;
     const host = byId("missionsList");
     if (!list.length) {
@@ -10361,21 +10520,59 @@
   function renderAttempts(attempts) {
     const active = attempts?.active;
     const revealable = attempts?.revealable;
-    byId("activeAttempt").textContent = active
+    const activeText = active
       ? `${active.task_title} (#${active.id}) | ${formatTime(active.started_at)}`
       : "Yok";
-    byId("revealAttempt").textContent = revealable
+    const revealText = revealable
       ? `${revealable.task_title} (#${revealable.id}) | ${formatTime(revealable.completed_at)}`
       : "Yok";
+    const deckBridge = getOperationsDeckBridge();
+    const bridgeHandled = deckBridge
+      ? deckBridge.render({
+          attempts: {
+            activeText,
+            revealText
+          }
+        })
+      : false;
+    if (bridgeHandled) {
+      return;
+    }
+    byId("activeAttempt").textContent = activeText;
+    byId("revealAttempt").textContent = revealText;
   }
 
   function renderEvents(events) {
+    const list = Array.isArray(events) ? events : [];
+    const deckBridge = getOperationsDeckBridge();
+    const bridgeHandled = deckBridge
+      ? deckBridge.render({
+          events: {
+            emptyText: "Event akisi bos.",
+            items: list.map((event) => {
+              const meta = event.meta && typeof event.meta === "object" ? event.meta : {};
+              const hint =
+                meta.play_mode || meta.tier || meta.result
+                  ? `| ${String(meta.play_mode || meta.tier || meta.result)}`
+                  : "";
+              return {
+                label: String(event.event_type || "event").replace(/_/g, " "),
+                time: formatTime(event.event_at),
+                hint
+              };
+            })
+          }
+        })
+      : false;
+    if (bridgeHandled) {
+      return;
+    }
     const host = byId("eventFeed");
-    if (!events || events.length === 0) {
+    if (!list || list.length === 0) {
       host.innerHTML = `<li>Event akisi bos.</li>`;
       return;
     }
-    host.innerHTML = events
+    host.innerHTML = list
       .map((event) => {
         const label = String(event.event_type || "event").replace(/_/g, " ");
         const time = formatTime(event.event_at);
@@ -12531,49 +12728,86 @@
     const balance = asNum(safe.balance);
     const mintable = asNum(safe.mintable_from_balances);
     const units = asNum(safe.unified_units);
-
-    byId("tokenBadge").textContent = symbol;
-    byId("balToken").textContent = balance.toFixed(decimals);
-    byId("tokenSummary").textContent = `${balance.toFixed(decimals)} ${symbol}`;
     const marketCap = asNum(safe.market_cap_usd);
     const gate = safe.payout_gate || {};
-    byId("tokenRate").textContent = `$${asNum(safe.usd_price).toFixed(6)} / ${symbol} | Cap $${marketCap.toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
-    byId("tokenMintable").textContent = `${mintable.toFixed(decimals)} ${symbol}`;
-    byId("tokenUnits").textContent = `Unify Units: ${units.toFixed(2)}`;
-
     const requests = Array.isArray(safe.requests) ? safe.requests : [];
+    let tokenHintText = "Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.";
     if (state.v3.tokenQuote?.quote) {
       const quote = state.v3.tokenQuote.quote;
       const gate = state.v3.tokenQuote.gate || {};
-      byId("tokenHint").textContent =
+      tokenHintText =
         `Quote: $${asNum(quote.usdAmount).toFixed(2)} -> ${asNum(quote.tokenAmount).toFixed(4)} ${String(
           quote.tokenSymbol || symbol
         )} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
     } else if (requests.length > 0) {
       const latest = requests[0];
-      byId("tokenHint").textContent = `Son talep #${latest.id} ${String(latest.status || "").toUpperCase()} (${asNum(latest.usd_amount).toFixed(2)} USD)`;
-    } else {
-      byId("tokenHint").textContent = "Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.";
+      tokenHintText = `Son talep #${latest.id} ${String(latest.status || "").toUpperCase()} (${asNum(latest.usd_amount).toFixed(2)} USD)`;
     }
 
     const chainSelect = byId("tokenChainSelect");
     const chains = Array.isArray(safe.purchase?.chains) ? safe.purchase.chains : [];
-    const current = chainSelect.value || "";
+    const current = chainSelect && typeof chainSelect.value === "string" ? chainSelect.value : "";
     const enabledChains = chains.filter((x) => x.enabled);
-    chainSelect.innerHTML = enabledChains
-      .map((x) => `<option value="${x.chain}">${x.chain} (${x.pay_currency})</option>`)
-      .join("");
+    const chainOptions = enabledChains.map((x) => ({
+      chain: String(x.chain || ""),
+      payCurrency: String(x.pay_currency || "")
+    }));
+    const selectedChain = current && chainOptions.some((opt) => opt.chain === current) ? current : chainOptions[0]?.chain || "";
+    const buyDisabled = chainOptions.length === 0;
 
-    if (!chainSelect.value && enabledChains.length > 0) {
-      chainSelect.value = String(enabledChains[0].chain || "");
-    }
-    if (current && [...chainSelect.options].some((o) => o.value === current)) {
-      chainSelect.value = current;
-    }
-    byId("tokenBuyBtn").disabled = chainSelect.options.length === 0;
     if (enabledChains.length === 0) {
-      byId("tokenHint").textContent = "Zincir odeme adresleri tanimli degil. Admin env kontrol etmeli.";
-    } else {
+      tokenHintText = "Zincir odeme adresleri tanimli degil. Admin env kontrol etmeli.";
+    }
+
+    const tokenOverviewBridge = getTokenOverviewBridge();
+    const overviewHandled = tokenOverviewBridge
+      ? tokenOverviewBridge.render({
+          symbol,
+          balanceText: balance.toFixed(decimals),
+          summaryText: `${balance.toFixed(decimals)} ${symbol}`,
+          rateText: `$${asNum(safe.usd_price).toFixed(6)} / ${symbol} | Cap $${marketCap.toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`,
+          mintableText: `${mintable.toFixed(decimals)} ${symbol}`,
+          unitsText: `Unify Units: ${units.toFixed(2)}`,
+          hintText: tokenHintText,
+          chainOptions,
+          selectedChain,
+          buyDisabled
+        })
+      : false;
+
+    if (!overviewHandled) {
+      const tokenBadge = byId("tokenBadge");
+      const balToken = byId("balToken");
+      const tokenSummary = byId("tokenSummary");
+      const tokenRate = byId("tokenRate");
+      const tokenMintable = byId("tokenMintable");
+      const tokenUnits = byId("tokenUnits");
+      const tokenHint = byId("tokenHint");
+      const tokenBuyBtn = byId("tokenBuyBtn");
+
+      if (tokenBadge) tokenBadge.textContent = symbol;
+      if (balToken) balToken.textContent = balance.toFixed(decimals);
+      if (tokenSummary) tokenSummary.textContent = `${balance.toFixed(decimals)} ${symbol}`;
+      if (tokenRate) tokenRate.textContent = `$${asNum(safe.usd_price).toFixed(6)} / ${symbol} | Cap $${marketCap.toFixed(2)} | Gate ${gate.allowed ? "OPEN" : "LOCKED"}`;
+      if (tokenMintable) tokenMintable.textContent = `${mintable.toFixed(decimals)} ${symbol}`;
+      if (tokenUnits) tokenUnits.textContent = `Unify Units: ${units.toFixed(2)}`;
+      if (tokenHint) tokenHint.textContent = tokenHintText;
+
+      if (chainSelect) {
+        chainSelect.innerHTML = chainOptions.map((x) => `<option value="${x.chain}">${x.chain} (${x.payCurrency})</option>`).join("");
+        if (!chainSelect.value && chainOptions.length > 0) {
+          chainSelect.value = chainOptions[0].chain;
+        }
+        if (current && [...chainSelect.options].some((o) => o.value === current)) {
+          chainSelect.value = current;
+        }
+      }
+      if (tokenBuyBtn) {
+        tokenBuyBtn.disabled = buyDisabled;
+      }
+    }
+
+    if (enabledChains.length > 0) {
       scheduleTokenQuote();
     }
     renderTreasuryPulse(safe, state.v3.tokenQuote || null);
