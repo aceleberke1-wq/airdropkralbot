@@ -38,6 +38,41 @@ function formatStart(profile, balances, season, anomaly, contract) {
   );
 }
 
+function formatMainMenu(profile) {
+  return (
+    `*Ana Menu*\n` +
+    `Hos geldin *${escapeMarkdown(profile?.public_name || "oyuncu")}*. Bir bolum sec ve tek adimla devam et.\n\n` +
+    `🎮 Oyna • 💰 Kazan • 👛 Cuzdan • 👑 Profil`
+  );
+}
+
+function formatMenuSection(section) {
+  const copyBySection = {
+    play: {
+      title: "🎮 Oyna",
+      description: "Arena raid akisini buradan baslat.",
+      cta: "Birincil CTA: *Raid Baslat*"
+    },
+    earn: {
+      title: "💰 Kazan",
+      description: "Gunluk kazanc icin gorev paneline gir.",
+      cta: "Birincil CTA: *Gorevleri Ac*"
+    },
+    wallet: {
+      title: "👛 Cuzdan",
+      description: "Bakiye, cap ve token durumunu gor.",
+      cta: "Birincil CTA: *Cuzdani Gor*"
+    },
+    profile: {
+      title: "👑 Profil",
+      description: "Oyuncu kartin ve tier ilerlemen.",
+      cta: "Birincil CTA: *Profili Ac*"
+    }
+  };
+  const selected = copyBySection[section] || copyBySection.play;
+  return `*${selected.title}*\n${selected.description}\n\n${selected.cta}`;
+}
+
 function formatGuide(snapshot) {
   const profile = snapshot?.profile || {};
   const daily = snapshot?.daily || {};
@@ -949,6 +984,8 @@ function formatAdminLive(payload = {}) {
 
 module.exports = {
   formatStart,
+  formatMainMenu,
+  formatMenuSection,
   formatGuide,
   formatOnboard,
   formatNexusPulse,
@@ -989,4 +1026,3 @@ module.exports = {
   formatAdminWhoami,
   formatAdminActionResult
 };
-

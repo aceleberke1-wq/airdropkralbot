@@ -752,6 +752,27 @@ function buildStartKeyboard() {
   );
 }
 
+function buildMainMenuKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("🎮 Oyna", "MENU_PLAY"), Markup.button.callback("💰 Kazan", "MENU_EARN")],
+      [Markup.button.callback("👛 Cuzdan", "MENU_WALLET"), Markup.button.callback("👑 Profil", "MENU_PROFILE")],
+      [Markup.button.callback("🪙 Token", "OPEN_TOKEN")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildMenuNavKeyboard(primaryLabel, primaryAction) {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback(primaryLabel, primaryAction)],
+      [Markup.button.callback("⬅️ Geri", "MENU_BACK"), Markup.button.callback("🏠 Ana Menü", "MENU_HOME")]
+    ],
+    { columns: 2 }
+  );
+}
+
 function buildMoreMenuKeyboard() {
   return Markup.inlineKeyboard(
     [
@@ -3334,6 +3355,28 @@ async function sendOnboard(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(messages.formatOnboard(payload), buildGuideKeyboard());
 }
 
+
+async function sendMainMenu(ctx, pool) {
+  const profile = await ensureProfile(pool, ctx);
+  await ctx.replyWithMarkdown(messages.formatMainMenu(profile), buildMainMenuKeyboard());
+}
+
+async function sendMenuPlay(ctx) {
+  await ctx.replyWithMarkdown(messages.formatMenuSection("play"), buildMenuNavKeyboard("Raid Baslat", "OPEN_RAID_MENU"));
+}
+
+async function sendMenuEarn(ctx) {
+  await ctx.replyWithMarkdown(messages.formatMenuSection("earn"), buildMenuNavKeyboard("Gorevleri Ac", "OPEN_TASKS"));
+}
+
+async function sendMenuWallet(ctx) {
+  await ctx.replyWithMarkdown(messages.formatMenuSection("wallet"), buildMenuNavKeyboard("Cuzdani Gor", "OPEN_WALLET"));
+}
+
+async function sendMenuProfile(ctx) {
+  await ctx.replyWithMarkdown(messages.formatMenuSection("profile"), buildMenuNavKeyboard("Profili Ac", "OPEN_PROFILE"));
+}
+
 async function sendPlay(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const launchBaseUrl = await resolveWebAppLaunchBaseUrl(pool, appConfig, ctx.from?.id);
@@ -3589,6 +3632,9 @@ function resolveTextIntent(input) {
   if (/^(guide|rehber|nasil oynanir|yardim)\b/.test(normalized)) {
     return { action: "guide" };
   }
+  if (/^(menu|ana menu|menu ac)\b/.test(normalized)) {
+    return { action: "menu" };
+  }
 
   return null;
 }
@@ -3711,6 +3757,10 @@ async function handleTextIntent(ctx, pool, appConfig) {
   }
   if (intent.action === "guide") {
     await sendGuide(ctx, pool);
+    return true;
+  }
+  if (intent.action === "menu") {
+    await sendMainMenu(ctx, pool);
     return true;
   }
 
@@ -3925,16 +3975,12 @@ async function start() {
   const bot = new Telegraf(appConfig.botToken);
 
   bot.start(async (ctx) => {
-    const snapshot = await getSnapshot(pool, ctx);
     const freeze = await withTransaction(pool, (db) => systemStore.getFreezeState(db));
     if (freeze.freeze) {
       await ctx.replyWithMarkdown(messages.formatFreezeMessage(freeze.reason));
       return;
     }
-    await ctx.replyWithMarkdown(
-      messages.formatStart(snapshot.profile, snapshot.balances, snapshot.season, snapshot.anomaly, snapshot.contract),
-      buildStartKeyboard()
-    );
+    await sendMainMenu(ctx, pool);
   });
 
   bot.command("profile", async (ctx) => {
@@ -4106,8 +4152,7 @@ async function start() {
   });
 
   bot.command("menu", async (ctx) => {
-    await ensureProfile(pool, ctx);
-    await ctx.replyWithMarkdown("*Launcher Menu*\nAna giris paneli:", buildStartKeyboard());
+    await sendMainMenu(ctx, pool);
   });
 
   bot.command("guide", async (ctx) => {
@@ -4308,6 +4353,48 @@ async function start() {
   bot.action("OPEN_HOME_MENU", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.replyWithMarkdown("*Launcher*\nArena 3D girisi ve hizli akislara don:", buildStartKeyboard());
+  });
+
+
+  bot.action("MENU_PLAY", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMenuPlay(ctx);
+  });
+
+  bot.action("MENU_EARN", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMenuEarn(ctx);
+  });
+
+  bot.action("MENU_WALLET", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMenuWallet(ctx);
+  });
+
+  bot.action("MENU_PROFILE", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMenuProfile(ctx);
+  });
+
+  bot.action("MENU_BACK", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMainMenu(ctx, pool);
+  });
+
+  bot.action("MENU_HOME", async (ctx) => {
+    await ctx.answerCbQuery();
+    await sendMainMenu(ctx, pool);
+  });
+
+  bot.action("OPEN_RAID_MENU", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithMarkdown("*Raid Modu*\nBir mod sec ve raidi baslat.", buildRaidKeyboard());
+  });
+
+  bot.action("OPEN_PROFILE", async (ctx) => {
+    await ctx.answerCbQuery();
+    const snapshot = await getSnapshot(pool, ctx);
+    await ctx.replyWithMarkdown(messages.formatProfile(snapshot.profile, snapshot.balances));
   });
 
   bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
