@@ -5027,66 +5027,115 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       })
     );
     const contract = resolveLiveContract(runtimeConfig, season, anomaly);
-    const seasonStat = await seasonStore.getSeasonStat(client, {
-      userId: profile.user_id,
-      seasonId: season.seasonId
-    });
-
-    const war = await globalStore.getWarStatus(client, season.seasonId);
-    const missions = await missionStore.getMissionBoard(client, profile.user_id);
-    const riskState = await riskStore.getRiskState(client, profile.user_id);
-    const live = await readOffersAttemptsEvents(client, profile.user_id);
     const arenaConfig = arenaEngine.getArenaConfig(runtimeConfig);
-    const arenaReady = await arenaStore.hasArenaTables(client);
-    const arenaState = arenaReady
-      ? await arenaStore.getArenaState(client, profile.user_id, arenaConfig.baseRating)
-      : null;
-    const arenaRank = arenaReady ? await arenaStore.getRank(client, profile.user_id) : null;
-    const arenaRuns = arenaReady && includeHeavyPayload ? await arenaStore.getRecentRuns(client, profile.user_id, 5) : [];
-    const arenaLeaders = arenaReady && includeHeavyPayload ? await arenaStore.getLeaderboard(client, season.seasonId, 5) : [];
-    const director = arenaReady && includeHeavyPayload
-      ? await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
-      : null;
-    const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
+    const [
+      seasonStat,
+      war,
+      missions,
+      riskState,
+      live,
+      arenaReady,
+      token,
+      uiPrefs,
+      perfProfile,
+      sceneProfile,
+      featureFlags,
+      webappVersionState,
+      activeManifest
+    ] = await Promise.all([
+      seasonStore.getSeasonStat(client, {
+        userId: profile.user_id,
+        seasonId: season.seasonId
+      }),
+      globalStore.getWarStatus(client, season.seasonId),
+      missionStore.getMissionBoard(client, profile.user_id),
+      riskStore.getRiskState(client, profile.user_id),
+      readOffersAttemptsEvents(client, profile.user_id),
+      arenaStore.hasArenaTables(client),
+      buildTokenSummary(client, profile, runtimeConfig, balances),
+      webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      }),
+      webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      }),
+      readSceneProfile(client, profile.user_id, "nexus_arena").catch((err) => {
+        if (err.code === "42P01") return null;
+        throw err;
+      }),
+      loadFeatureFlags(client, { withMeta: true }),
+      resolveWebAppVersion(client),
+      readActiveAssetManifest(client, {
+        includeEntries: includeHeavyPayload,
+        entryLimit: includeHeavyPayload ? 256 : 32
+      }).catch((err) => {
+        if (err.code === "42P01") {
+          return { available: false, active_revision: null, entries: [] };
+        }
+        throw err;
+      })
+    ]);
     const payoutLockState = await buildPayoutLockState(client, profile, runtimeConfig, balances, token);
-    const uiPrefs = await webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
-      if (err.code === "42P01") return null;
-      throw err;
-    });
-    const perfProfile = await webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
-      if (err.code === "42P01") return null;
-      throw err;
-    });
-    const sceneProfile = await readSceneProfile(client, profile.user_id, "nexus_arena").catch((err) => {
-      if (err.code === "42P01") return null;
-      throw err;
-    });
-    const featureFlags = await loadFeatureFlags(client, { withMeta: true });
+    let arenaState = null;
+    let arenaRank = null;
+    let arenaRuns = [];
+    let arenaLeaders = [];
+    let director = null;
+    if (arenaReady) {
+      [arenaState, arenaRank, arenaRuns, arenaLeaders, director] = await Promise.all([
+        arenaStore.getArenaState(client, profile.user_id, arenaConfig.baseRating),
+        arenaStore.getRank(client, profile.user_id),
+        includeHeavyPayload ? arenaStore.getRecentRuns(client, profile.user_id, 5) : Promise.resolve([]),
+        includeHeavyPayload ? arenaStore.getLeaderboard(client, season.seasonId, 5) : Promise.resolve([]),
+        includeHeavyPayload
+          ? arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
+          : Promise.resolve(null)
+      ]);
+    }
     const walletCapabilities = getWalletCapabilities(featureFlags.flags || {});
-    const walletTablesAvailable = walletCapabilities.enabled ? await hasWalletAuthTables(client).catch(() => false) : false;
-    const kycTablesAvailable = walletCapabilities.enabled
-      ? await hasKycTables(client).catch(() => false)
-      : false;
-    const walletSessionState = walletCapabilities.enabled && walletTablesAvailable
-      ? await readWalletSessionState(client, profile.user_id).catch(() => ({
-          active: false,
-          chain: "",
-          address: "",
-          linked_at: null,
-          expires_at: null,
-          session_ref: "",
-          kyc_status: "unknown"
-        }))
-      : {
-          active: false,
-          chain: "",
-          address: "",
-          linked_at: null,
-          expires_at: null,
-          session_ref: "",
-          kyc_status: "unknown"
-        };
-    const kycProfile = kycTablesAvailable ? await readKycProfile(client, profile.user_id).catch(() => null) : null;
+    const [walletTablesAvailable, kycTablesAvailable] = walletCapabilities.enabled
+      ? await Promise.all([
+          hasWalletAuthTables(client).catch(() => false),
+          hasKycTables(client).catch(() => false)
+        ])
+      : [false, false];
+    const [walletSessionState, kycProfile] = walletCapabilities.enabled
+      ? await Promise.all([
+          walletTablesAvailable
+            ? readWalletSessionState(client, profile.user_id).catch(() => ({
+                active: false,
+                chain: "",
+                address: "",
+                linked_at: null,
+                expires_at: null,
+                session_ref: "",
+                kyc_status: "unknown"
+              }))
+            : Promise.resolve({
+                active: false,
+                chain: "",
+                address: "",
+                linked_at: null,
+                expires_at: null,
+                session_ref: "",
+                kyc_status: "unknown"
+              }),
+          kycTablesAvailable ? readKycProfile(client, profile.user_id).catch(() => null) : Promise.resolve(null)
+        ])
+      : [
+          {
+            active: false,
+            chain: "",
+            address: "",
+            linked_at: null,
+            expires_at: null,
+            session_ref: "",
+            kyc_status: "unknown"
+          },
+          null
+        ];
     const kycState = normalizeKycState(kycProfile);
     const monetizationSummary = await buildMonetizationSummary(client, {
       featureFlags: featureFlags.flags || {},
@@ -5110,15 +5159,6 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
           },
           updated_at: new Date().toISOString()
         };
-      }
-      throw err;
-    });
-    const activeManifest = await readActiveAssetManifest(client, {
-      includeEntries: includeHeavyPayload,
-      entryLimit: includeHeavyPayload ? 256 : 32
-    }).catch((err) => {
-      if (err.code === "42P01") {
-        return { available: false, active_revision: null, entries: [] };
       }
       throw err;
     });
@@ -5149,7 +5189,6 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         events: botRuntime.events || []
       };
     }
-    const webappVersionState = await resolveWebAppVersion(client);
     const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
     const effectiveSceneMode = String(
       (sceneProfile && sceneProfile.scene_mode) ||
