@@ -4955,6 +4955,8 @@ fastify.get("/webapp/assets/*", async (request, reply) => {
         ? "model/gltf-binary"
         : ext === ".gltf"
           ? "model/gltf+json; charset=utf-8"
+          : ext === ".json"
+            ? "application/json; charset=utf-8"
           : ext === ".png"
             ? "image/png"
             : ext === ".jpg" || ext === ".jpeg"
@@ -5040,9 +5042,9 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       ? await arenaStore.getArenaState(client, profile.user_id, arenaConfig.baseRating)
       : null;
     const arenaRank = arenaReady ? await arenaStore.getRank(client, profile.user_id) : null;
-    const arenaRuns = arenaReady ? await arenaStore.getRecentRuns(client, profile.user_id, 5) : [];
-    const arenaLeaders = arenaReady ? await arenaStore.getLeaderboard(client, season.seasonId, 5) : [];
-    const director = arenaReady
+    const arenaRuns = arenaReady && includeHeavyPayload ? await arenaStore.getRecentRuns(client, profile.user_id, 5) : [];
+    const arenaLeaders = arenaReady && includeHeavyPayload ? await arenaStore.getLeaderboard(client, season.seasonId, 5) : [];
+    const director = arenaReady && includeHeavyPayload
       ? await arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
       : null;
     const token = await buildTokenSummary(client, profile, runtimeConfig, balances);
