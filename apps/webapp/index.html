@@ -104,6 +104,20 @@
         </div>
       </header>
 
+      <section id="playerUxNav" class="playerUxNav card">
+        <div class="playerUxTabs" role="tablist" aria-label="Primary panels">
+          <button id="tabHomeBtn" class="playerUxTab active" data-panel-tab="home" type="button">Home</button>
+          <button id="tabPvpBtn" class="playerUxTab" data-panel-tab="pvp" type="button">PvP</button>
+          <button id="tabTasksBtn" class="playerUxTab" data-panel-tab="tasks" type="button">Tasks</button>
+          <button id="tabVaultBtn" class="playerUxTab" data-panel-tab="vault" type="button">Vault</button>
+          <button id="tabAdminBtn" class="playerUxTab" data-panel-tab="admin" type="button">Admin</button>
+        </div>
+        <div class="playerUxTools">
+          <button id="advancedToggleBtn" class="btn ghost" type="button">Advanced: Kapali</button>
+          <button id="languageToggleBtn" class="btn ghost" type="button">Dil: TR</button>
+        </div>
+      </section>
+
       <section class="hero card">
         <div class="heroMain">
           <h2 id="kingName">Kral</h2>
@@ -593,6 +607,35 @@
               <p class="micro">Baski artarsa GUARD ile dengele.</p>
             </article>
           </section>
+          <section id="pvpProgressionLoop" class="pvpProgressionLoop" data-model="legacy">
+            <div class="panelHead compact">
+              <h4>PvP Progression Loop</h4>
+              <span id="pvpProgressionBadge" class="badge info">BOOTSTRAP</span>
+            </div>
+            <p id="pvpProgressionHint" class="micro">
+              Gunluk duel, haftalik ladder ve sezon boss hedefleri burada kilit acma ritmine gore izlenir.
+            </p>
+            <div class="pvpProgressionGrid">
+              <article id="pvpProgressionDailyCard" class="pvpProgressionCard neutral">
+                <p class="label">Daily Duel</p>
+                <p id="pvpProgressionDailyLine" class="value">WIN 0/1 | IN PROGRESS</p>
+                <div class="meter"><span id="pvpProgressionDailyMeter"></span></div>
+                <p id="pvpProgressionDailyMeta" class="micro">Hedefe kalan: 1 win</p>
+              </article>
+              <article id="pvpProgressionWeeklyCard" class="pvpProgressionCard neutral">
+                <p class="label">Weekly Ladder</p>
+                <p id="pvpProgressionWeeklyLine" class="value">PTS 0 | M 0/3</p>
+                <div class="meter"><span id="pvpProgressionWeeklyMeter"></span></div>
+                <p id="pvpProgressionWeeklyMeta" class="micro">Sonraki milestone: 180 pts</p>
+              </article>
+              <article id="pvpProgressionArcCard" class="pvpProgressionCard neutral">
+                <p class="label">Season Arc Boss</p>
+                <p id="pvpProgressionArcLine" class="value">WAVE 1/5 | BOSS LIVE</p>
+                <div class="meter"><span id="pvpProgressionArcMeter"></span></div>
+                <p id="pvpProgressionArcMeta" class="micro">Personal milestone: 0/12</p>
+              </article>
+            </div>
+          </section>
           <section class="pvpTimelineBlock">
             <div class="panelHead">
               <h4>Tick Timeline</h4>
@@ -795,7 +838,57 @@
               <input id="tokenTxInput" type="text" placeholder="0x... veya hash..." />
             </div>
             <button id="tokenTxBtn" class="mode aggressive">TX Gonder</button>
+            <div class="tokenRow">
+              <label for="tokenWalletAddressInput" class="label">Wallet Adresi</label>
+              <input id="tokenWalletAddressInput" type="text" placeholder="0x..., Sol..., UQ..." />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletChainSelect" class="label">Wallet Chain</label>
+              <select id="tokenWalletChainSelect">
+                <option value="eth">ETH</option>
+                <option value="sol">SOL</option>
+                <option value="ton">TON</option>
+              </select>
+            </div>
+            <button id="tokenWalletChallengeBtn" class="mode safe">Wallet Challenge</button>
+            <div class="tokenRow">
+              <label for="tokenWalletChallengeRefInput" class="label">Challenge Ref</label>
+              <input id="tokenWalletChallengeRefInput" type="text" placeholder="challenge ref" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletMessageInput" class="label">Challenge Message</label>
+              <textarea id="tokenWalletMessageInput" rows="4" placeholder="challenge message"></textarea>
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletSignatureInput" class="label">Wallet Signature</label>
+              <input id="tokenWalletSignatureInput" type="text" placeholder="0x... veya signature" />
+            </div>
+            <div class="modeGrid">
+              <button id="tokenWalletVerifyBtn" class="mode reveal">Wallet Verify</button>
+              <button id="tokenWalletUnlinkBtn" class="mode aggressive">Wallet Unlink</button>
+            </div>
+            <p id="tokenWalletStatus" class="micro">Wallet bagli degil.</p>
             <p id="tokenHint" class="micro">Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.</p>
+            <section id="tokenMonetizationBlock" class="tokenMonetizationBlock" data-tone="neutral">
+              <div class="panelHead compact">
+                <h4>Pass + Cosmetic Store</h4>
+                <span id="tokenMonetizationBadge" class="badge info">STORE</span>
+              </div>
+              <div class="tokenRow">
+                <label for="tokenPassSelect" class="label">Season Pass</label>
+                <select id="tokenPassSelect"></select>
+              </div>
+              <button id="tokenPassBuyBtn" class="mode balanced">Pass Al</button>
+              <div class="tokenRow">
+                <label for="tokenCosmeticSelect" class="label">Cosmetic</label>
+                <select id="tokenCosmeticSelect"></select>
+              </div>
+              <button id="tokenCosmeticBuyBtn" class="mode safe">Cosmetic Al</button>
+              <p id="tokenMonetizationStatus" class="micro">Monetization durumu bekleniyor.</p>
+              <ul id="tokenMonetizationList" class="tokenRouteList">
+                <li class="muted">Store verisi yukleniyor...</li>
+              </ul>
+            </section>
           </div>
         </article>
 
@@ -918,6 +1011,24 @@
             <button id="adminRefreshBtn" class="mode balanced">Admin Yenile</button>
             <button id="adminMetricsBtn" class="mode safe">Metrik Yenile</button>
             <p id="adminQueue" class="micro">Queue: -</p>
+            <section id="adminUnifiedQueueStrip" class="adminUnifiedQueueStrip" data-tone="neutral">
+              <div class="adminUnifiedQueueHead">
+                <div class="panelHead compact">
+                  <h4>Unified Queue Rail</h4>
+                  <span id="adminUnifiedQueueBadge" class="badge info">UNIFIED</span>
+                </div>
+                <p id="adminUnifiedQueueLine" class="micro">Payout ve token kuyruklari tek listede toplanir.</p>
+                <div class="adminUnifiedQueueChipRow">
+                  <span id="adminUnifiedQueuePriorityChip" class="pvpLiveChip neutral">HIGH 0</span>
+                  <span id="adminUnifiedQueueConfirmChip" class="pvpLiveChip neutral">CONF 0</span>
+                  <span id="adminUnifiedQueuePayoutChip" class="pvpLiveChip neutral">PAY 0</span>
+                  <span id="adminUnifiedQueueTokenChip" class="pvpLiveChip neutral">TOK 0</span>
+                </div>
+              </div>
+              <ul id="adminUnifiedQueueList" class="adminUnifiedQueueList">
+                <li class="muted">Unified queue yukleniyor...</li>
+              </ul>
+            </section>
             <p id="adminAssetSummary" class="micro">Assets: -</p>
             <p id="adminManifestRevision" class="micro">Manifest: -</p>
             <section id="adminTreasuryRuntimeStrip" class="adminTreasuryRuntimeStrip" data-tone="neutral">
@@ -1085,7 +1196,7 @@
         <article class="panel commands">
           <div class="panelHead">
             <h3>Komut Matrix</h3>
-            <span class="badge info">Bot Kisa Yollar</span>
+            <span id="commandCatalogBadge" class="badge info">Bot Kisa Yollar</span>
           </div>
           <div class="commandGrid">
             <button class="cmd" data-action="open_tasks">Gorevler</button>
@@ -1103,6 +1214,7 @@
             <button class="cmd" data-action="open_status">Durum</button>
             <button class="cmd" data-action="open_payout">Cekim</button>
           </div>
+          <div id="commandCatalogCards" class="commandCatalogGrid"></div>
         </article>
 
         <article class="panel feed">

@@ -105,6 +105,13 @@ Admin WebApp endpoints:
 `POST /webapp/api/admin/payout/pay`, `POST /webapp/api/admin/payout/reject`,
 `GET /webapp/api/admin/assets/status`, `POST /webapp/api/admin/assets/reload`,
 `GET /webapp/api/admin/runtime/flags`, `POST /webapp/api/admin/runtime/flags`.
+V5 compatibility endpoints:
+`GET /webapp/api/v2/bootstrap`,
+`GET /webapp/api/v2/payout/status`, `POST /webapp/api/v2/payout/request`,
+`GET /webapp/api/v2/pvp/progression`,
+`GET /webapp/api/v2/admin/queue/unified`,
+`POST /webapp/api/v2/admin/economy/payout-release`,
+`POST /webapp/api/v2/admin/payout/release/run`.
 5. Arena flow in WebApp can now run end-to-end (accept, complete, reveal) without leaving the WebApp.
 6. Telegram `web_app` button requires `https://`. If `WEBAPP_PUBLIC_URL` is `http://localhost...`, bot now falls back to normal URL button (local test mode).
 7. Real 3D asset pipeline is enabled:
@@ -173,6 +180,16 @@ Run only one polling instance per token. If local and Render use same DB lock ke
 16. Optional chain verification flags:
 `TOKEN_TX_VERIFY=1` enables explorer/RPC lookup on tx submission.
 `TOKEN_TX_VERIFY_STRICT=1` rejects tx hashes not found on-chain.
+17. V4 rollout helpers (requires `WEBAPP_HMAC_SECRET` + `ADMIN_TELEGRAM_ID` in env):
+`npm run rollout:v4` (admin canary)
+`npm run rollout:v4:25` (25% stage + payout release run)
+`npm run rollout:v4:100` (full rollout + payout release run)
+`npm run rollback:v4` (V4 feature rollback)
+18. V5 rollout helpers:
+`npm run rollout:v5` (admin canary)
+`npm run rollout:v5:25` (%25 stage)
+`npm run rollout:v5:100` (%100 stage)
+`npm run rollback:v5` (V5 feature rollback)
 
 ### Fast Deploy Checklist (current repo)
 1. Push latest main branch.
@@ -234,6 +251,8 @@ signed query/body fields (`uid`, `ts`, `sig`) with `WEBAPP_HMAC_SECRET`.
 Run bot tests with:
 1. `npm run test:bot`
 2. Full release readiness: `npm run check:release`
+3. V5.1 smoke gate (includes payout+kyc 2-step/cooldown checks): `npm run smoke:v5.1`
+4. CI quality gate workflow: `.github/workflows/quality-gate.yml`
 
 ## Admin API Notes
 1. `POST /admin/configs` writes versioned configs to DB (`config_versions`)

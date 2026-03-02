@@ -6,6 +6,7 @@ const shopStore = require("../stores/shopStore");
 const seasonStore = require("../stores/seasonStore");
 const globalStore = require("../stores/globalStore");
 const userStore = require("../stores/userStore");
+const pvpProgressionStore = require("../stores/pvpProgressionStore");
 const antiAbuseEngine = require("./antiAbuseEngine");
 const arenaEngine = require("./arenaEngine");
 const nexusEventEngine = require("./nexusEventEngine");
@@ -397,6 +398,468 @@ function computeSessionRatingDelta(config, modeKey, outcome, score) {
         : arenaConfig.rankLoss;
   const momentum = Math.round(Math.min(10, Math.max(-6, (Number(score || 0) - 70) / 15)));
   return Math.round((base + momentum) * Number(mode.deltaMultiplier || 1));
+}
+
+function counterValue(counter) {
+  return Math.max(0, Number(counter?.counter_value || 0));
+}
+
+function toUtcDayKey(input = null) {
+  const now = input ? new Date(input) : new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}`;
+}
+
+function toIsoWeekKey(input = null) {
+  const now = input ? new Date(input) : new Date();
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const weekYear = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${weekYear}w${String(weekNo).padStart(2, "0")}`;
+}
+
+function getPvpRetentionConfig(config) {
+  const source = config?.events?.pvp_content || {};
+  const daily = source.daily_duel || {};
+  const weekly = source.weekly_ladder || {};
+  const weeklyPoints = weekly.points || {};
+  const weeklyBonus = weekly.milestone_bonus || {};
+  const seasonArc = source.season_arc_boss || {};
+  const arcContribution = seasonArc.contribution || {};
+  const arcBonus = seasonArc.personal_bonus || {};
+  const arcWaveBonus = seasonArc.wave_clear_bonus || {};
+  return {
+    daily_duel: {
+      target_wins: Math.max(1, Math.round(Number(daily.target_wins || 1))),
+      bonus_sc: Math.max(0, Math.round(Number(daily.bonus_sc || 2))),
+      bonus_rc: Math.max(0, Math.round(Number(daily.bonus_rc || 1))),
+      bonus_season: Math.max(0, Math.round(Number(daily.bonus_season || 4)))
+    },
+    weekly_ladder: {
+      target_points: Math.max(20, Math.round(Number(weekly.target_points || 180))),
+      max_milestones: Math.max(1, Math.min(24, Math.round(Number(weekly.max_milestones || 3)))),
+      points: {
+        win: Math.max(1, Math.round(Number(weeklyPoints.win || 60))),
+        near: Math.max(1, Math.round(Number(weeklyPoints.near || 34))),
+        loss: Math.max(0, Math.round(Number(weeklyPoints.loss || 20))),
+        score_scale: Math.max(0, Number(weeklyPoints.score_scale || 0.09)),
+        combo_scale: Math.max(0, Number(weeklyPoints.combo_scale || 1.2)),
+        contract_match_mult: Math.max(1, Number(weeklyPoints.contract_match_mult || 1.1))
+      },
+      milestone_bonus: {
+        sc: Math.max(0, Math.round(Number(weeklyBonus.sc || 3))),
+        rc: Math.max(0, Math.round(Number(weeklyBonus.rc || 2))),
+        season: Math.max(0, Math.round(Number(weeklyBonus.season || 6)))
+      }
+    },
+    season_arc_boss: {
+      wave_total: Math.max(1, Math.min(20, Math.round(Number(seasonArc.wave_total || 5)))),
+      wave_hp: Math.max(100, Math.round(Number(seasonArc.wave_hp || 6000))),
+      contribution: {
+        win: Math.max(1, Math.round(Number(arcContribution.win || 95))),
+        near: Math.max(1, Math.round(Number(arcContribution.near || 64))),
+        loss: Math.max(0, Math.round(Number(arcContribution.loss || 36))),
+        score_scale: Math.max(0, Number(arcContribution.score_scale || 0.18)),
+        combo_scale: Math.max(0, Number(arcContribution.combo_scale || 1.4)),
+        contract_match_mult: Math.max(1, Number(arcContribution.contract_match_mult || 1.12))
+      },
+      personal_milestone: Math.max(50, Math.round(Number(seasonArc.personal_milestone || 420))),
+      personal_milestone_cap: Math.max(1, Math.min(100, Math.round(Number(seasonArc.personal_milestone_cap || 12)))),
+      personal_bonus: {
+        sc: Math.max(0, Math.round(Number(arcBonus.sc || 2))),
+        rc: Math.max(0, Math.round(Number(arcBonus.rc || 2))),
+        season: Math.max(0, Math.round(Number(arcBonus.season || 5)))
+      },
+      wave_clear_bonus: {
+        sc: Math.max(0, Math.round(Number(arcWaveBonus.sc || 2))),
+        rc: Math.max(0, Math.round(Number(arcWaveBonus.rc || 3))),
+        season: Math.max(0, Math.round(Number(arcWaveBonus.season || 8)))
+      }
+    }
+  };
+}
+
+function getPvpCounterKeys({ seasonId, userId, dayKey, weekKey }) {
+  return {
+    dailyWins: `pvp_daily_duel_wins_s${seasonId}_u${userId}_${dayKey}`,
+    dailyClaim: `pvp_daily_duel_claim_s${seasonId}_u${userId}_${dayKey}`,
+    weeklyPoints: `pvp_weekly_ladder_pts_s${seasonId}_u${userId}_${weekKey}`,
+    weeklyClaim: `pvp_weekly_ladder_claim_s${seasonId}_u${userId}_${weekKey}`,
+    arcPersonal: `pvp_arc_personal_s${seasonId}_u${userId}`,
+    arcPersonalClaim: `pvp_arc_personal_claim_s${seasonId}_u${userId}`,
+    arcGlobal: `pvp_arc_global_s${seasonId}`
+  };
+}
+
+function buildPvpProgressionView(cfg, counters, meta = {}) {
+  const dailyWins = Math.max(0, Math.floor(Number(counters.dailyWins || 0)));
+  const dailyClaimed = Math.max(0, Math.floor(Number(counters.dailyClaimed || 0)));
+  const weeklyPoints = Math.max(0, Math.floor(Number(counters.weeklyPoints || 0)));
+  const weeklyClaimed = Math.max(0, Math.floor(Number(counters.weeklyClaimed || 0)));
+  const arcPersonal = Math.max(0, Math.floor(Number(counters.arcPersonal || 0)));
+  const arcPersonalClaimed = Math.max(0, Math.floor(Number(counters.arcPersonalClaimed || 0)));
+  const arcGlobal = Math.max(0, Math.floor(Number(counters.arcGlobal || 0)));
+
+  const dailyCompleted = dailyWins >= cfg.daily_duel.target_wins;
+  const dailyProgress = Math.min(1, dailyWins / Math.max(1, cfg.daily_duel.target_wins));
+  const dailyRemainingWins = Math.max(0, cfg.daily_duel.target_wins - dailyWins);
+
+  const weeklyMilestonesReached = Math.min(
+    cfg.weekly_ladder.max_milestones,
+    Math.floor(weeklyPoints / Math.max(1, cfg.weekly_ladder.target_points))
+  );
+  const weeklyMilestonesClaimed = Math.min(cfg.weekly_ladder.max_milestones, weeklyClaimed);
+  const weeklyNextTarget =
+    weeklyMilestonesClaimed >= cfg.weekly_ladder.max_milestones
+      ? null
+      : (weeklyMilestonesClaimed + 1) * cfg.weekly_ladder.target_points;
+  const weeklyProgressToNext = weeklyNextTarget
+    ? Math.min(1, weeklyPoints / Math.max(1, weeklyNextTarget))
+    : 1;
+
+  const waveHp = Math.max(1, cfg.season_arc_boss.wave_hp);
+  const waveTotal = Math.max(1, cfg.season_arc_boss.wave_total);
+  const arcTotalGoal = waveHp * waveTotal;
+  const arcCompleted = arcGlobal >= arcTotalGoal;
+  const arcWaveIndex = arcCompleted ? waveTotal : Math.min(waveTotal, Math.floor(arcGlobal / waveHp) + 1);
+  const arcWaveOffset = arcCompleted ? waveHp : arcGlobal % waveHp;
+  const arcWaveProgress = Math.min(1, arcWaveOffset / waveHp);
+  const arcToNextWave = arcCompleted ? 0 : arcWaveOffset === 0 ? waveHp : waveHp - arcWaveOffset;
+
+  const arcMilestonesReached = Math.min(
+    cfg.season_arc_boss.personal_milestone_cap,
+    Math.floor(arcPersonal / Math.max(1, cfg.season_arc_boss.personal_milestone))
+  );
+  const arcMilestonesClaimed = Math.min(cfg.season_arc_boss.personal_milestone_cap, arcPersonalClaimed);
+
+  return {
+    season_id: Number(meta.seasonId || 0),
+    day_key: String(meta.dayKey || ""),
+    week_key: String(meta.weekKey || ""),
+    daily_duel: {
+      target_wins: cfg.daily_duel.target_wins,
+      wins: dailyWins,
+      completed: dailyCompleted,
+      claimed: dailyClaimed > 0,
+      progress: Number(dailyProgress.toFixed(4)),
+      remaining_wins: dailyRemainingWins
+    },
+    weekly_ladder: {
+      target_points: cfg.weekly_ladder.target_points,
+      points: weeklyPoints,
+      milestones_reached: weeklyMilestonesReached,
+      milestones_claimed: weeklyMilestonesClaimed,
+      max_milestones: cfg.weekly_ladder.max_milestones,
+      next_milestone_points: weeklyNextTarget,
+      progress_to_next: Number(weeklyProgressToNext.toFixed(4))
+    },
+    season_arc_boss: {
+      wave_total: waveTotal,
+      wave_hp: waveHp,
+      wave_index: arcWaveIndex,
+      wave_progress: Number(arcWaveProgress.toFixed(4)),
+      global_contribution: arcGlobal,
+      global_to_next_wave: arcToNextWave,
+      global_completed: arcCompleted,
+      personal_contribution: arcPersonal,
+      personal_milestones_reached: arcMilestonesReached,
+      personal_milestones_claimed: arcMilestonesClaimed,
+      personal_milestone_target: cfg.season_arc_boss.personal_milestone
+    }
+  };
+}
+
+async function getPvpProgressionSnapshot(
+  db,
+  { config, seasonId, userId, now = null, dayKey: explicitDayKey = "", weekKey: explicitWeekKey = "" }
+) {
+  const safeUserId = Math.max(0, Number(userId || 0));
+  if (!safeUserId) {
+    return null;
+  }
+  const resolvedSeasonId = Math.max(0, Number(seasonId || seasonStore.getSeasonInfo(config)?.seasonId || 0));
+  const dayKey = explicitDayKey || toUtcDayKey(now);
+  const weekKey = explicitWeekKey || toIsoWeekKey(now);
+  const cfg = getPvpRetentionConfig(config);
+
+  try {
+    const v5Snapshot = await pvpProgressionStore.getSnapshot(db, {
+      userId: safeUserId,
+      seasonId: resolvedSeasonId,
+      dayKey,
+      weekKey
+    });
+    if (v5Snapshot) {
+      const view = buildPvpProgressionView(
+        cfg,
+        {
+          dailyWins: v5Snapshot.dailyWins,
+          dailyClaimed: v5Snapshot.dailyClaimed,
+          weeklyPoints: v5Snapshot.weeklyPoints,
+          weeklyClaimed: v5Snapshot.weeklyClaimed,
+          arcPersonal: v5Snapshot.arcPersonal,
+          arcPersonalClaimed: v5Snapshot.arcPersonalClaimed,
+          arcGlobal: v5Snapshot.arcGlobal
+        },
+        {
+          seasonId: resolvedSeasonId,
+          dayKey,
+          weekKey
+        }
+      );
+      view.read_model = "v5";
+      return view;
+    }
+  } catch {
+    // Progression read model should never block the player flow.
+  }
+
+  const keys = getPvpCounterKeys({
+    seasonId: resolvedSeasonId,
+    userId: safeUserId,
+    dayKey,
+    weekKey
+  });
+  const [dailyWinsCounter, dailyClaimCounter, weeklyPointsCounter, weeklyClaimCounter, arcPersonalCounter, arcPersonalClaimCounter, arcGlobalCounter] =
+    await Promise.all([
+      globalStore.getCounter(db, keys.dailyWins),
+      globalStore.getCounter(db, keys.dailyClaim),
+      globalStore.getCounter(db, keys.weeklyPoints),
+      globalStore.getCounter(db, keys.weeklyClaim),
+      globalStore.getCounter(db, keys.arcPersonal),
+      globalStore.getCounter(db, keys.arcPersonalClaim),
+      globalStore.getCounter(db, keys.arcGlobal)
+    ]);
+
+  const view = buildPvpProgressionView(
+    cfg,
+    {
+      dailyWins: counterValue(dailyWinsCounter),
+      dailyClaimed: counterValue(dailyClaimCounter),
+      weeklyPoints: counterValue(weeklyPointsCounter),
+      weeklyClaimed: counterValue(weeklyClaimCounter),
+      arcPersonal: counterValue(arcPersonalCounter),
+      arcPersonalClaimed: counterValue(arcPersonalClaimCounter),
+      arcGlobal: counterValue(arcGlobalCounter)
+    },
+    {
+      seasonId: resolvedSeasonId,
+      dayKey,
+      weekKey
+    }
+  );
+  view.read_model = "legacy";
+  return view;
+}
+
+async function applyPvpProgressionBonuses(
+  db,
+  {
+    config,
+    seasonId,
+    userId,
+    outcome,
+    score,
+    combo,
+    contractMatched = false,
+    now = null
+  }
+) {
+  const safeUserId = Math.max(0, Number(userId || 0));
+  if (!safeUserId) {
+    return {
+      rewardBonus: { sc: 0, hc: 0, rc: 0 },
+      seasonBonus: 0,
+      warBonus: 0,
+      snapshot: null,
+      signals: []
+    };
+  }
+
+  const cfg = getPvpRetentionConfig(config);
+  const resolvedSeasonId = Math.max(0, Number(seasonId || seasonStore.getSeasonInfo(config)?.seasonId || 0));
+  const dayKey = toUtcDayKey(now);
+  const weekKey = toIsoWeekKey(now);
+  const keys = getPvpCounterKeys({
+    seasonId: resolvedSeasonId,
+    userId: safeUserId,
+    dayKey,
+    weekKey
+  });
+  const normalizedOutcome = String(outcome || "loss").toLowerCase();
+  const safeScore = Math.max(0, Number(score || 0));
+  const safeCombo = Math.max(0, Number(combo || 0));
+
+  const rewardBonus = { sc: 0, hc: 0, rc: 0 };
+  let seasonBonus = 0;
+  let warBonus = 0;
+  const signals = [];
+
+  let dailyWins = 0;
+  if (normalizedOutcome === "win") {
+    const row = await globalStore.incrementCounter(db, keys.dailyWins, 1);
+    dailyWins = Math.max(0, Math.floor(counterValue(row)));
+  } else {
+    const row = await globalStore.getCounter(db, keys.dailyWins);
+    dailyWins = Math.max(0, Math.floor(counterValue(row)));
+  }
+  let dailyClaimed = Math.max(0, Math.floor(counterValue(await globalStore.getCounter(db, keys.dailyClaim))));
+  if (dailyWins >= cfg.daily_duel.target_wins && dailyClaimed < 1) {
+    await globalStore.incrementCounter(db, keys.dailyClaim, 1);
+    dailyClaimed = 1;
+    rewardBonus.sc += cfg.daily_duel.bonus_sc;
+    rewardBonus.rc += cfg.daily_duel.bonus_rc;
+    seasonBonus += cfg.daily_duel.bonus_season;
+    warBonus += cfg.daily_duel.bonus_rc;
+    signals.push("daily_duel_complete");
+  }
+
+  const weeklyBase =
+    normalizedOutcome === "win"
+      ? cfg.weekly_ladder.points.win
+      : normalizedOutcome === "near"
+        ? cfg.weekly_ladder.points.near
+        : cfg.weekly_ladder.points.loss;
+  let weeklyPointsGain = Math.max(
+    0,
+    Math.round(weeklyBase + safeScore * cfg.weekly_ladder.points.score_scale + safeCombo * cfg.weekly_ladder.points.combo_scale)
+  );
+  if (contractMatched && weeklyPointsGain > 0) {
+    weeklyPointsGain = Math.round(weeklyPointsGain * cfg.weekly_ladder.points.contract_match_mult);
+  }
+  const weeklyPointsRow =
+    weeklyPointsGain > 0 ? await globalStore.incrementCounter(db, keys.weeklyPoints, weeklyPointsGain) : await globalStore.getCounter(db, keys.weeklyPoints);
+  const weeklyPoints = Math.max(0, Math.floor(counterValue(weeklyPointsRow)));
+  const weeklyClaimedBefore = Math.max(0, Math.floor(counterValue(await globalStore.getCounter(db, keys.weeklyClaim))));
+  const weeklyReached = Math.min(
+    cfg.weekly_ladder.max_milestones,
+    Math.floor(weeklyPoints / Math.max(1, cfg.weekly_ladder.target_points))
+  );
+  const weeklyGrant = Math.max(0, weeklyReached - weeklyClaimedBefore);
+  let weeklyClaimed = weeklyClaimedBefore;
+  if (weeklyGrant > 0) {
+    await globalStore.incrementCounter(db, keys.weeklyClaim, weeklyGrant);
+    weeklyClaimed += weeklyGrant;
+    rewardBonus.sc += cfg.weekly_ladder.milestone_bonus.sc * weeklyGrant;
+    rewardBonus.rc += cfg.weekly_ladder.milestone_bonus.rc * weeklyGrant;
+    seasonBonus += cfg.weekly_ladder.milestone_bonus.season * weeklyGrant;
+    warBonus += cfg.weekly_ladder.milestone_bonus.rc * weeklyGrant;
+    signals.push(`weekly_ladder_milestone_x${weeklyGrant}`);
+  }
+
+  const arcBase =
+    normalizedOutcome === "win"
+      ? cfg.season_arc_boss.contribution.win
+      : normalizedOutcome === "near"
+        ? cfg.season_arc_boss.contribution.near
+        : cfg.season_arc_boss.contribution.loss;
+  let arcContribution = Math.max(
+    0,
+    Math.round(arcBase + safeScore * cfg.season_arc_boss.contribution.score_scale + safeCombo * cfg.season_arc_boss.contribution.combo_scale)
+  );
+  if (contractMatched && arcContribution > 0) {
+    arcContribution = Math.round(arcContribution * cfg.season_arc_boss.contribution.contract_match_mult);
+  }
+  const arcGlobalBeforeRow = await globalStore.getCounter(db, keys.arcGlobal);
+  const arcGlobalBefore = Math.max(0, Math.floor(counterValue(arcGlobalBeforeRow)));
+  const [arcPersonalRow, arcGlobalRow] = await Promise.all([
+    arcContribution > 0 ? globalStore.incrementCounter(db, keys.arcPersonal, arcContribution) : globalStore.getCounter(db, keys.arcPersonal),
+    arcContribution > 0 ? globalStore.incrementCounter(db, keys.arcGlobal, arcContribution) : arcGlobalBeforeRow
+  ]);
+  const arcPersonal = Math.max(0, Math.floor(counterValue(arcPersonalRow)));
+  const arcGlobal = Math.max(0, Math.floor(counterValue(arcGlobalRow)));
+  const arcClaimedBefore = Math.max(0, Math.floor(counterValue(await globalStore.getCounter(db, keys.arcPersonalClaim))));
+  const arcReached = Math.min(
+    cfg.season_arc_boss.personal_milestone_cap,
+    Math.floor(arcPersonal / Math.max(1, cfg.season_arc_boss.personal_milestone))
+  );
+  const arcGrant = Math.max(0, arcReached - arcClaimedBefore);
+  let arcClaimed = arcClaimedBefore;
+  if (arcGrant > 0) {
+    await globalStore.incrementCounter(db, keys.arcPersonalClaim, arcGrant);
+    arcClaimed += arcGrant;
+    rewardBonus.sc += cfg.season_arc_boss.personal_bonus.sc * arcGrant;
+    rewardBonus.rc += cfg.season_arc_boss.personal_bonus.rc * arcGrant;
+    seasonBonus += cfg.season_arc_boss.personal_bonus.season * arcGrant;
+    warBonus += cfg.season_arc_boss.personal_bonus.rc * arcGrant;
+    signals.push(`season_arc_personal_x${arcGrant}`);
+  }
+
+  const waveHp = Math.max(1, cfg.season_arc_boss.wave_hp);
+  const waveTotal = Math.max(1, cfg.season_arc_boss.wave_total);
+  const waveBefore = Math.min(waveTotal, Math.floor(arcGlobalBefore / waveHp));
+  const waveAfter = Math.min(waveTotal, Math.floor(arcGlobal / waveHp));
+  const waveClears = Math.max(0, waveAfter - waveBefore);
+  if (waveClears > 0) {
+    rewardBonus.sc += cfg.season_arc_boss.wave_clear_bonus.sc * waveClears;
+    rewardBonus.rc += cfg.season_arc_boss.wave_clear_bonus.rc * waveClears;
+    seasonBonus += cfg.season_arc_boss.wave_clear_bonus.season * waveClears;
+    warBonus += cfg.season_arc_boss.wave_clear_bonus.rc * waveClears;
+    signals.push(`season_arc_wave_clear_x${waveClears}`);
+  }
+
+  const snapshot = buildPvpProgressionView(
+    cfg,
+    {
+      dailyWins,
+      dailyClaimed,
+      weeklyPoints,
+      weeklyClaimed,
+      arcPersonal,
+      arcPersonalClaimed: arcClaimed,
+      arcGlobal
+    },
+    {
+      seasonId: resolvedSeasonId,
+      dayKey,
+      weekKey
+    }
+  );
+  snapshot.gains = {
+    weekly_points: weeklyPointsGain,
+    arc_contribution: arcContribution,
+    wave_clears: waveClears
+  };
+  snapshot.signals = signals.slice(0, 8);
+
+  try {
+    const dualWrite = await pvpProgressionStore.upsertSnapshot(db, {
+      userId: safeUserId,
+      seasonId: resolvedSeasonId,
+      dayKey,
+      weekKey,
+      dailyWins,
+      dailyClaimed,
+      weeklyPoints,
+      weeklyClaimed,
+      weeklyPointsGain,
+      arcPersonal,
+      arcPersonalClaimed: arcClaimed,
+      arcGlobal,
+      arcContributionGain: arcContribution,
+      outcome: normalizedOutcome,
+      score: safeScore,
+      combo: safeCombo,
+      contractMatched: Boolean(contractMatched),
+      signals
+    });
+    snapshot.read_model = dualWrite?.persisted ? "v5_dual_write" : "legacy";
+  } catch {
+    snapshot.read_model = "legacy";
+  }
+
+  return {
+    rewardBonus,
+    seasonBonus,
+    warBonus,
+    snapshot,
+    signals
+  };
 }
 
 async function startAuthoritativeSession(db, { profile, config, requestId, modeSuggested, source }) {
@@ -1222,6 +1685,11 @@ async function buildDirectorView(db, { profile, config }) {
   const dailyCounter = await economyStore.getTodayCounter(db, profile.user_id);
   const activeArenaSession = await arenaStore.getActiveSession(db, profile.user_id);
   const activeRaidSession = await arenaStore.getActiveRaidSession(db, profile.user_id);
+  const pvpContent = await getPvpProgressionSnapshot(db, {
+    config,
+    seasonId: season.seasonId,
+    userId: profile.user_id
+  });
   const decision = buildDirectorDecision({
     profile,
     config,
@@ -1253,7 +1721,8 @@ async function buildDirectorView(db, { profile, config }) {
     },
     anomaly,
     contract,
-    director: decision
+    director: decision,
+    pvp_content: pvpContent
   };
 }
 
@@ -2378,7 +2847,21 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
       result: normalizeOutcomeForContract(participantOutcome),
       combo: row.combo
     });
-    const reward = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval).reward;
+    const rewardBase = nexusContractEngine.applyContractToReward(anomalyAdjusted.reward, contractEval).reward;
+    const progression = await applyPvpProgressionBonuses(db, {
+      config,
+      seasonId: season.seasonId,
+      userId: row.userId,
+      outcome: participantOutcome,
+      score: row.score,
+      combo: row.combo,
+      contractMatched: Boolean(contractEval?.matched)
+    });
+    const reward = {
+      sc: Math.max(0, Math.round(Number(rewardBase.sc || 0) + Number(progression.rewardBonus?.sc || 0))),
+      hc: Math.max(0, Math.round(Number(rewardBase.hc || 0) + Number(progression.rewardBonus?.hc || 0))),
+      rc: Math.max(0, Math.round(Number(rewardBase.rc || 0) + Number(progression.rewardBonus?.rc || 0)))
+    };
     const ratingDelta = computeSessionRatingDelta(config, mode, participantOutcome, row.score);
     const rewardRefs = {
       SC: deterministicUuid(`pvp_session:${session.id}:${row.side}:SC`),
@@ -2394,7 +2877,8 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
         side: row.side,
         mode,
         outcome: participantOutcome,
-        source: source || "webapp"
+        source: source || "webapp",
+        progression_signals: progression.signals || []
       },
       refEventIds: rewardRefs
     });
@@ -2409,7 +2893,8 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
         Number(reward.rc || 0) * 2 +
           Number(reward.sc || 0) +
           Number(reward.hc || 0) * 8 +
-          (participantOutcome === "win" ? 5 : participantOutcome === "near" ? 2 : 0)
+          (participantOutcome === "win" ? 5 : participantOutcome === "near" ? 2 : 0) +
+          Number(progression.seasonBonus || 0)
       )
     );
     await seasonStore.addSeasonPoints(db, {
@@ -2421,7 +2906,10 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
       userId: row.userId,
       seasonId: season.seasonId
     });
-    const warDelta = Math.max(1, Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 3));
+    const warDelta = Math.max(
+      1,
+      Number(reward.rc || 0) + Math.floor(Number(reward.sc || 0) / 3) + Math.round(Number(progression.warBonus || 0))
+    );
     await globalStore.incrementCounter(db, `war_pool_s${season.seasonId}`, warDelta);
     await userStore.touchStreakOnAction(db, {
       userId: row.userId,
@@ -2464,13 +2952,15 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
       mode,
       outcome: participantOutcomeRaw,
       reward,
-      rating_delta: ratingDelta
+      rating_delta: ratingDelta,
+      progression: progression.snapshot
     });
     rewardsBySide[row.side] = {
       sc: Number(reward.sc || 0),
       hc: Number(reward.hc || 0),
       rc: Number(reward.rc || 0),
-      outcome: participantOutcomeRaw
+      outcome: participantOutcomeRaw,
+      progression: progression.snapshot
     };
     ratingsBySide[row.side] = {
       delta: Number(ratingDelta || 0),
@@ -2514,6 +3004,7 @@ async function resolveAuthoritativePvpSession(db, { profile, config, sessionRef,
       transport: session.transport || "poll",
       tick_ms: Number(session.tick_ms || 1000),
       action_window_ms: Number(session.action_window_ms || 800),
+      pvp_content_version: "v1",
       rewards_by_side: rewardsBySide,
       ratings_by_side: ratingsBySide,
       anomaly_id: anomaly.id,
@@ -2627,5 +3118,12 @@ module.exports = {
   resolveAuthoritativePvpSession,
   getAuthoritativePvpSessionState,
   getPvpLiveLeaderboard,
-  buildDirectorView
+  buildDirectorView,
+  getPvpProgressionSnapshot,
+  __testHooks: {
+    toUtcDayKey,
+    toIsoWeekKey,
+    getPvpRetentionConfig,
+    buildPvpProgressionView
+  }
 };

@@ -45,6 +45,23 @@ const DEFAULT_TOKEN_CONFIG = {
     enabled: false,
     min_market_cap_usd: 10000000,
     target_band_max_usd: 20000000
+  },
+  payout_release: {
+    enabled: false,
+    mode: "tiered_drip",
+    global_cap_min_usd: 20000000,
+    daily_drip_pct_max: 0.005,
+    tier_rules: [
+      { tier: "T0", min_score: 0, drip_pct: 0 },
+      { tier: "T1", min_score: 0.25, drip_pct: 0.002 },
+      { tier: "T2", min_score: 0.5, drip_pct: 0.0035 },
+      { tier: "T3", min_score: 0.75, drip_pct: 0.005 }
+    ],
+    score_weights: {
+      volume30d: 0.65,
+      mission30d: 0.25,
+      tenure30d: 0.1
+    }
   }
 };
 
@@ -65,6 +82,68 @@ function roundTo(value, decimals = 8) {
 function floorTo(value, decimals = 8) {
   const m = 10 ** Math.max(0, decimals);
   return Math.floor(value * m) / m;
+}
+
+function normalizePayoutReleaseConfig(incoming = {}, fallback = DEFAULT_TOKEN_CONFIG.payout_release) {
+  const rawTierRules = Array.isArray(incoming?.tier_rules)
+    ? incoming.tier_rules
+    : Array.isArray(fallback?.tier_rules)
+      ? fallback.tier_rules
+      : [];
+  const normalizedRules = rawTierRules
+    .map((row) => ({
+      tier: String(row?.tier || "T0").toUpperCase(),
+      min_score: clamp(toNum(row?.min_score, 0), 0, 1),
+      drip_pct: clamp(toNum(row?.drip_pct, 0), 0, 1)
+    }))
+    .sort((a, b) => Number(a.min_score || 0) - Number(b.min_score || 0));
+  const fallbackRules = DEFAULT_TOKEN_CONFIG.payout_release.tier_rules.map((row) => ({
+    tier: String(row.tier || "T0").toUpperCase(),
+    min_score: clamp(toNum(row.min_score, 0), 0, 1),
+    drip_pct: clamp(toNum(row.drip_pct, 0), 0, 1)
+  }));
+  const rules = normalizedRules.length > 0 ? normalizedRules : fallbackRules;
+
+  const rawWeights = incoming?.score_weights || fallback?.score_weights || {};
+  const volumeWeight = Math.max(
+    0,
+    toNum(rawWeights.volume30d, DEFAULT_TOKEN_CONFIG.payout_release.score_weights.volume30d)
+  );
+  const missionWeight = Math.max(
+    0,
+    toNum(rawWeights.mission30d, DEFAULT_TOKEN_CONFIG.payout_release.score_weights.mission30d)
+  );
+  const tenureWeight = Math.max(
+    0,
+    toNum(rawWeights.tenure30d, DEFAULT_TOKEN_CONFIG.payout_release.score_weights.tenure30d)
+  );
+  const sum = volumeWeight + missionWeight + tenureWeight;
+  const denom = sum > 0 ? sum : 1;
+
+  return {
+    enabled:
+      typeof incoming?.enabled === "boolean"
+        ? incoming.enabled
+        : typeof fallback?.enabled === "boolean"
+          ? fallback.enabled
+          : DEFAULT_TOKEN_CONFIG.payout_release.enabled,
+    mode: String(incoming?.mode || fallback?.mode || DEFAULT_TOKEN_CONFIG.payout_release.mode || "tiered_drip").toLowerCase(),
+    global_cap_min_usd: Math.max(
+      0,
+      toNum(incoming?.global_cap_min_usd, fallback?.global_cap_min_usd || DEFAULT_TOKEN_CONFIG.payout_release.global_cap_min_usd)
+    ),
+    daily_drip_pct_max: clamp(
+      toNum(incoming?.daily_drip_pct_max, fallback?.daily_drip_pct_max || DEFAULT_TOKEN_CONFIG.payout_release.daily_drip_pct_max),
+      0,
+      1
+    ),
+    tier_rules: rules,
+    score_weights: {
+      volume30d: roundTo(volumeWeight / denom, 6),
+      mission30d: roundTo(missionWeight / denom, 6),
+      tenure30d: roundTo(tenureWeight / denom, 6)
+    }
+  };
 }
 
 function normalizeTokenConfig(runtimeConfig) {
@@ -180,7 +259,8 @@ function normalizeTokenConfig(runtimeConfig) {
         0,
         toNum(incoming.payout_gate?.target_band_max_usd, DEFAULT_TOKEN_CONFIG.payout_gate.target_band_max_usd)
       )
-    }
+    },
+    payout_release: normalizePayoutReleaseConfig(incoming.payout_release, DEFAULT_TOKEN_CONFIG.payout_release)
   };
 
   if (merged.purchase.max_usd < merged.purchase.min_usd) {
@@ -389,6 +469,85 @@ function evaluateAutoApprovePolicy(input = {}, policyInput = {}) {
   };
 }
 
+function evaluateUnlockScore(input = {}, releaseCfgInput = null) {
+  const releaseCfg = normalizePayoutReleaseConfig(releaseCfgInput || {});
+  const volumeNorm = clamp(toNum(input.volume30d_norm, 0), 0, 1);
+  const missionNorm = clamp(toNum(input.mission30d_norm, 0), 0, 1);
+  const tenureNorm = clamp(toNum(input.tenure30d_norm, 0), 0, 1);
+  const score =
+    volumeNorm * releaseCfg.score_weights.volume30d +
+    missionNorm * releaseCfg.score_weights.mission30d +
+    tenureNorm * releaseCfg.score_weights.tenure30d;
+  return {
+    unlockScore: clamp(score, 0, 1),
+    factors: {
+      volume30d_norm: volumeNorm,
+      mission30d_norm: missionNorm,
+      tenure30d_norm: tenureNorm
+    },
+    weights: releaseCfg.score_weights
+  };
+}
+
+function resolveUnlockTier(unlockScore, releaseCfgInput = null) {
+  const releaseCfg = normalizePayoutReleaseConfig(releaseCfgInput || {});
+  const score = clamp(toNum(unlockScore, 0), 0, 1);
+  const rules = Array.isArray(releaseCfg.tier_rules) ? releaseCfg.tier_rules : [];
+  let selected = rules[0] || { tier: "T0", min_score: 0, drip_pct: 0 };
+  for (const rule of rules) {
+    if (score >= Number(rule.min_score || 0)) {
+      selected = rule;
+    }
+  }
+  const nextRule = rules.find((rule) => Number(rule.min_score || 0) > Number(selected.min_score || 0)) || null;
+  const span = nextRule ? Math.max(0.000001, Number(nextRule.min_score || 0) - Number(selected.min_score || 0)) : 1;
+  const progress = nextRule ? clamp((score - Number(selected.min_score || 0)) / span, 0, 1) : 1;
+  return {
+    tier: String(selected.tier || "T0").toUpperCase(),
+    rule: selected,
+    nextRule,
+    progress
+  };
+}
+
+function computePayoutReleaseState(input = {}) {
+  const releaseCfg = normalizePayoutReleaseConfig(input.releaseConfig || {});
+  const entitledBtc = Math.max(0, toNum(input.entitledBtc, 0));
+  const todayUsedBtc = Math.max(0, toNum(input.todayUsedBtc, 0));
+  const marketCapUsd = Math.max(0, toNum(input.marketCapUsd, 0));
+  const globalGateOpen = marketCapUsd >= Number(releaseCfg.global_cap_min_usd || 0);
+  const scoreMeta = evaluateUnlockScore(input.score || {}, releaseCfg);
+  const tierMeta = resolveUnlockTier(scoreMeta.unlockScore, releaseCfg);
+  const tierDripPct = clamp(toNum(tierMeta.rule?.drip_pct, 0), 0, 1);
+  const effectiveDripPct = Math.min(tierDripPct, Number(releaseCfg.daily_drip_pct_max || 0));
+  const todayDripCapBtc = roundTo(entitledBtc * effectiveDripPct, 8);
+  const todayDripRemainingBtc = roundTo(Math.max(0, todayDripCapBtc - todayUsedBtc), 8);
+  const allowed = Boolean(releaseCfg.enabled && globalGateOpen && todayDripRemainingBtc > 0 && tierDripPct > 0);
+  const nextTierTarget = tierMeta.nextRule
+    ? `score >= ${Number(tierMeta.nextRule.min_score || 0).toFixed(2)}`
+    : "max tier reached";
+  return {
+    enabled: Boolean(releaseCfg.enabled),
+    mode: String(releaseCfg.mode || "tiered_drip"),
+    globalGateOpen,
+    globalCapMinUsd: Number(releaseCfg.global_cap_min_usd || 0),
+    globalCapCurrentUsd: Number(marketCapUsd || 0),
+    unlockScore: Number(scoreMeta.unlockScore || 0),
+    unlockTier: String(tierMeta.tier || "T0"),
+    unlockProgress: Number(tierMeta.progress || 0),
+    nextTierTarget,
+    tierDripPct: Number(tierDripPct || 0),
+    todayDripPct: Number(effectiveDripPct || 0),
+    todayDripCapBtc,
+    todayDripUsedBtc: roundTo(todayUsedBtc, 8),
+    todayDripRemainingBtc,
+    factors: scoreMeta.factors,
+    weights: scoreMeta.weights,
+    rules: releaseCfg.tier_rules,
+    allowed
+  };
+}
+
 function planMintFromBalances(balances, tokenConfig, requestedTokenRaw) {
   const decimals = tokenConfig.decimals;
   const unitsPerToken = tokenConfig.mint.units_per_token;
@@ -465,6 +624,7 @@ function planMintFromBalances(balances, tokenConfig, requestedTokenRaw) {
 module.exports = {
   DEFAULT_TOKEN_CONFIG,
   normalizeTokenConfig,
+  normalizePayoutReleaseConfig,
   normalizeCurveState,
   computeTreasuryCurvePrice,
   normalizeChain,
@@ -474,5 +634,8 @@ module.exports = {
   estimateTokenFromBalances,
   quotePurchaseByUsd,
   planMintFromBalances,
-  evaluateAutoApprovePolicy
+  evaluateAutoApprovePolicy,
+  evaluateUnlockScore,
+  resolveUnlockTier,
+  computePayoutReleaseState
 };

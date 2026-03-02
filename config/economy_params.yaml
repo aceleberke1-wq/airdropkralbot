@@ -145,6 +145,46 @@ events:
       rc_flat_bonus: 3
       season_bonus: 3
       war_bonus: 3
+  pvp_content:
+    daily_duel:
+      target_wins: 1
+      bonus_sc: 2
+      bonus_rc: 1
+      bonus_season: 4
+    weekly_ladder:
+      target_points: 180
+      max_milestones: 3
+      points:
+        win: 60
+        near: 34
+        loss: 20
+        score_scale: 0.09
+        combo_scale: 1.2
+        contract_match_mult: 1.10
+      milestone_bonus:
+        sc: 3
+        rc: 2
+        season: 6
+    season_arc_boss:
+      wave_total: 5
+      wave_hp: 6000
+      contribution:
+        win: 95
+        near: 64
+        loss: 36
+        score_scale: 0.18
+        combo_scale: 1.4
+        contract_match_mult: 1.12
+      personal_milestone: 420
+      personal_milestone_cap: 12
+      personal_bonus:
+        sc: 2
+        rc: 2
+        season: 5
+      wave_clear_bonus:
+        sc: 2
+        rc: 3
+        season: 8
 
 anti_abuse:
   ewma_alpha: 0.20
@@ -207,5 +247,27 @@ token:
         env_key: ton
   payout_gate:
     enabled: true
-    min_market_cap_usd: 10000000
+    min_market_cap_usd: 20000000
     target_band_max_usd: 20000000
+  payout_release:
+    enabled: true
+    mode: tiered_drip
+    global_cap_min_usd: 20000000
+    daily_drip_pct_max: 0.005
+    tier_rules:
+      - tier: T0
+        min_score: 0.00
+        drip_pct: 0.0000
+      - tier: T1
+        min_score: 0.25
+        drip_pct: 0.0020
+      - tier: T2
+        min_score: 0.50
+        drip_pct: 0.0035
+      - tier: T3
+        min_score: 0.75
+        drip_pct: 0.0050
+    score_weights:
+      volume30d: 0.65
+      mission30d: 0.25
+      tenure30d: 0.10

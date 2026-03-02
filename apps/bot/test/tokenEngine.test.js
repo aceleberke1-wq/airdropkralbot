@@ -145,3 +145,59 @@ test("evaluateAutoApprovePolicy enforces usd/risk/velocity/onchain and gate", ()
   assert.equal(failOnchain.passed, false);
   assert.equal(failOnchain.reason, "onchain_verification_required");
 });
+
+test("computePayoutReleaseState applies 20M gate and drip cap tiers", () => {
+  const cfg = tokenEngine.normalizeTokenConfig({
+    token: {
+      payout_release: {
+        enabled: true,
+        mode: "tiered_drip",
+        global_cap_min_usd: 20000000,
+        daily_drip_pct_max: 0.005,
+        tier_rules: [
+          { tier: "T0", min_score: 0, drip_pct: 0 },
+          { tier: "T1", min_score: 0.25, drip_pct: 0.002 },
+          { tier: "T2", min_score: 0.5, drip_pct: 0.0035 },
+          { tier: "T3", min_score: 0.75, drip_pct: 0.005 }
+        ],
+        score_weights: { volume30d: 0.65, mission30d: 0.25, tenure30d: 0.1 }
+      }
+    }
+  });
+
+  const locked = tokenEngine.computePayoutReleaseState({
+    releaseConfig: cfg.payout_release,
+    entitledBtc: 1,
+    todayUsedBtc: 0,
+    marketCapUsd: 10000000,
+    score: { volume30d_norm: 1, mission30d_norm: 1, tenure30d_norm: 1 }
+  });
+  assert.equal(locked.globalGateOpen, false);
+  assert.equal(locked.allowed, false);
+
+  const t3 = tokenEngine.computePayoutReleaseState({
+    releaseConfig: cfg.payout_release,
+    entitledBtc: 1,
+    todayUsedBtc: 0.001,
+    marketCapUsd: 25000000,
+    score: { volume30d_norm: 1, mission30d_norm: 1, tenure30d_norm: 1 }
+  });
+  assert.equal(t3.unlockTier, "T3");
+  assert.equal(t3.todayDripCapBtc, 0.005);
+  assert.equal(t3.todayDripRemainingBtc, 0.004);
+  assert.equal(t3.allowed, true);
+});
+
+test("evaluateUnlockScore uses v1 fixed weights", () => {
+  const score = tokenEngine.evaluateUnlockScore(
+    {
+      volume30d_norm: 0.5,
+      mission30d_norm: 0.4,
+      tenure30d_norm: 0.3
+    },
+    {
+      score_weights: { volume30d: 0.65, mission30d: 0.25, tenure30d: 0.1 }
+    }
+  );
+  assert.equal(Number(score.unlockScore.toFixed(4)), 0.455);
+});

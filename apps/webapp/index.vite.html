@@ -104,6 +104,20 @@
         </div>
       </header>
 
+      <section id="playerUxNav" class="playerUxNav card">
+        <div class="playerUxTabs" role="tablist" aria-label="Primary panels">
+          <button id="tabHomeBtn" class="playerUxTab active" data-panel-tab="home" type="button">Home</button>
+          <button id="tabPvpBtn" class="playerUxTab" data-panel-tab="pvp" type="button">PvP</button>
+          <button id="tabTasksBtn" class="playerUxTab" data-panel-tab="tasks" type="button">Tasks</button>
+          <button id="tabVaultBtn" class="playerUxTab" data-panel-tab="vault" type="button">Vault</button>
+          <button id="tabAdminBtn" class="playerUxTab" data-panel-tab="admin" type="button">Admin</button>
+        </div>
+        <div class="playerUxTools">
+          <button id="advancedToggleBtn" class="btn ghost" type="button">Advanced: Kapali</button>
+          <button id="languageToggleBtn" class="btn ghost" type="button">Dil: TR</button>
+        </div>
+      </section>
+
       <section class="hero card">
         <div class="heroMain">
           <h2 id="kingName">Kral</h2>
@@ -959,7 +973,57 @@
               <input id="tokenTxInput" type="text" placeholder="0x... veya hash..." />
             </div>
             <button id="tokenTxBtn" class="mode aggressive">TX Gonder</button>
+            <div class="tokenRow">
+              <label for="tokenWalletAddressInput" class="label">Wallet Adresi</label>
+              <input id="tokenWalletAddressInput" type="text" placeholder="0x..., Sol..., UQ..." />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletChainSelect" class="label">Wallet Chain</label>
+              <select id="tokenWalletChainSelect">
+                <option value="eth">ETH</option>
+                <option value="sol">SOL</option>
+                <option value="ton">TON</option>
+              </select>
+            </div>
+            <button id="tokenWalletChallengeBtn" class="mode safe">Wallet Challenge</button>
+            <div class="tokenRow">
+              <label for="tokenWalletChallengeRefInput" class="label">Challenge Ref</label>
+              <input id="tokenWalletChallengeRefInput" type="text" placeholder="challenge ref" />
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletMessageInput" class="label">Challenge Message</label>
+              <textarea id="tokenWalletMessageInput" rows="4" placeholder="challenge message"></textarea>
+            </div>
+            <div class="tokenRow">
+              <label for="tokenWalletSignatureInput" class="label">Wallet Signature</label>
+              <input id="tokenWalletSignatureInput" type="text" placeholder="0x... veya signature" />
+            </div>
+            <div class="modeGrid">
+              <button id="tokenWalletVerifyBtn" class="mode reveal">Wallet Verify</button>
+              <button id="tokenWalletUnlinkBtn" class="mode aggressive">Wallet Unlink</button>
+            </div>
+            <p id="tokenWalletStatus" class="micro">Wallet bagli degil.</p>
             <p id="tokenHint" class="micro">Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.</p>
+            <section id="tokenMonetizationBlock" class="tokenMonetizationBlock" data-tone="neutral">
+              <div class="panelHead compact">
+                <h4>Pass + Cosmetic Store</h4>
+                <span id="tokenMonetizationBadge" class="badge info">STORE</span>
+              </div>
+              <div class="tokenRow">
+                <label for="tokenPassSelect" class="label">Season Pass</label>
+                <select id="tokenPassSelect"></select>
+              </div>
+              <button id="tokenPassBuyBtn" class="mode balanced">Pass Al</button>
+              <div class="tokenRow">
+                <label for="tokenCosmeticSelect" class="label">Cosmetic</label>
+                <select id="tokenCosmeticSelect"></select>
+              </div>
+              <button id="tokenCosmeticBuyBtn" class="mode safe">Cosmetic Al</button>
+              <p id="tokenMonetizationStatus" class="micro">Monetization durumu bekleniyor.</p>
+              <ul id="tokenMonetizationList" class="tokenRouteList">
+                <li class="muted">Store verisi yukleniyor...</li>
+              </ul>
+            </section>
           </div>
         </article>
 
@@ -1249,7 +1313,7 @@
         <article class="panel commands">
           <div class="panelHead">
             <h3>Komut Matrix</h3>
-            <span class="badge info">Bot Kisa Yollar</span>
+            <span id="commandCatalogBadge" class="badge info">Bot Kisa Yollar</span>
           </div>
           <div class="commandGrid">
             <button class="cmd" data-action="open_tasks">Gorevler</button>
@@ -1267,6 +1331,7 @@
             <button class="cmd" data-action="open_status">Durum</button>
             <button class="cmd" data-action="open_payout">Cekim</button>
           </div>
+          <div id="commandCatalogCards" class="commandCatalogGrid"></div>
         </article>
 
         <article class="panel feed">

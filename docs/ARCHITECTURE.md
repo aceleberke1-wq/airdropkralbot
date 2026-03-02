@@ -33,6 +33,7 @@ This repository runs AirdropKralBot as a single-service production stack.
 22. PvP tick/event telemetry (`V035`)
 23. Quote quorum + provider health (`V036`)
 24. Runtime deploy guard snapshots (`V037`)
+25. V5 dual-run domain core tables (`V046`, `V047`)
 
 ## Authoritative game loop
 1. WebApp starts session: `/webapp/api/arena/session/start`
@@ -68,6 +69,15 @@ This repository runs AirdropKralBot as a single-service production stack.
    `/webapp/api/admin/assets/reload`
 6. WebApp bootstrap always includes versioned launcher URL:
    `webapp_version`, `webapp_launch_url`
+7. V5 namespace compatibility:
+   `/webapp/api/v2/*` routes proxy/extend V1 while preserving backward compatibility
+8. Wallet auth v2 (non-custodial):
+   `/webapp/api/v2/wallet/challenge`,
+   `/webapp/api/v2/wallet/verify`,
+   `/webapp/api/v2/wallet/session`,
+   `/webapp/api/v2/wallet/unlink`
+9. Payout compliance guardrail:
+   risk-threshold KYC gate (reason-coded reject path) before payout request creation
 
 ## Reliability
 1. `/healthz` for process liveness

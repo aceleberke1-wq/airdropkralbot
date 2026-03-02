@@ -13,6 +13,21 @@ function escapeMarkdown(value) {
   return String(value || "").replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 }
 
+function localizeText(value, lang = "tr") {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+  const normalized = String(lang || "tr")
+    .trim()
+    .toLowerCase()
+    .startsWith("en")
+    ? "en"
+    : "tr";
+  return normalized === "en"
+    ? String(value.en || value.tr || "")
+    : String(value.tr || value.en || "");
+}
+
 function formatStart(profile, balances, season, anomaly, contract) {
   const publicName = escapeMarkdown(profile.public_name);
   const sc = balances?.SC || 0;
@@ -46,6 +61,10 @@ function formatGuide(snapshot) {
   const balances = snapshot?.balances || {};
   const anomaly = snapshot?.anomaly || null;
   const contract = snapshot?.contract || null;
+  const pvpContent = snapshot?.pvpContent || null;
+  const pvpDaily = pvpContent?.daily_duel || {};
+  const pvpWeekly = pvpContent?.weekly_ladder || {};
+  const pvpArc = pvpContent?.season_arc_boss || {};
   const hasActive = Boolean(attempts.active);
   const hasReveal = Boolean(attempts.revealable);
   const nextStep = hasReveal
@@ -55,8 +74,15 @@ function formatGuide(snapshot) {
       : offers.length > 0
         ? "1) /tasks ile panelden bir gorev sec."
         : Number(balances.RC || 0) > 0
-          ? "1) /tasks ac, gerekirse Panel Yenile kullan."
+        ? "1) /tasks ac, gerekirse Panel Yenile kullan."
           : "1) RC kazanmak icin gorev dongusunu ac.";
+  const pvpLine = pvpContent
+    ? `\nPvP Akis: Gunluk *${Number(pvpDaily.wins || 0)}/${Number(pvpDaily.target_wins || 0)}* | Haftalik *${Number(
+        pvpWeekly.points || 0
+      )}/${Number(pvpWeekly.next_milestone_points || pvpWeekly.target_points || 0)}* | Arc *W${Number(
+        pvpArc.wave_index || 1
+      )}/${Number(pvpArc.wave_total || 1)}*`
+    : "";
 
   return (
     `*Nexus Rehber*\n` +
@@ -67,6 +93,7 @@ function formatGuide(snapshot) {
     (contract
       ? `\nKontrat: *${escapeMarkdown(contract.title || "-")}* [${escapeMarkdown(contract.required_mode || "balanced")}]`
       : "") +
+    pvpLine +
     `\n\n` +
     `*Su an en iyi hamle*\n` +
     `${nextStep}\n\n` +
@@ -585,12 +612,28 @@ function formatPayout(details) {
   const gateLine = gate.enabled
     ? `\nMarket Cap Gate: *${gate.allowed ? "acik" : "kapali"}* (${Number(gate.current || 0).toFixed(2)} / ${Number(gate.min || 0).toFixed(2)} USD)`
     : "";
+  const release = details.release || {};
+  const releaseLine =
+    release.enabled
+      ? `\nUnlock Tier: *${escapeMarkdown(String(release.unlockTier || "T0"))}* (${Math.round(
+          Number(release.unlockProgress || 0) * 100
+        )}%)` +
+        `\nBugun Damla Kalan: *${Number(release.todayDripRemainingBtc || 0).toFixed(8)} BTC*` +
+        `\nBugun Damla Limit: *${Number(release.todayDripCapBtc || 0).toFixed(8)} BTC*` +
+        `\nSonraki Hedef: ${escapeMarkdown(String(release.nextTierTarget || "veri yok"))}`
+      : "";
+  const globalGateLine =
+    release.enabled && release.globalGateOpen === false
+      ? `\nGlobal Kilit: *kapali* (${Number(release.globalCapCurrentUsd || 0).toFixed(2)} / ${Number(
+          release.globalCapMinUsd || 0
+        ).toFixed(2)} USD)`
+      : "";
   return (
     `*Cekim Durumu*\n` +
     `Entitlement: *${entitled} BTC*\n` +
     `Esik: *${threshold} BTC*\n` +
     `Cooldown: *${cooldown}*\n\n` +
-    `Uygunluk: *${eligibility}*${gateLine}${latestLine}${txLine}\n` +
+    `Uygunluk: *${eligibility}*${gateLine}${globalGateLine}${releaseLine}${latestLine}${txLine}\n` +
     `Model: entitlement-only, odeme disaridan admin tarafinda islenir.`
   );
 }
@@ -709,44 +752,105 @@ function formatNexusPulse(payload) {
   );
 }
 
-function formatHelp() {
+function formatHelp(options = {}) {
+  const lang = String(options.lang || "tr").toLowerCase().startsWith("en") ? "en" : "tr";
+  const commands = Array.isArray(options.commands) ? options.commands : null;
+  if (!commands || commands.length === 0) {
+    return (
+      `*Komutlar*\n` +
+      `/menu - Launcher menusu\n` +
+      `/play - Arena 3D web paneli\n` +
+      `/tasks - Gorev havuzu\n` +
+      `/finish [safe|balanced|aggressive] - Aktif gorevi bitir\n` +
+      `/reveal - Son biten gorevi ac\n` +
+      `/pvp [safe|balanced|aggressive] - PvP raid baslat\n` +
+      `/arena_rank - Arena siralama + rating\n` +
+      `/wallet - Bakiye ve gunluk cap\n` +
+      `/vault - Payout/Vault paneli\n` +
+      `/token - Token treasury ve talepler\n` +
+      `/story - Hikaye + hizli rehber\n` +
+      `/lang <tr|en> - Kalici dil tercihi\n` +
+      `/help - Detayli komut kartlari\n\n` +
+      `Alias: /raid -> /pvp, /payout -> /vault, /guide -> /story\n` +
+      `Slashsiz kisayollar: "gorev", "bitir dengeli", "reveal", "raid aggressive"\n\n` +
+      `Admin: /admin, /admin_live, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
+    );
+  }
+
+  const title = lang === "en" ? "*Commands*" : "*Komutlar*";
+  const lines = commands.map((command, idx) => {
+    const desc = localizeText(
+      {
+        tr: command.description_tr || command.description || "",
+        en: command.description_en || command.description || ""
+      },
+      lang
+    );
+    const aliases = Array.isArray(command.aliases) && command.aliases.length > 0 ? ` (${command.aliases.join(", ")})` : "";
+    const scenarios = Array.isArray(command.scenarios) ? command.scenarios.slice(0, 2) : [];
+    const outcomes = Array.isArray(command.outcomes) ? command.outcomes.slice(0, 2) : [];
+    const scenarioLine =
+      scenarios.length > 0
+        ? lang === "en"
+          ? `Scenario: ${escapeMarkdown(scenarios.join(" | "))}`
+          : `Senaryo: ${escapeMarkdown(scenarios.join(" | "))}`
+        : lang === "en"
+          ? "Scenario: -"
+          : "Senaryo: -";
+    const outcomeLine =
+      outcomes.length > 0
+        ? lang === "en"
+          ? `Outcome: ${escapeMarkdown(outcomes.join(" | "))}`
+          : `Cikti: ${escapeMarkdown(outcomes.join(" | "))}`
+        : lang === "en"
+          ? "Outcome: -"
+          : "Cikti: -";
+    const purposeLabel = lang === "en" ? "Purpose" : "Amac";
+    return (
+      `${idx + 1}) */${command.key}${aliases}*\n` +
+      `${purposeLabel}: ${escapeMarkdown(desc)}\n` +
+      `${scenarioLine}\n` +
+      `${outcomeLine}`
+    );
+  });
+  const shortcuts =
+    lang === "en"
+      ? `Free text shortcuts: "tasks", "finish balanced", "reveal", "pvp aggressive"`
+      : `Slashsiz kisayollar: "gorev", "bitir dengeli", "reveal", "pvp aggressive"`;
+  return `${title}\n${lines.join("\n")}\n\n${shortcuts}`;
+}
+
+function formatAdminQueue(payload = {}) {
+  const payouts = Array.isArray(payload.payouts) ? payload.payouts : [];
+  const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
+  const payoutLines =
+    payouts.length > 0
+      ? payouts
+          .slice(0, 10)
+          .map(
+            (row) =>
+              `P#${row.id} u${row.user_id} ${Number(row.amount || 0).toFixed(8)} BTC [${String(row.status || "").toUpperCase()}]`
+          )
+          .join("\n")
+      : "Payout queue bos";
+  const tokenLines =
+    tokens.length > 0
+      ? tokens
+          .slice(0, 10)
+          .map(
+            (row) =>
+              `T#${row.id} u${row.user_id} ${Number(row.usd_amount || 0).toFixed(2)} USD -> ${Number(
+                row.token_amount || 0
+              ).toFixed(4)} ${escapeMarkdown(row.token_symbol || "NXT")} [${escapeMarkdown(String(row.status || "").toUpperCase())}]`
+          )
+          .join("\n")
+      : "Token queue bos";
   return (
-    `*Komutlar*\n` +
-    `/menu - Launcher menusu\n` +
-    `/onboard - 3 adim hizli giris\n` +
-    `/guide - Hizli baslangic rehberi\n` +
-    `/tasks - Gorev havuzu\n` +
-    `/finish [safe|balanced|aggressive] - Son aktif gorevi bitir\n` +
-    `/reveal - Son biten gorevi ac\n` +
-    `/raid [safe|balanced|aggressive] - Arena raid baslat\n` +
-    `/arena_rank - Arena siralama + rating\n` +
-    `/wallet - Bakiye ve gunluk cap\n` +
-    `/token - Token treasury ve son talepler\n` +
-    `/mint [miktar] - SC/HC/RC birimlerini tokena cevir\n` +
-    `/buytoken <usd> <chain> - Token satin alma talebi\n` +
-    `/tx <requestId> <txHash> - Satin alma tx hash bildir\n` +
-    `/daily - Gunluk operasyon paneli\n` +
-    `/kingdom - Tier ve reputasyon durumu\n` +
-    `/season - Sezon ilerleme\n` +
-    `/leaderboard - Top 10\n` +
-    `/shop - Boost ve pass dukkani\n` +
-    `/missions - Gunluk oduller\n` +
-    `/war - Topluluk savasi\n` +
-    `/nexus - Gunun event ve taktik pulse\n` +
-    `/contract - Gunun kontrat hedefi\n` +
-    `/raid_contract - Raid kontrat + bonus paketi\n` +
-    `/ui_mode - UI kalite/erisilebilirlik ozeti\n` +
-    `/perf - Son perf + API health durumu\n` +
-    `/play - Arena 3D arayuz\n` +
-    `/arena - Arena 3D arayuz (alias)\n` +
-    `/arena3d - Arena 3D arayuz (alias)\n` +
-    `Slashsiz kisayollar: "gorev", "bitir dengeli", "reveal", "raid aggressive"\n` +
-    `/ops - Operasyon konsolu (risk + event)\n` +
-    `/status - Sistem snapshot\n` +
-    `/payout - Cekim paneli\n` +
-    `/streak - Zincir durumu\n` +
-    `/profile - Kimlik karti\n\n` +
-    `Admin: /admin, /admin_live, /admin_config, /admin_metrics, /admin_freeze, /admin_token_price, /admin_token_gate`
+    `*Admin Queue*\n` +
+    `Toplam: *${payouts.length + tokens.length}*\n` +
+    `Payout: *${payouts.length}* | Token: *${tokens.length}*\n\n` +
+    `*Payout*\n${payoutLines}\n\n` +
+    `*Token*\n${tokenLines}`
   );
 }
 
@@ -984,6 +1088,7 @@ module.exports = {
   formatRaidContract,
   formatUiMode,
   formatPerf,
+  formatAdminQueue,
   formatAdminPanel,
   formatAdminLive,
   formatAdminWhoami,

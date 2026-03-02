@@ -1,0 +1,96 @@
+{
+  "generated_at": "2026-03-02T13:29:20.154Z",
+  "window_hours": 24,
+  "schema": {
+    "tables_checked": {
+      "v5_command_events": true,
+      "v5_intent_resolution_events": true,
+      "payout_requests": true,
+      "payout_release_events": true,
+      "v5_unified_admin_queue_action_events": true,
+      "admin_audit": true,
+      "v5_wallet_challenges": true,
+      "v5_kyc_threshold_decisions": true,
+      "v5_pvp_progression_daily": true,
+      "v5_operational_slo_metrics": true,
+      "v5_cutover_primary_switch_events": true
+    }
+  },
+  "kpis": {
+    "command_events_24h": 0,
+    "command_unique_users_24h": 0,
+    "unknown_intent_rate_pct": 0,
+    "unknown_intent_events_24h": 0,
+    "payout_requests_24h": 0,
+    "payout_rejected_24h": 0,
+    "payout_rejected_rate_pct": 0,
+    "queue_action_events_24h": 49,
+    "admin_audit_entries_24h": 66,
+    "audit_coverage_proxy_pct": 134.69,
+    "wallet_challenge_verify_rate_pct": 100,
+    "kyc_manual_review_rate_pct": 0,
+    "pvp_progression_updates_24h": 0,
+    "pvp_progression_unique_users_24h": 0
+  },
+  "details": {
+    "intent": {
+      "total_events": "0",
+      "unknown_events": "0",
+      "mode_extracted_events": "0"
+    },
+    "payout": {
+      "total_requests": "0",
+      "paid_requests": "0",
+      "rejected_requests": "0",
+      "active_requests": "0"
+    },
+    "payout_release_events": [],
+    "queue_actions": {
+      "total_events": "49",
+      "success_events": "0",
+      "non_ok_events": "49"
+    },
+    "admin_audit": {
+      "total_entries": "66"
+    },
+    "wallet": {
+      "issued_challenges": "18",
+      "consumed_challenges": "18"
+    },
+    "kyc": {
+      "total_decisions": "0",
+      "manual_review_decisions": "0",
+      "blocked_decisions": "0"
+    },
+    "pvp": {
+      "updated_rows": "0",
+      "unique_users": "0"
+    },
+    "slo_latest_by_key": [],
+    "cutover_switch_events": [],
+    "bootstrap": {
+      "api_version": "v2",
+      "runtime_flags_effective": {
+        "ARENA_AUTH_ENABLED": true,
+        "RAID_AUTH_ENABLED": true,
+        "PAYOUT_RELEASE_V1_ENABLED": true,
+        "PAYOUT_RELEASE_V2_ENABLED": true,
+        "UX_V4_ENABLED": true,
+        "UX_V5_ENABLED": true,
+        "WEBAPP_PLAYER_MODE_DEFAULT": true,
+        "I18N_V1_ENABLED": true,
+        "I18N_V2_ENABLED": true,
+        "PVP_POLL_PRIMARY": true,
+        "WALLET_AUTH_V1_ENABLED": true,
+        "KYC_THRESHOLD_V1_ENABLED": true,
+        "MONETIZATION_CORE_V1_ENABLED": true,
+        "WEBAPP_V3_ENABLED": true,
+        "WEBAPP_TS_BUNDLE_ENABLED": true,
+        "TOKEN_CURVE_ENABLED": true,
+        "TOKEN_AUTO_APPROVE_ENABLED": true,
+        "PVP_WS_ENABLED": false
+      },
+      "command_catalog_size": 12
+    }
+  }
+}

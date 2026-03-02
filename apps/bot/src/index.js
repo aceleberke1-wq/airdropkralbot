@@ -30,6 +30,13 @@ const tokenEngine = require("./services/tokenEngine");
 const txVerifier = require("./services/txVerifier");
 const nexusEventEngine = require("./services/nexusEventEngine");
 const nexusContractEngine = require("./services/nexusContractEngine");
+const {
+  evaluateAdminPolicy,
+  buildAdminActionSignature: buildAdminPolicySignature
+} = require("../../../packages/shared/src/v5/adminPolicyEngine");
+const { getCommandRegistry, toTelegramCommands, buildAliasLookup, getPrimaryCommands } = require("./commands/registry");
+const { buildIntentIndex, resolveIntent, normalizeMode } = require("./commands/intentRouter");
+const { normalizeLanguage } = require("./i18n");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -136,6 +143,14 @@ const WEBAPP_VERSION_STARTUP_TS = String(Date.now());
 const WEBAPP_VERSION_CACHE_TTL_MS = 60_000;
 const WEBAPP_BOOTSTRAP_CACHE_TTL_MS = 45_000;
 const BOT_CRITICAL_FLAG_KEYS = [
+  "UX_V5_ENABLED",
+  "PAYOUT_RELEASE_V2_ENABLED",
+  "I18N_V2_ENABLED",
+  "UX_V4_ENABLED",
+  "PAYOUT_RELEASE_V1_ENABLED",
+  "WEBAPP_PLAYER_MODE_DEFAULT",
+  "I18N_V1_ENABLED",
+  "PVP_POLL_PRIMARY",
   "WEBAPP_TS_BUNDLE_ENABLED",
   "WEBAPP_V3_ENABLED",
   "ARENA_AUTH_ENABLED",
@@ -149,6 +164,24 @@ const WEBAPP_VERSION_CACHE = {
   expiresAt: 0
 };
 const WEBAPP_BOOTSTRAP_CACHE = new Map();
+const COMMAND_REGISTRY = getCommandRegistry();
+const COMMAND_ALIAS_LOOKUP = buildAliasLookup(COMMAND_REGISTRY);
+const COMMAND_INTENT_INDEX = buildIntentIndex(COMMAND_REGISTRY);
+const ADMIN_CONFIRM_TTL_MS = 90_000;
+const ADMIN_COOLDOWN_MS = 8_000;
+const ADMIN_CONFIRM_STATE = new Map();
+const ADMIN_RATE_LIMIT_STATE = new Map();
+const PLAYER_ACTION_RATE_STATE = new Map();
+const PLAYER_ACTION_DEFAULT_COOLDOWNS_MS = Object.freeze({
+  arena_raid: 1500,
+  task_accept: 900,
+  task_complete: 1100,
+  reveal: 1100,
+  buy_offer: 1500,
+  claim_mission: 1200,
+  reroll_tasks: 3000,
+  payout_request: 4000
+});
 
 function normalizePublicName(ctx) {
   if (ctx.from?.username) {
@@ -268,37 +301,40 @@ async function fetchBootstrapWebAppUrl(appConfig, telegramId) {
 
   const ts = Date.now().toString();
   const sig = signWebAppPayload(uid, ts, appConfig.webappHmacSecret);
-  const endpoint = new URL("/webapp/api/bootstrap", origin);
-  endpoint.searchParams.set("uid", uid);
-  endpoint.searchParams.set("ts", ts);
-  endpoint.searchParams.set("sig", sig);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2200);
-  try {
-    const res = await fetch(endpoint.toString(), {
-      method: "GET",
-      headers: { accept: "application/json" },
-      signal: controller.signal
-    });
-    if (!res.ok) {
-      return "";
+  const endpointPaths = ["/webapp/api/v2/bootstrap", "/webapp/api/bootstrap"];
+  for (const endpointPath of endpointPaths) {
+    const endpoint = new URL(endpointPath, origin);
+    endpoint.searchParams.set("uid", uid);
+    endpoint.searchParams.set("ts", ts);
+    endpoint.searchParams.set("sig", sig);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2200);
+    try {
+      const res = await fetch(endpoint.toString(), {
+        method: "GET",
+        headers: { accept: "application/json" },
+        signal: controller.signal
+      });
+      if (!res.ok) {
+        continue;
+      }
+      const body = await res.json().catch(() => null);
+      const launchUrl = String(body?.data?.webapp_launch_url || body?.webapp_launch_url || "").trim();
+      if (!launchUrl) {
+        continue;
+      }
+      WEBAPP_BOOTSTRAP_CACHE.set(cacheKey, {
+        url: launchUrl,
+        expiresAt: Date.now() + WEBAPP_BOOTSTRAP_CACHE_TTL_MS
+      });
+      return launchUrl;
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    const body = await res.json().catch(() => null);
-    const launchUrl = String(body?.data?.webapp_launch_url || body?.webapp_launch_url || "").trim();
-    if (!launchUrl) {
-      return "";
-    }
-    WEBAPP_BOOTSTRAP_CACHE.set(cacheKey, {
-      url: launchUrl,
-      expiresAt: Date.now() + WEBAPP_BOOTSTRAP_CACHE_TTL_MS
-    });
-    return launchUrl;
-  } catch {
-    return "";
-  } finally {
-    clearTimeout(timeoutId);
   }
+  return "";
 }
 
 async function resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId) {
@@ -363,6 +399,208 @@ function parseWords(text) {
     .split(" ")
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+function resolvePreferredLanguage(profile, ctx, fallback = "tr") {
+  const profileLocale = String(profile?.locale || "").trim();
+  const ctxLocale = String(ctx?.from?.language_code || "").trim();
+  return normalizeLanguage(profileLocale || ctxLocale, fallback);
+}
+
+function parseLanguageChoice(input) {
+  const raw = String(input || "").trim().toLowerCase();
+  if (!raw) {
+    return "";
+  }
+  if (raw.startsWith("tr")) {
+    return "tr";
+  }
+  if (raw.startsWith("en")) {
+    return "en";
+  }
+  return "";
+}
+
+async function insertV5Event(pool, sql, params) {
+  try {
+    await withTransaction(pool, async (db) => {
+      await db.query(sql, params);
+      return true;
+    });
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+  }
+}
+
+async function logV5IntentResolution(pool, ctx, payload = {}) {
+  const userId = Number(payload.userId || 0);
+  if (!userId) {
+    return;
+  }
+  await insertV5Event(
+    pool,
+    `INSERT INTO v5_intent_resolution_events (
+       user_id,
+       input_text,
+       normalized_text,
+       matched_key,
+       resolved_mode,
+       confidence,
+       source,
+       payload_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb);`,
+    [
+      userId,
+      String(payload.inputText || ""),
+      String(payload.normalizedText || ""),
+      String(payload.matchedKey || ""),
+      String(payload.resolvedMode || "balanced"),
+      Number(payload.confidence || 0),
+      String(payload.source || "bot"),
+      JSON.stringify({
+        telegram_id: Number(ctx?.from?.id || 0),
+        locale: String(payload.locale || "tr"),
+        action: String(payload.action || ""),
+        args_text: String(payload.argsText || "")
+      })
+    ]
+  );
+}
+
+async function logV5CommandEvent(pool, ctx, payload = {}) {
+  const userId = Number(payload.userId || 0);
+  if (!userId) {
+    return;
+  }
+  await insertV5Event(
+    pool,
+    `INSERT INTO v5_command_events (
+       user_id,
+       command_key,
+       handler_key,
+       source,
+       locale,
+       payload_json
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb);`,
+    [
+      userId,
+      String(payload.commandKey || ""),
+      String(payload.handlerKey || payload.commandKey || ""),
+      String(payload.source || "bot"),
+      String(payload.locale || "tr"),
+      JSON.stringify({
+        telegram_id: Number(ctx?.from?.id || 0),
+        text: String(payload.text || ""),
+        args_text: String(payload.argsText || ""),
+        is_slash: Boolean(payload.isSlash)
+      })
+    ]
+  );
+}
+
+function parseConfirmArgs(text) {
+  const parts = parseWords(text);
+  if (parts.length === 0) {
+    return { confirmed: false, parts: [] };
+  }
+  const first = String(parts[0] || "").toLowerCase();
+  if (first === "confirm" || first === "onay") {
+    return { confirmed: true, parts: parts.slice(1) };
+  }
+  return { confirmed: false, parts };
+}
+
+function buildAdminActionSignature(action, parts = []) {
+  return buildAdminPolicySignature(action, { parts });
+}
+
+function cleanupAdminConfirmState() {
+  const now = Date.now();
+  for (const [key, entry] of ADMIN_CONFIRM_STATE.entries()) {
+    if (!entry || now > Number(entry.expiresAt || 0)) {
+      ADMIN_CONFIRM_STATE.delete(key);
+    }
+  }
+}
+
+async function ensureAdminCriticalReady(ctx, actionName, parts, confirmed, confirmCommandHint) {
+  cleanupAdminConfirmState();
+  const policy = evaluateAdminPolicy({ action_key: actionName, critical: true, cooldown_ms: ADMIN_COOLDOWN_MS });
+  if (!policy.confirmation_required) {
+    return true;
+  }
+  const actorId = Number(ctx.from?.id || 0);
+  const signature = buildAdminActionSignature(actionName, parts);
+  const key = `${actorId}:${actionName}:${signature}`;
+  const now = Date.now();
+  if (!confirmed) {
+    ADMIN_CONFIRM_STATE.set(key, {
+      createdAt: now,
+      expiresAt: now + ADMIN_CONFIRM_TTL_MS
+    });
+    await ctx.replyWithMarkdown(
+      `*Onay Gerekli*\n` +
+        `Kritik islem iki adimlidir.\n` +
+        `90 sn icinde su komutu tekrar gonder:\n` +
+        `\`${confirmCommandHint}\``,
+      { parse_mode: "Markdown" }
+    );
+    return false;
+  }
+  const entry = ADMIN_CONFIRM_STATE.get(key);
+  if (!entry || now > Number(entry.expiresAt || 0)) {
+    await ctx.replyWithMarkdown("*Onay Suresi Doldu*\nKomutu tekrar onaysiz gonderip yeni onay al.");
+    return false;
+  }
+  ADMIN_CONFIRM_STATE.delete(key);
+  return true;
+}
+
+async function ensureAdminCriticalReadyFromCallback(ctx, actionName, parts, buttonLabel) {
+  cleanupAdminConfirmState();
+  const policy = evaluateAdminPolicy({ action_key: actionName, critical: true, cooldown_ms: ADMIN_COOLDOWN_MS });
+  if (!policy.confirmation_required) {
+    return true;
+  }
+  const actorId = Number(ctx.from?.id || 0);
+  const signature = buildAdminActionSignature(actionName, parts);
+  const key = `${actorId}:${actionName}:${signature}`;
+  const now = Date.now();
+  const entry = ADMIN_CONFIRM_STATE.get(key);
+  if (!entry || now > Number(entry.expiresAt || 0)) {
+    ADMIN_CONFIRM_STATE.set(key, {
+      createdAt: now,
+      expiresAt: now + ADMIN_CONFIRM_TTL_MS
+    });
+    await ctx.replyWithMarkdown(
+      `*Onay Gerekli*\n` +
+        `Kritik aksiyon icin 90 sn icinde ayni butona tekrar tikla.\n` +
+        `Aksiyon: *${String(buttonLabel || actionName)}*`
+    );
+    return false;
+  }
+  ADMIN_CONFIRM_STATE.delete(key);
+  return true;
+}
+
+async function enforceAdminRateLimit(ctx, actionName) {
+  const policy = evaluateAdminPolicy({ action_key: actionName, cooldown_ms: ADMIN_COOLDOWN_MS });
+  const cooldownMs = Math.max(1000, Number(policy.cooldown_ms || ADMIN_COOLDOWN_MS));
+  const actorId = Number(ctx.from?.id || 0);
+  const key = `${actorId}:${String(actionName || "unknown")}`;
+  const now = Date.now();
+  const prev = Number(ADMIN_RATE_LIMIT_STATE.get(key) || 0);
+  if (prev > 0 && now - prev < cooldownMs) {
+    const waitSec = Math.max(1, Math.ceil((cooldownMs - (now - prev)) / 1000));
+    await ctx.replyWithMarkdown(`*Rate Limit*\nBu kritik aksiyon icin ${waitSec}s bekle.`);
+    return false;
+  }
+  ADMIN_RATE_LIMIT_STATE.set(key, now);
+  return true;
 }
 
 function cloneJson(value) {
@@ -745,8 +983,9 @@ function buildStartKeyboard() {
     [
       [Markup.button.callback("Arena 3D Ac", "OPEN_PLAY")],
       [Markup.button.callback("Onboard", "OPEN_ONBOARD"), Markup.button.callback("Gorev Al", "OPEN_TASKS")],
+      [Markup.button.callback("PvP Raid", "ARENA_RAID:balanced"), Markup.button.callback("Vault", "OPEN_PAYOUT")],
       [Markup.button.callback("Cuzdan", "OPEN_WALLET"), Markup.button.callback("Durum", "OPEN_STATUS")],
-      [Markup.button.callback("Daha Fazla", "OPEN_MORE_MENU")]
+      [Markup.button.callback("Story", "OPEN_GUIDE"), Markup.button.callback("Daha Fazla", "OPEN_MORE_MENU")]
     ],
     { columns: 2 }
   );
@@ -758,7 +997,7 @@ function buildMoreMenuKeyboard() {
       [Markup.button.callback("Hizli Rehber", "OPEN_GUIDE"), Markup.button.callback("Ana Launcher", "OPEN_HOME_MENU")],
       [Markup.button.callback("Misyonlar", "OPEN_MISSIONS"), Markup.button.callback("Gunluk", "OPEN_DAILY")],
       [Markup.button.callback("Kingdom", "OPEN_KINGDOM"), Markup.button.callback("Nexus", "OPEN_NEXUS")],
-      [Markup.button.callback("Arena Raid", "OPEN_ARENA_RANK"), Markup.button.callback("War Room", "OPEN_WAR")],
+      [Markup.button.callback("Arena Raid", "ARENA_RAID:balanced"), Markup.button.callback("War Room", "OPEN_WAR")],
       [Markup.button.callback("Sezon", "OPEN_SEASON"), Markup.button.callback("Dukkan", "OPEN_SHOP")],
       [Markup.button.callback("Token", "OPEN_TOKEN"), Markup.button.callback("Cekim", "OPEN_PAYOUT")]
     ],
@@ -849,6 +1088,18 @@ function buildGuideKeyboard() {
       Markup.button.callback("Nexus Pulse", "OPEN_NEXUS"),
       Markup.button.callback("Cuzdan", "OPEN_WALLET"),
       Markup.button.callback("Misyonlar", "OPEN_MISSIONS")
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildHelpKeyboard() {
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("Onboard", "OPEN_ONBOARD"), Markup.button.callback("Gorev", "OPEN_TASKS")],
+      [Markup.button.callback("PvP Raid", "ARENA_RAID:balanced"), Markup.button.callback("Vault", "OPEN_PAYOUT")],
+      [Markup.button.callback("Arena 3D", "OPEN_PLAY"), Markup.button.callback("Story", "OPEN_GUIDE")],
+      [Markup.button.callback("Ana Launcher", "OPEN_HOME_MENU")]
     ],
     { columns: 2 }
   );
@@ -968,11 +1219,42 @@ function buildAdminKeyboard(snapshot = {}) {
   return Markup.inlineKeyboard(
     [
       [Markup.button.callback("Yenile", "ADMIN_PANEL_REFRESH"), freezeToggle],
+      [Markup.button.callback("Unified Queue", "ADMIN_OPEN_QUEUE")],
       [Markup.button.callback("Payout Queue", "ADMIN_OPEN_PAYOUTS"), Markup.button.callback("Token Queue", "ADMIN_OPEN_TOKENS")],
       ...payoutButtons,
       ...tokenButtons
     ],
     { columns: 1 }
+  );
+}
+
+function buildAdminPayoutActionKeyboard(requestId) {
+  const id = Number(requestId || 0);
+  if (!id) {
+    return undefined;
+  }
+  return Markup.inlineKeyboard(
+    [
+      [Markup.button.callback("Payout Reddet", `ADMIN_PAYOUT_REJECT:${id}`)],
+      [Markup.button.callback("Payout Queue", "ADMIN_OPEN_PAYOUTS"), Markup.button.callback("Unified Queue", "ADMIN_OPEN_QUEUE")]
+    ],
+    { columns: 2 }
+  );
+}
+
+function buildAdminTokenActionKeyboard(row = {}) {
+  const id = Number(row.id || 0);
+  if (!id) {
+    return undefined;
+  }
+  const buttons = [];
+  if (String(row.tx_hash || "").trim()) {
+    buttons.push(Markup.button.callback("Token Onayla", `ADMIN_TOKEN_APPROVE:${id}`));
+  }
+  buttons.push(Markup.button.callback("Token Reddet", `ADMIN_TOKEN_REJECT:${id}`));
+  return Markup.inlineKeyboard(
+    [buttons, [Markup.button.callback("Token Queue", "ADMIN_OPEN_TOKENS"), Markup.button.callback("Unified Queue", "ADMIN_OPEN_QUEUE")]],
+    { columns: 2 }
   );
 }
 
@@ -2126,6 +2408,71 @@ function computeTokenMarketCapGate(tokenConfig, tokenSupplyTotal) {
   };
 }
 
+async function computePayoutReleaseScoreInput(db, userId) {
+  const [volumeRes, missionRes, tenureRes] = await Promise.all([
+    db
+      .query(
+        `SELECT COALESCE(SUM(usd_amount), 0)::numeric AS usd_volume_30d
+         FROM token_purchase_requests
+         WHERE user_id = $1
+           AND created_at >= now() - interval '30 days'
+           AND status IN ('pending_payment', 'tx_submitted', 'approved');`,
+        [userId]
+      )
+      .catch((err) => {
+        if (err.code === "42P01") {
+          return { rows: [{ usd_volume_30d: 0 }] };
+        }
+        throw err;
+      }),
+    db
+      .query(
+        `SELECT COUNT(*)::bigint AS mission_claims_30d
+         FROM mission_claims
+         WHERE user_id = $1
+           AND created_at >= now() - interval '30 days';`,
+        [userId]
+      )
+      .catch((err) => {
+        if (err.code === "42P01") {
+          return { rows: [{ mission_claims_30d: 0 }] };
+        }
+        throw err;
+      }),
+    db
+      .query(
+        `SELECT GREATEST(0, EXTRACT(EPOCH FROM (now() - created_at)) / 86400)::numeric AS tenure_days
+         FROM users
+         WHERE id = $1
+         LIMIT 1;`,
+        [userId]
+      )
+      .catch((err) => {
+        if (err.code === "42P01") {
+          return { rows: [{ tenure_days: 0 }] };
+        }
+        throw err;
+      })
+  ]);
+
+  const volumeUsd = Number(volumeRes.rows?.[0]?.usd_volume_30d || 0);
+  const missionClaims = Number(missionRes.rows?.[0]?.mission_claims_30d || 0);
+  const tenureDays = Number(tenureRes.rows?.[0]?.tenure_days || 0);
+  const volumeNorm = clamp(volumeUsd / 1000, 0, 1);
+  const missionNorm = clamp(missionClaims / 40, 0, 1);
+  const tenureNorm = clamp(tenureDays / 60, 0, 1);
+  return {
+    volume30d_norm: Number(volumeNorm.toFixed(6)),
+    mission30d_norm: Number(missionNorm.toFixed(6)),
+    tenure30d_norm: Number(tenureNorm.toFixed(6)),
+    metrics: {
+      volume_usd_30d: volumeUsd,
+      mission_claims_30d: missionClaims,
+      tenure_days: tenureDays
+    }
+  };
+}
+
 async function buildAdminSnapshot(db, appConfig) {
   const runtimeConfig = await configService.getEconomyConfig(db);
   const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
@@ -2177,12 +2524,31 @@ async function buildPayoutView(db, profile, appConfig, runtimeConfigRaw) {
   const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
   const tokenSupply = await economyStore.getCurrencySupply(db, tokenConfig.symbol);
   const marketCapGate = computeTokenMarketCapGate(tokenConfig, tokenSupply.total);
+  const scoreInput = await computePayoutReleaseScoreInput(db, profile.user_id);
+  const todayUsedBtc = await payoutStore.getTodayRequestedAmount(db, profile.user_id, "BTC").catch((err) => {
+    if (err.code === "42P01") {
+      return 0;
+    }
+    throw err;
+  });
+  const releaseState = tokenEngine.computePayoutReleaseState({
+    releaseConfig: tokenConfig.payout_release || {},
+    entitledBtc,
+    todayUsedBtc,
+    marketCapUsd: Number(marketCapGate.current || 0),
+    score: scoreInput
+  });
+  const requestableBtc = releaseState.enabled
+    ? Math.min(entitledBtc, Number(releaseState.todayDripRemainingBtc || 0))
+    : entitledBtc;
   const latest = await payoutStore.getLatestRequest(db, profile.user_id, "BTC");
   const active = await payoutStore.getActiveRequest(db, profile.user_id, "BTC");
   const cooldown = await payoutStore.getCooldownRequest(db, profile.user_id, "BTC");
+  const thresholdBtc = releaseState.enabled ? 0 : Number(appConfig.payoutThresholdBtc || 0.0001);
   const canRequest =
-    entitledBtc >= Number(appConfig.payoutThresholdBtc || 0.0001) &&
+    requestableBtc >= thresholdBtc &&
     marketCapGate.allowed &&
+    (!releaseState.enabled || releaseState.allowed) &&
     !active &&
     !cooldown;
 
@@ -2191,12 +2557,69 @@ async function buildPayoutView(db, profile, appConfig, runtimeConfigRaw) {
     latestWithTx = await payoutStore.getRequestWithTx(db, latest.id);
   }
 
+  await payoutStore
+    .upsertUserUnlockScore(db, {
+      userId: profile.user_id,
+      volume30dNorm: scoreInput.volume30d_norm,
+      mission30dNorm: scoreInput.mission30d_norm,
+      tenure30dNorm: scoreInput.tenure30d_norm,
+      unlockScore: releaseState.unlockScore,
+      unlockTier: releaseState.unlockTier,
+      factorsJson: {
+        ...scoreInput.metrics,
+        score_weights: releaseState.weights || {}
+      }
+    })
+    .catch((err) => {
+      if (err.code !== "42P01") {
+        throw err;
+      }
+    });
+  await payoutStore
+    .upsertDailyReleaseUsage(db, {
+      userId: profile.user_id,
+      currency: "BTC",
+      entitledBtc,
+      dripCapBtc: releaseState.todayDripCapBtc,
+      dripUsedBtc: todayUsedBtc,
+      dripRemainingBtc: releaseState.todayDripRemainingBtc,
+      unlockTier: releaseState.unlockTier,
+      unlockScore: releaseState.unlockScore,
+      globalGateOpen: releaseState.globalGateOpen,
+      detailsJson: {
+        next_tier_target: releaseState.nextTierTarget,
+        factors: releaseState.factors || {},
+        weights: releaseState.weights || {},
+        market_cap_usd: Number(marketCapGate.current || 0)
+      }
+    })
+    .catch((err) => {
+      if (err.code !== "42P01") {
+        throw err;
+      }
+    });
+
   return {
     entitledBtc,
-    thresholdBtc: Number(appConfig.payoutThresholdBtc || 0.0001),
+    requestableBtc,
+    thresholdBtc,
     cooldownUntil: cooldown?.cooldown_until || null,
     canRequest,
     marketCapGate,
+    release: {
+      enabled: releaseState.enabled,
+      mode: releaseState.mode,
+      globalGateOpen: releaseState.globalGateOpen,
+      globalCapMinUsd: releaseState.globalCapMinUsd,
+      globalCapCurrentUsd: releaseState.globalCapCurrentUsd,
+      unlockTier: releaseState.unlockTier,
+      unlockScore: releaseState.unlockScore,
+      unlockProgress: releaseState.unlockProgress,
+      nextTierTarget: releaseState.nextTierTarget,
+      todayDripCapBtc: releaseState.todayDripCapBtc,
+      todayDripUsedBtc: releaseState.todayDripUsedBtc,
+      todayDripRemainingBtc: releaseState.todayDripRemainingBtc
+    },
     latest: latestWithTx
   };
 }
@@ -2264,6 +2687,26 @@ async function sendAdminTokenQueue(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(`*Token Queue*\n${lines}`);
 }
 
+async function sendAdminQueue(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const payload = await withTransaction(pool, async (db) => {
+    const payouts = await payoutStore.listRequests(db, { status: "requested", limit: 30 });
+    let tokens = [];
+    try {
+      const all = await tokenStore.listPurchaseRequests(db, { limit: 40 });
+      tokens = all.filter((row) => ["pending_payment", "tx_submitted"].includes(String(row.status || "").toLowerCase()));
+    } catch (err) {
+      if (err.code !== "42P01") {
+        throw err;
+      }
+    }
+    return { payouts, tokens };
+  });
+  await ctx.replyWithMarkdown(messages.formatAdminQueue(payload));
+}
+
 async function sendAdminMetrics(ctx, pool, appConfig) {
   if (!(await ensureAdminCtx(ctx, appConfig))) {
     return;
@@ -2318,6 +2761,7 @@ async function sendAdminConfig(ctx, pool, appConfig) {
     };
   });
   const gate = payload.token.payout_gate || {};
+  const release = payload.token.payout_release || {};
   await ctx.replyWithMarkdown(
     `*Admin Config*\n` +
       `Kaynak: *${payload.source}*\n` +
@@ -2327,7 +2771,10 @@ async function sendAdminConfig(ctx, pool, appConfig) {
       `Max Buy: *$${Number(payload.token.purchase?.max_usd || 0).toFixed(2)}*\n` +
       `Payout Gate: *${gate.enabled ? "ON" : "OFF"}*\n` +
       `Gate Min Cap: *$${Math.floor(Number(gate.min_market_cap_usd || 0))}*\n` +
-      `Gate Target Max: *$${Math.floor(Number(gate.target_band_max_usd || 0))}*`
+      `Gate Target Max: *$${Math.floor(Number(gate.target_band_max_usd || 0))}*\n` +
+      `Release: *${release.enabled ? "ON" : "OFF"}* (${String(release.mode || "tiered_drip")})\n` +
+      `Release Global Cap: *$${Math.floor(Number(release.global_cap_min_usd || 0))}*\n` +
+      `Release Daily Drip Max: *${(Number(release.daily_drip_pct_max || 0) * 100).toFixed(2)}%*`
   );
 }
 
@@ -2361,19 +2808,21 @@ async function adminSetTokenPrice(ctx, pool, appConfig, usdRaw) {
   );
 }
 
-async function adminSetTokenGate(ctx, pool, appConfig, minRaw, maxRaw) {
+async function adminSetTokenGate(ctx, pool, appConfig, minRaw, maxRaw, dripRaw) {
   if (!(await ensureAdminCtx(ctx, appConfig))) {
     return;
   }
   const minCap = parseFloatArg(minRaw);
   const maxCap = parseFloatArg(maxRaw);
+  const dripPctInput = parseFloatArg(dripRaw);
   if (!minCap || minCap <= 0) {
-    await ctx.replyWithMarkdown("*Admin Token Gate*\nKullanim: `/admin_token_gate 10000000 20000000`", {
+    await ctx.replyWithMarkdown("*Admin Token Gate*\nKullanim: `/admin_token_gate <minCapUsd> [targetMaxUsd] [dailyDripPct]`", {
       parse_mode: "Markdown"
     });
     return;
   }
   const targetMax = maxCap && maxCap >= minCap ? maxCap : minCap * 2;
+  const dripPct = dripPctInput && dripPctInput > 0 ? Math.min(1, dripPctInput / 100) : null;
   const payload = await withTransaction(pool, async (db) =>
     updateEconomyConfigByAdmin(
       db,
@@ -2385,21 +2834,33 @@ async function adminSetTokenGate(ctx, pool, appConfig, minRaw, maxRaw) {
         if (!next.token.payout_gate || typeof next.token.payout_gate !== "object") {
           next.token.payout_gate = {};
         }
+        if (!next.token.payout_release || typeof next.token.payout_release !== "object") {
+          next.token.payout_release = {};
+        }
         next.token.payout_gate.enabled = true;
         next.token.payout_gate.min_market_cap_usd = Number(minCap);
         next.token.payout_gate.target_band_max_usd = Number(targetMax);
+        next.token.payout_release.enabled = true;
+        next.token.payout_release.mode = String(next.token.payout_release.mode || "tiered_drip");
+        next.token.payout_release.global_cap_min_usd = Number(minCap);
+        if (dripPct !== null) {
+          next.token.payout_release.daily_drip_pct_max = Number(dripPct);
+        }
       },
       "config_token_gate_update",
       {
         min_market_cap_usd: Number(minCap),
-        target_band_max_usd: Number(targetMax)
+        target_band_max_usd: Number(targetMax),
+        daily_drip_pct_max: dripPct === null ? undefined : Number(dripPct)
       }
     )
   );
   await ctx.replyWithMarkdown(
     messages.formatAdminActionResult(
       "Token Gate",
-      `Gate guncellendi: min $${Math.floor(minCap)} / target $${Math.floor(targetMax)} (v${payload.version})`
+      `Gate guncellendi: min $${Math.floor(minCap)} / target $${Math.floor(targetMax)}${
+        dripPct === null ? "" : ` / drip ${(dripPct * 100).toFixed(2)}%`
+      } (v${payload.version})`
     )
   );
 }
@@ -2989,6 +3450,12 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
     const runtimeConfig = await configService.getEconomyConfig(db);
     const view = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     if (!view.canRequest) {
+      if (view.release?.enabled && view.release.globalGateOpen === false) {
+        return { ok: false, reason: "market_cap_gate", view };
+      }
+      if (view.release?.enabled && Number(view.release.todayDripRemainingBtc || 0) <= 0) {
+        return { ok: false, reason: "daily_drip_exhausted", view };
+      }
       if (view.marketCapGate?.enabled && !view.marketCapGate.allowed) {
         return { ok: false, reason: "market_cap_gate", view };
       }
@@ -3001,11 +3468,11 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
     if (fxRate <= 0) {
       return { ok: false, reason: "invalid_fx_rate", view };
     }
-    const sourceHcAmount = Number((view.entitledBtc / fxRate).toFixed(8));
+    const sourceHcAmount = Number((Number(view.requestableBtc || 0) / fxRate).toFixed(8));
     if (sourceHcAmount <= 0) {
       return { ok: false, reason: "no_hc_balance", view };
     }
-    const amount = Number(view.entitledBtc.toFixed(8));
+    const amount = Number(Number(view.requestableBtc || 0).toFixed(8));
     if (amount <= 0) {
       return { ok: false, reason: "invalid_amount", view };
     }
@@ -3053,6 +3520,27 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
       source_hc_amount: sourceHcAmount,
       address_masked: maskAddress(address)
     });
+    await payoutStore
+      .insertPayoutReleaseEvent(db, {
+        userId: profile.user_id,
+        payoutRequestId: request.id,
+        eventType: "payout_request_created",
+        currency: "BTC",
+        amountBtc: amount,
+        unlockTier: String(view.release?.unlockTier || "T0"),
+        unlockScore: Number(view.release?.unlockScore || 0),
+        eventJson: {
+          request_id: request.id,
+          requestable_btc: Number(view.requestableBtc || 0),
+          drip_remaining_btc: Number(view.release?.todayDripRemainingBtc || 0)
+        },
+        createdBy: Number(appConfig.adminTelegramId || 0)
+      })
+      .catch((err) => {
+        if (err.code !== "42P01") {
+          throw err;
+        }
+      });
 
     const nextView = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     return { ok: true, request, view: nextView };
@@ -3062,6 +3550,8 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
   if (!payload.ok) {
     if (payload.reason === "freeze_mode") {
       await ctx.replyWithMarkdown(messages.formatFreezeMessage("Bakim aktif, payout talebi kapali."));
+    } else if (payload.reason === "daily_drip_exhausted") {
+      await ctx.replyWithMarkdown("*Gunluk Damla Limiti Doldu*\nYeni payout icin ertesi gun dene.");
     }
     await ctx.replyWithMarkdown(messages.formatPayout(payload.view), buildPayoutKeyboard(payload.view.canRequest));
     return;
@@ -3293,6 +3783,11 @@ async function sendGuide(ctx, pool) {
       })
     );
     const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    const pvpContent = await arenaService.getPvpProgressionSnapshot(db, {
+      config: runtimeConfig,
+      seasonId: season.seasonId,
+      userId: profile.user_id
+    });
     const offers = await taskStore.listActiveOffers(db, profile.user_id);
     const active = await taskStore.getLatestPendingAttempt(db, profile.user_id);
     const revealable = await taskStore.getLatestRevealableAttempt(db, profile.user_id);
@@ -3303,6 +3798,7 @@ async function sendGuide(ctx, pool) {
       daily: buildDailyView(runtimeConfig, profile, dailyRaw),
       anomaly,
       contract,
+      pvpContent,
       offers,
       attempts: { active, revealable },
       riskScore: Number(risk.riskScore || 0)
@@ -3350,6 +3846,77 @@ async function sendPlay(ctx, pool, appConfig) {
       ? `*Arena 3D*\nKral: *${profile.public_name}*\nCanli UI, animasyon ve gorev panelleri burada.`
       : `*Arena 3D (Local Test)*\nKral: *${profile.public_name}*\nTelegram Mini App butonu HTTPS ister. Local test icin URL butonu ile ac.`,
     buildPlayKeyboard(url)
+  );
+}
+
+async function sendLauncherMenu(ctx, pool) {
+  const freeze = await withTransaction(pool, (db) => systemStore.getFreezeState(db));
+  if (freeze.freeze) {
+    await ctx.replyWithMarkdown(messages.formatFreezeMessage(freeze.reason));
+    return false;
+  }
+  const snapshot = await getSnapshot(pool, ctx);
+  await ctx.replyWithMarkdown(
+    messages.formatStart(snapshot.profile, snapshot.balances, snapshot.season, snapshot.anomaly, snapshot.contract),
+    buildStartKeyboard()
+  );
+  return true;
+}
+
+async function sendUnknownIntentHint(ctx, pool) {
+  const profile = await ensureProfile(pool, ctx).catch(() => null);
+  const lang = resolvePreferredLanguage(profile, ctx, "tr");
+  const text =
+    lang === "en"
+      ? `*I couldn't resolve that command.*\nTry one of these:\n` +
+        `- \`tasks\` or \`/tasks\`\n` +
+        `- \`finish balanced\`\n` +
+        `- \`reveal\`\n` +
+        `- \`pvp aggressive\`\n\n` +
+        `You can also use \`/help\` for detailed command cards.`
+      : `*Bu komutu anlayamadim.*\nSunlardan biriyle devam et:\n` +
+        `- \`gorev\` veya \`/tasks\`\n` +
+        `- \`bitir dengeli\`\n` +
+        `- \`reveal\`\n` +
+        `- \`pvp aggressive\`\n\n` +
+        `Detayli komut kartlari icin \`/help\` yazabilirsin.`;
+  await ctx.replyWithMarkdown(text, buildHelpKeyboard());
+}
+
+async function setLanguagePreference(ctx, pool, rawArgs = "") {
+  const parts = parseWords(rawArgs);
+  const selected = parseLanguageChoice(parts[0] || "");
+  const currentProfile = await ensureProfile(pool, ctx);
+  const current = resolvePreferredLanguage(currentProfile, ctx, "tr");
+  if (!selected) {
+    const usage =
+      current === "en"
+        ? `*Language Preference*\nUsage: \`/lang tr\` or \`/lang en\`\nCurrent: *${String(current).toUpperCase()}*`
+        : `*Dil Tercihi*\nKullanim: \`/lang tr\` veya \`/lang en\`\nMevcut: *${String(current).toUpperCase()}*`;
+    await ctx.replyWithMarkdown(usage, buildHelpKeyboard());
+    return;
+  }
+
+  await withTransaction(pool, async (db) => {
+    await ensureProfileTx(db, ctx);
+    await userStore.setLocaleByTelegramId(db, {
+      telegramId: Number(ctx.from?.id || 0),
+      locale: selected
+    });
+    return true;
+  });
+
+  if (selected === "en") {
+    await ctx.replyWithMarkdown(
+      `*Language Updated*\nBot language is now set to *EN*.\nUse \`/help\` for command cards.`,
+      buildHelpKeyboard()
+    );
+    return;
+  }
+
+  await ctx.replyWithMarkdown(
+    `*Dil Guncellendi*\nBot dili *TR* olarak kaydedildi.\nKomut kartlari icin \`/help\` yazabilirsin.`,
+    buildHelpKeyboard()
   );
 }
 
@@ -3484,15 +4051,14 @@ async function handleWebAppAction(ctx, pool, appConfig) {
 }
 
 function normalizeModeFromText(input) {
-  const raw = String(input || "").trim().toLowerCase();
-  if (!raw) return "balanced";
-  if (["temkinli", "safe", "s", "1"].includes(raw)) return "safe";
-  if (["dengeli", "balanced", "b", "2"].includes(raw)) return "balanced";
-  if (["saldirgan", "aggressive", "a", "3"].includes(raw)) return "aggressive";
-  return "balanced";
+  return normalizeMode(String(input || "").trim().toLowerCase());
 }
 
 function extractCommandArgs(ctx) {
+  const stateArgs = String(ctx?.state?.commandArgsText || "").trim();
+  if (stateArgs) {
+    return stateArgs;
+  }
   const text = String(ctx.message?.text || "").trim();
   if (!text) {
     return "";
@@ -3504,10 +4070,40 @@ function extractCommandArgs(ctx) {
   return text.slice(spaceIndex + 1).trim();
 }
 
+function extractModeArg(ctx) {
+  const fromArgs = String(extractCommandArgs(ctx) || "").trim();
+  if (fromArgs) {
+    return normalizeModeFromText(fromArgs);
+  }
+  const fromIntent = String(ctx?.state?.intentMode || "").trim();
+  if (fromIntent) {
+    return normalizeModeFromText(fromIntent);
+  }
+  return "balanced";
+}
+
+function parseSlashCommandText(text) {
+  const raw = String(text || "").trim();
+  if (!raw.startsWith("/")) {
+    return null;
+  }
+  const head = raw.split(/\s+/, 1)[0];
+  const cleaned = head
+    .replace(/^\//, "")
+    .split("@")[0]
+    .trim()
+    .toLowerCase();
+  if (!cleaned) {
+    return null;
+  }
+  const args = raw.slice(head.length).trim();
+  return { key: cleaned, argsText: args };
+}
+
 function normalizeIntentText(input) {
   return String(input || "")
     .toLowerCase()
-    .replace(/[ıi]/g, "i")
+    .replace(/[ı]/g, "i")
     .replace(/[ğ]/g, "g")
     .replace(/[ü]/g, "u")
     .replace(/[ş]/g, "s")
@@ -3517,80 +4113,46 @@ function normalizeIntentText(input) {
     .trim();
 }
 
-function extractModeFromIntentText(input) {
-  const normalized = normalizeIntentText(input);
-  const tokens = normalized.split(" ").filter(Boolean);
-  for (const token of tokens) {
-    const mode = normalizeModeFromText(token);
-    if (mode !== "balanced" || ["balanced", "dengeli", "2", "b"].includes(token)) {
-      return mode;
-    }
-  }
-  return "balanced";
-}
-
 function resolveTextIntent(input) {
-  const normalized = normalizeIntentText(input);
-  if (!normalized || normalized.startsWith("/")) {
+  const intent = resolveIntent(input, COMMAND_INTENT_INDEX);
+  if (!intent) {
     return null;
   }
+  return {
+    commandKey: intent.commandKey,
+    mode: intent.mode || "balanced",
+    argsText: intent.argsText || ""
+  };
+}
 
-  if (/^(play|arena|arena3d|arena3|arena 3d|3d arena|arena ui)\b/.test(normalized)) {
-    return { action: "play" };
+async function runIntentCommandHandler(ctx, intent, handler) {
+  if (typeof handler !== "function") {
+    return false;
   }
-  if (/^(raid|arena raid)\b/.test(normalized)) {
-    return { action: "raid", mode: extractModeFromIntentText(normalized) };
+  if (!ctx.state || typeof ctx.state !== "object") {
+    ctx.state = {};
   }
-  if (/^(finish|bitir|tamamla)\b/.test(normalized)) {
-    return { action: "finish", mode: extractModeFromIntentText(normalized) };
+  const hasArgsOverride = Object.prototype.hasOwnProperty.call(ctx.state, "commandArgsText");
+  const hasModeOverride = Object.prototype.hasOwnProperty.call(ctx.state, "intentMode");
+  const previousArgs = ctx.state.commandArgsText;
+  const previousMode = ctx.state.intentMode;
+  ctx.state.commandArgsText = String(intent.argsText || "").trim();
+  ctx.state.intentMode = String(intent.mode || "balanced");
+  try {
+    await handler(ctx);
+    return true;
+  } finally {
+    if (hasArgsOverride) {
+      ctx.state.commandArgsText = previousArgs;
+    } else {
+      delete ctx.state.commandArgsText;
+    }
+    if (hasModeOverride) {
+      ctx.state.intentMode = previousMode;
+    } else {
+      delete ctx.state.intentMode;
+    }
   }
-  if (/^(reveal|revealnow|loot)\b/.test(normalized)) {
-    return { action: "reveal" };
-  }
-  if (/^(tasks|task|gorev|gorevler)\b/.test(normalized)) {
-    return { action: "tasks" };
-  }
-  if (/^(wallet|cuzdan)\b/.test(normalized)) {
-    return { action: "wallet" };
-  }
-  if (/^(token|jeton)\b/.test(normalized)) {
-    return { action: "token" };
-  }
-  if (/^(mint|donustur|cevir)\b/.test(normalized)) {
-    return { action: "mint" };
-  }
-  if (/^(buytoken|tokencik|token al)\b/.test(normalized)) {
-    return { action: "buytoken" };
-  }
-  if (/^(daily|gunluk)\b/.test(normalized)) {
-    return { action: "daily" };
-  }
-  if (/^(missions|misyon|misyonlar)\b/.test(normalized)) {
-    return { action: "missions" };
-  }
-  if (/^(status|durum)\b/.test(normalized)) {
-    return { action: "status" };
-  }
-  if (/^(nexus|pulse|anomaly)\b/.test(normalized)) {
-    return { action: "nexus" };
-  }
-  if (/^(contract|kontrat|sozlesme)\b/.test(normalized)) {
-    return { action: "nexus" };
-  }
-  if (/^(raid contract|raid kontrat|kontrat raid)\b/.test(normalized)) {
-    return { action: "raid_contract" };
-  }
-  if (/^(perf|performans|fps)\b/.test(normalized)) {
-    return { action: "perf" };
-  }
-  if (/^(ui mode|arayuz|ui)\b/.test(normalized)) {
-    return { action: "ui_mode" };
-  }
-  if (/^(guide|rehber|nasil oynanir|yardim)\b/.test(normalized)) {
-    return { action: "guide" };
-  }
-
-  return null;
 }
 
 function buildSyntheticCallbackCtx(ctx, matchArray) {
@@ -3634,87 +4196,41 @@ async function revealLatestFromCommand(ctx, pool, appConfig) {
   await handleReveal(synthetic, pool, appConfig);
 }
 
-async function handleTextIntent(ctx, pool, appConfig) {
+async function handleTextIntent(ctx, pool, commandHandlerMap) {
   const text = String(ctx.message?.text || "").trim();
   const intent = resolveTextIntent(text);
   if (!intent) {
     return false;
   }
-
-  if (intent.action === "play") {
-    await sendPlay(ctx, pool, appConfig);
-    return true;
+  const handler = commandHandlerMap.get(String(intent.commandKey || ""));
+  if (typeof handler !== "function") {
+    return false;
   }
-  if (intent.action === "raid") {
-    const synthetic = buildSyntheticCallbackCtx(ctx, [null, intent.mode || "balanced"]);
-    await handleArenaRaid(synthetic, pool);
-    return true;
-  }
-  if (intent.action === "finish") {
-    await completeLatestAttemptFromCommand(ctx, pool, appConfig, intent.mode || "balanced");
-    return true;
-  }
-  if (intent.action === "reveal") {
-    await revealLatestFromCommand(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "tasks") {
-    await sendTasks(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "wallet") {
-    await sendWallet(ctx, pool);
-    return true;
-  }
-  if (intent.action === "token") {
-    await sendToken(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "mint") {
-    await mintToken(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "buytoken") {
-    await ctx.replyWithMarkdown(
-      "*Token Satin Alma*\nKullanim: `/buytoken <usd> <chain>`\nOrnek: `/buytoken 5 TON`",
-      { parse_mode: "Markdown" }
-    );
-    return true;
-  }
-  if (intent.action === "daily") {
-    await sendDaily(ctx, pool);
-    return true;
-  }
-  if (intent.action === "missions") {
-    await sendMissions(ctx, pool);
-    return true;
-  }
-  if (intent.action === "status") {
-    await sendStatus(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "nexus") {
-    await sendNexus(ctx, pool, appConfig);
-    return true;
-  }
-  if (intent.action === "raid_contract") {
-    await sendRaidContract(ctx, pool);
-    return true;
-  }
-  if (intent.action === "perf") {
-    await sendPerf(ctx, pool);
-    return true;
-  }
-  if (intent.action === "ui_mode") {
-    await sendUiMode(ctx, pool);
-    return true;
-  }
-  if (intent.action === "guide") {
-    await sendGuide(ctx, pool);
-    return true;
-  }
-
-  return false;
+  const profile = await ensureProfile(pool, ctx);
+  const locale = resolvePreferredLanguage(profile, ctx, "tr");
+  await logV5IntentResolution(pool, ctx, {
+    userId: Number(profile.user_id || 0),
+    inputText: text,
+    normalizedText: normalizeIntentText(text),
+    matchedKey: String(intent.commandKey || ""),
+    resolvedMode: String(intent.mode || "balanced"),
+    confidence: 1,
+    source: "bot_text_intent",
+    locale,
+    action: String(intent.commandKey || ""),
+    argsText: String(intent.argsText || "")
+  });
+  await logV5CommandEvent(pool, ctx, {
+    userId: Number(profile.user_id || 0),
+    commandKey: String(intent.commandKey || ""),
+    handlerKey: String(intent.commandKey || ""),
+    source: "bot_text_intent",
+    locale,
+    text,
+    argsText: String(intent.argsText || ""),
+    isSlash: false
+  });
+  return runIntentCommandHandler(ctx, intent, handler);
 }
 
 async function handleBuyOffer(ctx, pool) {
@@ -3775,6 +4291,334 @@ async function handleBuyOffer(ctx, pool) {
 
   await ctx.answerCbQuery();
   await ctx.replyWithMarkdown(messages.formatPurchaseResult(result));
+}
+
+function registerRegistryCommandHandlers(bot, registry, handlerMap) {
+  const registered = new Set();
+  const missing = [];
+  for (const item of registry || []) {
+    if (!item || !item.key) {
+      continue;
+    }
+    const handler = handlerMap.get(item.key);
+    if (typeof handler !== "function") {
+      missing.push(String(item.key));
+      continue;
+    }
+    const names = [String(item.key), ...(Array.isArray(item.aliases) ? item.aliases : [])];
+    for (const rawName of names) {
+      const name = String(rawName || "")
+        .trim()
+        .toLowerCase();
+      if (!name || name === "start" || registered.has(name)) {
+        continue;
+      }
+      bot.command(name, async (ctx) => {
+        await handler(ctx);
+      });
+      registered.add(name);
+    }
+  }
+  return {
+    registeredCount: registered.size,
+    missing
+  };
+}
+
+function registerSimpleActionHandlers(bot, actionMap) {
+  const entries = Object.entries(actionMap || {});
+  for (const [action, handler] of entries) {
+    if (!action || typeof handler !== "function") {
+      continue;
+    }
+    bot.action(action, async (ctx) => {
+      await ctx.answerCbQuery();
+      await handler(ctx);
+    });
+  }
+}
+
+function cleanupPlayerActionRateState() {
+  const now = Date.now();
+  for (const [key, ts] of PLAYER_ACTION_RATE_STATE.entries()) {
+    if (!ts || now - Number(ts) > 120_000) {
+      PLAYER_ACTION_RATE_STATE.delete(key);
+    }
+  }
+}
+
+async function enforcePlayerActionRateLimit(ctx, actionKey, cooldownMs) {
+  const cooldown = Math.max(0, Number(cooldownMs || 0));
+  if (!cooldown) {
+    return true;
+  }
+  const actorId = Number(ctx.from?.id || 0);
+  if (!actorId) {
+    return true;
+  }
+  cleanupPlayerActionRateState();
+  const key = `${actorId}:${String(actionKey || "player_action")}`;
+  const now = Date.now();
+  const previous = Number(PLAYER_ACTION_RATE_STATE.get(key) || 0);
+  if (previous > 0 && now - previous < cooldown) {
+    const waitSec = Math.max(1, Math.ceil((cooldown - (now - previous)) / 1000));
+    logEvent("player_callback_rate_limited", {
+      action: String(actionKey || "player_action"),
+      user_id: actorId,
+      wait_sec: waitSec
+    });
+    try {
+      await ctx.answerCbQuery(`Yavas: ${waitSec}s bekle`, { show_alert: false });
+    } catch {}
+    return false;
+  }
+  PLAYER_ACTION_RATE_STATE.set(key, now);
+  return true;
+}
+
+async function runPlayerCallbackRail(ctx, policy, handler) {
+  const resolvedPolicy = policy || {};
+  const actionKey = String(resolvedPolicy.actionKey || "player_action");
+  const defaultCooldown = Number(PLAYER_ACTION_DEFAULT_COOLDOWNS_MS[actionKey] || 0);
+  const cooldownMs = Number.isFinite(Number(resolvedPolicy.cooldownMs))
+    ? Number(resolvedPolicy.cooldownMs)
+    : defaultCooldown;
+  if (!(await enforcePlayerActionRateLimit(ctx, actionKey, cooldownMs))) {
+    return false;
+  }
+  const t0 = Date.now();
+  await handler(ctx);
+  logEvent("player_callback_processed", {
+    action: actionKey,
+    user_id: Number(ctx.from?.id || 0),
+    latency_ms: Math.max(0, Date.now() - t0)
+  });
+  return true;
+}
+
+function registerPlayerActionHandlers(bot, definitions) {
+  for (const def of definitions || []) {
+    if (!def || (!def.action && !def.pattern) || typeof def.handler !== "function") {
+      continue;
+    }
+    const actionOrPattern = def.action || def.pattern;
+    bot.action(actionOrPattern, async (ctx) => {
+      if (def.answerCbQuery === true) {
+        await ctx.answerCbQuery();
+      }
+      await runPlayerCallbackRail(ctx, def.policy || {}, def.handler);
+    });
+  }
+}
+
+async function runAdminCallbackRail(ctx, appConfig, policy, handler) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return false;
+  }
+  const resolvedPolicy = policy || {};
+  const actionKey = String(resolvedPolicy.actionKey || "admin_callback");
+  if (resolvedPolicy.critical) {
+    const confirmParts =
+      typeof resolvedPolicy.confirmParts === "function"
+        ? resolvedPolicy.confirmParts(ctx)
+        : Array.isArray(resolvedPolicy.confirmParts)
+          ? resolvedPolicy.confirmParts
+          : [];
+    if (
+      !(await ensureAdminCriticalReadyFromCallback(
+        ctx,
+        actionKey,
+        confirmParts,
+        String(resolvedPolicy.label || actionKey)
+      ))
+    ) {
+      return false;
+    }
+  }
+  if (resolvedPolicy.rateLimited !== false) {
+    if (!(await enforceAdminRateLimit(ctx, actionKey))) {
+      return false;
+    }
+  }
+  await handler(ctx);
+  return true;
+}
+
+function registerAdminActionHandlers(bot, appConfig, definitions) {
+  for (const def of definitions || []) {
+    if (!def || (!def.action && !def.pattern) || typeof def.handler !== "function") {
+      continue;
+    }
+    const actionOrPattern = def.action || def.pattern;
+    bot.action(actionOrPattern, async (ctx) => {
+      if (def.answerCbQuery !== false) {
+        await ctx.answerCbQuery();
+      }
+      await runAdminCallbackRail(ctx, appConfig, def.policy || {}, def.handler);
+    });
+  }
+}
+
+function buildCommandHandlerMap({ pool, appConfig }) {
+  const map = new Map();
+
+  map.set("profile", async (ctx) => {
+    const snapshot = await getSnapshot(pool, ctx);
+    await ctx.replyWithMarkdown(messages.formatProfile(snapshot.profile, snapshot.balances));
+  });
+  map.set("tasks", async (ctx) => sendTasks(ctx, pool, appConfig));
+  map.set("wallet", async (ctx) => sendWallet(ctx, pool));
+  map.set("token", async (ctx) => sendToken(ctx, pool, appConfig));
+  map.set("mint", async (ctx) => {
+    const amount = extractCommandArgs(ctx);
+    await mintToken(ctx, pool, appConfig, amount);
+  });
+  map.set("buytoken", async (ctx) => {
+    const args = parseTokenBuyArgs(extractCommandArgs(ctx));
+    if (!args.usdAmount || !args.chain) {
+      await ctx.replyWithMarkdown(
+        "*Token Satin Alma*\nKullanim: `/buytoken <usd> <chain>`\nOrnek: `/buytoken 5 TON`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+    await createTokenBuyIntent(ctx, pool, appConfig, args.usdAmount, args.chain);
+  });
+  map.set("tx", async (ctx) => {
+    const parts = String(extractCommandArgs(ctx))
+      .split(" ")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    await submitTokenTx(ctx, pool, parts[0], parts.slice(1).join(" "));
+  });
+  map.set("daily", async (ctx) => sendDaily(ctx, pool));
+  map.set("kingdom", async (ctx) => sendKingdom(ctx, pool));
+  map.set("season", async (ctx) => sendSeason(ctx, pool));
+  map.set("leaderboard", async (ctx) => sendLeaderboard(ctx, pool));
+  map.set("shop", async (ctx) => sendShop(ctx, pool));
+  map.set("missions", async (ctx) => sendMissions(ctx, pool));
+  map.set("war", async (ctx) => sendWar(ctx, pool));
+  map.set("streak", async (ctx) => {
+    const profile = await ensureProfile(pool, ctx);
+    await ctx.replyWithMarkdown(messages.formatStreak(profile));
+  });
+  map.set("vault", async (ctx) => sendPayout(ctx, pool, appConfig));
+  map.set("status", async (ctx) => sendStatus(ctx, pool, appConfig));
+  map.set("nexus", async (ctx) => sendNexus(ctx, pool, appConfig));
+  map.set("ops", async (ctx) => sendOps(ctx, pool));
+  map.set("pvp", async (ctx) => {
+    const mode = extractModeArg(ctx);
+    const synthetic = buildSyntheticCallbackCtx(ctx, [null, mode]);
+    await handleArenaRaid(synthetic, pool);
+  });
+  map.set("arena_rank", async (ctx) => sendArenaRank(ctx, pool));
+  map.set("play", async (ctx) => sendPlay(ctx, pool, appConfig));
+  map.set("finish", async (ctx) => {
+    const mode = extractModeArg(ctx);
+    await completeLatestAttemptFromCommand(ctx, pool, appConfig, mode);
+  });
+  map.set("reveal", async (ctx) => revealLatestFromCommand(ctx, pool, appConfig));
+  map.set("help", async (ctx) => {
+    const profile = await ensureProfile(pool, ctx);
+    const lang = resolvePreferredLanguage(profile, ctx, "tr");
+    await ctx.replyWithMarkdown(messages.formatHelp({ commands: getPrimaryCommands(COMMAND_REGISTRY), lang }), buildHelpKeyboard());
+  });
+  map.set("menu", async (ctx) => sendLauncherMenu(ctx, pool));
+  map.set("story", async (ctx) => sendGuide(ctx, pool));
+  map.set("onboard", async (ctx) => sendOnboard(ctx, pool, appConfig));
+  map.set("ui_mode", async (ctx) => sendUiMode(ctx, pool));
+  map.set("perf", async (ctx) => sendPerf(ctx, pool));
+  map.set("raid_contract", async (ctx) => sendRaidContract(ctx, pool));
+  map.set("whoami", async (ctx) => {
+    await ctx.replyWithMarkdown(messages.formatAdminWhoami(ctx.from?.id, appConfig.adminTelegramId));
+  });
+  map.set("lang", async (ctx) => {
+    await setLanguagePreference(ctx, pool, extractCommandArgs(ctx));
+  });
+
+  map.set("admin", async (ctx) => sendAdminPanel(ctx, pool, appConfig));
+  map.set("admin_live", async (ctx) => sendAdminLive(ctx, pool, appConfig));
+  map.set("admin_queue", async (ctx) => sendAdminQueue(ctx, pool, appConfig));
+  map.set("admin_payouts", async (ctx) => sendAdminPayoutQueue(ctx, pool, appConfig));
+  map.set("admin_tokens", async (ctx) => sendAdminTokenQueue(ctx, pool, appConfig));
+  map.set("admin_metrics", async (ctx) => sendAdminMetrics(ctx, pool, appConfig));
+  map.set("admin_config", async (ctx) => sendAdminConfig(ctx, pool, appConfig));
+  map.set("admin_token_price", async (ctx) => adminSetTokenPrice(ctx, pool, appConfig, extractCommandArgs(ctx)));
+  map.set("admin_gate", async (ctx) => {
+    const parsed = parseConfirmArgs(extractCommandArgs(ctx));
+    const signatureParts = parsed.parts.slice(0, 3);
+    const hint = `/admin_gate confirm ${signatureParts.join(" ")}`.trim();
+    if (!(await ensureAdminCriticalReady(ctx, "admin_gate", signatureParts, parsed.confirmed, hint))) {
+      return;
+    }
+    if (!(await enforceAdminRateLimit(ctx, "admin_gate"))) {
+      return;
+    }
+    await adminSetTokenGate(ctx, pool, appConfig, parsed.parts[0], parsed.parts[1], parsed.parts[2]);
+  });
+  map.set("admin_freeze", async (ctx) => {
+    if (!(await ensureAdminCtx(ctx, appConfig))) {
+      return;
+    }
+    const parsed = parseConfirmArgs(extractCommandArgs(ctx));
+    const parts = parsed.parts;
+    if (parts.length === 0) {
+      await ctx.replyWithMarkdown("*Admin Freeze*\nKullanim: `/admin_freeze on <sebep>` veya `/admin_freeze off`", {
+        parse_mode: "Markdown"
+      });
+      return;
+    }
+    const mode = String(parts[0] || "").toLowerCase();
+    if (!["on", "off"].includes(mode)) {
+      await ctx.replyWithMarkdown("*Admin Freeze*\nMode sadece `on` veya `off` olabilir.", {
+        parse_mode: "Markdown"
+      });
+      return;
+    }
+    const reason = parts.slice(1).join(" ");
+    const hint = `/admin_freeze confirm ${mode}${reason ? ` ${reason}` : ""}`.trim();
+    if (!(await ensureAdminCriticalReady(ctx, `admin_freeze_${mode}`, [mode, reason], parsed.confirmed, hint))) {
+      return;
+    }
+    if (!(await enforceAdminRateLimit(ctx, `admin_freeze_${mode}`))) {
+      return;
+    }
+    await adminSetFreeze(ctx, pool, appConfig, mode === "on", reason);
+  });
+  map.set("pay", async (ctx) => {
+    const parsed = parseConfirmArgs(extractCommandArgs(ctx));
+    const parts = parsed.parts;
+    const hint = `/pay confirm ${parts.join(" ")}`.trim();
+    if (!(await ensureAdminCriticalReady(ctx, "pay", parts, parsed.confirmed, hint))) {
+      return;
+    }
+    if (!(await enforceAdminRateLimit(ctx, "pay"))) {
+      return;
+    }
+    await adminMarkPayoutPaid(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+  map.set("reject_payout", async (ctx) => {
+    const parsed = parseConfirmArgs(extractCommandArgs(ctx));
+    const parts = parsed.parts;
+    const hint = `/reject_payout confirm ${parts.join(" ")}`.trim();
+    if (!(await ensureAdminCriticalReady(ctx, "reject_payout", parts, parsed.confirmed, hint))) {
+      return;
+    }
+    if (!(await enforceAdminRateLimit(ctx, "reject_payout"))) {
+      return;
+    }
+    await adminRejectPayout(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+  map.set("approve_token", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminApproveToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+  map.set("reject_token", async (ctx) => {
+    const parts = parseWords(extractCommandArgs(ctx));
+    await adminRejectToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
+  });
+
+  return map;
 }
 
 async function start() {
@@ -3925,289 +4769,14 @@ async function start() {
   const bot = new Telegraf(appConfig.botToken);
 
   bot.start(async (ctx) => {
-    const snapshot = await getSnapshot(pool, ctx);
-    const freeze = await withTransaction(pool, (db) => systemStore.getFreezeState(db));
-    if (freeze.freeze) {
-      await ctx.replyWithMarkdown(messages.formatFreezeMessage(freeze.reason));
-      return;
-    }
-    await ctx.replyWithMarkdown(
-      messages.formatStart(snapshot.profile, snapshot.balances, snapshot.season, snapshot.anomaly, snapshot.contract),
-      buildStartKeyboard()
-    );
+    await sendLauncherMenu(ctx, pool);
   });
 
-  bot.command("profile", async (ctx) => {
-    const snapshot = await getSnapshot(pool, ctx);
-    await ctx.replyWithMarkdown(messages.formatProfile(snapshot.profile, snapshot.balances));
-  });
-
-  bot.command("tasks", async (ctx) => {
-    await sendTasks(ctx, pool, appConfig);
-  });
-
-  bot.command("gorev", async (ctx) => {
-    await sendTasks(ctx, pool, appConfig);
-  });
-
-  bot.command("task", async (ctx) => {
-    await sendTasks(ctx, pool, appConfig);
-  });
-
-  bot.command("wallet", async (ctx) => {
-    await sendWallet(ctx, pool);
-  });
-
-  bot.command("cuzdan", async (ctx) => {
-    await sendWallet(ctx, pool);
-  });
-
-  bot.command("token", async (ctx) => {
-    await sendToken(ctx, pool, appConfig);
-  });
-
-  bot.command("mint", async (ctx) => {
-    const amount = extractCommandArgs(ctx);
-    await mintToken(ctx, pool, appConfig, amount);
-  });
-
-  bot.command("buytoken", async (ctx) => {
-    const args = parseTokenBuyArgs(extractCommandArgs(ctx));
-    if (!args.usdAmount || !args.chain) {
-      await ctx.replyWithMarkdown(
-        "*Token Satin Alma*\nKullanim: `/buytoken <usd> <chain>`\nOrnek: `/buytoken 5 TON`",
-        { parse_mode: "Markdown" }
-      );
-      return;
-    }
-    await createTokenBuyIntent(ctx, pool, appConfig, args.usdAmount, args.chain);
-  });
-
-  bot.command("tx", async (ctx) => {
-    const parts = String(extractCommandArgs(ctx))
-      .split(" ")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    await submitTokenTx(ctx, pool, parts[0], parts.slice(1).join(" "));
-  });
-
-  bot.command("daily", async (ctx) => {
-    await sendDaily(ctx, pool);
-  });
-
-  bot.command("gunluk", async (ctx) => {
-    await sendDaily(ctx, pool);
-  });
-
-  bot.command("kingdom", async (ctx) => {
-    await sendKingdom(ctx, pool);
-  });
-
-  bot.command("season", async (ctx) => {
-    await sendSeason(ctx, pool);
-  });
-
-  bot.command("leaderboard", async (ctx) => {
-    await sendLeaderboard(ctx, pool);
-  });
-
-  bot.command("shop", async (ctx) => {
-    await sendShop(ctx, pool);
-  });
-
-  bot.command("missions", async (ctx) => {
-    await sendMissions(ctx, pool);
-  });
-
-  bot.command("misyon", async (ctx) => {
-    await sendMissions(ctx, pool);
-  });
-
-  bot.command("war", async (ctx) => {
-    await sendWar(ctx, pool);
-  });
-
-  bot.command("streak", async (ctx) => {
-    const profile = await ensureProfile(pool, ctx);
-    await ctx.replyWithMarkdown(messages.formatStreak(profile));
-  });
-
-  bot.command("payout", async (ctx) => {
-    await sendPayout(ctx, pool, appConfig);
-  });
-
-  bot.command("status", async (ctx) => {
-    await sendStatus(ctx, pool, appConfig);
-  });
-
-  bot.command("nexus", async (ctx) => {
-    await sendNexus(ctx, pool, appConfig);
-  });
-
-  bot.command("contract", async (ctx) => {
-    await sendNexus(ctx, pool, appConfig);
-  });
-
-  bot.command("kontrat", async (ctx) => {
-    await sendNexus(ctx, pool, appConfig);
-  });
-
-  bot.command("durum", async (ctx) => {
-    await sendStatus(ctx, pool, appConfig);
-  });
-
-  bot.command("ops", async (ctx) => {
-    await sendOps(ctx, pool);
-  });
-
-  bot.command("raid", async (ctx) => {
-    const mode = normalizeModeFromText(extractCommandArgs(ctx));
-    const synthetic = buildSyntheticCallbackCtx(ctx, [null, mode]);
-    await handleArenaRaid(synthetic, pool);
-  });
-
-  bot.command("arena_rank", async (ctx) => {
-    await sendArenaRank(ctx, pool);
-  });
-
-  bot.command("play", async (ctx) => {
-    await sendPlay(ctx, pool, appConfig);
-  });
-
-  bot.command("arena", async (ctx) => {
-    await sendPlay(ctx, pool, appConfig);
-  });
-
-  bot.command("arena3d", async (ctx) => {
-    await sendPlay(ctx, pool, appConfig);
-  });
-
-  bot.command("finish", async (ctx) => {
-    const mode = extractCommandArgs(ctx);
-    await completeLatestAttemptFromCommand(ctx, pool, appConfig, mode);
-  });
-
-  bot.command("bitir", async (ctx) => {
-    const mode = extractCommandArgs(ctx);
-    await completeLatestAttemptFromCommand(ctx, pool, appConfig, mode);
-  });
-
-  bot.command("reveal", async (ctx) => {
-    await revealLatestFromCommand(ctx, pool, appConfig);
-  });
-
-  bot.command("revealnow", async (ctx) => {
-    await revealLatestFromCommand(ctx, pool, appConfig);
-  });
-
-  bot.command("help", async (ctx) => {
-    await ensureProfile(pool, ctx);
-    await ctx.replyWithMarkdown(messages.formatHelp());
-  });
-
-  bot.command("menu", async (ctx) => {
-    await ensureProfile(pool, ctx);
-    await ctx.replyWithMarkdown("*Launcher Menu*\nAna giris paneli:", buildStartKeyboard());
-  });
-
-  bot.command("guide", async (ctx) => {
-    await sendGuide(ctx, pool);
-  });
-
-  bot.command("onboard", async (ctx) => {
-    await sendOnboard(ctx, pool, appConfig);
-  });
-
-  bot.command("ui_mode", async (ctx) => {
-    await sendUiMode(ctx, pool);
-  });
-
-  bot.command("perf", async (ctx) => {
-    await sendPerf(ctx, pool);
-  });
-
-  bot.command("raid_contract", async (ctx) => {
-    await sendRaidContract(ctx, pool);
-  });
-
-  bot.command("whoami", async (ctx) => {
-    await ctx.replyWithMarkdown(messages.formatAdminWhoami(ctx.from?.id, appConfig.adminTelegramId));
-  });
-
-  bot.command("admin", async (ctx) => {
-    await sendAdminPanel(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_live", async (ctx) => {
-    await sendAdminLive(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_payouts", async (ctx) => {
-    await sendAdminPayoutQueue(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_tokens", async (ctx) => {
-    await sendAdminTokenQueue(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_metrics", async (ctx) => {
-    await sendAdminMetrics(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_config", async (ctx) => {
-    await sendAdminConfig(ctx, pool, appConfig);
-  });
-
-  bot.command("admin_token_price", async (ctx) => {
-    await adminSetTokenPrice(ctx, pool, appConfig, extractCommandArgs(ctx));
-  });
-
-  bot.command("admin_token_gate", async (ctx) => {
-    const parts = parseWords(extractCommandArgs(ctx));
-    await adminSetTokenGate(ctx, pool, appConfig, parts[0], parts[1]);
-  });
-
-  bot.command("admin_freeze", async (ctx) => {
-    if (!(await ensureAdminCtx(ctx, appConfig))) {
-      return;
-    }
-    const parts = parseWords(extractCommandArgs(ctx));
-    if (parts.length === 0) {
-      await ctx.replyWithMarkdown("*Admin Freeze*\nKullanim: `/admin_freeze on <sebep>` veya `/admin_freeze off`", {
-        parse_mode: "Markdown"
-      });
-      return;
-    }
-    const mode = String(parts[0] || "").toLowerCase();
-    if (!["on", "off"].includes(mode)) {
-      await ctx.replyWithMarkdown("*Admin Freeze*\nMode sadece `on` veya `off` olabilir.", {
-        parse_mode: "Markdown"
-      });
-      return;
-    }
-    const reason = parts.slice(1).join(" ");
-    await adminSetFreeze(ctx, pool, appConfig, mode === "on", reason);
-  });
-
-  bot.command("pay", async (ctx) => {
-    const parts = parseWords(extractCommandArgs(ctx));
-    await adminMarkPayoutPaid(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
-  });
-
-  bot.command("reject_payout", async (ctx) => {
-    const parts = parseWords(extractCommandArgs(ctx));
-    await adminRejectPayout(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
-  });
-
-  bot.command("approve_token", async (ctx) => {
-    const parts = parseWords(extractCommandArgs(ctx));
-    await adminApproveToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
-  });
-
-  bot.command("reject_token", async (ctx) => {
-    const parts = parseWords(extractCommandArgs(ctx));
-    await adminRejectToken(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
-  });
+  const commandHandlerMap = buildCommandHandlerMap({ pool, appConfig });
+  const registration = registerRegistryCommandHandlers(bot, COMMAND_REGISTRY, commandHandlerMap);
+  if (registration.missing.length > 0) {
+    console.warn("command handler missing for registry keys:", registration.missing.join(","));
+  }
 
   bot.on("message", async (ctx, next) => {
     if (ctx.message?.web_app_data?.data) {
@@ -4215,8 +4784,30 @@ async function start() {
       return;
     }
     if (typeof ctx.message?.text === "string") {
-      const handled = await handleTextIntent(ctx, pool, appConfig);
+      const incomingText = String(ctx.message.text || "").trim();
+      const slash = parseSlashCommandText(incomingText);
+      if (slash) {
+        const profile = await ensureProfile(pool, ctx);
+        const locale = resolvePreferredLanguage(profile, ctx, "tr");
+        await logV5CommandEvent(pool, ctx, {
+          userId: Number(profile.user_id || 0),
+          commandKey: slash.key,
+          handlerKey: COMMAND_ALIAS_LOOKUP.get(slash.key) || slash.key,
+          source: "bot_slash",
+          locale,
+          text: String(ctx.message.text || ""),
+          argsText: slash.argsText,
+          isSlash: true
+        });
+      }
+      const handled = await handleTextIntent(ctx, pool, commandHandlerMap);
       if (handled) {
+        return;
+      }
+      const slashKnown = slash ? COMMAND_ALIAS_LOOKUP.has(slash.key) : false;
+      const isPrivateChat = String(ctx.chat?.type || "private") === "private";
+      if (incomingText && !slashKnown && isPrivateChat) {
+        await sendUnknownIntentHint(ctx, pool);
         return;
       }
     }
@@ -4225,229 +4816,205 @@ async function start() {
     }
   });
 
-  bot.action("OPEN_TASKS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendTasks(ctx, pool, appConfig);
+  registerSimpleActionHandlers(bot, {
+    OPEN_TASKS: async (ctx) => sendTasks(ctx, pool, appConfig),
+    OPEN_WALLET: async (ctx) => sendWallet(ctx, pool),
+    OPEN_TOKEN: async (ctx) => sendToken(ctx, pool, appConfig),
+    OPEN_SEASON: async (ctx) => sendSeason(ctx, pool),
+    OPEN_LEADERBOARD: async (ctx) => sendLeaderboard(ctx, pool),
+    OPEN_SHOP: async (ctx) => sendShop(ctx, pool),
+    OPEN_MISSIONS: async (ctx) => sendMissions(ctx, pool),
+    OPEN_DAILY: async (ctx) => sendDaily(ctx, pool),
+    OPEN_KINGDOM: async (ctx) => sendKingdom(ctx, pool),
+    OPEN_WAR: async (ctx) => sendWar(ctx, pool),
+    OPEN_PAYOUT: async (ctx) => sendPayout(ctx, pool, appConfig),
+    OPEN_STATUS: async (ctx) => sendStatus(ctx, pool, appConfig),
+    OPEN_NEXUS: async (ctx) => sendNexus(ctx, pool, appConfig),
+    OPEN_GUIDE: async (ctx) => sendGuide(ctx, pool),
+    OPEN_ONBOARD: async (ctx) => sendOnboard(ctx, pool, appConfig),
+    OPEN_MORE_MENU: async (ctx) =>
+      ctx.replyWithMarkdown("*Ek Komut Merkezi*\nIleri paneller ve ekonomik islemler:", buildMoreMenuKeyboard()),
+    OPEN_HOME_MENU: async (ctx) => sendLauncherMenu(ctx, pool),
+    GUIDE_FINISH_BALANCED: async (ctx) => completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced"),
+    GUIDE_REVEAL: async (ctx) => revealLatestFromCommand(ctx, pool, appConfig),
+    OPEN_PLAY: async (ctx) => sendPlay(ctx, pool, appConfig),
+    OPEN_ARENA_RANK: async (ctx) => sendArenaRank(ctx, pool),
+    TOKEN_MINT: async (ctx) => mintToken(ctx, pool, appConfig),
+    TOKEN_BUY_SAMPLE: async (ctx) =>
+      ctx.replyWithMarkdown(
+        "*Token Satin Alma Ornegi*\n`/buytoken 5 TON`\nOdemeden sonra tx gonder:\n`/tx <requestId> <txHash>`",
+        { parse_mode: "Markdown" }
+      ),
+    ADMIN_PANEL_REFRESH: async (ctx) => sendAdminPanel(ctx, pool, appConfig),
+    ADMIN_OPEN_PAYOUTS: async (ctx) => sendAdminPayoutQueue(ctx, pool, appConfig),
+    ADMIN_OPEN_QUEUE: async (ctx) => sendAdminQueue(ctx, pool, appConfig),
+    ADMIN_OPEN_TOKENS: async (ctx) => sendAdminTokenQueue(ctx, pool, appConfig)
   });
 
-  bot.action("OPEN_WALLET", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendWallet(ctx, pool);
-  });
-
-  bot.action("OPEN_TOKEN", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendToken(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_SEASON", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendSeason(ctx, pool);
-  });
-
-  bot.action("OPEN_LEADERBOARD", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendLeaderboard(ctx, pool);
-  });
-
-  bot.action("OPEN_SHOP", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendShop(ctx, pool);
-  });
-
-  bot.action("OPEN_MISSIONS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendMissions(ctx, pool);
-  });
-
-  bot.action("OPEN_DAILY", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendDaily(ctx, pool);
-  });
-
-  bot.action("OPEN_KINGDOM", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendKingdom(ctx, pool);
-  });
-
-  bot.action("OPEN_WAR", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendWar(ctx, pool);
-  });
-
-  bot.action("OPEN_PAYOUT", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendPayout(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_STATUS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendStatus(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_NEXUS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendNexus(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_GUIDE", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendGuide(ctx, pool);
-  });
-
-  bot.action("OPEN_ONBOARD", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendOnboard(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_MORE_MENU", async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.replyWithMarkdown("*Ek Komut Merkezi*\nIleri paneller ve ekonomik islemler:", buildMoreMenuKeyboard());
-  });
-
-  bot.action("OPEN_HOME_MENU", async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.replyWithMarkdown("*Launcher*\nArena 3D girisi ve hizli akislara don:", buildStartKeyboard());
-  });
-
-  bot.action("GUIDE_FINISH_BALANCED", async (ctx) => {
-    await ctx.answerCbQuery();
-    await completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced");
-  });
-
-  bot.action("GUIDE_REVEAL", async (ctx) => {
-    await ctx.answerCbQuery();
-    await revealLatestFromCommand(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_PLAY", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendPlay(ctx, pool, appConfig);
-  });
-
-  bot.action("OPEN_ARENA_RANK", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendArenaRank(ctx, pool);
-  });
-
-  bot.action("TOKEN_MINT", async (ctx) => {
-    await ctx.answerCbQuery();
-    await mintToken(ctx, pool, appConfig);
-  });
-
-  bot.action("TOKEN_BUY_SAMPLE", async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.replyWithMarkdown(
-      "*Token Satin Alma Ornegi*\n`/buytoken 5 TON`\nOdemeden sonra tx gonder:\n`/tx <requestId> <txHash>`",
-      { parse_mode: "Markdown" }
-    );
-  });
-
-  bot.action(/ARENA_RAID:([a-z_]+)/, async (ctx) => {
-    await handleArenaRaid(ctx, pool);
-  });
-
-  bot.action(/TASK_ACCEPT:(\d+)/, async (ctx) => {
-    await handleTaskAccept(ctx, pool, appConfig);
-  });
-
-  bot.action(/TASK_COMPLETE:(\d+)(?::([a-z_]+))?/, async (ctx) => {
-    await handleTaskComplete(ctx, pool, appConfig);
-  });
-
-  bot.action(/REVEAL:(\d+)/, async (ctx) => {
-    await handleReveal(ctx, pool, appConfig);
-  });
-
-  bot.action(/BUY_OFFER:(\d+)/, async (ctx) => {
-    await handleBuyOffer(ctx, pool);
-  });
-
-  bot.action(/CLAIM_MISSION:([a-z0-9_]+)/, async (ctx) => {
-    await handleClaimMission(ctx, pool);
-  });
-
-  bot.action("REROLL_TASKS", async (ctx) => {
-    await handleRerollTasks(ctx, pool, appConfig);
-  });
-
-  bot.action(/REQ_PAYOUT:([A-Z]+)/, async (ctx) => {
-    await handlePayoutRequest(ctx, pool, appConfig);
-  });
-
-  bot.action("ADMIN_PANEL_REFRESH", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendAdminPanel(ctx, pool, appConfig);
-  });
-
-  bot.action("ADMIN_OPEN_PAYOUTS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendAdminPayoutQueue(ctx, pool, appConfig);
-  });
-
-  bot.action("ADMIN_OPEN_TOKENS", async (ctx) => {
-    await ctx.answerCbQuery();
-    await sendAdminTokenQueue(ctx, pool, appConfig);
-  });
-
-  bot.action("ADMIN_FREEZE_ON", async (ctx) => {
-    await ctx.answerCbQuery();
-    await adminSetFreeze(ctx, pool, appConfig, true, "admin_panel");
-    await sendAdminPanel(ctx, pool, appConfig);
-  });
-
-  bot.action("ADMIN_FREEZE_OFF", async (ctx) => {
-    await ctx.answerCbQuery();
-    await adminSetFreeze(ctx, pool, appConfig, false, "");
-    await sendAdminPanel(ctx, pool, appConfig);
-  });
-
-  bot.action(/ADMIN_PAYOUT_PICK:(\d+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    if (!(await ensureAdminCtx(ctx, appConfig))) {
-      return;
+  registerPlayerActionHandlers(bot, [
+    {
+      pattern: /ARENA_RAID:([a-z_]+)/,
+      policy: { actionKey: "arena_raid" },
+      handler: async (ctx) => handleArenaRaid(ctx, pool)
+    },
+    {
+      pattern: /TASK_ACCEPT:(\d+)/,
+      policy: { actionKey: "task_accept" },
+      handler: async (ctx) => handleTaskAccept(ctx, pool, appConfig)
+    },
+    {
+      pattern: /TASK_COMPLETE:(\d+)(?::([a-z_]+))?/,
+      policy: { actionKey: "task_complete" },
+      handler: async (ctx) => handleTaskComplete(ctx, pool, appConfig)
+    },
+    {
+      pattern: /REVEAL:(\d+)/,
+      policy: { actionKey: "reveal" },
+      handler: async (ctx) => handleReveal(ctx, pool, appConfig)
+    },
+    {
+      pattern: /BUY_OFFER:(\d+)/,
+      policy: { actionKey: "buy_offer" },
+      handler: async (ctx) => handleBuyOffer(ctx, pool)
+    },
+    {
+      pattern: /CLAIM_MISSION:([a-z0-9_]+)/,
+      policy: { actionKey: "claim_mission" },
+      handler: async (ctx) => handleClaimMission(ctx, pool)
+    },
+    {
+      action: "REROLL_TASKS",
+      policy: { actionKey: "reroll_tasks" },
+      handler: async (ctx) => handleRerollTasks(ctx, pool, appConfig)
+    },
+    {
+      pattern: /REQ_PAYOUT:([A-Z]+)/,
+      policy: { actionKey: "payout_request" },
+      handler: async (ctx) => handlePayoutRequest(ctx, pool, appConfig)
     }
-    const requestId = Number(ctx.match[1] || 0);
-    const row = await withTransaction(pool, async (db) => payoutStore.getRequestWithTx(db, requestId));
-    if (!row) {
-      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep bulunamadi."));
-      return;
-    }
-    await ctx.replyWithMarkdown(
-      `*Payout Talebi #${row.id}*\n` +
-        `User: *${row.user_id}*\n` +
-        `Durum: *${row.status}*\n` +
-        `Miktar: *${Number(row.amount || 0).toFixed(8)} BTC*\n` +
-        `Kaynak HC: *${Number(row.source_hc_amount || 0).toFixed(4)}*\n` +
-        `Onay icin: \`/pay ${row.id} <txHash>\`\n` +
-        `Red icin: \`/reject_payout ${row.id} <sebep>\``,
-      { parse_mode: "Markdown" }
-    );
-  });
+  ]);
 
-  bot.action(/ADMIN_TOKEN_PICK:(\d+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    if (!(await ensureAdminCtx(ctx, appConfig))) {
-      return;
+  registerAdminActionHandlers(bot, appConfig, [
+    {
+      action: "ADMIN_FREEZE_ON",
+      policy: {
+        actionKey: "admin_freeze_on",
+        critical: true,
+        confirmParts: ["on", "admin_panel"],
+        label: "Freeze On"
+      },
+      handler: async (ctx) => {
+        await adminSetFreeze(ctx, pool, appConfig, true, "admin_panel");
+        await sendAdminPanel(ctx, pool, appConfig);
+      }
+    },
+    {
+      action: "ADMIN_FREEZE_OFF",
+      policy: {
+        actionKey: "admin_freeze_off",
+        critical: true,
+        confirmParts: ["off", ""],
+        label: "Freeze Off"
+      },
+      handler: async (ctx) => {
+        await adminSetFreeze(ctx, pool, appConfig, false, "");
+        await sendAdminPanel(ctx, pool, appConfig);
+      }
+    },
+    {
+      pattern: /ADMIN_PAYOUT_PICK:(\d+)/,
+      policy: {
+        actionKey: "admin_payout_pick",
+        rateLimited: false
+      },
+      handler: async (ctx) => {
+        const requestId = Number(ctx.match?.[1] || 0);
+        const row = await withTransaction(pool, async (db) => payoutStore.getRequestWithTx(db, requestId));
+        if (!row) {
+          await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep bulunamadi."));
+          return;
+        }
+        await ctx.replyWithMarkdown(
+          `*Payout Talebi #${row.id}*\n` +
+            `User: *${row.user_id}*\n` +
+            `Durum: *${row.status}*\n` +
+            `Miktar: *${Number(row.amount || 0).toFixed(8)} BTC*\n` +
+            `Kaynak HC: *${Number(row.source_hc_amount || 0).toFixed(4)}*\n` +
+            `Onay icin: \`/pay ${row.id} <txHash>\`\n` +
+            `Hizli red: asagidaki *Payout Reddet* butonu (2 adim onayli)`,
+          buildAdminPayoutActionKeyboard(row.id)
+        );
+      }
+    },
+    {
+      pattern: /ADMIN_TOKEN_PICK:(\d+)/,
+      policy: {
+        actionKey: "admin_token_pick",
+        rateLimited: false
+      },
+      handler: async (ctx) => {
+        const requestId = Number(ctx.match?.[1] || 0);
+        const row = await withTransaction(pool, async (db) => tokenStore.getPurchaseRequest(db, requestId));
+        if (!row) {
+          await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "Talep bulunamadi."));
+          return;
+        }
+        await ctx.replyWithMarkdown(
+          `*Token Talebi #${row.id}*\n` +
+            `User: *${row.user_id}*\n` +
+            `Durum: *${String(row.status || "").toUpperCase()}*\n` +
+            `Odeme: *${Number(row.usd_amount || 0).toFixed(2)} USD* (${row.chain})\n` +
+            `Token: *${Number(row.token_amount || 0).toFixed(4)} ${row.token_symbol}*\n` +
+            `TX: ${row.tx_hash ? `\`${String(row.tx_hash)}\`` : "yok"}\n` +
+            `Onay: ${row.tx_hash ? "*Butondan hizli onay* veya" : "TX yoksa once"} \`/approve_token ${row.id}\`\n` +
+            `Red: \`/reject_token ${row.id} <sebep>\` veya butondan hizli red`,
+          buildAdminTokenActionKeyboard(row)
+        );
+      }
+    },
+    {
+      pattern: /ADMIN_PAYOUT_REJECT:(\d+)/,
+      policy: {
+        actionKey: "admin_payout_reject_callback",
+        critical: true,
+        confirmParts: (ctx) => [String(ctx.match?.[1] || "")],
+        label: "Payout Reject"
+      },
+      handler: async (ctx) => {
+        const requestId = Number(ctx.match?.[1] || 0);
+        await adminRejectPayout(ctx, pool, appConfig, requestId, "rejected_via_callback");
+        await sendAdminQueue(ctx, pool, appConfig);
+      }
+    },
+    {
+      pattern: /ADMIN_TOKEN_APPROVE:(\d+)/,
+      policy: {
+        actionKey: "admin_token_approve_callback",
+        critical: true,
+        confirmParts: (ctx) => [String(ctx.match?.[1] || "")],
+        label: "Token Approve"
+      },
+      handler: async (ctx) => {
+        const requestId = Number(ctx.match?.[1] || 0);
+        await adminApproveToken(ctx, pool, appConfig, requestId, "approved_via_callback");
+        await sendAdminQueue(ctx, pool, appConfig);
+      }
+    },
+    {
+      pattern: /ADMIN_TOKEN_REJECT:(\d+)/,
+      policy: {
+        actionKey: "admin_token_reject_callback",
+        critical: true,
+        confirmParts: (ctx) => [String(ctx.match?.[1] || "")],
+        label: "Token Reject"
+      },
+      handler: async (ctx) => {
+        const requestId = Number(ctx.match?.[1] || 0);
+        await adminRejectToken(ctx, pool, appConfig, requestId, "rejected_via_callback");
+        await sendAdminQueue(ctx, pool, appConfig);
+      }
     }
-    const requestId = Number(ctx.match[1] || 0);
-    const row = await withTransaction(pool, async (db) => tokenStore.getPurchaseRequest(db, requestId));
-    if (!row) {
-      await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token", "Talep bulunamadi."));
-      return;
-    }
-    await ctx.replyWithMarkdown(
-      `*Token Talebi #${row.id}*\n` +
-        `User: *${row.user_id}*\n` +
-        `Durum: *${String(row.status || "").toUpperCase()}*\n` +
-        `Odeme: *${Number(row.usd_amount || 0).toFixed(2)} USD* (${row.chain})\n` +
-        `Token: *${Number(row.token_amount || 0).toFixed(4)} ${row.token_symbol}*\n` +
-        `TX: ${row.tx_hash ? `\`${String(row.tx_hash)}\`` : "yok"}\n` +
-        `Onay: \`/approve_token ${row.id}\`\n` +
-        `Red: \`/reject_token ${row.id} <sebep>\``,
-      { parse_mode: "Markdown" }
-    );
-  });
+  ]);
 
   bot.catch((err) => {
     console.error("Bot error", err);
@@ -4472,40 +5039,7 @@ async function start() {
   });
 
   try {
-    await bot.telegram.setMyCommands([
-      { command: "start", description: "Kontrol panelini ac" },
-      { command: "menu", description: "Launcher kisayol menusu" },
-      { command: "onboard", description: "3 adim hizli baslangic" },
-      { command: "guide", description: "Hizli baslangic rehberi" },
-      { command: "tasks", description: "Gorev havuzunu goster" },
-      { command: "finish", description: "Aktif gorevi bitir (safe/balanced/aggressive)" },
-      { command: "reveal", description: "Son biten gorevi ac" },
-      { command: "raid", description: "Arena raid baslat" },
-      { command: "arena_rank", description: "Arena rating ve siralama" },
-      { command: "wallet", description: "Bakiye durumunu goster" },
-      { command: "token", description: "Sanal token cuzdani ve talepler" },
-      { command: "mint", description: "SC/HC/RC -> token donustur" },
-      { command: "buytoken", description: "Token alim talebi olustur" },
-      { command: "tx", description: "Token alim tx hash gonder" },
-      { command: "daily", description: "Gunluk panel" },
-      { command: "missions", description: "Misyon paneli" },
-      { command: "shop", description: "Dukkan" },
-      { command: "play", description: "Arena 3D web arayuzu" },
-      { command: "arena3d", description: "Arena 3D web arayuzu (alias)" },
-      { command: "ops", description: "Risk ve event operasyon paneli" },
-      { command: "status", description: "Sistem durumu" },
-      { command: "nexus", description: "Gunun event pulse ve taktik oneri" },
-      { command: "contract", description: "Gunun Nexus kontrati" },
-      { command: "raid_contract", description: "Raid kontrat + bonus hedefi" },
-      { command: "ui_mode", description: "UI kalite ve erisilebilirlik ozeti" },
-      { command: "perf", description: "Performans + API health ozeti" },
-      { command: "whoami", description: "Telegram ID + admin kontrol" },
-      { command: "admin", description: "Admin kontrol merkezi (yetkili)" },
-      { command: "admin_live", description: "Admin canli operasyon paneli" },
-      { command: "admin_config", description: "Admin ekonomi/token config ozeti" },
-      { command: "admin_metrics", description: "Admin 24s operasyon metrikleri" },
-      { command: "help", description: "Komut listesi" }
-    ]);
+    await bot.telegram.setMyCommands(toTelegramCommands(COMMAND_REGISTRY, "tr"));
   } catch (err) {
     console.warn("setMyCommands failed", err?.message || err);
   }
@@ -4626,3 +5160,5 @@ start().catch((err) => {
   console.error("Startup failed", err);
   process.exit(1);
 });
+
+

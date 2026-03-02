@@ -1,0 +1,5 @@
+-- Rollback for V050__v5_unified_admin_queue_action_events.sql
+
+DROP INDEX IF EXISTS idx_v5_unified_admin_queue_action_events_admin;
+DROP INDEX IF EXISTS idx_v5_unified_admin_queue_action_events_lookup;
+DROP TABLE IF EXISTS v5_unified_admin_queue_action_events;

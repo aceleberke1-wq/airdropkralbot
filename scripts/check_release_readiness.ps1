@@ -7,8 +7,10 @@ param(
   [int]$WarmupWaitSec = 12,
   [switch]$SkipTests,
   [switch]$SkipWebAppBuild,
+  [switch]$SkipV52Audit,
   [switch]$SkipSystemAudit,
   [switch]$SkipMigrate,
+  [switch]$SkipV51Smoke,
   [switch]$SkipHealth,
   [switch]$SkipReleaseMarker,
   [string]$ExpectedAdminTelegramId = "1995400205",
@@ -247,6 +249,15 @@ try {
     }
   }
 
+  if (-not $SkipV52Audit) {
+    Invoke-Step "V5.2 contract + bot regression audit" {
+      & npm run audit:v5.2
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm run audit:v5.2 failed"
+      }
+    }
+  }
+
   if (-not $SkipSystemAudit) {
     Invoke-Step "Repo system audit (keywords/duplicates classification)" {
       $auditArgs = @(
@@ -266,6 +277,15 @@ try {
       & npm run migrate:node
       if ($LASTEXITCODE -ne 0) {
         throw "npm run migrate:node failed"
+      }
+    }
+  }
+
+  if (-not $SkipV51Smoke) {
+    Invoke-Step "V5.1 local API smoke (v2 bootstrap/payout/pvp/wallet/admin queue)" {
+      & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "smoke_v5_1.ps1")
+      if ($LASTEXITCODE -ne 0) {
+        throw "smoke_v5_1.ps1 failed"
       }
     }
   }

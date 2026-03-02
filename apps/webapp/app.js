@@ -14,6 +14,7 @@
       runtime: null,
       assets: null,
       queues: null,
+      pendingConfirmations: {},
       runtimeFlags: null,
       deployStatus: null,
       decisionTraces: null,
@@ -58,6 +59,9 @@
       pvpLeaderboardMeta: null,
       pvpLeaderboardPulseKey: "",
       pvpLeaderboardPulseAt: 0,
+      pvpProgression: null,
+      pvpProgressionFetchedAt: 0,
+      pvpProgressionSource: "bootstrap",
       assetManifestMeta: null,
       assetManifestTimer: null,
       assetManifestPulseKey: "",
@@ -88,10 +92,17 @@
       tokenQuote: null,
       tokenRouteStatus: null,
       sceneProfileEffective: null,
+      walletCapabilities: null,
+      walletSession: null,
+      walletLinks: [],
+      walletKycStatus: null,
+      walletPendingChallenge: null,
+      monetization: null,
       pvpDiagnostics: null,
       runtimeFlagsEffective: {},
       webappVersion: "",
       webappLaunchUrl: "",
+      commandCatalog: [],
       quoteTimer: null,
       featureFlags: {}
     },
@@ -152,6 +163,25 @@
       combatHitTimer: null,
       overdriveTone: "steady",
       overdriveSurgeTimer: null
+    },
+    ux: {
+      mode: "player",
+      activeTab: "home",
+      advancedEnabled: false,
+      language: String(qs.get("lang") || "tr")
+        .toLowerCase()
+        .startsWith("en")
+        ? "en"
+        : "tr",
+      storageKeys: {
+        language: "airdropkral_ux_lang_v1",
+        advanced: "airdropkral_ux_advanced_v1",
+        activeTab: "airdropkral_ux_active_tab_v1"
+      },
+      userOverrides: {
+        language: false,
+        advanced: false
+      }
     },
     audio: {
       enabled: true,
@@ -231,9 +261,254 @@
       glow: "rgba(255, 93, 125, 0.56)"
     }
   });
+  const UX_PANEL_SELECTORS = Object.freeze({
+    home: [".hero.card", ".telemetryDeck.card", ".director.card", ".contract.card"],
+    pvp: [".layout .panel.pvpPanel"],
+    tasks: [".layout .panel.tasks", ".layout .panel.operation", ".layout .panel.missions", ".layout .panel.commands", ".layout .panel.feed"],
+    vault: [".layout .panel.tokenPanel"],
+    admin: ["#adminPanel"]
+  });
+  const UX_ADVANCED_SELECTORS = Object.freeze([
+    ".telemetryDeck.card",
+    ".director.card",
+    ".contract.card",
+    ".layout .panel.commands",
+    ".layout .panel.feed",
+    "#sceneAlarmStrip",
+    "#sceneIntegrityOverlay",
+    "#resolveBurstBanner",
+    "#combatFxOverlay",
+    "#adminProviderAlertStrip",
+    "#adminAuditRuntimeStrip",
+    "#adminDecisionTraceStrip",
+    "#adminAssetRuntimeStrip"
+  ]);
+  const UX_TEXT = Object.freeze({
+    tr: {
+      nav_home: "Home",
+      nav_pvp: "PvP",
+      nav_tasks: "Gorevler",
+      nav_vault: "Vault",
+      nav_admin: "Admin",
+      command_badge: "Bot Komut Kartlari",
+      command_run: "Calistir",
+      advanced_on: "Advanced: Acik",
+      advanced_off: "Advanced: Kapali",
+      lang_tr: "Dil: TR",
+      lang_en: "Dil: EN",
+      refresh: "Yenile",
+      reroll: "Panel Yenile (1 RC)",
+      unified_badge_alert: "QUEUE ALARM",
+      unified_badge_watch: "QUEUE IZLE",
+      unified_badge_live: "QUEUE AKTIF",
+      unified_badge_wait: "QUEUE BEKLE",
+      unified_line_summary: "Unified {total} kayit | payout {payout} | token manual {manual} | kyc {kyc} | auto {auto}",
+      unified_empty: "Unified queue bos.",
+      unified_kind_payout_request: "Payout Talebi",
+      unified_kind_token_manual_review: "Token Manual Inceleme",
+      unified_kind_token_auto_decision: "Token Auto Karar",
+      unified_kind_kyc_manual_review: "KYC Manual Inceleme",
+      unified_kind_default: "Queue Kaydi",
+      unified_reason_missing: "Policy nedeni yok.",
+      unified_row_prefill_title: "Admin aksiyon formunu doldurmak icin tikla.",
+      unified_tag_confirm: "2-ADIM ONAY",
+      unified_tag_prefill: "TIKLA DOLDUR",
+      unified_action_mark_paid: "Paid Isaretle",
+      unified_action_reject: "Reddet",
+      unified_action_approve: "Onayla",
+      unified_action_block: "Blokla",
+      unified_action_prefill: "Forma Doldur",
+      unified_action_default: "Aksiyon",
+      unified_action_confirm_title: "Kritik aksiyon. Onay mesajindan sonra tekrar tikla.",
+      unified_toast_payout_selected: "Payout #{id} secildi",
+      unified_toast_token_selected: "Token #{id} secildi",
+      unified_toast_kyc_selected: "KYC u#{id} secildi",
+      unified_toast_tx_required: "Payout pay icin once TX hash gir.",
+      unified_toast_payout_paid: "Payout #{id} paid",
+      unified_toast_payout_rejected: "Payout #{id} reddedildi",
+      unified_toast_token_approved: "Token #{id} onaylandi",
+      unified_toast_token_rejected: "Token #{id} reddedildi",
+      unified_toast_kyc_approved: "KYC u#{id} onaylandi",
+      unified_toast_kyc_rejected: "KYC u#{id} reddedildi",
+      unified_toast_kyc_blocked: "KYC u#{id} bloklandi",
+      unified_error_invalid_action: "Queue aksiyon verisi gecersiz.",
+      unified_error_unsupported_action: "Bu queue kaydi icin aksiyon tanimli degil."
+    },
+    en: {
+      nav_home: "Home",
+      nav_pvp: "PvP",
+      nav_tasks: "Tasks",
+      nav_vault: "Vault",
+      nav_admin: "Admin",
+      command_badge: "Bot Command Cards",
+      command_run: "Run",
+      advanced_on: "Advanced: On",
+      advanced_off: "Advanced: Off",
+      lang_tr: "Lang: TR",
+      lang_en: "Lang: EN",
+      refresh: "Refresh",
+      reroll: "Refresh Panel (1 RC)",
+      unified_badge_alert: "QUEUE ALERT",
+      unified_badge_watch: "QUEUE WATCH",
+      unified_badge_live: "QUEUE LIVE",
+      unified_badge_wait: "QUEUE WAIT",
+      unified_line_summary: "Unified {total} items | payout {payout} | token manual {manual} | kyc {kyc} | auto {auto}",
+      unified_empty: "Unified queue is empty.",
+      unified_kind_payout_request: "Payout Request",
+      unified_kind_token_manual_review: "Token Manual Review",
+      unified_kind_token_auto_decision: "Token Auto Decision",
+      unified_kind_kyc_manual_review: "KYC Manual Review",
+      unified_kind_default: "Queue Item",
+      unified_reason_missing: "Policy reason missing.",
+      unified_row_prefill_title: "Click to prefill admin action form.",
+      unified_tag_confirm: "2-STEP CONFIRM",
+      unified_tag_prefill: "CLICK TO PREFILL",
+      unified_action_mark_paid: "Mark Paid",
+      unified_action_reject: "Reject",
+      unified_action_approve: "Approve",
+      unified_action_block: "Block",
+      unified_action_prefill: "Prefill",
+      unified_action_default: "Action",
+      unified_action_confirm_title: "Critical action. Click again after confirmation prompt.",
+      unified_toast_payout_selected: "Payout #{id} selected",
+      unified_toast_token_selected: "Token #{id} selected",
+      unified_toast_kyc_selected: "KYC u#{id} selected",
+      unified_toast_tx_required: "Enter TX hash before payout pay.",
+      unified_toast_payout_paid: "Payout #{id} marked paid",
+      unified_toast_payout_rejected: "Payout #{id} rejected",
+      unified_toast_token_approved: "Token #{id} approved",
+      unified_toast_token_rejected: "Token #{id} rejected",
+      unified_toast_kyc_approved: "KYC u#{id} approved",
+      unified_toast_kyc_rejected: "KYC u#{id} rejected",
+      unified_toast_kyc_blocked: "KYC u#{id} blocked",
+      unified_error_invalid_action: "Queue action payload is invalid.",
+      unified_error_unsupported_action: "No action is defined for this queue item."
+    }
+  });
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  function normalizeUxLanguage(value) {
+    const raw = String(value || "")
+      .trim()
+      .toLowerCase();
+    return raw.startsWith("en") ? "en" : "tr";
+  }
+
+  function uxText(key) {
+    const lang = normalizeUxLanguage(state.ux.language);
+    const table = UX_TEXT[lang] || UX_TEXT.tr;
+    return table[key] || UX_TEXT.tr[key] || key;
+  }
+
+  function uxFormat(key, vars = {}) {
+    let text = String(uxText(key) || key);
+    const replacements = vars && typeof vars === "object" ? vars : {};
+    Object.entries(replacements).forEach(([name, value]) => {
+      text = text.replace(new RegExp(`\\{${String(name)}\\}`, "g"), String(value));
+    });
+    return text;
+  }
+
+  function resolveUniqueNodes(selectors = []) {
+    const out = [];
+    const seen = new Set();
+    for (const selector of selectors) {
+      if (!selector) {
+        continue;
+      }
+      document.querySelectorAll(selector).forEach((node) => {
+        if (!node || seen.has(node)) {
+          return;
+        }
+        seen.add(node);
+        out.push(node);
+      });
+    }
+    return out;
+  }
+
+  function applyLanguageUi() {
+    const lang = normalizeUxLanguage(state.ux.language);
+    state.ux.language = lang;
+    document.documentElement.lang = lang;
+    const tabMap = {
+      tabHomeBtn: "nav_home",
+      tabPvpBtn: "nav_pvp",
+      tabTasksBtn: "nav_tasks",
+      tabVaultBtn: "nav_vault",
+      tabAdminBtn: "nav_admin"
+    };
+    Object.entries(tabMap).forEach(([id, key]) => {
+      const el = byId(id);
+      if (el) {
+        el.textContent = uxText(key);
+      }
+    });
+    const advancedBtn = byId("advancedToggleBtn");
+    if (advancedBtn) {
+      advancedBtn.textContent = state.ux.advancedEnabled ? uxText("advanced_on") : uxText("advanced_off");
+    }
+    const languageBtn = byId("languageToggleBtn");
+    if (languageBtn) {
+      languageBtn.textContent = lang === "en" ? uxText("lang_en") : uxText("lang_tr");
+    }
+    const refreshBtn = byId("refreshBtn");
+    if (refreshBtn) {
+      refreshBtn.textContent = uxText("refresh");
+    }
+    const rerollBtn = byId("rerollBtn");
+    if (rerollBtn) {
+      rerollBtn.textContent = uxText("reroll");
+    }
+    const commandBadge = byId("commandCatalogBadge");
+    if (commandBadge) {
+      commandBadge.textContent = uxText("command_badge");
+    }
+    renderCommandCatalog(state.v3.commandCatalog || []);
+    if (state.admin && state.admin.isAdmin) {
+      renderAdminUnifiedQueue(state.admin.summary || {});
+    }
+  }
+
+  function applyUxView() {
+    const mode = String(state.ux.mode || "player").toLowerCase() === "legacy" ? "legacy" : "player";
+    state.ux.mode = mode;
+    const canAdmin = Boolean(state.admin.isAdmin);
+    if (!canAdmin && state.ux.activeTab === "admin") {
+      state.ux.activeTab = "home";
+    }
+    const activeTab = String(state.ux.activeTab || "home").toLowerCase();
+    document.body.dataset.uxMode = mode;
+    document.body.dataset.uxAdvanced = state.ux.advancedEnabled ? "1" : "0";
+
+    const tabButtons = document.querySelectorAll(".playerUxTab");
+    tabButtons.forEach((button) => {
+      const tab = String(button?.dataset?.panelTab || "").toLowerCase();
+      const isActive = tab === activeTab;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    const adminTabBtn = byId("tabAdminBtn");
+    if (adminTabBtn) {
+      adminTabBtn.classList.toggle("ux-hidden-panel", !canAdmin);
+    }
+
+    Object.entries(UX_PANEL_SELECTORS).forEach(([key, selectors]) => {
+      const nodes = resolveUniqueNodes(selectors);
+      const hiddenForRole = key === "admin" && !canAdmin;
+      const hiddenForTab = mode === "player" && key !== activeTab;
+      const shouldHide = hiddenForRole || hiddenForTab;
+      nodes.forEach((node) => node.classList.toggle("ux-hidden-panel", shouldHide));
+    });
+
+    const hideAdvanced = !Boolean(state.ux.advancedEnabled);
+    resolveUniqueNodes(UX_ADVANCED_SELECTORS).forEach((node) => {
+      node.classList.toggle("ux-hidden-advanced", hideAdvanced);
+    });
+    applyLanguageUi();
   }
 
   function maskWalletAddress(value) {
@@ -2069,6 +2344,33 @@
     applyUiClasses();
   }
 
+  function persistUxPrefs() {
+    writeStorage(state.ux.storageKeys.language, normalizeUxLanguage(state.ux.language));
+    writeStorage(state.ux.storageKeys.advanced, state.ux.advancedEnabled ? "1" : "0");
+    writeStorage(state.ux.storageKeys.activeTab, String(state.ux.activeTab || "home").toLowerCase());
+  }
+
+  function loadUxPrefs() {
+    const queryLangRaw = String(qs.get("lang") || "").trim();
+    const storedLangRaw = String(readStorage(state.ux.storageKeys.language, "") || "").trim();
+    const resolvedLangRaw = queryLangRaw || storedLangRaw;
+    if (resolvedLangRaw) {
+      state.ux.language = normalizeUxLanguage(resolvedLangRaw);
+      state.ux.userOverrides.language = true;
+    }
+    const storedAdvanced = String(readStorage(state.ux.storageKeys.advanced, "") || "").trim();
+    if (storedAdvanced === "0" || storedAdvanced === "1") {
+      state.ux.advancedEnabled = storedAdvanced === "1";
+      state.ux.userOverrides.advanced = true;
+    }
+    const storedTab = String(readStorage(state.ux.storageKeys.activeTab, "home") || "home")
+      .trim()
+      .toLowerCase();
+    if (["home", "pvp", "tasks", "vault", "admin"].includes(storedTab)) {
+      state.ux.activeTab = storedTab;
+    }
+  }
+
   function applyArenaQualityProfile(profile = null) {
     const arena = state.arena;
     if (!arena || !arena.renderer) {
@@ -3732,6 +4034,8 @@
     if (action === "open_play") return "/play";
     if (action === "open_status") return "/status";
     if (action === "open_payout") return "/payout";
+    if (action === "open_help") return "/help";
+    if (action === "set_language") return `/lang ${String(payload.lang || "tr").toLowerCase().startsWith("en") ? "en" : "tr"}`;
     if (action === "complete_latest") return `/finish ${payload.mode || "balanced"}`;
     if (action === "reveal_latest") return "/reveal";
     if (action === "accept_offer") return "/tasks";
@@ -3742,6 +4046,133 @@
     if (action === "buy_token") return `/buytoken ${payload.usd_amount || 5} ${payload.chain || "TON"}`;
     if (action === "submit_token_tx") return `/tx ${payload.request_id || "<id>"} ${payload.tx_hash || "<tx>"}`;
     return "/help";
+  }
+
+  function normalizeCommandCatalogItems(rawItems = []) {
+    const out = [];
+    const seen = new Set();
+    for (const raw of Array.isArray(rawItems) ? rawItems : []) {
+      const key = String(raw?.key || "")
+        .trim()
+        .toLowerCase();
+      if (!key || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push({
+        key,
+        adminOnly: Boolean(raw?.adminOnly),
+        primary: raw?.primary !== false,
+        aliases: Array.isArray(raw?.aliases) ? raw.aliases.map((v) => String(v || "").trim()).filter(Boolean) : [],
+        description_tr: String(raw?.description_tr || ""),
+        description_en: String(raw?.description_en || ""),
+        description: String(raw?.description || ""),
+        scenarios: Array.isArray(raw?.scenarios) ? raw.scenarios.map((v) => String(v || "").trim()).filter(Boolean).slice(0, 2) : [],
+        outcomes: Array.isArray(raw?.outcomes) ? raw.outcomes.map((v) => String(v || "").trim()).filter(Boolean).slice(0, 2) : []
+      });
+    }
+    return out;
+  }
+
+  function resolveCatalogExecution(commandKey) {
+    const key = String(commandKey || "").trim().toLowerCase();
+    if (key === "menu") return { kind: "bot", action: "open_tasks" };
+    if (key === "play") return { kind: "bot", action: "open_play" };
+    if (key === "tasks") return { kind: "bot", action: "open_tasks" };
+    if (key === "finish") return { kind: "perform", action: "complete_latest", payload: { mode: "balanced" } };
+    if (key === "reveal") return { kind: "perform", action: "reveal_latest" };
+    if (key === "pvp") return { kind: "perform", action: "arena_raid", payload: { mode: "balanced" } };
+    if (key === "arena_rank") return { kind: "bot", action: "open_leaderboard" };
+    if (key === "wallet") return { kind: "bot", action: "open_wallet" };
+    if (key === "vault") return { kind: "bot", action: "open_payout" };
+    if (key === "token") return { kind: "bot", action: "open_token" };
+    if (key === "story") return { kind: "bot", action: "open_nexus" };
+    if (key === "help") return { kind: "fallback", action: "open_help" };
+    if (key === "lang") return { kind: "language" };
+    return { kind: "fallback", action: "open_help" };
+  }
+
+  async function runCatalogCommand(command) {
+    const key = String(command?.key || "").trim().toLowerCase();
+    const execution = resolveCatalogExecution(key);
+    if (execution.kind === "perform") {
+      await performAction(execution.action, execution.payload || {});
+      return;
+    }
+    if (execution.kind === "bot") {
+      await sendBotAction(execution.action, execution.payload || {});
+      return;
+    }
+    if (execution.kind === "language") {
+      state.ux.language = normalizeUxLanguage(state.ux.language) === "tr" ? "en" : "tr";
+      state.ux.userOverrides.language = true;
+      applyLanguageUi();
+      persistUxPrefs();
+      await loadBootstrap();
+      return;
+    }
+    await fallbackToCommand(execution.action, execution.payload || {});
+  }
+
+  function renderCommandCatalog(rawItems = []) {
+    const container = byId("commandCatalogCards");
+    if (!container) {
+      return;
+    }
+    const lang = normalizeUxLanguage(state.ux.language);
+    const items = normalizeCommandCatalogItems(rawItems).filter((row) => !row.adminOnly).slice(0, 10);
+    const badge = byId("commandCatalogBadge");
+    if (badge) {
+      badge.textContent = `${uxText("command_badge")} (${items.length})`;
+    }
+    container.innerHTML = "";
+    if (items.length === 0) {
+      return;
+    }
+    for (const item of items) {
+      const card = document.createElement("article");
+      card.className = "commandCatalogCard";
+
+      const head = document.createElement("div");
+      head.className = "commandCatalogHead";
+      const keyLine = document.createElement("p");
+      keyLine.className = "commandCatalogKey";
+      keyLine.textContent = `/${item.key}`;
+      head.appendChild(keyLine);
+      if (item.aliases.length > 0) {
+        const aliasChip = document.createElement("span");
+        aliasChip.className = "badge info";
+        aliasChip.textContent = item.aliases.slice(0, 2).join(" / ");
+        head.appendChild(aliasChip);
+      }
+      card.appendChild(head);
+
+      const desc = document.createElement("p");
+      desc.className = "commandCatalogDesc";
+      desc.textContent =
+        lang === "en"
+          ? item.description_en || item.description || item.description_tr || "-"
+          : item.description_tr || item.description || item.description_en || "-";
+      card.appendChild(desc);
+
+      const scenario = document.createElement("p");
+      scenario.className = "commandCatalogMeta";
+      scenario.textContent =
+        item.scenarios.length > 0
+          ? `${lang === "en" ? "Scenario" : "Senaryo"}: ${item.scenarios[0]}`
+          : `${lang === "en" ? "Outcome" : "Cikti"}: ${item.outcomes[0] || "-"}`;
+      card.appendChild(scenario);
+
+      const actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = "commandCatalogAction";
+      actionBtn.textContent = uxText("command_run");
+      actionBtn.addEventListener("click", () => {
+        runCatalogCommand(item).catch(showError);
+      });
+      card.appendChild(actionBtn);
+      container.appendChild(card);
+    }
   }
 
   async function copyToClipboard(text) {
@@ -7706,6 +8137,261 @@
     if (metaEl) metaEl.textContent = String(meta || "-");
   }
 
+  function normalizePvpProgressionState(raw) {
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    const daily = raw.daily_duel && typeof raw.daily_duel === "object" ? raw.daily_duel : {};
+    const weekly = raw.weekly_ladder && typeof raw.weekly_ladder === "object" ? raw.weekly_ladder : {};
+    const arc = raw.season_arc_boss && typeof raw.season_arc_boss === "object" ? raw.season_arc_boss : {};
+    const dailyTarget = Math.max(1, asNum(daily.target_wins || 1));
+    const dailyWins = Math.max(0, asNum(daily.wins || 0));
+    const weeklyTarget = Math.max(1, asNum(weekly.target_points || 180));
+    const weeklyPoints = Math.max(0, asNum(weekly.points || 0));
+    const weeklyMaxMilestones = Math.max(1, asNum(weekly.max_milestones || 3));
+    const weeklyMilestonesReached = Math.max(0, asNum(weekly.milestones_reached || 0));
+    const weeklyMilestonesClaimed = Math.max(0, asNum(weekly.milestones_claimed || 0));
+    const waveTotal = Math.max(1, asNum(arc.wave_total || 5));
+    const waveIndex = Math.max(1, Math.min(waveTotal, asNum(arc.wave_index || 1)));
+    const waveProgress = clamp(
+      asNum(arc.wave_progress != null ? arc.wave_progress : waveIndex / Math.max(1, waveTotal)),
+      0,
+      1
+    );
+    const personalTarget = Math.max(1, asNum(arc.personal_milestone_target || 420));
+    const personalMilestonesReached = Math.max(0, asNum(arc.personal_milestones_reached || 0));
+    const personalMilestonesClaimed = Math.max(0, asNum(arc.personal_milestones_claimed || 0));
+
+    return {
+      season_id: asNum(raw.season_id || 0),
+      day_key: String(raw.day_key || ""),
+      week_key: String(raw.week_key || ""),
+      read_model: String(raw.read_model || "legacy"),
+      daily_duel: {
+        target_wins: dailyTarget,
+        wins: dailyWins,
+        completed: Boolean(daily.completed || dailyWins >= dailyTarget),
+        claimed: Boolean(daily.claimed),
+        progress: clamp(asNum(daily.progress != null ? daily.progress : pct(dailyWins, dailyTarget) / 100), 0, 1),
+        remaining_wins: Math.max(0, asNum(daily.remaining_wins != null ? daily.remaining_wins : dailyTarget - dailyWins))
+      },
+      weekly_ladder: {
+        target_points: weeklyTarget,
+        points: weeklyPoints,
+        milestones_reached: weeklyMilestonesReached,
+        milestones_claimed: weeklyMilestonesClaimed,
+        max_milestones: weeklyMaxMilestones,
+        next_milestone_points:
+          weekly.next_milestone_points != null ? Math.max(0, asNum(weekly.next_milestone_points)) : null,
+        progress_to_next: clamp(
+          asNum(weekly.progress_to_next != null ? weekly.progress_to_next : pct(weeklyPoints, weeklyTarget) / 100),
+          0,
+          1
+        )
+      },
+      season_arc_boss: {
+        wave_total: waveTotal,
+        wave_hp: Math.max(1, asNum(arc.wave_hp || 6000)),
+        wave_index: waveIndex,
+        wave_progress: waveProgress,
+        global_contribution: Math.max(0, asNum(arc.global_contribution || 0)),
+        global_to_next_wave: Math.max(0, asNum(arc.global_to_next_wave || 0)),
+        global_completed: Boolean(arc.global_completed),
+        personal_contribution: Math.max(0, asNum(arc.personal_contribution || 0)),
+        personal_milestones_reached: personalMilestonesReached,
+        personal_milestones_claimed: personalMilestonesClaimed,
+        personal_milestone_target: personalTarget
+      }
+    };
+  }
+
+  function setPvpProgressionCardTone(card, tone = "neutral") {
+    if (!card) {
+      return;
+    }
+    const safeTone = ["neutral", "advantage", "warning", "danger"].includes(String(tone)) ? String(tone) : "neutral";
+    card.className = `pvpProgressionCard ${safeTone}`;
+  }
+
+  function renderPvpProgressionLoop(progression = state.v3.pvpProgression) {
+    const root = byId("pvpProgressionLoop");
+    const badge = byId("pvpProgressionBadge");
+    const hint = byId("pvpProgressionHint");
+    const dailyCard = byId("pvpProgressionDailyCard");
+    const dailyLine = byId("pvpProgressionDailyLine");
+    const dailyMeta = byId("pvpProgressionDailyMeta");
+    const dailyMeter = byId("pvpProgressionDailyMeter");
+    const weeklyCard = byId("pvpProgressionWeeklyCard");
+    const weeklyLine = byId("pvpProgressionWeeklyLine");
+    const weeklyMeta = byId("pvpProgressionWeeklyMeta");
+    const weeklyMeter = byId("pvpProgressionWeeklyMeter");
+    const arcCard = byId("pvpProgressionArcCard");
+    const arcLine = byId("pvpProgressionArcLine");
+    const arcMeta = byId("pvpProgressionArcMeta");
+    const arcMeter = byId("pvpProgressionArcMeter");
+    if (!root) {
+      return;
+    }
+
+    const view = normalizePvpProgressionState(progression);
+    if (!view) {
+      root.dataset.model = "legacy";
+      if (badge) {
+        badge.textContent = "BOOTSTRAP";
+        badge.className = "badge info";
+      }
+      if (hint) {
+        hint.textContent = "Progression verisi alindiginda daily/weekly/season hedefleri burada canli guncellenir.";
+      }
+      if (dailyLine) dailyLine.textContent = "WIN 0/1 | IN PROGRESS";
+      if (dailyMeta) dailyMeta.textContent = "Hedefe kalan: 1 win";
+      if (weeklyLine) weeklyLine.textContent = "PTS 0 | M 0/3";
+      if (weeklyMeta) weeklyMeta.textContent = "Sonraki milestone: 180 pts";
+      if (arcLine) arcLine.textContent = "WAVE 1/5 | BOSS LIVE";
+      if (arcMeta) arcMeta.textContent = "Personal milestone: 0/12";
+      if (dailyMeter) {
+        animateMeterWidth(dailyMeter, 0, 0.18);
+        setMeterPalette(dailyMeter, "neutral");
+      }
+      if (weeklyMeter) {
+        animateMeterWidth(weeklyMeter, 0, 0.18);
+        setMeterPalette(weeklyMeter, "neutral");
+      }
+      if (arcMeter) {
+        animateMeterWidth(arcMeter, 0, 0.18);
+        setMeterPalette(arcMeter, "neutral");
+      }
+      setPvpProgressionCardTone(dailyCard, "neutral");
+      setPvpProgressionCardTone(weeklyCard, "neutral");
+      setPvpProgressionCardTone(arcCard, "neutral");
+      return;
+    }
+
+    const isV5 = String(view.read_model || "").toLowerCase().includes("v5");
+    root.dataset.model = isV5 ? "v5" : "legacy";
+    const updatedSec = Math.max(0, Math.round((Date.now() - asNum(state.v3.pvpProgressionFetchedAt || Date.now())) / 1000));
+    if (badge) {
+      badge.textContent = isV5 ? "V5 READ MODEL" : "LEGACY MODEL";
+      badge.className = isV5 ? "badge" : "badge info";
+    }
+    if (hint) {
+      hint.textContent =
+        `S${asNum(view.season_id)} | Day ${String(view.day_key || "--")} | Week ${String(view.week_key || "--")} | ` +
+        `refresh ${updatedSec}s ago`;
+    }
+
+    const daily = view.daily_duel;
+    const dailyPct = clamp(asNum(daily.progress || 0), 0, 1);
+    const dailyTone = daily.claimed || daily.completed ? "advantage" : dailyPct >= 0.65 ? "warning" : "neutral";
+    if (dailyLine) {
+      dailyLine.textContent = `WIN ${asNum(daily.wins)}/${asNum(daily.target_wins)} | ${
+        daily.claimed ? "CLAIMED" : daily.completed ? "READY" : "IN PROGRESS"
+      }`;
+    }
+    if (dailyMeta) {
+      dailyMeta.textContent = daily.claimed
+        ? "Gunluk duel odulu alinmis."
+        : `Hedefe kalan: ${asNum(daily.remaining_wins)} win`;
+    }
+    if (dailyMeter) {
+      animateMeterWidth(dailyMeter, dailyPct * 100, 0.26);
+      setMeterPalette(dailyMeter, dailyTone === "advantage" ? "safe" : dailyTone === "warning" ? "aggressive" : "balanced");
+    }
+    setPvpProgressionCardTone(dailyCard, dailyTone);
+
+    const weekly = view.weekly_ladder;
+    const weeklyPct = clamp(
+      asNum(
+        weekly.progress_to_next != null
+          ? weekly.progress_to_next
+          : weekly.next_milestone_points
+            ? pct(weekly.points, weekly.next_milestone_points) / 100
+            : pct(weekly.milestones_claimed, Math.max(1, weekly.max_milestones)) / 100
+      ),
+      0,
+      1
+    );
+    const weeklyTone =
+      weekly.milestones_claimed >= weekly.max_milestones
+        ? "advantage"
+        : weeklyPct >= 0.8
+          ? "warning"
+          : weeklyPct <= 0.22
+            ? "danger"
+            : "neutral";
+    if (weeklyLine) {
+      weeklyLine.textContent = `PTS ${asNum(weekly.points)} | M ${asNum(weekly.milestones_claimed)}/${asNum(
+        weekly.max_milestones
+      )}`;
+    }
+    if (weeklyMeta) {
+      if (weekly.next_milestone_points != null) {
+        weeklyMeta.textContent = `Sonraki milestone: ${Math.max(0, asNum(weekly.next_milestone_points) - asNum(weekly.points))} pts`;
+      } else {
+        weeklyMeta.textContent = "Haftalik milestone limiti tamamlandi.";
+      }
+    }
+    if (weeklyMeter) {
+      animateMeterWidth(weeklyMeter, weeklyPct * 100, 0.26);
+      setMeterPalette(weeklyMeter, weeklyTone === "advantage" ? "safe" : weeklyTone === "warning" ? "aggressive" : "balanced");
+    }
+    setPvpProgressionCardTone(weeklyCard, weeklyTone);
+
+    const arc = view.season_arc_boss;
+    const arcWavePct = clamp(asNum(arc.wave_progress || 0), 0, 1);
+    const arcPersonalPct = clamp(
+      pct(asNum(arc.personal_milestones_claimed || 0), Math.max(1, asNum(arc.personal_milestones_reached || 1))) / 100,
+      0,
+      1
+    );
+    const arcPct = clamp(Math.max(arcWavePct * 0.72, arcPersonalPct * 0.28), 0, 1);
+    const arcTone = Boolean(arc.global_completed) ? "advantage" : arcPct >= 0.72 ? "warning" : arcPct <= 0.2 ? "danger" : "neutral";
+    if (arcLine) {
+      arcLine.textContent = `WAVE ${asNum(arc.wave_index)}/${asNum(arc.wave_total)} | ${
+        arc.global_completed ? "BOSS DOWN" : "BOSS LIVE"
+      }`;
+    }
+    if (arcMeta) {
+      arcMeta.textContent =
+        `Personal milestone: ${asNum(arc.personal_milestones_claimed)}/${asNum(arc.personal_milestones_reached)} | ` +
+        `Next wave icin ${asNum(arc.global_to_next_wave)} dmg`;
+    }
+    if (arcMeter) {
+      animateMeterWidth(arcMeter, arcPct * 100, 0.26);
+      setMeterPalette(arcMeter, arcTone === "advantage" ? "safe" : arcTone === "warning" ? "aggressive" : "balanced");
+    }
+    setPvpProgressionCardTone(arcCard, arcTone);
+  }
+
+  function setPvpProgressionState(raw, source = "bootstrap") {
+    const normalized = normalizePvpProgressionState(raw);
+    if (!normalized) {
+      if (!state.v3.pvpProgression) {
+        renderPvpProgressionLoop(null);
+      }
+      return null;
+    }
+    state.v3.pvpProgression = normalized;
+    state.v3.pvpProgressionFetchedAt = Date.now();
+    state.v3.pvpProgressionSource = String(source || "bootstrap");
+    renderPvpProgressionLoop(normalized);
+    return normalized;
+  }
+
+  function extractPvpProgressionFromSession(session) {
+    const viewerSide = String(session?.viewer_side || "left").toLowerCase();
+    const result = session?.result;
+    const fromResolved = result?.resolved_json?.rewards_by_side?.[viewerSide]?.progression;
+    if (fromResolved && typeof fromResolved === "object") {
+      return fromResolved;
+    }
+    const fromReward = result?.reward?.progression;
+    if (fromReward && typeof fromReward === "object") {
+      return fromReward;
+    }
+    return null;
+  }
+
   function renderPvpMomentumAndObjectives(session = state.v3.pvpSession) {
     const selfLine = byId("pvpMomentumSelfLine");
     const selfMeter = byId("pvpMomentumSelfMeter");
@@ -8841,6 +9527,9 @@
   function syncPvpSessionUi(session, meta = {}) {
     state.v3.pvpSession = session || null;
     state.v3.pvpTickMeta = meta && meta.tick ? meta.tick : state.v3.pvpTickMeta;
+    if (meta && meta.pvp_content) {
+      setPvpProgressionState(meta.pvp_content, "session_meta");
+    }
     const sessionRef = String(session?.session_ref || "");
     if (sessionRef && sessionRef !== state.v3.pvpTimelineSessionRef) {
       resetPvpTimeline(session);
@@ -8905,6 +9594,7 @@
       renderPvpLiveDuelStrip(null, null);
       renderPvpActionPulse(null, null);
       renderPvpRejectIntelStrip(null, null);
+      renderPvpProgressionLoop(state.v3.pvpProgression);
       renderResolveBurstBanner(null, null);
       renderCombatFxOverlay();
       ensurePvpLiveLoop();
@@ -8913,6 +9603,10 @@
     }
 
     const status = String(session.status || "active").toLowerCase();
+    const progressionFromResult = extractPvpProgressionFromSession(session);
+    if (progressionFromResult) {
+      setPvpProgressionState(progressionFromResult, "session_result");
+    }
     const outcome = String(session.result?.outcome_for_viewer || "").toLowerCase();
     setPvpPanelState(status, outcome);
     syncPvpReplayFromSession(session);
@@ -8990,11 +9684,533 @@
     renderPvpLiveDuelStrip(session, state.v3.pvpTickMeta);
     renderPvpActionPulse(session, state.v3.pvpTickMeta);
     renderPvpRejectIntelStrip(session, state.v3.pvpTickMeta);
+    renderPvpProgressionLoop(state.v3.pvpProgression);
     renderResolveBurstBanner(session, state.v3.pvpTickMeta);
     renderCombatFxOverlay();
     ensurePvpLiveLoop();
     renderCombatHudPanel();
     renderTelemetryDeck(state.data || {});
+  }
+
+  async function fetchPvpProgressionStatus() {
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge && typeof bridge.fetchPvpProgressionStatus === "function") {
+      const t0 = performance.now();
+      payload = await bridge.fetchPvpProgressionStatus(state.auth);
+      markLatency(performance.now() - t0);
+    } else {
+      const query = new URLSearchParams({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig
+      }).toString();
+      let res = null;
+      let endpointUsed = "";
+      for (const endpoint of ["/webapp/api/v2/pvp/progression", "/webapp/api/pvp/progression"]) {
+        const t0 = performance.now();
+        const candidate = await fetch(`${endpoint}?${query}`);
+        markLatency(performance.now() - t0);
+        if (candidate.ok) {
+          res = candidate;
+          endpointUsed = endpoint;
+          break;
+        }
+        if (candidate.status === 404) {
+          continue;
+        }
+        const body = await candidate
+          .json()
+          .catch(() => ({ success: false, error: `pvp_progression_failed:${candidate.status}` }));
+        const error = new Error(body.error || `pvp_progression_failed:${candidate.status}`);
+        error.code = candidate.status;
+        throw error;
+      }
+      if (!res) {
+        throw new Error("pvp_progression_endpoint_missing");
+      }
+      payload = await res.json();
+      if (!payload.success) {
+        const error = new Error(payload.error || `pvp_progression_failed:${endpointUsed}`);
+        error.code = 500;
+        throw error;
+      }
+    }
+    renewAuth(payload);
+    const data = payload.data || {};
+    const progression = setPvpProgressionState(data.pvp_content || null, "pvp_progression_api");
+    if (!progression) {
+      renderPvpProgressionLoop(state.v3.pvpProgression);
+    }
+    return progression;
+  }
+
+  async function fetchCommandCatalog() {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      lang: normalizeUxLanguage(state.ux.language),
+      include_non_primary: "0",
+      include_admin: state.admin.isAdmin ? "1" : "0"
+    }).toString();
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/v2/commands/catalog?${query}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `commands_catalog_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    const commands = normalizeCommandCatalogItems(payload.data?.commands || []);
+    if (commands.length > 0) {
+      state.v3.commandCatalog = commands;
+      renderCommandCatalog(state.v3.commandCatalog);
+    }
+    return commands;
+  }
+
+  function normalizeWalletChainForAuth(value) {
+    const raw = String(value || "")
+      .trim()
+      .toLowerCase();
+    if (raw === "ethereum" || raw === "evm") return "eth";
+    if (raw === "solana") return "sol";
+    return raw;
+  }
+
+  function buildWalletSignaturePlaceholder(chain) {
+    const key = normalizeWalletChainForAuth(chain);
+    if (key === "eth") {
+      return `0x${"a".repeat(130)}`;
+    }
+    if (key === "sol") {
+      return "4".repeat(88);
+    }
+    return "A".repeat(96);
+  }
+
+  function syncWalletUiState() {
+    const capabilities =
+      state.v3.walletCapabilities && typeof state.v3.walletCapabilities === "object" ? state.v3.walletCapabilities : null;
+    const session = state.v3.walletSession && typeof state.v3.walletSession === "object" ? state.v3.walletSession : null;
+    const kyc = state.v3.walletKycStatus && typeof state.v3.walletKycStatus === "object" ? state.v3.walletKycStatus : null;
+    const challenge =
+      state.v3.walletPendingChallenge && typeof state.v3.walletPendingChallenge === "object"
+        ? state.v3.walletPendingChallenge
+        : null;
+
+    const chainSelect = byId("tokenWalletChainSelect");
+    if (chainSelect) {
+      const prev = String(chainSelect.value || "").toLowerCase();
+      const chains = Array.isArray(capabilities?.chains)
+        ? capabilities.chains.filter((row) => row && row.enabled !== false)
+        : [{ chain: "eth" }, { chain: "sol" }, { chain: "ton" }];
+      chainSelect.innerHTML = chains
+        .map((row) => {
+          const chain = String(row.chain || "").toLowerCase();
+          return `<option value="${chain}">${chain.toUpperCase()}</option>`;
+        })
+        .join("");
+      const preferred =
+        (challenge && String(challenge.chain || "").toLowerCase()) ||
+        (session && String(session.chain || "").toLowerCase()) ||
+        (chains[0] && String(chains[0].chain || "").toLowerCase()) ||
+        "eth";
+      const hasPrev = [...chainSelect.options].some((opt) => opt.value === prev);
+      chainSelect.value = hasPrev ? prev : preferred;
+    }
+
+    const challengeRefInput = byId("tokenWalletChallengeRefInput");
+    if (challengeRefInput) {
+      challengeRefInput.value = challenge ? String(challenge.challenge_ref || "") : "";
+    }
+    const messageInput = byId("tokenWalletMessageInput");
+    if (messageInput) {
+      messageInput.value = challenge ? String(challenge.challenge_text || "") : "";
+    }
+
+    const signatureInput = byId("tokenWalletSignatureInput");
+    if (signatureInput && !String(signatureInput.value || "").trim()) {
+      const selectedChain = String(chainSelect?.value || session?.chain || "eth").toLowerCase();
+      signatureInput.placeholder = buildWalletSignaturePlaceholder(selectedChain);
+    }
+
+    const statusLine = byId("tokenWalletStatus");
+    if (statusLine) {
+      if (session?.active) {
+        const chain = String(session.chain || "-").toUpperCase();
+        const address = String(session.address_masked || session.address || "-");
+        const tier = String(kyc?.tier || session.kyc_status || "none");
+        const status = String(kyc?.status || session.kyc_status || "unknown");
+        statusLine.textContent = `Wallet aktif: ${chain} ${address} | KYC ${status}/${tier}`;
+      } else if (capabilities?.enabled) {
+        statusLine.textContent = "Wallet bagli degil. Challenge olusturup imzayi dogrula.";
+      } else {
+        statusLine.textContent = "Wallet auth kapali.";
+      }
+    }
+  }
+
+  async function postWalletV2(path, body = {}) {
+    const payload = {
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      ...body
+    };
+    const t0 = performance.now();
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    markLatency(performance.now() - t0);
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok || !response.success) {
+      const error = new Error(response.error || `wallet_api_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(response);
+    return response.data || null;
+  }
+
+  async function requestWalletChallenge() {
+    const address = String(byId("tokenWalletAddressInput")?.value || "").trim();
+    const chain = normalizeWalletChainForAuth(String(byId("tokenWalletChainSelect")?.value || "eth"));
+    if (!address) {
+      showToast("Wallet adresi gerekli.", true);
+      return null;
+    }
+    const data = await postWalletV2("/webapp/api/v2/wallet/challenge", {
+      chain,
+      address,
+      statement: "AirdropKralBot wallet link challenge"
+    });
+    const challenge = data?.challenge || null;
+    state.v3.walletPendingChallenge = challenge;
+    syncWalletUiState();
+    return challenge;
+  }
+
+  async function verifyWalletChallenge() {
+    const challengeRef = String(byId("tokenWalletChallengeRefInput")?.value || "").trim();
+    const chain = normalizeWalletChainForAuth(String(byId("tokenWalletChainSelect")?.value || "eth"));
+    const address = String(byId("tokenWalletAddressInput")?.value || "").trim();
+    const message = String(byId("tokenWalletMessageInput")?.value || "").trim();
+    const signature = String(byId("tokenWalletSignatureInput")?.value || "").trim();
+    if (!challengeRef || !message || !signature || !address) {
+      showToast("Challenge ref, adres, message ve signature gerekli.", true);
+      return null;
+    }
+    const data = await postWalletV2("/webapp/api/v2/wallet/verify", {
+      challenge_ref: challengeRef,
+      chain,
+      address,
+      message,
+      signature
+    });
+    state.v3.walletPendingChallenge = null;
+    state.v3.walletSession = data?.wallet_session || null;
+    state.v3.walletKycStatus = data?.kyc_status || null;
+    syncWalletUiState();
+    return data;
+  }
+
+  async function unlinkWalletSession() {
+    const chain = normalizeWalletChainForAuth(
+      String(byId("tokenWalletChainSelect")?.value || state.v3.walletSession?.chain || "")
+    );
+    const address = String(
+      byId("tokenWalletAddressInput")?.value || state.v3.walletSession?.address || ""
+    ).trim();
+    const data = await postWalletV2("/webapp/api/v2/wallet/unlink", {
+      chain: chain || undefined,
+      address: address || undefined,
+      reason: "user_unlink"
+    });
+    state.v3.walletPendingChallenge = null;
+    state.v3.walletSession = data?.wallet_session || null;
+    state.v3.walletLinks = [];
+    syncWalletUiState();
+    return data;
+  }
+
+  async function fetchWalletSessionStatus() {
+    const bridge = getNetApiBridge();
+    let payload;
+    if (bridge && typeof bridge.fetchWalletSessionStatus === "function") {
+      const t0 = performance.now();
+      payload = await bridge.fetchWalletSessionStatus(state.auth);
+      markLatency(performance.now() - t0);
+    } else {
+      const query = new URLSearchParams({
+        uid: state.auth.uid,
+        ts: state.auth.ts,
+        sig: state.auth.sig
+      }).toString();
+      const t0 = performance.now();
+      const res = await fetch(`/webapp/api/v2/wallet/session?${query}`);
+      markLatency(performance.now() - t0);
+      payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload.success) {
+        const error = new Error(payload.error || `wallet_session_failed:${res.status}`);
+        error.code = res.status;
+        throw error;
+      }
+    }
+    renewAuth(payload);
+    const data = payload.data || {};
+    state.v3.walletCapabilities = data.wallet_capabilities || state.v3.walletCapabilities || null;
+    state.v3.walletSession = data.wallet_session || null;
+    state.v3.walletLinks = Array.isArray(data.links) ? data.links : [];
+    state.v3.walletKycStatus = data.kyc_status || null;
+    syncWalletUiState();
+    return data.wallet_session || null;
+  }
+
+  function syncMonetizationUiState() {
+    const monetization =
+      state.v3.monetization && typeof state.v3.monetization === "object" ? state.v3.monetization : null;
+    const enabled = Boolean(monetization?.enabled);
+    const tablesReady = Boolean(monetization?.tables_available);
+    const passCatalog = Array.isArray(monetization?.pass_catalog) ? monetization.pass_catalog : [];
+    const cosmeticCatalog = Array.isArray(monetization?.cosmetic_catalog) ? monetization.cosmetic_catalog : [];
+    const activePasses = Array.isArray(monetization?.active_passes) ? monetization.active_passes : [];
+    const recentCosmetics = Array.isArray(monetization?.cosmetics?.recent) ? monetization.cosmetics.recent : [];
+    const ownedCosmetics = asNum(monetization?.cosmetics?.owned_count || 0);
+    const spend = monetization?.spend_summary && typeof monetization.spend_summary === "object"
+      ? monetization.spend_summary
+      : { SC: 0, HC: 0, RC: 0 };
+    const block = byId("tokenMonetizationBlock");
+    const badge = byId("tokenMonetizationBadge");
+    const tone =
+      !enabled ? "neutral" : !tablesReady ? "pressure" : activePasses.length > 0 || ownedCosmetics > 0 ? "advantage" : "neutral";
+    if (block) {
+      block.dataset.tone = tone;
+    }
+    if (badge) {
+      if (!enabled) {
+        badge.textContent = "OFF";
+        badge.className = "badge warn";
+      } else if (!tablesReady) {
+        badge.textContent = "MIGRATE";
+        badge.className = "badge";
+      } else if (activePasses.length > 0 || ownedCosmetics > 0) {
+        badge.textContent = "ACTIVE";
+        badge.className = "badge info";
+      } else {
+        badge.textContent = "STORE";
+        badge.className = "badge info";
+      }
+    }
+
+    const passSelect = byId("tokenPassSelect");
+    if (passSelect) {
+      const prev = String(passSelect.value || "");
+      passSelect.innerHTML = passCatalog
+        .map((item) => {
+          const key = String(item.pass_key || "");
+          const title = String(item.title || item.title_tr || item.title_en || key || "PASS");
+          const days = asNum(item.duration_days || 0);
+          const amount = asNum(item.price_amount || 0);
+          const currency = String(item.price_currency || "SC").toUpperCase();
+          return `<option value="${key}">${title} (${days}d | ${amount} ${currency})</option>`;
+        })
+        .join("");
+      if (prev && [...passSelect.options].some((opt) => opt.value === prev)) {
+        passSelect.value = prev;
+      } else if (passSelect.options.length > 0) {
+        passSelect.value = passSelect.options[0].value;
+      }
+      passSelect.disabled = !(enabled && tablesReady && passCatalog.length > 0);
+    }
+
+    const cosmeticSelect = byId("tokenCosmeticSelect");
+    if (cosmeticSelect) {
+      const prev = String(cosmeticSelect.value || "");
+      cosmeticSelect.innerHTML = cosmeticCatalog
+        .map((item) => {
+          const key = String(item.item_key || "");
+          const title = String(item.title || item.title_tr || item.title_en || key || "COSMETIC");
+          const amount = asNum(item.price_amount || 0);
+          const currency = String(item.price_currency || "SC").toUpperCase();
+          return `<option value="${key}">${title} (${amount} ${currency})</option>`;
+        })
+        .join("");
+      if (prev && [...cosmeticSelect.options].some((opt) => opt.value === prev)) {
+        cosmeticSelect.value = prev;
+      } else if (cosmeticSelect.options.length > 0) {
+        cosmeticSelect.value = cosmeticSelect.options[0].value;
+      }
+      cosmeticSelect.disabled = !(enabled && tablesReady && cosmeticCatalog.length > 0);
+    }
+
+    const passBuyBtn = byId("tokenPassBuyBtn");
+    if (passBuyBtn) {
+      passBuyBtn.disabled = !(enabled && tablesReady && passCatalog.length > 0);
+    }
+    const cosmeticBuyBtn = byId("tokenCosmeticBuyBtn");
+    if (cosmeticBuyBtn) {
+      cosmeticBuyBtn.disabled = !(enabled && tablesReady && cosmeticCatalog.length > 0);
+    }
+
+    const status = byId("tokenMonetizationStatus");
+    if (status) {
+      if (!enabled) {
+        status.textContent = "Monetization kapali.";
+      } else if (!tablesReady) {
+        status.textContent = "Monetization migration tablolari hazir degil.";
+      } else {
+        status.textContent =
+          `Aktif pass ${activePasses.length} | Cosmetic ${ownedCosmetics} | Harcama SC ${asNum(spend.SC).toFixed(2)} HC ${asNum(
+            spend.HC
+          ).toFixed(2)}`;
+      }
+    }
+
+    const list = byId("tokenMonetizationList");
+    if (list) {
+      list.innerHTML = "";
+      if (!enabled) {
+        const li = document.createElement("li");
+        li.className = "muted";
+        li.textContent = "Monetization kapali.";
+        list.appendChild(li);
+      } else if (!tablesReady) {
+        const li = document.createElement("li");
+        li.className = "muted";
+        li.textContent = "Monetization tablolari migration bekliyor.";
+        list.appendChild(li);
+      } else {
+        const passRows = activePasses.slice(0, 3);
+        const cosmeticRows = recentCosmetics.slice(0, 3);
+        if (!passRows.length && !cosmeticRows.length) {
+          const li = document.createElement("li");
+          li.className = "muted";
+          li.textContent = "Henuz pass/cosmetic alim kaydi yok.";
+          list.appendChild(li);
+        } else {
+          passRows.forEach((row) => {
+            const li = document.createElement("li");
+            li.className = "tokenRouteRow ready";
+            const left = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = `PASS ${String(row.pass_key || "-").toUpperCase()}`;
+            const meta = document.createElement("p");
+            meta.className = "micro";
+            meta.textContent = `Kalan ${Math.max(0, Math.floor(asNum(row.remaining_sec || 0) / 3600))}h | ${String(
+              row.price_currency || "SC"
+            ).toUpperCase()} ${asNum(row.price_amount || 0).toFixed(2)}`;
+            left.appendChild(title);
+            left.appendChild(meta);
+            li.appendChild(left);
+            const chip = document.createElement("span");
+            chip.className = "adminAssetState ready";
+            chip.textContent = "ACTIVE";
+            li.appendChild(chip);
+            list.appendChild(li);
+          });
+          cosmeticRows.forEach((row) => {
+            const li = document.createElement("li");
+            li.className = "tokenRouteRow";
+            const left = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = `COS ${String(row.item_key || "-").toUpperCase()}`;
+            const meta = document.createElement("p");
+            meta.className = "micro";
+            meta.textContent = `${String(row.currency || "SC").toUpperCase()} ${asNum(row.amount_paid || 0).toFixed(
+              2
+            )} | ${formatTime(row.created_at)}`;
+            left.appendChild(title);
+            left.appendChild(meta);
+            li.appendChild(left);
+            const chip = document.createElement("span");
+            chip.className = "adminAssetState";
+            chip.textContent = String(row.rarity || "common").toUpperCase();
+            li.appendChild(chip);
+            list.appendChild(li);
+          });
+        }
+      }
+    }
+  }
+
+  async function postMonetizationV2(path, body = {}) {
+    const payload = {
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      ...body
+    };
+    const t0 = performance.now();
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    markLatency(performance.now() - t0);
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok || !response.success) {
+      const error = new Error(response.error || `monetization_api_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(response);
+    return response.data || null;
+  }
+
+  async function fetchMonetizationStatus() {
+    const query = new URLSearchParams({
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      lang: normalizeUxLanguage(state.ux.language)
+    }).toString();
+    const t0 = performance.now();
+    const res = await fetch(`/webapp/api/v2/monetization/status?${query}`);
+    markLatency(performance.now() - t0);
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload.success) {
+      const error = new Error(payload.error || `monetization_status_failed:${res.status}`);
+      error.code = res.status;
+      throw error;
+    }
+    renewAuth(payload);
+    state.v3.monetization = payload.data?.monetization || null;
+    syncMonetizationUiState();
+    return state.v3.monetization;
+  }
+
+  async function purchaseSelectedPass() {
+    const passKey = String(byId("tokenPassSelect")?.value || "").trim();
+    if (!passKey) {
+      showToast("Pass secimi gerekli.", true);
+      return null;
+    }
+    const data = await postMonetizationV2("/webapp/api/v2/monetization/pass/purchase", {
+      pass_key: passKey
+    });
+    state.v3.monetization = data?.monetization || state.v3.monetization;
+    syncMonetizationUiState();
+    return data;
+  }
+
+  async function purchaseSelectedCosmetic() {
+    const itemKey = String(byId("tokenCosmeticSelect")?.value || "").trim();
+    if (!itemKey) {
+      showToast("Cosmetic secimi gerekli.", true);
+      return null;
+    }
+    const data = await postMonetizationV2("/webapp/api/v2/monetization/cosmetic/purchase", {
+      item_key: itemKey
+    });
+    state.v3.monetization = data?.monetization || state.v3.monetization;
+    syncMonetizationUiState();
+    return data;
   }
 
   async function fetchPvpSessionState(sessionRef = "") {
@@ -12854,6 +14070,16 @@
     if (enabledChains.length === 0) {
       tokenHintText = "Zincir odeme adresleri tanimli degil. Admin env kontrol etmeli.";
     }
+    const walletSession = state.v3.walletSession && typeof state.v3.walletSession === "object" ? state.v3.walletSession : null;
+    const walletCapabilities =
+      state.v3.walletCapabilities && typeof state.v3.walletCapabilities === "object" ? state.v3.walletCapabilities : null;
+    if (walletSession?.active) {
+      const walletChain = String(walletSession.chain || "").toUpperCase();
+      const walletAddress = maskWalletAddress(String(walletSession.address_masked || walletSession.address || ""));
+      tokenHintText = `${tokenHintText} | Wallet ${walletChain} ${walletAddress}`;
+    } else if (walletCapabilities?.enabled) {
+      tokenHintText = `${tokenHintText} | Wallet baglanmadi`;
+    }
 
     const tokenOverviewBridge = getTokenOverviewBridge();
     const overviewHandled = tokenOverviewBridge
@@ -12906,6 +14132,8 @@
     if (enabledChains.length > 0) {
       scheduleTokenQuote();
     }
+    syncWalletUiState();
+    syncMonetizationUiState();
     renderTreasuryPulse(safe, state.v3.tokenQuote || null);
     renderTokenRouteRuntimeStrip(safe, state.v3.tokenQuote || null);
     renderTokenTxLifecycleStrip(safe, state.v3.tokenQuote || null);
@@ -12922,6 +14150,7 @@
 
     if (!isAdmin) {
       panel.classList.add("hidden");
+      applyUxView();
       return;
     }
 
@@ -12932,8 +14161,39 @@
     const deployStatus = summary.deploy_status || state.admin.deployStatus || null;
     const metrics = summary.metrics || {};
     const queues = summary.queues || {};
+    const unifiedItems = Array.isArray(queues.unified_items) ? queues.unified_items : [];
+    const unifiedCounts = queues.unified_counts && typeof queues.unified_counts === "object" ? queues.unified_counts : {};
+    const policyCounts = queues.policy_counts && typeof queues.policy_counts === "object" ? queues.policy_counts : {};
+    const unifiedPayoutCount = Math.max(
+      asNum(unifiedCounts.payout_queue),
+      unifiedItems.filter((row) => String(row?.kind || "").toLowerCase() === "payout_request").length
+    );
+    const unifiedTokenManualCount = Math.max(
+      asNum(unifiedCounts.token_manual_queue),
+      unifiedItems.filter((row) => String(row?.kind || "").toLowerCase() === "token_manual_review").length
+    );
+    const unifiedTokenAutoCount = Math.max(
+      asNum(unifiedCounts.token_auto_decisions),
+      unifiedItems.filter((row) => String(row?.kind || "").toLowerCase() === "token_auto_decision").length
+    );
+    const unifiedKycManualCount = Math.max(
+      asNum(unifiedCounts.kyc_manual_queue),
+      unifiedItems.filter((row) => String(row?.kind || "").toLowerCase() === "kyc_manual_review").length
+    );
+    const unifiedTotalCount = Math.max(
+      unifiedItems.length,
+      unifiedPayoutCount + unifiedTokenManualCount + unifiedTokenAutoCount + unifiedKycManualCount
+    );
+    const derivedConfirmCount = unifiedItems.filter((item) => {
+      const policy = item?.action_policy && typeof item.action_policy === "object" ? item.action_policy : {};
+      return Object.values(policy).some((entry) => Boolean(entry && entry.confirmation_required));
+    }).length;
+    const derivedHighPriorityCount = unifiedItems.filter((item) => asNum(item?.priority) >= 0.7).length;
+    const confirmCount = Math.max(asNum(policyCounts.confirmation_required), derivedConfirmCount);
+    const highPriorityCount = Math.max(asNum(policyCounts.high_priority), derivedHighPriorityCount);
     const manualTokenQueue = Array.isArray(queues.token_manual_queue) ? queues.token_manual_queue.length : 0;
     const autoDecisions = Array.isArray(queues.token_auto_decisions) ? queues.token_auto_decisions.length : 0;
+    const kycManualQueue = Array.isArray(queues.kyc_manual_queue) ? queues.kyc_manual_queue.length : 0;
     const freeze = summary.freeze || {};
     const token = summary.token || {};
     const gate = token.payout_gate || {};
@@ -12951,7 +14211,10 @@
       .slice(0, 10);
     const queueText =
       `Queue: payout ${asNum(summary.pending_payout_count)} | token ${asNum(summary.pending_token_count)}` +
-      ` | manual ${manualTokenQueue} | auto ${autoDecisions} | flags ${runtimeMode} | rev ${deployRev}`;
+      ` | manual ${manualTokenQueue} | kyc ${kycManualQueue} | auto ${autoDecisions}` +
+      ` | unified ${unifiedTotalCount}` +
+      ` | confirm ${confirmCount} | high ${highPriorityCount}` +
+      ` | flags ${runtimeMode} | rev ${deployRev}`;
     const spot = asNum(token.spot_usd || token.usd_price || 0);
     const minCap = asNum(gate.min);
     const targetMax = asNum(gate.targetMax);
@@ -13026,6 +14289,359 @@
     renderAdminTreasuryRuntimeStrip(summary, state.data?.token || {});
     renderAdminProviderAlertStrip();
     renderAdminDecisionTraceStrip();
+    renderAdminUnifiedQueue(summary);
+    applyUxView();
+  }
+
+  function formatQueueAgeCompact(valueSec) {
+    const sec = Math.max(0, Math.floor(asNum(valueSec)));
+    if (sec < 60) {
+      return `${sec}s`;
+    }
+    if (sec < 3600) {
+      return `${Math.floor(sec / 60)}m`;
+    }
+    if (sec < 86400) {
+      return `${Math.floor(sec / 3600)}h`;
+    }
+    return `${Math.floor(sec / 86400)}d`;
+  }
+
+  function unifiedQueueKindLabel(kind) {
+    const key = String(kind || "").toLowerCase();
+    if (key === "payout_request") {
+      return uxText("unified_kind_payout_request");
+    }
+    if (key === "token_manual_review") {
+      return uxText("unified_kind_token_manual_review");
+    }
+    if (key === "token_auto_decision") {
+      return uxText("unified_kind_token_auto_decision");
+    }
+    if (key === "kyc_manual_review") {
+      return uxText("unified_kind_kyc_manual_review");
+    }
+    return uxText("unified_kind_default");
+  }
+
+  function resolveUnifiedQueueTone(item = {}) {
+    const priority = clamp(asNum(item?.priority), 0, 1);
+    const policy = item?.action_policy && typeof item.action_policy === "object" ? item.action_policy : {};
+    const confirmationRequired = Object.values(policy).some((entry) => Boolean(entry && entry.confirmation_required));
+    if (priority >= 0.8 || (confirmationRequired && priority >= 0.65)) {
+      return "critical";
+    }
+    if (priority >= 0.45 || confirmationRequired) {
+      return "pressure";
+    }
+    return "advantage";
+  }
+
+  function renderAdminUnifiedQueue(summaryData) {
+    const host = byId("adminUnifiedQueueStrip");
+    const list = byId("adminUnifiedQueueList");
+    if (!host || !list) {
+      return;
+    }
+    const summary = summaryData && typeof summaryData === "object" ? summaryData : state.admin.summary || {};
+    const queues = summary.queues && typeof summary.queues === "object" ? summary.queues : state.admin.queues || {};
+    const items = Array.isArray(queues.unified_items) ? queues.unified_items : [];
+    const counts = queues.unified_counts && typeof queues.unified_counts === "object" ? queues.unified_counts : {};
+    const policyCounts = queues.policy_counts && typeof queues.policy_counts === "object" ? queues.policy_counts : {};
+    const payoutCount = Math.max(
+      asNum(counts.payout_queue),
+      items.filter((row) => String(row?.kind || "").toLowerCase() === "payout_request").length
+    );
+    const tokenManualCount = Math.max(
+      asNum(counts.token_manual_queue),
+      items.filter((row) => String(row?.kind || "").toLowerCase() === "token_manual_review").length
+    );
+    const tokenAutoCount = Math.max(
+      asNum(counts.token_auto_decisions),
+      items.filter((row) => String(row?.kind || "").toLowerCase() === "token_auto_decision").length
+    );
+    const kycManualCount = Math.max(
+      asNum(counts.kyc_manual_queue),
+      items.filter((row) => String(row?.kind || "").toLowerCase() === "kyc_manual_review").length
+    );
+    const totalCount = Math.max(items.length, payoutCount + tokenManualCount + tokenAutoCount + kycManualCount);
+    const confirmCount = Math.max(
+      asNum(policyCounts.confirmation_required),
+      items.filter((row) => {
+        const policy = row?.action_policy && typeof row.action_policy === "object" ? row.action_policy : {};
+        return Object.values(policy).some((entry) => Boolean(entry && entry.confirmation_required));
+      }).length
+    );
+    const highPriorityCount = Math.max(
+      asNum(policyCounts.high_priority),
+      items.filter((row) => clamp(asNum(row?.priority), 0, 1) >= 0.7).length
+    );
+
+    const highRatio = totalCount > 0 ? clamp(highPriorityCount / totalCount, 0, 1) : 0;
+    const confirmRatio = totalCount > 0 ? clamp(confirmCount / totalCount, 0, 1) : 0;
+    const pressureRatio = clamp(highRatio * 0.58 + confirmRatio * 0.42, 0, 1);
+    const tone =
+      totalCount === 0
+        ? "neutral"
+        : highRatio >= 0.38 || confirmRatio >= 0.45
+          ? "critical"
+          : highPriorityCount > 0 || confirmCount > 0
+            ? "pressure"
+            : "advantage";
+    host.dataset.tone = tone;
+    host.style.setProperty("--unified-pressure", pressureRatio.toFixed(3));
+
+    const badge = byId("adminUnifiedQueueBadge");
+    const line = byId("adminUnifiedQueueLine");
+    const badgeKey =
+      tone === "critical"
+        ? "unified_badge_alert"
+        : tone === "pressure"
+          ? "unified_badge_watch"
+          : totalCount > 0
+            ? "unified_badge_live"
+            : "unified_badge_wait";
+    if (badge) {
+      badge.textContent = uxText(badgeKey);
+      badge.className = tone === "critical" ? "badge warn" : tone === "pressure" ? "badge" : "badge info";
+    }
+    if (line) {
+      line.textContent = uxFormat("unified_line_summary", {
+        total: totalCount,
+        payout: payoutCount,
+        manual: tokenManualCount,
+        kyc: kycManualCount,
+        auto: tokenAutoCount
+      });
+    }
+
+    setLiveStatusChip(
+      "adminUnifiedQueuePriorityChip",
+      `HIGH ${highPriorityCount}`,
+      highPriorityCount >= 3 ? "critical" : highPriorityCount > 0 ? "pressure" : "neutral",
+      totalCount > 0 ? clamp(highPriorityCount / totalCount, 0.12, 1) : 0.12
+    );
+    setLiveStatusChip(
+      "adminUnifiedQueueConfirmChip",
+      `CONF ${confirmCount}`,
+      confirmCount >= 3 ? "critical" : confirmCount > 0 ? "pressure" : "neutral",
+      totalCount > 0 ? clamp(confirmCount / totalCount, 0.12, 1) : 0.12
+    );
+    setLiveStatusChip(
+      "adminUnifiedQueuePayoutChip",
+      `PAY ${payoutCount}`,
+      payoutCount > 0 ? "balanced" : "neutral",
+      totalCount > 0 ? clamp(payoutCount / totalCount, 0.12, 1) : 0.12
+    );
+    setLiveStatusChip(
+      "adminUnifiedQueueTokenChip",
+      `TOK ${tokenManualCount + tokenAutoCount}`,
+      tokenManualCount + tokenAutoCount > 0 ? "advantage" : "neutral",
+      totalCount > 0 ? clamp((tokenManualCount + tokenAutoCount) / totalCount, 0.12, 1) : 0.12
+    );
+
+    list.innerHTML = "";
+    if (items.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "muted";
+      empty.textContent = uxText("unified_empty");
+      list.appendChild(empty);
+      return;
+    }
+
+    items.slice(0, 16).forEach((item) => {
+      const kind = String(item?.kind || "").toLowerCase();
+      const requestId = asNum(item?.request_id);
+      const userId = asNum(item?.user_id);
+      const statusText = String(item?.status || "pending").toUpperCase();
+      const priority = clamp(asNum(item?.priority), 0, 1);
+      const queueAgeSec = Math.max(0, Math.floor(asNum(item?.queue_age_sec)));
+      const reasonText = String(item?.policy_reason_text || item?.policy_reason_code || uxText("unified_reason_missing"));
+      const rowTone = resolveUnifiedQueueTone(item);
+      const actionPolicy = item?.action_policy && typeof item.action_policy === "object" ? item.action_policy : {};
+      const requiresConfirm = Object.values(actionPolicy).some((entry) => Boolean(entry && entry.confirmation_required));
+      const allowedActions = Object.entries(actionPolicy)
+        .filter(([, entry]) => Boolean(entry && entry.allowed))
+        .map(([action]) => String(action || "").replace(/_/g, " ").toUpperCase());
+
+      const row = document.createElement("li");
+      row.className = `adminUnifiedQueueRow ${rowTone}`;
+      row.dataset.kind = kind || "unknown";
+      if (requestId > 0) {
+        row.dataset.requestId = String(requestId);
+      }
+      if (userId > 0) {
+        row.dataset.userId = String(userId);
+      }
+      row.title = uxText("unified_row_prefill_title");
+
+      const body = document.createElement("div");
+      body.className = "adminUnifiedQueueBody";
+
+      const title = document.createElement("strong");
+      const titleParts = [unifiedQueueKindLabel(kind)];
+      if (requestId > 0) {
+        titleParts.push(`#${requestId}`);
+      } else if (userId > 0) {
+        titleParts.push(`u${userId}`);
+      }
+      titleParts.push(statusText);
+      title.textContent = titleParts.join(" | ");
+
+      const meta = document.createElement("p");
+      meta.className = "adminUnifiedQueueMeta";
+      meta.textContent = `${reasonText} | age ${formatQueueAgeCompact(queueAgeSec)} | ${formatTime(item?.queue_ts)}`;
+
+      const tags = document.createElement("div");
+      tags.className = "adminUnifiedQueueTagRow";
+
+      const addTag = (text, toneClass = "") => {
+        const tag = document.createElement("span");
+        tag.className = toneClass ? `adminUnifiedQueueTag ${toneClass}` : "adminUnifiedQueueTag";
+        tag.textContent = String(text || "-");
+        tags.appendChild(tag);
+      };
+
+      addTag(`PRI ${Math.round(priority * 100)}%`, priority >= 0.75 ? "danger" : priority >= 0.45 ? "warn" : "safe");
+      if (queueAgeSec > 0) {
+        addTag(`AGE ${formatQueueAgeCompact(queueAgeSec)}`, queueAgeSec >= 86400 ? "warn" : "");
+      }
+      if (kind === "payout_request") {
+        const amountBtc = asNum(item?.amount_btc);
+        addTag(`BTC ${amountBtc.toFixed(6)}`, amountBtc > 0 ? "safe" : "warn");
+      } else if (kind === "token_manual_review") {
+        addTag(`USD $${asNum(item?.usd_amount).toFixed(2)}`, asNum(item?.usd_amount) > 0 ? "safe" : "");
+        if (item?.chain) {
+          addTag(`CHAIN ${String(item.chain).toUpperCase()}`);
+        }
+      } else if (kind === "token_auto_decision") {
+        const risk = clamp(asNum(item?.risk_score), 0, 1);
+        addTag(`RISK ${Math.round(risk * 100)}%`, risk >= 0.65 ? "danger" : risk >= 0.35 ? "warn" : "safe");
+      } else if (kind === "kyc_manual_review") {
+        const risk = clamp(asNum(item?.risk_score), 0, 1);
+        addTag(`RISK ${Math.round(risk * 100)}%`, risk >= 0.75 ? "danger" : risk >= 0.45 ? "warn" : "safe");
+        if (item?.tier) {
+          addTag(`TIER ${String(item.tier).toUpperCase()}`);
+        }
+        if (item?.chain) {
+          addTag(`CHAIN ${String(item.chain).toUpperCase()}`);
+        }
+        if (item?.screening_result) {
+          const screening = String(item.screening_result).toLowerCase();
+          addTag(`SCR ${screening.toUpperCase()}`, screening === "blocked" ? "danger" : "warn");
+        }
+      }
+      if (allowedActions.length > 0) {
+        addTag(`ACT ${allowedActions.slice(0, 2).join("/")}`, "safe");
+      }
+      if (requiresConfirm) {
+        addTag(uxText("unified_tag_confirm"), "danger");
+      }
+      if (requestId > 0) {
+        addTag(uxText("unified_tag_prefill"), "warn");
+      }
+
+      const actionButtons = [];
+      if (requestId > 0 && kind === "payout_request") {
+        if (actionPolicy.pay?.allowed) {
+          actionButtons.push({
+            key: "payout_pay",
+            label: uxText("unified_action_mark_paid"),
+            mode: "reveal",
+            confirmationRequired: Boolean(actionPolicy.pay?.confirmation_required)
+          });
+        }
+        if (actionPolicy.reject?.allowed) {
+          actionButtons.push({
+            key: "payout_reject",
+            label: uxText("unified_action_reject"),
+            mode: "aggressive",
+            confirmationRequired: Boolean(actionPolicy.reject?.confirmation_required)
+          });
+        }
+      } else if (requestId > 0 && kind === "token_manual_review") {
+        if (actionPolicy.approve?.allowed) {
+          actionButtons.push({
+            key: "token_approve",
+            label: uxText("unified_action_approve"),
+            mode: "balanced",
+            confirmationRequired: false
+          });
+        }
+        if (actionPolicy.reject?.allowed) {
+          actionButtons.push({
+            key: "token_reject",
+            label: uxText("unified_action_reject"),
+            mode: "aggressive",
+            confirmationRequired: false
+          });
+        }
+      } else if (requestId > 0 && kind === "kyc_manual_review") {
+        if (actionPolicy.approve?.allowed) {
+          actionButtons.push({
+            key: "kyc_approve",
+            label: uxText("unified_action_approve"),
+            mode: "balanced",
+            confirmationRequired: Boolean(actionPolicy.approve?.confirmation_required)
+          });
+        }
+        if (actionPolicy.reject?.allowed) {
+          actionButtons.push({
+            key: "kyc_reject",
+            label: uxText("unified_action_reject"),
+            mode: "aggressive",
+            confirmationRequired: Boolean(actionPolicy.reject?.confirmation_required)
+          });
+        }
+        if (actionPolicy.block?.allowed) {
+          actionButtons.push({
+            key: "kyc_block",
+            label: uxText("unified_action_block"),
+            mode: "aggressive",
+            confirmationRequired: Boolean(actionPolicy.block?.confirmation_required)
+          });
+        }
+      } else if (requestId > 0) {
+        actionButtons.push({
+          key: "prefill",
+          label: uxText("unified_action_prefill"),
+          mode: "safe",
+          confirmationRequired: false
+        });
+      }
+
+      body.appendChild(title);
+      body.appendChild(meta);
+      body.appendChild(tags);
+      if (actionButtons.length > 0) {
+        const actions = document.createElement("div");
+        actions.className = "adminUnifiedQueueActions";
+        actionButtons.forEach((entry) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `mode ${String(entry.mode || "safe")} adminUnifiedQueueActionBtn${
+            entry.confirmationRequired ? " requires-confirm" : ""
+          }`;
+          button.dataset.queueAction = String(entry.key || "");
+          button.dataset.kind = kind || "";
+          button.dataset.requestId = String(requestId);
+          button.textContent = String(entry.label || uxText("unified_action_default"));
+          if (entry.confirmationRequired) {
+            button.title = uxText("unified_action_confirm_title");
+          }
+          actions.appendChild(button);
+        });
+        body.appendChild(actions);
+      }
+
+      const chip = document.createElement("span");
+      chip.className = `adminAssetState ${rowTone === "critical" ? "missing" : rowTone === "pressure" ? "warn" : "ready"}`;
+      chip.textContent = rowTone === "critical" ? "HOT" : rowTone === "pressure" ? "WATCH" : "READY";
+
+      row.appendChild(body);
+      row.appendChild(chip);
+      list.appendChild(row);
+    });
   }
 
   function formatRuntimeTime(value) {
@@ -13601,6 +15217,29 @@
     }
     renewAuth(payload);
     state.admin.queues = payload.data || {};
+    try {
+      const query = new URLSearchParams({
+        ...state.auth,
+        limit: "120"
+      }).toString();
+      for (const endpoint of ["/webapp/api/v2/admin/queue/unified", "/webapp/api/admin/queue/unified"]) {
+        const res = await fetch(`${endpoint}?${query}`);
+        const unifiedPayload = await res.json();
+        if (res.ok && unifiedPayload.success && unifiedPayload.data) {
+          renewAuth(unifiedPayload);
+          state.admin.queues.unified_items = Array.isArray(unifiedPayload.data.items) ? unifiedPayload.data.items : [];
+          state.admin.queues.unified_counts =
+            unifiedPayload.data.counts && typeof unifiedPayload.data.counts === "object"
+              ? unifiedPayload.data.counts
+              : {};
+          state.admin.queues.policy_counts =
+            unifiedPayload.data.policy_counts && typeof unifiedPayload.data.policy_counts === "object"
+              ? unifiedPayload.data.policy_counts
+              : {};
+          break;
+        }
+      }
+    } catch (_) {}
     return state.admin.queues;
   }
 
@@ -13826,33 +15465,209 @@
     return payload;
   }
 
-  async function postAdmin(path, extraBody = {}) {
-    const bridge = getNetApiBridge();
-    let payload;
-    if (bridge) {
-      const t0 = performance.now();
-      payload = await bridge.postAdmin(state.auth, path, extraBody);
-      markLatency(performance.now() - t0);
-    } else {
-      const t0 = performance.now();
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: state.auth.uid,
-          ts: state.auth.ts,
-          sig: state.auth.sig,
-          ...extraBody
-        })
-      });
-      markLatency(performance.now() - t0);
-      payload = await res.json();
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error || `admin_action_failed:${res.status}`);
-      }
+  function buildAdminConfirmCacheKey(path, extraBody = {}) {
+    const cleanPath = String(path || "").trim();
+    const payload = extraBody && typeof extraBody === "object" ? { ...extraBody } : {};
+    delete payload.confirm_token;
+    return `${cleanPath}:${JSON.stringify(payload)}`;
+  }
+
+  function readAdminPendingConfirmation(cacheKey) {
+    const key = String(cacheKey || "");
+    if (!key) {
+      return null;
     }
+    const store = state.admin.pendingConfirmations || {};
+    const entry = store[key];
+    if (!entry) {
+      return null;
+    }
+    const expiresAt = Number(entry.expiresAt || 0);
+    if (!expiresAt || Date.now() > expiresAt) {
+      delete store[key];
+      return null;
+    }
+    return {
+      token: String(entry.token || ""),
+      expiresAt
+    };
+  }
+
+  function writeAdminPendingConfirmation(cacheKey, confirmToken, expiresInSec = 90) {
+    const key = String(cacheKey || "");
+    const token = String(confirmToken || "").trim();
+    if (!key || !token) {
+      return;
+    }
+    if (!state.admin.pendingConfirmations || typeof state.admin.pendingConfirmations !== "object") {
+      state.admin.pendingConfirmations = {};
+    }
+    const ttlSec = Math.max(5, Math.min(300, asNum(expiresInSec || 90)));
+    state.admin.pendingConfirmations[key] = {
+      token,
+      expiresAt: Date.now() + ttlSec * 1000
+    };
+  }
+
+  function clearAdminPendingConfirmation(cacheKey) {
+    const key = String(cacheKey || "");
+    if (!key) {
+      return;
+    }
+    if (state.admin.pendingConfirmations && typeof state.admin.pendingConfirmations === "object") {
+      delete state.admin.pendingConfirmations[key];
+    }
+  }
+
+  async function postAdmin(path, extraBody = {}) {
+    const cleanPath = String(path || "").trim();
+    const cacheKey = buildAdminConfirmCacheKey(cleanPath, extraBody);
+    const pending = readAdminPendingConfirmation(cacheKey);
+    const requestBody = {
+      uid: state.auth.uid,
+      ts: state.auth.ts,
+      sig: state.auth.sig,
+      ...extraBody
+    };
+    if (!requestBody.confirm_token && pending?.token) {
+      requestBody.confirm_token = pending.token;
+    }
+    const t0 = performance.now();
+    const res = await fetch(cleanPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
+    });
+    markLatency(performance.now() - t0);
+    const payload = await res.json().catch(() => ({
+      success: false,
+      error: `admin_action_failed:${res.status}`,
+      data: {}
+    }));
+    if (!res.ok || !payload.success) {
+      const code = String(payload.error || `admin_action_failed:${res.status}`);
+      const meta = payload.data && typeof payload.data === "object" ? payload.data : {};
+      const confirmToken = String(meta.confirm_token || "").trim();
+      if (
+        (code === "admin_confirmation_required" ||
+          code === "admin_confirmation_token_invalid" ||
+          code === "admin_confirmation_expired") &&
+        confirmToken
+      ) {
+        const expiresInSec = Math.max(5, asNum(meta.expires_in_sec || 90));
+        writeAdminPendingConfirmation(cacheKey, confirmToken, expiresInSec);
+        const err = new Error(code);
+        err.uiMessage =
+          code === "admin_confirmation_required"
+            ? `Onay gerekli. Ayni islemi ${Math.round(expiresInSec)}s icinde tekrar tikla.`
+            : `Onay yenilendi. Ayni islemi ${Math.round(expiresInSec)}s icinde tekrar tikla.`;
+        err.code = 409;
+        throw err;
+      }
+      if (code === "admin_cooldown_active") {
+        const waitSec = Math.max(1, asNum(meta.wait_sec || 1));
+        const err = new Error(code);
+        err.uiMessage = `Bu kritik aksiyon icin ${waitSec}s bekle.`;
+        err.code = 429;
+        throw err;
+      }
+      throw new Error(code);
+    }
+    clearAdminPendingConfirmation(cacheKey);
     renewAuth(payload);
     return payload.data || {};
+  }
+
+  async function runAdminUnifiedQueueAction(actionKey, kind, requestId) {
+    const action = String(actionKey || "").trim().toLowerCase();
+    const itemKind = String(kind || "").trim().toLowerCase();
+    const reqId = Math.max(0, Math.floor(asNum(requestId)));
+    if (!action || reqId <= 0) {
+      const err = new Error("invalid_admin_queue_action");
+      err.uiMessage = uxText("unified_error_invalid_action");
+      throw err;
+    }
+
+    if (action === "prefill") {
+      if (itemKind === "payout_request") {
+        const payoutInput = byId("adminPayoutRequestId");
+        if (payoutInput) {
+          payoutInput.value = String(reqId);
+          payoutInput.focus();
+        }
+        showToast(uxFormat("unified_toast_payout_selected", { id: reqId }));
+        return;
+      }
+      const tokenInput = byId("adminTokenRequestId");
+      if (tokenInput) {
+        tokenInput.value = String(reqId);
+        tokenInput.focus();
+      }
+      if (itemKind === "kyc_manual_review") {
+        const reasonInput = byId("adminFreezeReason");
+        if (reasonInput && !String(reasonInput.value || "").trim()) {
+          reasonInput.value = "kyc_manual_review";
+        }
+        reasonInput?.focus();
+        showToast(uxFormat("unified_toast_kyc_selected", { id: reqId }));
+      } else {
+        showToast(uxFormat("unified_toast_token_selected", { id: reqId }));
+      }
+      return;
+    }
+
+    const requestBody = {
+      action_key: action,
+      kind: itemKind,
+      request_id: reqId
+    };
+    if (action === "payout_pay") {
+      const txHash = String(byId("adminPayoutTxHash")?.value || "").trim();
+      if (!txHash) {
+        showToast(uxText("unified_toast_tx_required"), true);
+        byId("adminPayoutTxHash")?.focus();
+        return;
+      }
+      requestBody.tx_hash = txHash;
+    } else if (
+      action === "payout_reject" ||
+      action === "token_reject" ||
+      action === "kyc_approve" ||
+      action === "kyc_reject" ||
+      action === "kyc_block"
+    ) {
+      const fallbackReason =
+        action === "kyc_approve"
+          ? "approved_by_admin"
+          : action === "kyc_block"
+            ? "blocked_by_admin"
+            : "rejected_by_admin";
+      requestBody.reason = String(byId("adminFreezeReason")?.value || "").trim() || fallbackReason;
+    } else if (action !== "token_approve") {
+      const err = new Error("unsupported_admin_queue_action");
+      err.uiMessage = uxText("unified_error_unsupported_action");
+      throw err;
+    }
+
+    const data = await postAdmin("/webapp/api/v2/admin/queue/action", requestBody);
+    renderAdmin({ is_admin: true, summary: data.summary || state.admin.summary });
+    await fetchAdminSummary();
+    if (action === "payout_pay") {
+      showToast(uxFormat("unified_toast_payout_paid", { id: reqId }));
+    } else if (action === "payout_reject") {
+      showToast(uxFormat("unified_toast_payout_rejected", { id: reqId }));
+    } else if (action === "token_approve") {
+      showToast(uxFormat("unified_toast_token_approved", { id: reqId }));
+    } else if (action === "token_reject") {
+      showToast(uxFormat("unified_toast_token_rejected", { id: reqId }));
+    } else if (action === "kyc_approve") {
+      showToast(uxFormat("unified_toast_kyc_approved", { id: reqId }));
+    } else if (action === "kyc_reject") {
+      showToast(uxFormat("unified_toast_kyc_rejected", { id: reqId }));
+    } else if (action === "kyc_block") {
+      showToast(uxFormat("unified_toast_kyc_blocked", { id: reqId }));
+    }
+    loadBootstrap().catch(() => {});
   }
 
   function updateArenaStatus(text, style = "warn") {
@@ -14786,6 +16601,13 @@
     renderAdmin(data.admin || {});
     renderDirector(data);
     renderTelemetryDeck(data);
+    setPvpProgressionState(data.pvp_content || null, "bootstrap");
+    renderPvpProgressionLoop(state.v3.pvpProgression);
+    const catalog = normalizeCommandCatalogItems(data.command_catalog || state.v3.commandCatalog || []);
+    if (catalog.length > 0) {
+      state.v3.commandCatalog = catalog;
+    }
+    renderCommandCatalog(state.v3.commandCatalog);
 
     renderOffers(data.offers || []);
     renderMissions(missions || { list: [], ready: 0 });
@@ -14831,25 +16653,66 @@
       const hue = clamp(180 - riskScore * 100, 20, 190);
       state.arena.core.material.color.setHSL(hue / 360, 0.85, 0.58);
     }
+    applyUxView();
   }
 
   async function loadBootstrap() {
-    const query = new URLSearchParams(state.auth).toString();
+    const query = new URLSearchParams({
+      ...state.auth,
+      lang: normalizeUxLanguage(state.ux.language)
+    }).toString();
     const t0 = performance.now();
-    const res = await fetch(`/webapp/api/bootstrap?${query}`);
+    let res = null;
+    let endpointUsed = "";
+    for (const endpoint of ["/webapp/api/v2/bootstrap", "/webapp/api/bootstrap"]) {
+      const candidate = await fetch(`${endpoint}?${query}`);
+      if (candidate.ok) {
+        res = candidate;
+        endpointUsed = endpoint;
+        break;
+      }
+      if (candidate.status === 404) {
+        continue;
+      }
+      throw new Error(`bootstrap_failed:${candidate.status}`);
+    }
     markLatency(performance.now() - t0);
-    if (!res.ok) {
-      throw new Error(`bootstrap_failed:${res.status}`);
+    if (!res) {
+      throw new Error("bootstrap_failed:no_endpoint");
     }
     const payload = await res.json();
     if (!payload.success) {
       throw new Error(payload.error || "bootstrap_failed");
     }
     renewAuth(payload);
+    state.v3.bootstrapEndpoint = endpointUsed;
+    state.v3.apiVersion = String(payload.data?.api_version || (endpointUsed.includes("/v2/") ? "v2" : "v1"));
     state.v3.featureFlags = payload.data?.feature_flags || {};
     state.v3.runtimeFlagsEffective = payload.data?.runtime_flags_effective || {};
     state.v3.webappVersion = String(payload.data?.webapp_version || payload.webapp_version || "");
     state.v3.webappLaunchUrl = String(payload.data?.webapp_launch_url || payload.webapp_launch_url || "");
+    state.v3.walletCapabilities = payload.data?.wallet_capabilities || null;
+    state.v3.walletSession = payload.data?.wallet_session || null;
+    state.v3.walletKycStatus = payload.data?.kyc_status || null;
+    state.v3.monetization = payload.data?.monetization || null;
+    const bootstrapCatalog = normalizeCommandCatalogItems(payload.data?.command_catalog || []);
+    if (bootstrapCatalog.length > 0) {
+      state.v3.commandCatalog = bootstrapCatalog;
+    }
+    const uxPayload = payload.data?.ux || {};
+    const nextMode = String(uxPayload.default_mode || state.ux.mode || "player").toLowerCase();
+    state.ux.mode = nextMode === "legacy" ? "legacy" : "player";
+    if (!state.ux.userOverrides.language) {
+      state.ux.language = normalizeUxLanguage(uxPayload.language || state.ux.language);
+    }
+    if (!state.ux.userOverrides.advanced) {
+      state.ux.advancedEnabled = Boolean(uxPayload.advanced_enabled);
+    }
+    if (state.ux.mode !== "player") {
+      state.ux.activeTab = "home";
+    }
+    persistUxPrefs();
+    applyLanguageUi();
     if (payload.data?.perf_profile) {
       const perf = payload.data.perf_profile;
       state.telemetry.fpsAvg = asNum(perf.fps_avg || perf.fpsAvg || state.telemetry.fpsAvg);
@@ -14964,9 +16827,14 @@
       fetchSceneProfileEffective("nexus_arena"),
       fetchTokenRouteStatus(),
       fetchTokenDecisionTraces(40),
-      fetchPvpDiagnosticsLive(diagnosticsWindow, state.v3?.pvpSession?.session_ref || "")
+      fetchPvpDiagnosticsLive(diagnosticsWindow, state.v3?.pvpSession?.session_ref || ""),
+      fetchPvpProgressionStatus(),
+      fetchWalletSessionStatus(),
+      fetchMonetizationStatus(),
+      fetchCommandCatalog()
     ]);
-    const [sceneEffectiveRes, tokenRouteRes, decisionTraceRes, pvpDiagnosticsRes] = bootstrapSettled;
+    const [sceneEffectiveRes, tokenRouteRes, decisionTraceRes, pvpDiagnosticsRes, pvpProgressionRes, walletSessionRes, monetizationRes, commandCatalogRes] =
+      bootstrapSettled;
     if (sceneEffectiveRes.status === "fulfilled") {
       const scenePayload = sceneEffectiveRes.value || {};
       const effective = scenePayload.effective_profile || {};
@@ -15013,6 +16881,18 @@
         };
       }
       renderPvpRejectIntelStrip(state.v3.pvpSession, state.v3.pvpTickMeta);
+    }
+    if (pvpProgressionRes.status === "fulfilled" && pvpProgressionRes.value) {
+      renderPvpProgressionLoop(state.v3.pvpProgression);
+    }
+    if (walletSessionRes.status === "fulfilled" && walletSessionRes.value) {
+      renderToken(state.data?.token || {});
+    }
+    if (monetizationRes.status === "fulfilled" && monetizationRes.value) {
+      syncMonetizationUiState();
+    }
+    if (commandCatalogRes.status === "fulfilled" && commandCatalogRes.value) {
+      renderCommandCatalog(state.v3.commandCatalog);
     }
     schedulePerfProfile(true);
     scheduleSceneProfileSync(true);
@@ -15074,6 +16954,36 @@
   }
 
   function bindUi() {
+    document.querySelectorAll(".playerUxTab").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = String(button.dataset.panelTab || "home").toLowerCase();
+        state.ux.activeTab = target || "home";
+        applyUxView();
+        persistUxPrefs();
+        if (target === "pvp") {
+          fetchPvpProgressionStatus().catch(() => {});
+        }
+      });
+    });
+    const advancedToggleBtn = byId("advancedToggleBtn");
+    if (advancedToggleBtn) {
+      advancedToggleBtn.addEventListener("click", () => {
+        state.ux.advancedEnabled = !state.ux.advancedEnabled;
+        state.ux.userOverrides.advanced = true;
+        applyUxView();
+        persistUxPrefs();
+      });
+    }
+    const languageToggleBtn = byId("languageToggleBtn");
+    if (languageToggleBtn) {
+      languageToggleBtn.addEventListener("click", () => {
+        state.ux.language = normalizeUxLanguage(state.ux.language) === "tr" ? "en" : "tr";
+        state.ux.userOverrides.language = true;
+        applyLanguageUi();
+        persistUxPrefs();
+        loadBootstrap().catch(showError);
+      });
+    }
     byId("refreshBtn").addEventListener("click", () => {
       loadBootstrap().then(() => showToast("Panel yenilendi")).catch(showError);
     });
@@ -15152,7 +17062,11 @@
         .catch(showError);
     });
     byId("pvpRefreshBtn").addEventListener("click", () => {
-      Promise.all([fetchPvpSessionState().catch(() => null), loadPvpLeaderboard().catch(() => [])])
+      Promise.all([
+        fetchPvpSessionState().catch(() => null),
+        loadPvpLeaderboard().catch(() => []),
+        fetchPvpProgressionStatus().catch(() => null)
+      ])
         .then(() => showToast("PvP paneli guncellendi"))
         .catch(showError);
     });
@@ -15220,6 +17134,59 @@
         return;
       }
       performAction("submit_token_tx", { request_id: requestId, tx_hash: txHash }).catch(showError);
+    });
+    byId("tokenWalletChallengeBtn").addEventListener("click", () => {
+      requestWalletChallenge()
+        .then((challenge) => {
+          if (!challenge) return;
+          const chain = String(challenge.chain || "eth").toUpperCase();
+          showToast(`Wallet challenge hazir (${chain}). Signature girip verify et.`);
+        })
+        .catch(showError);
+    });
+    byId("tokenWalletVerifyBtn").addEventListener("click", () => {
+      verifyWalletChallenge()
+        .then((data) => {
+          if (!data) return;
+          const chain = String(data.wallet_session?.chain || "").toUpperCase();
+          showToast(`Wallet baglandi: ${chain || "CHAIN"}`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("tokenWalletUnlinkBtn").addEventListener("click", () => {
+      unlinkWalletSession()
+        .then((data) => {
+          showToast(`Wallet unlink tamamlandi (${asNum(data?.unlinked_count || 0)})`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("tokenPassBuyBtn").addEventListener("click", () => {
+      purchaseSelectedPass()
+        .then((data) => {
+          if (!data) return;
+          const key = String(data.purchase?.pass_key || byId("tokenPassSelect")?.value || "").toUpperCase();
+          showToast(`Pass alindi: ${key || "PASS"}`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("tokenCosmeticBuyBtn").addEventListener("click", () => {
+      purchaseSelectedCosmetic()
+        .then((data) => {
+          if (!data) return;
+          const key = String(data.purchase?.item_key || byId("tokenCosmeticSelect")?.value || "").toUpperCase();
+          showToast(`Cosmetic alindi: ${key || "ITEM"}`);
+          loadBootstrap().catch(() => {});
+        })
+        .catch(showError);
+    });
+    byId("tokenWalletChainSelect").addEventListener("change", () => {
+      const signatureInput = byId("tokenWalletSignatureInput");
+      if (signatureInput && !String(signatureInput.value || "").trim()) {
+        signatureInput.placeholder = buildWalletSignaturePlaceholder(String(byId("tokenWalletChainSelect").value || "eth"));
+      }
     });
 
     byId("adminRefreshBtn").addEventListener("click", () => {
@@ -15410,6 +17377,28 @@
           loadBootstrap().catch(() => {});
         })
         .catch(showError);
+    });
+    byId("adminUnifiedQueueList").addEventListener("click", (event) => {
+      const actionBtn = event.target.closest(".adminUnifiedQueueActionBtn");
+      if (actionBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        const actionKey = String(actionBtn.dataset.queueAction || "").toLowerCase();
+        const kind = String(actionBtn.dataset.kind || "").toLowerCase();
+        const requestId = asNum(actionBtn.dataset.requestId || 0);
+        runAdminUnifiedQueueAction(actionKey, kind, requestId).catch(showError);
+        return;
+      }
+      const row = event.target.closest(".adminUnifiedQueueRow");
+      if (!row) {
+        return;
+      }
+      const kind = String(row.dataset.kind || "").toLowerCase();
+      const requestId = asNum(row.dataset.requestId);
+      if (!requestId) {
+        return;
+      }
+      runAdminUnifiedQueueAction("prefill", kind, requestId).catch(showError);
     });
     byId("simStartBtn").addEventListener("click", () => {
       startSimulation().catch(showError);
@@ -16840,6 +18829,11 @@
   }
 
   function showError(err) {
+    const uiMessage = String(err?.uiMessage || "").trim();
+    if (uiMessage) {
+      showToast(uiMessage, false);
+      return;
+    }
     const raw = String(err?.message || err || "bilinmeyen_hata");
     const map = {
       no_pending_attempt: "Aktif deneme yok, once gorev baslat.",
@@ -16870,7 +18864,39 @@
       purchase_above_max: "USD miktari max siniri asti.",
       unsupported_chain: "Desteklenmeyen zincir secildi.",
       chain_address_missing: "Bu zincir icin odeme adresi tanimli degil.",
+      monetization_feature_disabled: "Monetization su an kapali.",
+      monetization_tables_missing: "Monetization tablolari migration bekliyor.",
+      pass_key_invalid: "Pass anahtari gecersiz.",
+      pass_product_not_found: "Pass urunu bulunamadi.",
+      pass_currency_mismatch: "Secilen pass bu para birimiyle satin alinamaz.",
+      pass_price_invalid: "Pass fiyat bilgisi gecersiz.",
+      cosmetic_item_not_found: "Cosmetic urunu bulunamadi.",
+      cosmetic_currency_mismatch: "Secilen cosmetic bu para birimiyle satin alinamaz.",
+      cosmetic_price_invalid: "Cosmetic fiyat bilgisi gecersiz.",
+      item_key_invalid: "Cosmetic anahtari gecersiz.",
+      insufficient_balance: "Bakiye yetersiz.",
       market_cap_gate: "Payout market-cap gate nedeniyle su an kapali.",
+      market_cap_gate_closed: "Market cap kapisi kapali, payout talebi su an acik degil.",
+      daily_drip_exhausted: "Gunluk payout damla limiti doldu, yarin tekrar dene.",
+      payout_not_eligible: "Mevcut tier payout acmaya uygun degil.",
+      tier_locked: "Mevcut tier payout acmaya uygun degil.",
+      idempotency_conflict: "Ayni payout talebi tekrar gonderilemez, once mevcut talebi kontrol et.",
+      cooldown_active: "Cooldown aktif, kisa sure sonra tekrar dene.",
+      unsupported_payout_currency: "Bu payout para birimi su an desteklenmiyor.",
+      invalid_requestable_amount: "Payout talebi icin uygun miktar bulunamadi.",
+      payout_release_tables_missing: "Payout release tablolari migration bekliyor.",
+      kyc_tables_missing: "KYC tablolari migration bekliyor.",
+      kyc_profile_not_found: "KYC profili bulunamadi.",
+      invalid_kyc_decision: "KYC karari gecersiz.",
+      admin_confirmation_required: "Kritik aksiyon icin onay gerekli. Ayni islemi tekrar tetikle.",
+      admin_confirmation_token_invalid: "Onay token gecersiz. Islem icin yeniden onay al.",
+      admin_confirmation_expired: "Onay suresi doldu. Islem icin yeniden onay al.",
+      admin_cooldown_active: "Kritik admin cooldown aktif, kisa sure sonra tekrar dene.",
+      invalid_admin_queue_action: "Queue aksiyon verisi gecersiz.",
+      invalid_admin_queue_action_payload: "Queue aksiyon payload'i eksik veya gecersiz.",
+      invalid_admin_queue_action_kind: "Bu queue kaydi bu aksiyonla uyumlu degil.",
+      unsupported_admin_queue_action: "Bu queue kaydi icin aksiyon tanimli degil.",
+      tx_hash_required: "Bu aksiyon icin TX hash zorunlu.",
       admin_required: "Bu islem admin hesabi gerektirir.",
       no_patch_fields: "Guncelleme icin en az bir alan gir.",
       invalid_gate_band: "Gate max degeri min degerden kucuk olamaz.",
@@ -16887,9 +18913,12 @@
   async function boot() {
     initPerfBridge();
     loadUiPrefs();
+    loadUxPrefs();
     initAudioBank();
     await initThree();
     bindUi();
+    applyLanguageUi();
+    applyUxView();
     bindPageLifecycle();
     renderCombatHudPanel();
     if (window.gsap && !state.ui.reducedMotion) {

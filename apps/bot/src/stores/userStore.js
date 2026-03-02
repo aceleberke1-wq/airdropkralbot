@@ -3,8 +3,8 @@ async function upsertUser(db, { telegramId, locale, timezone }) {
     `INSERT INTO users (telegram_id, locale, timezone, status, last_seen_at)
      VALUES ($1, $2, $3, 'active', now())
      ON CONFLICT (telegram_id)
-     DO UPDATE SET locale = EXCLUDED.locale,
-                   timezone = EXCLUDED.timezone,
+     DO UPDATE SET locale = COALESCE(users.locale, EXCLUDED.locale),
+                   timezone = COALESCE(EXCLUDED.timezone, users.timezone),
                    last_seen_at = now()
      RETURNING id, telegram_id;`,
     [telegramId, locale, timezone]
@@ -63,6 +63,7 @@ async function getProfileByTelegramId(db, telegramId) {
     `SELECT
        u.id AS user_id,
        u.telegram_id,
+       u.locale,
        i.public_name,
        i.kingdom_tier,
        i.reputation_score,
@@ -76,6 +77,18 @@ async function getProfileByTelegramId(db, telegramId) {
      LEFT JOIN streaks s ON s.user_id = u.id
      WHERE u.telegram_id = $1;`,
     [telegramId]
+  );
+  return result.rows[0] || null;
+}
+
+async function setLocaleByTelegramId(db, { telegramId, locale }) {
+  const result = await db.query(
+    `UPDATE users
+     SET locale = $2,
+         last_seen_at = now()
+     WHERE telegram_id = $1
+     RETURNING id, telegram_id, locale;`,
+    [telegramId, locale]
   );
   return result.rows[0] || null;
 }
@@ -195,6 +208,7 @@ module.exports = {
   ensureStreak,
   computeNextStreak,
   getProfileByTelegramId,
+  setLocaleByTelegramId,
   touchStreakOnAction,
   addReputation,
   getKingdomHistory

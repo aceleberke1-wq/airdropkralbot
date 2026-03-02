@@ -1,0 +1,108 @@
+name: Quality Gate V5.1
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: airdropkral
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d airdropkral"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare CI env
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          BOT_TOKEN=dummy_ci_token
+          ADMIN_TELEGRAM_ID=1995400205
+          BOT_USERNAME=airdropkral_ci_bot
+          NODE_ENV=test
+          BOT_DRY_RUN=1
+          LOOP_V2_ENABLED=1
+          BOT_ENABLED=0
+          KEEP_ADMIN_ON_BOT_EXIT=1
+          BOT_AUTO_RESTART=0
+          BOT_INSTANCE_LOCK_KEY=7262026
+          FLAG_SOURCE_MODE=env_locked
+          ARENA_AUTH_ENABLED=1
+          RAID_AUTH_ENABLED=1
+          PVP_WS_ENABLED=0
+          TOKEN_CURVE_ENABLED=1
+          TOKEN_AUTO_APPROVE_ENABLED=1
+          WALLET_AUTH_V1_ENABLED=1
+          KYC_THRESHOLD_V1_ENABLED=1
+          MONETIZATION_CORE_V1_ENABLED=1
+          WEBAPP_V3_ENABLED=1
+          WEBAPP_TS_BUNDLE_ENABLED=1
+          ADMIN_API_TOKEN=ci_admin_token
+          ADMIN_API_PORT=4000
+          BOT_WEBHOOK_URL=
+          WEBAPP_PUBLIC_URL=http://127.0.0.1:4000/webapp
+          WEBAPP_VERSION_OVERRIDE=
+          WEBAPP_HMAC_SECRET=ci_hmac_secret
+          WEBAPP_AUTH_TTL_SEC=900
+          TOKEN_TX_VERIFY=0
+          TOKEN_TX_VERIFY_STRICT=0
+          WALLET_VERIFY_MODE=format_only
+          WALLET_CHALLENGE_TTL_SEC=300
+          WALLET_SESSION_TTL_SEC=86400
+          KYC_RISK_THRESHOLD=0.75
+          KYC_PAYOUT_BTC_THRESHOLD=0.001
+          KYC_REQUIRE_IF_WALLET_UNLINKED=0
+          SANCTIONED_WALLET_ADDRESSES=
+          PAYOUT_BTC_THRESHOLD=0.0001
+          HC_TO_BTC_RATE=0.00001
+          PAYOUT_COOLDOWN_HOURS=72
+          BTC_PAYOUT_ADDRESS_PRIMARY=bc1pzmdep9lzgzswy0nmepvwmexj286kufcfwjfy4fd6dwuedzltntxse9xmz8
+          TRX_PAYOUT_ADDRESS=THbevzbdxMmUNaN3XFWPkaJe8oSq2C2739
+          ETH_PAYOUT_ADDRESS=0x163c9a2fa9eaf8ebc5bb5b8f8e916eb8f24230a1
+          SOL_PAYOUT_ADDRESS=Gp4itYBqqkNRNYtC22QAPdThPB6Kzx8M1yy2rpXBGxbc
+          TON_PAYOUT_ADDRESS=UQBOovYYubv4wYELQTqju8-tiA-3MXuuJ6xdVNSHn277qR22
+          DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/airdropkral
+          DATABASE_SSL=0
+          REDIS_URL=redis://localhost:6379
+          EOF
+
+      - name: Run DB migrations
+        run: npm run migrate:node
+
+      - name: Bot tests
+        run: npm run test:bot
+
+      - name: Smoke gate (v5.1)
+        shell: pwsh
+        run: ./scripts/smoke_v5_1.ps1

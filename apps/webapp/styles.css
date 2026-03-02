@@ -261,6 +261,53 @@ body.hud-extended .value {
   gap: 14px;
 }
 
+.playerUxNav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.playerUxTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.playerUxTab {
+  border: 1px solid rgba(127, 214, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(7, 14, 34, 0.5);
+  color: var(--ink);
+  font: 600 12px/1 "IBM Plex Mono", monospace;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.playerUxTab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(61, 248, 194, 0.55);
+}
+
+.playerUxTab.active {
+  border-color: rgba(61, 248, 194, 0.8);
+  background: linear-gradient(120deg, rgba(61, 248, 194, 0.2), rgba(127, 214, 255, 0.22));
+  color: #ffffff;
+}
+
+.playerUxTools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ux-hidden-panel,
+.ux-hidden-advanced {
+  display: none !important;
+}
+
 .brand {
   display: grid;
   gap: 2px;
@@ -2343,6 +2390,54 @@ body:not(.reduced-motion) .pvpRejectIntelStrip[data-tone="critical"][data-recent
   animation: pvpObjectiveEnter 260ms ease-out;
 }
 
+.pvpProgressionLoop {
+  margin-top: 10px;
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.84), rgba(5, 10, 26, 0.74));
+}
+
+.pvpProgressionGrid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pvpProgressionCard {
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 9px;
+  display: grid;
+  gap: 5px;
+  background: rgba(8, 14, 34, 0.66);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.pvpProgressionCard.neutral {
+  border-color: rgba(162, 186, 255, 0.24);
+}
+
+.pvpProgressionCard.advantage {
+  border-color: rgba(112, 255, 160, 0.46);
+  box-shadow: 0 0 14px rgba(112, 255, 160, 0.14);
+}
+
+.pvpProgressionCard.warning {
+  border-color: rgba(255, 184, 92, 0.45);
+  box-shadow: 0 0 14px rgba(255, 184, 92, 0.14);
+}
+
+.pvpProgressionCard.danger {
+  border-color: rgba(255, 86, 121, 0.46);
+  box-shadow: 0 0 14px rgba(255, 86, 121, 0.16);
+}
+
+[data-model="v5"] .pvpProgressionCard {
+  box-shadow: inset 0 0 0 1px rgba(112, 255, 160, 0.16);
+}
+
 .raidTrackerStrip {
   margin-top: 10px;
   display: grid;
@@ -2436,6 +2531,40 @@ body:not(.reduced-motion) .pvpRejectIntelStrip[data-tone="critical"][data-recent
   display: grid;
   gap: 8px;
   margin-top: 10px;
+}
+
+.tokenMonetizationBlock {
+  margin-top: 8px;
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background:
+    radial-gradient(120% 120% at 12% 0%, rgba(61, 248, 194, 0.08), transparent 64%),
+    radial-gradient(120% 120% at 96% 100%, rgba(127, 214, 255, 0.07), transparent 66%),
+    linear-gradient(145deg, rgba(8, 14, 34, 0.84), rgba(6, 11, 29, 0.8));
+  display: grid;
+  gap: 8px;
+}
+
+.tokenMonetizationBlock[data-tone="critical"] {
+  border-color: rgba(255, 93, 125, 0.46);
+  box-shadow: 0 0 16px rgba(255, 93, 125, 0.12);
+}
+
+.tokenMonetizationBlock[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.34);
+}
+
+.tokenMonetizationBlock[data-tone="advantage"] {
+  border-color: rgba(112, 255, 160, 0.28);
+}
+
+#tokenMonetizationStatus {
+  margin: 0;
+}
+
+#tokenMonetizationList {
+  max-height: 180px;
 }
 
 .treasuryPulseBlock {
@@ -2670,7 +2799,8 @@ body:not(.reduced-motion) .tokenTxLifecycleStrip[data-tone="critical"] {
 }
 
 .tokenRow input,
-.tokenRow select {
+.tokenRow select,
+.tokenRow textarea {
   width: 100%;
   border-radius: 10px;
   border: 1px solid rgba(162, 186, 255, 0.26);
@@ -2682,7 +2812,8 @@ body:not(.reduced-motion) .tokenTxLifecycleStrip[data-tone="critical"] {
 }
 
 .tokenRow input:focus,
-.tokenRow select:focus {
+.tokenRow select:focus,
+.tokenRow textarea:focus {
   outline: none;
   border-color: rgba(61, 248, 194, 0.8);
   box-shadow: 0 0 0 2px rgba(61, 248, 194, 0.16);
@@ -3896,6 +4027,67 @@ body:not(.reduced-motion) .timelineNode[data-flow="reject"] {
   gap: 8px;
 }
 
+.commands .commandCatalogGrid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.commandCatalogCard {
+  border: 1px solid rgba(162, 186, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(8, 14, 33, 0.65);
+  display: grid;
+  gap: 6px;
+}
+
+.commandCatalogHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.commandCatalogKey {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  color: #dce7ff;
+}
+
+.commandCatalogDesc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.commandCatalogMeta {
+  margin: 0;
+  color: #9bc4ff;
+  font-size: 10px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.commandCatalogAction {
+  border-radius: 10px;
+  border: 1px solid rgba(61, 248, 194, 0.42);
+  background: rgba(12, 24, 46, 0.88);
+  color: #d8fff0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 8px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.commandCatalogAction:hover {
+  transform: translateY(-1px);
+  border-color: rgba(112, 255, 160, 0.58);
+}
+
 .eventFeed {
   list-style: none;
   padding: 0;
@@ -4317,6 +4509,166 @@ body:not(.reduced-motion) .adminTreasuryRuntimeStrip[data-tone="critical"] {
   max-height: 182px;
 }
 
+.adminUnifiedQueueStrip {
+  --unified-pressure: 0;
+  margin-top: 6px;
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background:
+    radial-gradient(
+      130% 130% at 10% 0%,
+      rgba(61, 248, 194, calc(0.014 + (var(--unified-pressure) * 0.05))) 0%,
+      transparent 64%
+    ),
+    radial-gradient(
+      130% 130% at 90% 0%,
+      rgba(255, 93, 125, calc(0.012 + (var(--unified-pressure) * 0.08))) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 120% at 50% 100%,
+      rgba(127, 214, 255, calc(0.012 + (var(--unified-pressure) * 0.06))) 0%,
+      transparent 70%
+    ),
+    rgba(7, 13, 31, 0.76);
+}
+
+.adminUnifiedQueueStrip[data-tone="critical"] {
+  border-color: rgba(255, 93, 125, 0.46);
+  box-shadow: 0 0 16px rgba(255, 93, 125, 0.1);
+}
+
+.adminUnifiedQueueStrip[data-tone="pressure"] {
+  border-color: rgba(255, 184, 92, 0.36);
+}
+
+.adminUnifiedQueueStrip[data-tone="advantage"] {
+  border-color: rgba(61, 248, 194, 0.28);
+}
+
+body:not(.reduced-motion) .adminUnifiedQueueStrip[data-tone="critical"] {
+  animation: pvpActionAlert 1180ms ease-in-out infinite;
+}
+
+.adminUnifiedQueueHead {
+  display: grid;
+  gap: 6px;
+}
+
+.adminUnifiedQueueChipRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.adminUnifiedQueueList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 232px;
+  overflow: auto;
+}
+
+.adminUnifiedQueueRow {
+  border: 1px solid rgba(162, 186, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(7, 12, 30, 0.64);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.adminUnifiedQueueRow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(127, 214, 255, 0.08);
+}
+
+.adminUnifiedQueueRow.advantage {
+  border-color: rgba(112, 255, 160, 0.28);
+}
+
+.adminUnifiedQueueRow.pressure {
+  border-color: rgba(255, 184, 92, 0.34);
+}
+
+.adminUnifiedQueueRow.critical {
+  border-color: rgba(255, 93, 125, 0.42);
+}
+
+.adminUnifiedQueueBody {
+  min-width: 0;
+}
+
+.adminUnifiedQueueBody strong {
+  display: block;
+  font-size: 12px;
+}
+
+.adminUnifiedQueueMeta {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.adminUnifiedQueueTagRow {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.adminUnifiedQueueActions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.adminUnifiedQueueActionBtn {
+  padding: 7px 8px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.adminUnifiedQueueActionBtn.requires-confirm {
+  box-shadow: inset 0 0 0 1px rgba(255, 184, 92, 0.24);
+}
+
+.adminUnifiedQueueTag {
+  border: 1px solid rgba(162, 186, 255, 0.24);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  color: #dbe5ff;
+  background: rgba(8, 15, 36, 0.84);
+}
+
+.adminUnifiedQueueTag.warn {
+  border-color: rgba(255, 184, 92, 0.46);
+  color: #ffd9a2;
+}
+
+.adminUnifiedQueueTag.danger {
+  border-color: rgba(255, 93, 125, 0.52);
+  color: #ffc0cf;
+}
+
+.adminUnifiedQueueTag.safe {
+  border-color: rgba(112, 255, 160, 0.46);
+  color: #b6ffd0;
+}
+
 .adminProviderAlertStrip {
   --provider-health: 0;
   --provider-timeout: 0;
@@ -4625,6 +4977,14 @@ body:not(.reduced-motion) .adminDecisionTraceStrip[data-tone="critical"] {
 @media (max-width: 720px) {
   .tokenActionDirectorChipRow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .adminUnifiedQueueRow {
+    grid-template-columns: 1fr;
+  }
+
+  .adminUnifiedQueueActions {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -4968,6 +5328,10 @@ body[data-scene-mood="critical"] .meter > span {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .pvpProgressionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pvpCadenceStrip {
     grid-template-columns: 1fr;
   }
@@ -5052,6 +5416,7 @@ body[data-scene-mood="critical"] .meter > span {
 
   .modeGrid,
   .commands .commandGrid,
+  .commands .commandCatalogGrid,
   .simActions,
   .combatHudPanel,
   .raidTrackerStrip,
@@ -5083,6 +5448,7 @@ body[data-scene-mood="critical"] .meter > span {
   .pvpCadenceStrip,
   .pvpTheaterStrip,
   .pvpRadarStrip,
+  .pvpProgressionGrid,
   .pvpObjectiveGrid {
     grid-template-columns: 1fr;
   }
@@ -5269,5 +5635,16 @@ body[data-scene-mood="critical"] .meter > span {
   }
   100% {
     opacity: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .playerUxNav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .playerUxTools {
+    justify-content: flex-start;
   }
 }
