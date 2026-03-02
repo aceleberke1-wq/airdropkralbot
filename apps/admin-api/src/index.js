@@ -5095,73 +5095,60 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       ]);
     }
     const walletCapabilities = getWalletCapabilities(featureFlags.flags || {});
-    const [walletTablesAvailable, kycTablesAvailable] = walletCapabilities.enabled
-      ? await Promise.all([
-          hasWalletAuthTables(client).catch(() => false),
-          hasKycTables(client).catch(() => false)
-        ])
-      : [false, false];
-    const [walletSessionState, kycProfile] = walletCapabilities.enabled
-      ? await Promise.all([
-          walletTablesAvailable
-            ? readWalletSessionState(client, profile.user_id).catch(() => ({
-                active: false,
-                chain: "",
-                address: "",
-                linked_at: null,
-                expires_at: null,
-                session_ref: "",
-                kyc_status: "unknown"
-              }))
-            : Promise.resolve({
-                active: false,
-                chain: "",
-                address: "",
-                linked_at: null,
-                expires_at: null,
-                session_ref: "",
-                kyc_status: "unknown"
-              }),
-          kycTablesAvailable ? readKycProfile(client, profile.user_id).catch(() => null) : Promise.resolve(null)
-        ])
-      : [
-          {
-            active: false,
-            chain: "",
-            address: "",
-            linked_at: null,
-            expires_at: null,
-            session_ref: "",
-            kyc_status: "unknown"
-          },
-          null
-        ];
+    const defaultWalletSessionState = {
+      active: false,
+      chain: "",
+      address: "",
+      linked_at: null,
+      expires_at: null,
+      session_ref: "",
+      kyc_status: "unknown"
+    };
+    let walletTablesAvailable = false;
+    let kycTablesAvailable = false;
+    let walletSessionState = defaultWalletSessionState;
+    let kycProfile = null;
+    if (walletCapabilities.enabled && includeHeavyPayload) {
+      [walletTablesAvailable, kycTablesAvailable] = await Promise.all([
+        hasWalletAuthTables(client).catch(() => false),
+        hasKycTables(client).catch(() => false)
+      ]);
+      [walletSessionState, kycProfile] = await Promise.all([
+        walletTablesAvailable
+          ? readWalletSessionState(client, profile.user_id).catch(() => defaultWalletSessionState)
+          : Promise.resolve(defaultWalletSessionState),
+        kycTablesAvailable ? readKycProfile(client, profile.user_id).catch(() => null) : Promise.resolve(null)
+      ]);
+    }
     const kycState = normalizeKycState(kycProfile);
-    const monetizationSummary = await buildMonetizationSummary(client, {
-      featureFlags: featureFlags.flags || {},
-      userId: profile.user_id,
-      lang: request.query.lang || "tr"
-    }).catch((err) => {
-      if (err.code === "42P01") {
-        return {
-          enabled: isFeatureEnabled(featureFlags.flags || {}, "MONETIZATION_CORE_V1_ENABLED"),
-          tables_available: false,
-          pass_catalog: [],
-          cosmetic_catalog: getCosmeticCatalog(request.query.lang || "tr"),
-          active_passes: [],
-          pass_history: [],
-          cosmetics: { owned_count: 0, recent: [] },
-          spend_summary: { SC: 0, HC: 0, RC: 0 },
-          player_effects: {
-            premium_active: false,
-            sc_boost_multiplier: 0,
-            season_bonus_multiplier: 0
-          },
-          updated_at: new Date().toISOString()
-        };
-      }
-      throw err;
-    });
+    let monetizationSummary = {
+      enabled: isFeatureEnabled(featureFlags.flags || {}, "MONETIZATION_CORE_V1_ENABLED"),
+      tables_available: false,
+      pass_catalog: [],
+      cosmetic_catalog: getCosmeticCatalog(request.query.lang || "tr"),
+      active_passes: [],
+      pass_history: [],
+      cosmetics: { owned_count: 0, recent: [] },
+      spend_summary: { SC: 0, HC: 0, RC: 0 },
+      player_effects: {
+        premium_active: false,
+        sc_boost_multiplier: 0,
+        season_bonus_multiplier: 0
+      },
+      updated_at: new Date().toISOString()
+    };
+    if (includeHeavyPayload) {
+      monetizationSummary = await buildMonetizationSummary(client, {
+        featureFlags: featureFlags.flags || {},
+        userId: profile.user_id,
+        lang: request.query.lang || "tr"
+      }).catch((err) => {
+        if (err.code === "42P01") {
+          return monetizationSummary;
+        }
+        throw err;
+      });
+    }
     let manifestSummary = summarizeActiveAssetManifest(activeManifest);
     if (Number(manifestSummary.total_assets || 0) <= 0) {
       const localAssetStatus = buildAssetStatusRows();
