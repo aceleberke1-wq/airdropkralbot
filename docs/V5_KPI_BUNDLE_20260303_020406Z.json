@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-03T08:04:06.542Z",
+  "generated_at": "2026-03-03T02:04:06.699Z",
   "config": {
     "hours_short": 24,
     "hours_long": 72,
@@ -8,7 +8,7 @@
   },
   "snapshots": {
     "h24": {
-      "generated_at": "2026-03-03T08:04:02.484Z",
+      "generated_at": "2026-03-03T02:04:02.639Z",
       "window_hours": 24,
       "schema": {
         "tables_checked": {
@@ -78,45 +78,45 @@
         "slo_latest_by_key": [
           {
             "metric_key": "audit_coverage_proxy_pct",
-            "metric_value": "130.77000000",
+            "metric_value": "132.69000000",
             "sample_size": "52",
             "window_key": "24h",
-            "measured_at": "2026-03-03T02:04:07.727Z"
+            "measured_at": "2026-03-02T20:04:16.492Z"
           },
           {
             "metric_key": "payout_dispute_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "7d",
-            "measured_at": "2026-03-03T02:04:07.854Z"
+            "measured_at": "2026-03-02T20:04:16.620Z"
           },
           {
             "metric_key": "payout_rejected_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "72h",
-            "measured_at": "2026-03-03T02:04:07.685Z"
+            "measured_at": "2026-03-02T20:04:16.450Z"
           },
           {
             "metric_key": "revenue_amount",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "7d",
-            "measured_at": "2026-03-03T02:04:07.812Z"
+            "measured_at": "2026-03-02T20:04:16.577Z"
           },
           {
             "metric_key": "unknown_intent_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "72h",
-            "measured_at": "2026-03-03T02:04:07.601Z"
+            "measured_at": "2026-03-02T20:04:16.365Z"
           },
           {
             "metric_key": "wallet_challenge_verify_rate_pct",
             "metric_value": "100.00000000",
             "sample_size": "19",
             "window_key": "24h",
-            "measured_at": "2026-03-03T02:04:07.769Z"
+            "measured_at": "2026-03-02T20:04:16.535Z"
           }
         ],
         "cutover_switch_events": [],
@@ -124,7 +124,7 @@
       }
     },
     "h72": {
-      "generated_at": "2026-03-03T08:04:04.635Z",
+      "generated_at": "2026-03-03T02:04:04.661Z",
       "window_hours": 72,
       "schema": {
         "tables_checked": {
@@ -194,45 +194,45 @@
         "slo_latest_by_key": [
           {
             "metric_key": "audit_coverage_proxy_pct",
-            "metric_value": "130.77000000",
+            "metric_value": "132.69000000",
             "sample_size": "52",
             "window_key": "24h",
-            "measured_at": "2026-03-03T02:04:07.727Z"
+            "measured_at": "2026-03-02T20:04:16.492Z"
           },
           {
             "metric_key": "payout_dispute_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "7d",
-            "measured_at": "2026-03-03T02:04:07.854Z"
+            "measured_at": "2026-03-02T20:04:16.620Z"
           },
           {
             "metric_key": "payout_rejected_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "72h",
-            "measured_at": "2026-03-03T02:04:07.685Z"
+            "measured_at": "2026-03-02T20:04:16.450Z"
           },
           {
             "metric_key": "revenue_amount",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "7d",
-            "measured_at": "2026-03-03T02:04:07.812Z"
+            "measured_at": "2026-03-02T20:04:16.577Z"
           },
           {
             "metric_key": "unknown_intent_rate_pct",
             "metric_value": "0.00000000",
             "sample_size": "0",
             "window_key": "72h",
-            "measured_at": "2026-03-03T02:04:07.601Z"
+            "measured_at": "2026-03-02T20:04:16.365Z"
           },
           {
             "metric_key": "wallet_challenge_verify_rate_pct",
             "metric_value": "100.00000000",
             "sample_size": "19",
             "window_key": "24h",
-            "measured_at": "2026-03-03T02:04:07.769Z"
+            "measured_at": "2026-03-02T20:04:16.535Z"
           }
         ],
         "cutover_switch_events": [],
