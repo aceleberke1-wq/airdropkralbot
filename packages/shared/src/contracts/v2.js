@@ -213,6 +213,99 @@ const AdminQueueActionPayloadV2Schema = z.object({
   tx_hash: z.string().max(180).optional()
 });
 
+const WebAppAuthEnvelopeSchema = z.object({
+  uid: z.string().min(1),
+  ts: z.string().min(1),
+  sig: z.string().min(1)
+});
+
+const WebAppActionMutationRequestV2Schema = WebAppAuthEnvelopeSchema.extend({
+  action_request_id: z.string().min(6).max(120)
+});
+
+const PlayerActionAcceptRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  offer_id: z.number().int().positive()
+});
+
+const PlayerActionCompleteRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  attempt_id: z.number().int().positive().optional(),
+  mode: z.string().min(2).max(24).optional()
+});
+
+const PlayerActionRevealRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  attempt_id: z.number().int().positive().optional()
+});
+
+const PlayerActionClaimMissionRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  mission_key: z.string().min(3).max(64)
+});
+
+const PvpSessionStartRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  mode_suggested: z.enum(["safe", "balanced", "aggressive"]).optional(),
+  transport: z.enum(["poll", "ws"]).optional()
+});
+
+const PvpSessionActionRequestV2Schema = WebAppAuthEnvelopeSchema.extend({
+  session_ref: z.string().min(8).max(128),
+  action_seq: z.number().int().positive(),
+  input_action: z.string().min(3).max(24),
+  latency_ms: z.number().int().min(0).optional(),
+  client_ts: z.number().int().min(0).optional(),
+  action_request_id: z.string().min(6).max(120).optional()
+});
+
+const PvpSessionResolveRequestV2Schema = WebAppAuthEnvelopeSchema.extend({
+  session_ref: z.string().min(8).max(128),
+  action_request_id: z.string().min(6).max(120).optional()
+});
+
+const TokenMintRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  amount: z.number().positive().optional()
+});
+
+const TokenBuyIntentRequestV2Schema = WebAppActionMutationRequestV2Schema.extend({
+  usd_amount: z.number().min(0.5),
+  chain: z.string().min(2).max(12)
+});
+
+const TokenSubmitTxRequestV2Schema = WebAppAuthEnvelopeSchema.extend({
+  request_id: z.number().int().positive(),
+  tx_hash: z.string().min(24).max(256),
+  action_request_id: z.string().min(6).max(120)
+});
+
+const UiPreferencesSchema = z.object({
+  ui_mode: z.string().default("hardcore"),
+  quality_mode: z.string().default("auto"),
+  reduced_motion: z.boolean().default(false),
+  large_text: z.boolean().default(false),
+  sound_enabled: z.boolean().default(true),
+  updated_at: z.string().nullable().default(null),
+  prefs_json: z
+    .object({
+      language: z.enum(["tr", "en"]).default("tr"),
+      onboarding_completed: z.boolean().default(false),
+      onboarding_version: z.string().default("v1"),
+      advanced_view: z.boolean().default(false),
+      last_tab: z.enum(["home", "pvp", "tasks", "vault"]).default("home"),
+      workspace: z.enum(["player", "admin"]).default("player")
+    })
+    .passthrough()
+    .default({
+      language: "tr",
+      onboarding_completed: false,
+      onboarding_version: "v1",
+      advanced_view: false,
+      last_tab: "home",
+      workspace: "player"
+    })
+});
+
+const UiPreferencesResponseV2Schema = z.object({
+  api_version: z.literal("v2"),
+  ui_preferences: UiPreferencesSchema
+});
+
 module.exports = {
   AdminQueueActionPayloadV2Schema,
   BootstrapV2DataSchema,
@@ -227,8 +320,22 @@ module.exports = {
   MonetizationTrendPointSchema,
   PayoutDisputeMetricsSchema,
   PayoutLockStateSchema,
+  PlayerActionAcceptRequestV2Schema,
+  PlayerActionClaimMissionRequestV2Schema,
+  PlayerActionCompleteRequestV2Schema,
+  PlayerActionRevealRequestV2Schema,
+  PvpSessionActionRequestV2Schema,
+  PvpSessionResolveRequestV2Schema,
+  PvpSessionStartRequestV2Schema,
   RuntimeFlagsEffectiveSchema,
+  TokenBuyIntentRequestV2Schema,
+  TokenMintRequestV2Schema,
+  TokenSubmitTxRequestV2Schema,
+  UiPreferencesResponseV2Schema,
+  UiPreferencesSchema,
   UiEventBatchAnalyticsConfigSchema,
   UnifiedAdminQueueItemSchema,
+  WebAppActionMutationRequestV2Schema,
+  WebAppAuthEnvelopeSchema,
   WalletCapabilitiesSchema
 };

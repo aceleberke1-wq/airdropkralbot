@@ -8,6 +8,26 @@ import type {
 } from "./types";
 import { normalizeLang, type Lang } from "./i18n";
 
+const TAB_KEYS: TabKey[] = ["home", "pvp", "tasks", "vault"];
+
+function isTabKey(value: unknown): value is TabKey {
+  return TAB_KEYS.includes(value as TabKey);
+}
+
+function sanitizeTab(value: unknown, fallback: TabKey): TabKey {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return isTabKey(key) ? key : fallback;
+}
+
+function sanitizeWorkspace(value: unknown, fallback: WorkspaceKey): WorkspaceKey {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return key === "admin" || key === "player" ? key : fallback;
+}
+
 type AdminRuntimeData = {
   summary: Record<string, unknown> | null;
   queue: Array<Record<string, unknown>>;
@@ -33,6 +53,7 @@ type ReactShellState = {
   adminRuntime: AdminRuntimeData;
   pvpRuntime: PvpRuntimeData;
   setBootstrap: (data: BootstrapV2Data) => void;
+  patchData: (patch: Partial<BootstrapV2Data>) => void;
   setAuth: (auth: WebAppAuth) => void;
   setTab: (tab: TabKey) => void;
   setWorkspace: (workspace: WorkspaceKey) => void;
@@ -73,8 +94,15 @@ export const useReactShellStore = create<ReactShellState>((set) => ({
   setBootstrap: (data) =>
     set((state) => {
       const shell = data?.ui_shell || null;
-      const defaultTab = (shell?.default_tab || "home") as TabKey;
-      const nextLang = normalizeLang(data?.ux?.language || state.lang);
+      const shellTabs = Array.isArray(shell?.tabs) && shell?.tabs.length ? shell.tabs.filter((entry) => isTabKey(entry)) : TAB_KEYS;
+      const prefsJson = data?.ui_prefs?.prefs_json && typeof data.ui_prefs.prefs_json === "object" ? data.ui_prefs.prefs_json : {};
+      const preferredTab = sanitizeTab(prefsJson.last_tab || shell?.default_tab || state.tab || "home", "home");
+      const defaultTab = shellTabs.includes(preferredTab) ? preferredTab : sanitizeTab(shell?.default_tab || "home", "home");
+      const nextLang = normalizeLang(prefsJson.language || data?.ux?.language || state.lang);
+      const advancedPref =
+        typeof prefsJson.advanced_view === "boolean" ? Boolean(prefsJson.advanced_view) : Boolean(data?.ux?.advanced_enabled);
+      const onboardingCompleted = Boolean(prefsJson.onboarding_completed);
+      const nextWorkspace = sanitizeWorkspace(prefsJson.workspace || state.workspace || "player", "player");
       return {
         data,
         experiment: {
@@ -84,13 +112,23 @@ export const useReactShellStore = create<ReactShellState>((set) => ({
           cohort_bucket: Math.max(0, Math.min(99, Number(data?.experiment?.cohort_bucket || 0)))
         },
         tab: defaultTab,
+        workspace: nextWorkspace,
         lang: nextLang,
-        advanced: Boolean(data?.ux?.advanced_enabled),
-        onboardingVisible: state.onboardingVisible,
+        advanced: advancedPref,
+        onboardingVisible: onboardingCompleted ? false : state.onboardingVisible,
         loading: false,
         error: ""
       };
     }),
+  patchData: (patch) =>
+    set((state) => ({
+      data: state.data
+        ? {
+            ...state.data,
+            ...(patch || {})
+          }
+        : ({ ...(patch || {}) } as BootstrapV2Data)
+    })),
   setAuth: (auth) => set({ auth }),
   setTab: (tab) => set({ tab }),
   setWorkspace: (workspace) => set({ workspace }),

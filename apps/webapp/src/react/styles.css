@@ -215,6 +215,24 @@ body {
   flex-wrap: wrap;
 }
 
+.akrInputRow {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.akrInputRow input {
+  width: 100%;
+  border: 1px solid rgba(117, 171, 202, 0.36);
+  background: rgba(7, 23, 46, 0.88);
+  color: #e6f4ff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+}
+
 .akrJsonBlock {
   margin-top: 12px;
   background: rgba(6, 16, 33, 0.9);

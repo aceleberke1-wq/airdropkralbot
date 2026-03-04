@@ -39,6 +39,11 @@ const { registerWebappV2PayoutRoutes } = require("./routes/webapp/v2/payoutRoute
 const { registerWebappV2WalletRoutes } = require("./routes/webapp/v2/walletRoutes");
 const { registerWebappV2AdminQueueRoutes } = require("./routes/webapp/v2/adminQueueRoutes");
 const { registerWebappV2TelemetryRoutes } = require("./routes/webapp/v2/telemetryRoutes");
+const { registerWebappV2PlayerRoutes } = require("./routes/webapp/v2/playerRoutes");
+const { registerWebappV2PvpRoutes } = require("./routes/webapp/v2/pvpRoutes");
+const { registerWebappV2TokenRoutes } = require("./routes/webapp/v2/tokenRoutes");
+const { registerWebappV2AdminRuntimeRoutes } = require("./routes/webapp/v2/adminRuntimeRoutes");
+const { registerWebappV2UiPrefsRoutes } = require("./routes/webapp/v2/uiPrefsRoutes");
 const { registerWebappAdminPayoutReleaseRoutes } = require("./routes/webapp/admin/payoutReleaseRoutes");
 const { registerWebappAdminFreezeRoutes } = require("./routes/webapp/admin/freezeRoutes");
 const { registerWebappAdminTokenRoutes } = require("./routes/webapp/admin/tokenAdminRoutes");
@@ -10798,6 +10803,14 @@ registerWebappV2PayoutRoutes(fastify, {
   proxyWebAppApiV1
 });
 
+registerWebappV2PlayerRoutes(fastify, {
+  proxyWebAppApiV1
+});
+
+registerWebappV2PvpRoutes(fastify, {
+  proxyWebAppApiV1
+});
+
 registerWebappV2WalletRoutes(fastify, {
   pool,
   verifyWebAppAuth,
@@ -10833,6 +10846,25 @@ registerWebappV2WalletRoutes(fastify, {
   walletVerifyMode: WALLET_VERIFY_MODE,
   webappPublicUrl: WEBAPP_PUBLIC_URL,
   kycRiskThreshold: KYC_RISK_THRESHOLD
+});
+
+registerWebappV2TokenRoutes(fastify, {
+  proxyWebAppApiV1,
+  pool,
+  verifyWebAppAuth,
+  requireWebAppAdmin
+});
+
+registerWebappV2UiPrefsRoutes(fastify, {
+  pool,
+  verifyWebAppAuth,
+  issueWebAppSession,
+  getProfileByTelegram,
+  webappStore
+});
+
+registerWebappV2AdminRuntimeRoutes(fastify, {
+  proxyWebAppApiV1
 });
 
 fastify.get("/webapp/api/v2/pvp/progression", async (request, reply) => {

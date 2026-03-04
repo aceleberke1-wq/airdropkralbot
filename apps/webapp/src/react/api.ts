@@ -1,103 +1,55 @@
-import type {
-  BootstrapV2Payload,
-  UiEventBatchRequest,
-  UiEventBatchResponse,
-  WebAppAuth
-} from "./types";
-import { normalizeLang, type Lang } from "./i18n";
+export { buildActionRequestId, normalizeApiLang, readWebAppAuth } from "./api/common";
+export {
+  fetchBootstrapV2,
+  normalizeLanguageInput,
+  postAcceptActionV2,
+  postClaimMissionV2,
+  postCompleteActionV2,
+  postRevealActionV2,
+  postTasksRerollV2
+} from "./api/playerApi";
+export {
+  applyPvpSessionActionV2,
+  fetchPvpSessionStateV2,
+  resolvePvpSessionV2,
+  startPvpSessionV2
+} from "./api/pvpApi";
+export {
+  fetchTokenDecisionTracesV2,
+  fetchTokenQuoteV2,
+  fetchTokenRouteStatusV2,
+  fetchTokenSummaryV2,
+  postTokenBuyIntentV2,
+  postTokenMintV2,
+  postTokenSubmitTxV2
+} from "./api/vaultApi";
+export {
+  fetchAdminAssetsStatusV2,
+  fetchAdminAuditDataIntegrityV2,
+  fetchAdminAuditPhaseStatusV2,
+  fetchAdminBootstrapV2,
+  fetchAdminDeployStatusV2,
+  fetchAdminMetricsV2,
+  fetchAdminRuntimeBotV2,
+  fetchAdminRuntimeFlagsV2,
+  fetchAdminUnifiedQueueV2,
+  postAdminAssetsReloadV2,
+  postAdminQueueActionV2,
+  postAdminRuntimeBotReconcileV2,
+  postAdminRuntimeFlagsV2
+} from "./api/adminApi";
+export { fetchUiPreferencesV2, postUiPreferencesV2 } from "./api/prefsApi";
+export { postUiEventsBatch } from "./api/telemetryApi";
 
-function buildQuery(params: Record<string, unknown>): string {
-  const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value == null) {
-      return;
-    }
-    search.set(key, String(value));
-  });
-  return search.toString();
-}
+import type { WebAppAuth } from "./types";
+import { fetchPvpSessionStateV2, startPvpSessionV2 } from "./api/pvpApi";
 
-export function readWebAppAuth(search = window.location.search): WebAppAuth | null {
-  const qs = new URLSearchParams(search);
-  const uid = String(qs.get("uid") || "").trim();
-  const ts = String(qs.get("ts") || "").trim();
-  const sig = String(qs.get("sig") || "").trim();
-  if (!uid || !ts || !sig) {
-    return null;
-  }
-  return { uid, ts, sig };
-}
-
-async function readJson<T>(res: Response): Promise<T> {
-  const payload = (await res.json().catch(() => ({}))) as T;
-  return payload;
-}
-
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(path, { cache: "no-store" });
-  return readJson<T>(res);
-}
-
-async function postJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  return readJson<T>(res);
-}
-
-export async function fetchBootstrapV2(auth: WebAppAuth, language: Lang = "tr"): Promise<BootstrapV2Payload> {
-  const query = buildQuery({
-    uid: auth.uid,
-    ts: auth.ts,
-    sig: auth.sig,
-    lang: normalizeLang(language),
-    scope: "player",
-    include_admin: "1"
-  });
-  return getJson<BootstrapV2Payload>(`/webapp/api/v2/bootstrap?${query}`);
-}
-
-export async function fetchAdminBootstrapV2(auth: WebAppAuth): Promise<any> {
-  const query = buildQuery({
-    uid: auth.uid,
-    ts: auth.ts,
-    sig: auth.sig
-  });
-  return getJson<any>(`/webapp/api/v2/admin/bootstrap?${query}`);
-}
-
-export async function fetchAdminUnifiedQueueV2(auth: WebAppAuth, limit = 40): Promise<any> {
-  const query = buildQuery({
-    uid: auth.uid,
-    ts: auth.ts,
-    sig: auth.sig,
-    limit: String(Math.max(1, Math.min(200, Number(limit || 40))))
-  });
-  return getJson<any>(`/webapp/api/v2/admin/queue/unified?${query}`);
-}
-
+// Compatibility exports used by existing shell code.
 export async function startPvpSession(auth: WebAppAuth): Promise<any> {
-  return postJson<any>("/webapp/api/pvp/session/start", {
-    uid: auth.uid,
-    ts: auth.ts,
-    sig: auth.sig,
-    request_id: `react_pvp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    mode_suggested: "balanced",
-    transport: "poll"
-  });
+  return startPvpSessionV2(auth, {});
 }
 
+// Compatibility exports used by existing shell code.
 export async function fetchPvpSessionState(auth: WebAppAuth): Promise<any> {
-  const query = buildQuery({
-    uid: auth.uid,
-    ts: auth.ts,
-    sig: auth.sig
-  });
-  return getJson<any>(`/webapp/api/pvp/session/state?${query}`);
-}
-
-export async function postUiEventsBatch(payload: UiEventBatchRequest): Promise<UiEventBatchResponse> {
-  return postJson<UiEventBatchResponse>("/webapp/api/v2/telemetry/ui-events/batch", payload);
+  return fetchPvpSessionStateV2(auth);
 }
