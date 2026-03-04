@@ -70,3 +70,38 @@ test("buildUiEventIdempotencyKey stays stable for same payload", () => {
   assert.equal(k1, k2);
   assert.match(k1, /^[a-f0-9]{40}$/);
 });
+
+test("resolveExperimentAssignment forceTreatment upgrades existing control row", async () => {
+  const state = {
+    uid: 88,
+    experiment_key: "webapp_react_v1",
+    variant_key: "control",
+    cohort_bucket: 17,
+    assigned_at: "2026-03-04T00:00:00.000Z"
+  };
+  const db = {
+    async query(sql) {
+      const text = String(sql || "");
+      if (text.includes("SELECT uid, experiment_key, variant_key, cohort_bucket, assigned_at")) {
+        return { rows: [state] };
+      }
+      if (text.includes("UPDATE v5_webapp_experiment_assignments")) {
+        state.variant_key = "treatment";
+        return { rows: [state] };
+      }
+      return { rows: [] };
+    }
+  };
+
+  const result = await service.resolveExperimentAssignment(db, {
+    uid: 88,
+    experimentKey: "webapp_react_v1",
+    enabled: true,
+    treatmentPercent: 100,
+    forceTreatment: true
+  });
+
+  assert.equal(result.variant, "treatment");
+  assert.equal(result.source, "db_forced_treatment");
+  assert.equal(result.cohort_bucket, 17);
+});

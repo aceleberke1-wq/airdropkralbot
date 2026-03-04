@@ -5378,7 +5378,8 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
       uid: Number(auth.uid || 0),
       experimentKey: WEBAPP_REACT_V1_EXPERIMENT_KEY,
       enabled: reactV1Enabled,
-      treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT
+      treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT,
+      forceTreatment: reactV1Enabled && WEBAPP_REACT_V1_TREATMENT_PCT >= 100
     });
     const telemetrySessionRef = buildWebappTelemetrySessionRef(profile.user_id || auth.uid);
     const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);

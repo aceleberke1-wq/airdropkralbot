@@ -92,6 +92,7 @@ async function resolveExperimentAssignment(db, options = {}) {
   const experimentKey = toSafeText(options.experimentKey, 80, DEFAULT_EXPERIMENT_KEY) || DEFAULT_EXPERIMENT_KEY;
   const enabled = Boolean(options.enabled);
   const treatmentPercent = clampInt(options.treatmentPercent, 0, 100, 0);
+  const forceTreatment = Boolean(options.forceTreatment);
   const fallback = buildExperimentAssignment({
     uid: safeUid,
     experimentKey,
@@ -117,10 +118,48 @@ async function resolveExperimentAssignment(db, options = {}) {
     );
     if (read.rows?.[0]) {
       const row = read.rows[0];
+      const existingVariant =
+        String(row.variant_key || DEFAULT_VARIANT_CONTROL) === DEFAULT_VARIANT_TREATMENT
+          ? DEFAULT_VARIANT_TREATMENT
+          : DEFAULT_VARIANT_CONTROL;
+      if (forceTreatment && existingVariant !== DEFAULT_VARIANT_TREATMENT) {
+        const forced = await db.query(
+          `UPDATE v5_webapp_experiment_assignments
+           SET variant_key = $3,
+               assignment_meta_json = assignment_meta_json || $4::jsonb
+           WHERE uid = $1
+             AND experiment_key = $2
+           RETURNING uid, experiment_key, variant_key, cohort_bucket, assigned_at;`,
+          [
+            safeUid,
+            experimentKey,
+            DEFAULT_VARIANT_TREATMENT,
+            JSON.stringify({
+              force_treatment: true,
+              forced_at: new Date().toISOString(),
+              treatment_percent: treatmentPercent,
+              enabled: Boolean(enabled),
+              source: "webapp_cutover"
+            })
+          ]
+        );
+        const forcedRow = forced.rows?.[0] || {
+          ...row,
+          variant_key: DEFAULT_VARIANT_TREATMENT
+        };
+        return {
+          uid: Math.max(0, Number(forcedRow.uid || safeUid)),
+          key: toSafeText(forcedRow.experiment_key, 80, experimentKey) || experimentKey,
+          variant: DEFAULT_VARIANT_TREATMENT,
+          cohort_bucket: clampInt(forcedRow.cohort_bucket, 0, 99, fallback.cohort_bucket),
+          assigned_at: toIsoOrNull(forcedRow.assigned_at) || fallback.assigned_at,
+          source: "db_forced_treatment"
+        };
+      }
       return {
         uid: Math.max(0, Number(row.uid || safeUid)),
         key: toSafeText(row.experiment_key, 80, experimentKey) || experimentKey,
-        variant: String(row.variant_key || DEFAULT_VARIANT_CONTROL) === DEFAULT_VARIANT_TREATMENT ? DEFAULT_VARIANT_TREATMENT : DEFAULT_VARIANT_CONTROL,
+        variant: existingVariant,
         cohort_bucket: clampInt(row.cohort_bucket, 0, 99, fallback.cohort_bucket),
         assigned_at: toIsoOrNull(row.assigned_at) || fallback.assigned_at,
         source: "db_existing"
