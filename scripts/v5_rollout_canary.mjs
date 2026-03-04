@@ -4,9 +4,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { Pool } from "pg";
+import dbConnection from "../packages/shared/src/v5/dbConnection.js";
 import { buildSnapshot } from "./v5_kpi_snapshot.mjs";
 import { evaluateCanary, parseThresholds } from "./v5_canary_guard.mjs";
 
+const { buildPgPoolConfig } = dbConnection;
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const envPath = path.join(repoRoot, ".env");
@@ -148,10 +150,13 @@ async function assertV52MigrationDependencies({ skip = false } = {}) {
   }
 
   const useSsl = parseBool(process.env.DATABASE_SSL, false);
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: useSsl ? { rejectUnauthorized: false } : undefined
-  });
+  const pool = new Pool(
+    buildPgPoolConfig({
+      databaseUrl,
+      sslEnabled: useSsl,
+      rejectUnauthorized: false
+    })
+  );
 
   try {
     const regclassRes = await pool.query("SELECT to_regclass('public.schema_migrations') AS table_name;");

@@ -1,10 +1,14 @@
 const { Pool } = require("pg");
+const { buildPgPoolConfig } = require("../../../packages/shared/src/v5/dbConnection");
 
 function createPool({ databaseUrl, ssl }) {
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: ssl ? { rejectUnauthorized: false } : undefined
-  });
+  const pool = new Pool(
+    buildPgPoolConfig({
+      databaseUrl,
+      sslEnabled: Boolean(ssl),
+      rejectUnauthorized: false
+    })
+  );
 
   pool.on("error", (err) => {
     console.error("Postgres pool error", err);

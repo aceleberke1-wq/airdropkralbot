@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-03-04T02:00:15.047Z",
+  "generated_at": "2026-03-04T01:36:39.399Z",
   "stage": "rollout_100",
   "rollout_stage_arg": "100",
   "window_hours": 24,
-  "snapshot_generated_at": "2026-03-04T02:00:13.266Z",
+  "snapshot_generated_at": "2026-03-04T01:36:37.720Z",
   "thresholds": {
     "min_command_events_24h": 3,
     "min_queue_success_rate_pct": 90,
@@ -20,7 +20,7 @@
   "readiness_hints": {
     "command_events_24h": 3,
     "min_command_events_24h": 3,
-    "queue_action_events_24h": 13,
+    "queue_action_events_24h": 7,
     "command_events_ready": true,
     "queue_events_ready": true,
     "missing_command_events": 0,
@@ -29,7 +29,7 @@
   "evaluation": {
     "ok": true,
     "failed_checks": 0,
-    "warned_checks": 0,
+    "warned_checks": 1,
     "checks": [
       {
         "status": "pass",
@@ -67,11 +67,11 @@
         "note": ""
       },
       {
-        "status": "pass",
-        "metric": "tx_verify_error_rate_pct",
+        "status": "warn",
+        "metric": "tx_verify_events_24h",
         "observed": 0,
-        "threshold": "<= 8",
-        "note": ""
+        "threshold": "optional",
+        "note": "No tx verify samples."
       },
       {
         "status": "pass",

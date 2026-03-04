@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-03-04T01:53:22.398Z",
+  "ok": true,
+  "reason": "synthetic_inserted",
+  "inserted": true,
+  "verify_events": 0,
+  "synthetic_events": 1,
+  "inserted_id": 1,
+  "inserted_at": "2026-03-04T01:53:24.141Z",
+  "window_hours": 24,
+  "min_events": 1
+}

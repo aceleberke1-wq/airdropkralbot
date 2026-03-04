@@ -15772,6 +15772,17 @@
     return false;
   }
 
+  function shouldRetryAdminRequest(err, attempt, maxAttempts) {
+    const bridge = window.__AKR_ADMIN_ACTION__;
+    if (bridge && typeof bridge.shouldRetryAdminRequest === "function") {
+      return Boolean(bridge.shouldRetryAdminRequest(err, attempt, maxAttempts));
+    }
+    if (attempt >= maxAttempts) {
+      return false;
+    }
+    return isRetriableAdminFetchError(err);
+  }
+
   function waitMs(ms) {
     return new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.floor(ms || 0))));
   }
@@ -15809,7 +15820,7 @@
       } catch (err) {
         markLatency(performance.now() - t0);
         lastErr = err;
-        if (!isRetriableAdminFetchError(err) || attempt >= maxAttempts) {
+        if (!shouldRetryAdminRequest(err, attempt, maxAttempts)) {
           throw err;
         }
         await waitMs(baseDelayMs * attempt);

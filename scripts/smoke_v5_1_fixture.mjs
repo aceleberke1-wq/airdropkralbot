@@ -4,6 +4,9 @@ import path from "node:path";
 import fs from "node:fs";
 import dotenv from "dotenv";
 import { Pool } from "pg";
+import dbConnection from "../packages/shared/src/v5/dbConnection.js";
+
+const { buildPgPoolConfig } = dbConnection;
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -21,10 +24,13 @@ function buildPool() {
     throw new Error("missing_env:DATABASE_URL");
   }
   const useSsl = getEnv("DATABASE_SSL") === "1";
-  return new Pool({
-    connectionString,
-    ssl: useSsl ? { rejectUnauthorized: false } : undefined
-  });
+  return new Pool(
+    buildPgPoolConfig({
+      databaseUrl: connectionString,
+      sslEnabled: useSsl,
+      rejectUnauthorized: false
+    })
+  );
 }
 
 function parseArgs(argv) {

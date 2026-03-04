@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-04T01:54:12.425Z",
+  "generated_at": "2026-03-04T01:37:46.273Z",
   "freshness_sec": 0,
   "window_hours": 24,
   "schema": {
@@ -28,7 +28,7 @@
     "payout_rejected_24h": 0,
     "payout_rejected_rate_pct": 0,
     "tx_submit_events_24h": 0,
-    "tx_verify_events_24h": 1,
+    "tx_verify_events_24h": 0,
     "tx_verify_error_rate_pct": 0,
     "tx_verify_timeout_rate_pct": 0,
     "idempotency_conflict_events_24h": 0,
@@ -58,8 +58,8 @@
     },
     "tx_submit": {
       "submitted_events": 0,
-      "verify_events": 1,
-      "verify_success_events": 1,
+      "verify_events": 0,
+      "verify_success_events": 0,
       "verify_error_events": 0,
       "verify_timeout_events": 0
     },
@@ -113,59 +113,59 @@
     "slo_latest_by_key": [
       {
         "metric_key": "audit_coverage_proxy_pct",
-        "metric_value": "528.57000000",
-        "sample_size": "7",
+        "metric_value": "0.00000000",
+        "sample_size": "0",
         "window_key": "24h",
-        "measured_at": "2026-03-04T01:54:01.989Z"
+        "measured_at": "2026-03-03T21:34:15.891Z"
       },
       {
         "metric_key": "idempotency_conflict_events_24h",
         "metric_value": "0.00000000",
-        "sample_size": "7",
+        "sample_size": "0",
         "window_key": "24h",
-        "measured_at": "2026-03-04T01:54:02.064Z"
+        "measured_at": "2026-03-03T21:34:15.976Z"
       },
       {
         "metric_key": "payout_dispute_rate_pct",
         "metric_value": "0.00000000",
         "sample_size": "0",
         "window_key": "7d",
-        "measured_at": "2026-03-04T01:54:02.177Z"
+        "measured_at": "2026-03-03T21:34:16.105Z"
       },
       {
         "metric_key": "payout_rejected_rate_pct",
         "metric_value": "0.00000000",
         "sample_size": "0",
         "window_key": "72h",
-        "measured_at": "2026-03-04T01:54:01.952Z"
+        "measured_at": "2026-03-03T21:34:15.848Z"
       },
       {
         "metric_key": "revenue_amount",
         "metric_value": "0.00000000",
         "sample_size": "0",
         "window_key": "7d",
-        "measured_at": "2026-03-04T01:54:02.139Z"
+        "measured_at": "2026-03-03T21:34:16.062Z"
       },
       {
         "metric_key": "tx_verify_error_rate_pct",
         "metric_value": "0.00000000",
-        "sample_size": "1",
+        "sample_size": "0",
         "window_key": "24h",
-        "measured_at": "2026-03-04T01:54:02.026Z"
+        "measured_at": "2026-03-03T21:34:15.933Z"
       },
       {
         "metric_key": "unknown_intent_rate_pct",
         "metric_value": "0.00000000",
         "sample_size": "0",
         "window_key": "72h",
-        "measured_at": "2026-03-04T01:54:01.877Z"
+        "measured_at": "2026-03-03T21:34:15.763Z"
       },
       {
         "metric_key": "wallet_challenge_verify_rate_pct",
-        "metric_value": "100.00000000",
-        "sample_size": "2",
+        "metric_value": "0.00000000",
+        "sample_size": "0",
         "window_key": "24h",
-        "measured_at": "2026-03-04T01:54:02.102Z"
+        "measured_at": "2026-03-03T21:34:16.018Z"
       }
     ],
     "cutover_switch_events": [],

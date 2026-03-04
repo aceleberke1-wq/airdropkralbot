@@ -4,6 +4,7 @@ const path = require("path");
 const dotenv = require("dotenv");
 const fastify = require("fastify")({ logger: true });
 const { Pool } = require("pg");
+const { buildPgPoolConfig } = require("../../../packages/shared/src/v5/dbConnection");
 const taskCatalog = require("../../bot/src/taskCatalog");
 const missionStore = require("../../bot/src/stores/missionStore");
 const seasonStore = require("../../bot/src/stores/seasonStore");
@@ -223,10 +224,13 @@ if (!DATABASE_URL) {
   throw new Error("Missing required env: DATABASE_URL");
 }
 
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: DATABASE_SSL ? { rejectUnauthorized: false } : undefined
-});
+const pool = new Pool(
+  buildPgPoolConfig({
+    databaseUrl: DATABASE_URL,
+    sslEnabled: DATABASE_SSL,
+    rejectUnauthorized: false
+  })
+);
 
 pool.on("error", (err) => {
   fastify.log.error(err, "Postgres pool error");

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Pool } = require("pg");
 const dotenv = require("dotenv");
+const { buildPgPoolConfig } = require("../packages/shared/src/v5/dbConnection");
 
 const repoRoot = path.resolve(__dirname, "..");
 const envPath = path.join(repoRoot, ".env");
@@ -22,10 +23,13 @@ if (/^\s*psql(\s|$)/i.test(databaseUrl)) {
 }
 
 const useSsl = process.env.DATABASE_SSL === "1";
-const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: useSsl ? { rejectUnauthorized: false } : undefined
-});
+const pool = new Pool(
+  buildPgPoolConfig({
+    databaseUrl,
+    sslEnabled: useSsl,
+    rejectUnauthorized: false
+  })
+);
 
 async function scalar(client, sql) {
   const res = await client.query(sql);

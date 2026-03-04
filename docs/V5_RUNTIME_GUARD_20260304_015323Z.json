@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-03-04T01:53:23.944Z",
+  "base_url": "https://webapp.k99-exchange.xyz",
+  "timeout_ms": 12000,
+  "require_bot": true,
+  "max_heartbeat_lag_sec": 45,
+  "health_status_code": 200,
+  "health_ok": true,
+  "evaluation": {
+    "ok": true,
+    "failed_checks": 0,
+    "warned_checks": 0,
+    "checks": [
+      {
+        "status": "pass",
+        "metric": "health_ok",
+        "observed": true,
+        "threshold": "true",
+        "note": ""
+      },
+      {
+        "status": "pass",
+        "metric": "bot_alive",
+        "observed": true,
+        "threshold": "true",
+        "note": ""
+      },
+      {
+        "status": "pass",
+        "metric": "bot_lock_acquired",
+        "observed": true,
+        "threshold": "true",
+        "note": ""
+      },
+      {
+        "status": "pass",
+        "metric": "bot_mode",
+        "observed": "polling",
+        "threshold": "polling",
+        "note": ""
+      },
+      {
+        "status": "pass",
+        "metric": "bot_heartbeat_lag_sec",
+        "observed": 4,
+        "threshold": "<= 45",
+        "note": ""
+      },
+      {
+        "status": "pass",
+        "metric": "bot_stale",
+        "observed": false,
+        "threshold": "false",
+        "note": ""
+      }
+    ]
+  },
+  "bot_runtime": {
+    "available": true,
+    "alive": true,
+    "lock_acquired": true,
+    "mode": "polling",
+    "last_heartbeat_at": "2026-03-04T01:53:20.772Z",
+    "heartbeat_lag_sec": 4,
+    "stale": false,
+    "instance_ref": "srv-d66i9ojnv86c738s8pgg",
+    "lock_key": 7262026,
+    "last_error": "",
+    "updated_at": "2026-03-04T01:53:20.842Z"
+  }
+}

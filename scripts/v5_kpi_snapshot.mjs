@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { Pool } from "pg";
+import dbConnection from "../packages/shared/src/v5/dbConnection.js";
+
+const { buildPgPoolConfig } = dbConnection;
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -125,10 +128,13 @@ async function buildSnapshot({ windowHours = 24 }) {
     throw new Error("missing_env:DATABASE_URL");
   }
   const useSsl = String(process.env.DATABASE_SSL || "").trim() === "1";
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: useSsl ? { rejectUnauthorized: false } : undefined
-  });
+  const pool = new Pool(
+    buildPgPoolConfig({
+      databaseUrl,
+      sslEnabled: useSsl,
+      rejectUnauthorized: false
+    })
+  );
 
   const nowIso = new Date().toISOString();
   const windowHoursSafe = Math.max(1, Math.min(168, toNumber(windowHours, 24)));
