@@ -1,4 +1,3 @@
-import "../styles.css";
 import { installPerfBridge } from "./telemetry/bridge";
 import { installTelemetryDeckBridge } from "./ui/telemetryDeck";
 import { installPvpRadarBridge } from "./ui/pvpRadarBridge";
@@ -26,6 +25,7 @@ import { installNetSchedulerBridge } from "./net/schedulerBridge";
 import { installNetApiBridge } from "./net/apiBridge";
 import { installV3StateMutatorBridge } from "./game/state/v3StateBridge";
 import { installAdminActionDispatchBridge } from "./core/admin/actionDispatchBridge.js";
+import { mountReactWebAppV1 } from "./react/runtime";
 
 installPerfBridge();
 installTelemetryDeckBridge();
@@ -55,8 +55,20 @@ installNetApiBridge();
 installV3StateMutatorBridge();
 installAdminActionDispatchBridge();
 
-// Legacy runtime stays source of truth while V3.2 TS bundle rolls out.
-// @ts-ignore TS2306: legacy bootstrap file is plain script and intentionally side-effect imported.
-import("../app.js").catch((err) => {
-  console.error("legacy-webapp-bootstrap-failed", err);
-});
+// React V1 runs only when feature flag + cohort assignment allow it (or ?ui=react override is present).
+// Otherwise we keep legacy runtime as source of truth.
+void (async () => {
+  try {
+    const reactMounted = await mountReactWebAppV1();
+    if (reactMounted) {
+      return;
+    }
+  } catch (err) {
+    console.warn("react-v1-mount-failed-fallback-legacy", err);
+  }
+  await import("../styles.css");
+  // @ts-ignore TS2306: legacy bootstrap file is plain script and intentionally side-effect imported.
+  import("../app.js").catch((err) => {
+    console.error("legacy-webapp-bootstrap-failed", err);
+  });
+})();

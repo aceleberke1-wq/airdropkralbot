@@ -11,11 +11,15 @@
     "gsap": "^3.12.5",
     "howler": "^2.2.4",
     "postprocessing": "^6.36.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "three": "^0.161.0",
     "zod": "^3.24.1",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
   }

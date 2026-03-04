@@ -38,6 +38,7 @@ const { registerWebappV2AdminOpsRoutes } = require("./routes/webapp/v2/adminOpsR
 const { registerWebappV2PayoutRoutes } = require("./routes/webapp/v2/payoutRoutes");
 const { registerWebappV2WalletRoutes } = require("./routes/webapp/v2/walletRoutes");
 const { registerWebappV2AdminQueueRoutes } = require("./routes/webapp/v2/adminQueueRoutes");
+const { registerWebappV2TelemetryRoutes } = require("./routes/webapp/v2/telemetryRoutes");
 const { registerWebappAdminPayoutReleaseRoutes } = require("./routes/webapp/admin/payoutReleaseRoutes");
 const { registerWebappAdminFreezeRoutes } = require("./routes/webapp/admin/freezeRoutes");
 const { registerWebappAdminTokenRoutes } = require("./routes/webapp/admin/tokenAdminRoutes");
@@ -49,6 +50,11 @@ const { registerAdminTokenPolicyRoutes } = require("./routes/admin/tokenPolicyRo
 const { registerAdminTokenRequestRoutes } = require("./routes/admin/tokenRequestRoutes");
 const { registerAdminPayoutRoutes } = require("./routes/admin/payoutAdminRoutes");
 const { createCriticalAdminPolicyService } = require("./services/policy/criticalAdminPolicyService");
+const {
+  DEFAULT_EXPERIMENT_KEY,
+  DEFAULT_VARIANT_CONTROL,
+  resolveExperimentAssignment
+} = require("./services/webapp/reactV1Service");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -107,6 +113,7 @@ const FLAG_DEFAULTS = Object.freeze({
   WALLET_AUTH_V1_ENABLED: process.env.WALLET_AUTH_V1_ENABLED !== "0",
   KYC_THRESHOLD_V1_ENABLED: process.env.KYC_THRESHOLD_V1_ENABLED !== "0",
   MONETIZATION_CORE_V1_ENABLED: process.env.MONETIZATION_CORE_V1_ENABLED !== "0",
+  WEBAPP_REACT_V1_ENABLED: process.env.WEBAPP_REACT_V1_ENABLED === "1",
   WEBAPP_V3_ENABLED: process.env.WEBAPP_V3_ENABLED === "1",
   WEBAPP_TS_BUNDLE_ENABLED: process.env.WEBAPP_TS_BUNDLE_ENABLED === "1"
 });
@@ -124,6 +131,7 @@ const CRITICAL_ENV_LOCKED_FLAGS = new Set([
   "WALLET_AUTH_V1_ENABLED",
   "KYC_THRESHOLD_V1_ENABLED",
   "MONETIZATION_CORE_V1_ENABLED",
+  "WEBAPP_REACT_V1_ENABLED",
   "WEBAPP_V3_ENABLED",
   "WEBAPP_TS_BUNDLE_ENABLED",
   "TOKEN_CURVE_ENABLED",
@@ -137,6 +145,26 @@ const RELEASE_DEPLOY_ID = String(
   process.env.RENDER_DEPLOY_ID || process.env.RENDER_SERVICE_ID || process.env.RELEASE_DEPLOY_ID || ""
 ).trim();
 const PVP_WS_ENABLED = process.env.PVP_WS_ENABLED === "1";
+const WEBAPP_REACT_V1_EXPERIMENT_KEY =
+  String(process.env.WEBAPP_REACT_V1_EXPERIMENT_KEY || DEFAULT_EXPERIMENT_KEY)
+    .trim()
+    .toLowerCase() || DEFAULT_EXPERIMENT_KEY;
+const WEBAPP_REACT_V1_TREATMENT_PCT = Math.max(
+  0,
+  Math.min(100, Math.floor(Number(process.env.WEBAPP_REACT_V1_TREATMENT_PCT || 0)))
+);
+const WEBAPP_ANALYTICS_FLUSH_INTERVAL_MS = Math.max(
+  1500,
+  Math.min(30000, Math.floor(Number(process.env.WEBAPP_ANALYTICS_FLUSH_INTERVAL_MS || 6000)))
+);
+const WEBAPP_ANALYTICS_MAX_BATCH_SIZE = Math.max(
+  5,
+  Math.min(120, Math.floor(Number(process.env.WEBAPP_ANALYTICS_MAX_BATCH_SIZE || 40)))
+);
+const WEBAPP_ANALYTICS_SAMPLE_RATE = Math.max(
+  0,
+  Math.min(1, Number(process.env.WEBAPP_ANALYTICS_SAMPLE_RATE || 1))
+);
 const WALLET_CHALLENGE_TTL_SEC = Math.max(60, Math.min(900, Number(process.env.WALLET_CHALLENGE_TTL_SEC || 300)));
 const WALLET_SESSION_TTL_SEC = Math.max(900, Math.min(2592000, Number(process.env.WALLET_SESSION_TTL_SEC || 86400)));
 const WALLET_VERIFY_MODE = String(process.env.WALLET_VERIFY_MODE || "format_only").trim().toLowerCase();
@@ -930,6 +958,30 @@ function pickCriticalRuntimeFlags(flags) {
   }
   subset.PVP_WS_ENABLED = Boolean(flags?.PVP_WS_ENABLED);
   return subset;
+}
+
+function buildWebappTelemetrySessionRef(uid = 0) {
+  const seed = `${Number(uid || 0)}:${Date.now()}:${Math.random()}`;
+  return `wa_${crypto.createHash("sha1").update(seed).digest("hex").slice(0, 18)}`;
+}
+
+function buildWebappUiShell({ isAdmin = false } = {}) {
+  return {
+    ui_version: "react_v1_neon_arena",
+    default_tab: "home",
+    tabs: ["home", "pvp", "tasks", "vault"],
+    admin_workspace_enabled: Boolean(isAdmin),
+    onboarding_version: "v1"
+  };
+}
+
+function buildWebappAnalyticsConfig(sessionRef = "") {
+  return {
+    session_ref: String(sessionRef || ""),
+    flush_interval_ms: WEBAPP_ANALYTICS_FLUSH_INTERVAL_MS,
+    max_batch_size: WEBAPP_ANALYTICS_MAX_BATCH_SIZE,
+    sample_rate: WEBAPP_ANALYTICS_SAMPLE_RATE
+  };
 }
 
 function summarizeAssetMode({ sceneMode = "", manifestSummary = null, runtimeAssetSummary = null } = {}) {
@@ -5316,6 +5368,14 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
         events: botRuntime.events || []
       };
     }
+    const reactV1Enabled = isFeatureEnabled(featureFlags.flags, "WEBAPP_REACT_V1_ENABLED");
+    const experimentAssignment = await resolveExperimentAssignment(client, {
+      uid: Number(auth.uid || 0),
+      experimentKey: WEBAPP_REACT_V1_EXPERIMENT_KEY,
+      enabled: reactV1Enabled,
+      treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT
+    });
+    const telemetrySessionRef = buildWebappTelemetrySessionRef(profile.user_id || auth.uid);
     const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
     const effectiveSceneMode = String(
       (sceneProfile && sceneProfile.scene_mode) ||
@@ -5415,6 +5475,17 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
           source_json: featureFlags.source_json || {},
           env_forced: Boolean(featureFlags.env_forced)
         },
+        ui_shell: buildWebappUiShell({ isAdmin }),
+        experiment: {
+          key: String(experimentAssignment.key || WEBAPP_REACT_V1_EXPERIMENT_KEY),
+          variant:
+            String(experimentAssignment.variant || DEFAULT_VARIANT_CONTROL).toLowerCase() === "treatment"
+              ? "treatment"
+              : DEFAULT_VARIANT_CONTROL,
+          assigned_at: String(experimentAssignment.assigned_at || new Date().toISOString()),
+          cohort_bucket: Math.max(0, Math.min(99, Number(experimentAssignment.cohort_bucket || 0)))
+        },
+        analytics: buildWebappAnalyticsConfig(telemetrySessionRef),
         runtime_flags_effective: pickCriticalRuntimeFlags(featureFlags.flags),
         webapp_version: webappVersionState.version,
         webapp_launch_url: webappLaunchUrl,
@@ -5535,6 +5606,41 @@ fastify.get("/webapp/api/v2/bootstrap", async (request, reply) => {
               },
               updated_at: new Date().toISOString()
             };
+      const isAdmin = Boolean(payload.data?.admin?.is_admin);
+      const defaultUiShell = buildWebappUiShell({ isAdmin });
+      payload.data.ui_shell =
+        payload.data.ui_shell && typeof payload.data.ui_shell === "object"
+          ? {
+              ...defaultUiShell,
+              ...payload.data.ui_shell
+            }
+          : defaultUiShell;
+      payload.data.experiment =
+        payload.data.experiment && typeof payload.data.experiment === "object"
+          ? {
+              key: String(payload.data.experiment.key || WEBAPP_REACT_V1_EXPERIMENT_KEY),
+              variant:
+                String(payload.data.experiment.variant || DEFAULT_VARIANT_CONTROL).toLowerCase() === "treatment"
+                  ? "treatment"
+                  : DEFAULT_VARIANT_CONTROL,
+              assigned_at: String(payload.data.experiment.assigned_at || new Date().toISOString()),
+              cohort_bucket: Math.max(0, Math.min(99, Number(payload.data.experiment.cohort_bucket || 0)))
+            }
+          : {
+              key: WEBAPP_REACT_V1_EXPERIMENT_KEY,
+              variant: DEFAULT_VARIANT_CONTROL,
+              assigned_at: new Date().toISOString(),
+              cohort_bucket: 0
+            };
+      payload.data.analytics =
+        payload.data.analytics && typeof payload.data.analytics === "object"
+          ? {
+              ...buildWebappAnalyticsConfig(String(payload.data.analytics.session_ref || "")),
+              ...payload.data.analytics
+            }
+          : buildWebappAnalyticsConfig(
+              buildWebappTelemetrySessionRef(payload.data?.profile?.user_id || payload.data?.admin?.telegram_id || request.query?.uid || 0)
+            );
       payload.data.ux = {
         ...(payload.data.ux || {}),
         version: String(payload.data?.ux?.version || "v5")
@@ -11394,6 +11500,13 @@ registerWebappV2AdminQueueRoutes(fastify, {
   getProfileByTelegram,
   policyService: criticalAdminPolicyService,
   adminCriticalCooldownMs: ADMIN_CRITICAL_COOLDOWN_MS
+});
+
+registerWebappV2TelemetryRoutes(fastify, {
+  pool,
+  verifyWebAppAuth,
+  issueWebAppSession,
+  getProfileByTelegram
 });
 
 registerWebappAdminFreezeRoutes(fastify, {

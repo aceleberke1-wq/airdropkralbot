@@ -62,6 +62,28 @@ const UnifiedAdminQueueItemSchema = z.object({
 
 const RuntimeFlagsEffectiveSchema = z.record(z.boolean()).default({});
 
+const BootstrapV2UiShellSchema = z.object({
+  ui_version: z.string().default("react_v1_neon_arena"),
+  default_tab: z.enum(["home", "pvp", "tasks", "vault"]).default("home"),
+  tabs: z.array(z.enum(["home", "pvp", "tasks", "vault"])).default(["home", "pvp", "tasks", "vault"]),
+  admin_workspace_enabled: z.boolean().default(false),
+  onboarding_version: z.string().default("v1")
+});
+
+const ExperimentAssignmentSchema = z.object({
+  key: z.string().default("webapp_react_v1"),
+  variant: z.enum(["control", "treatment"]).default("control"),
+  assigned_at: z.string().default(""),
+  cohort_bucket: z.number().int().min(0).max(99).default(0)
+});
+
+const UiEventBatchAnalyticsConfigSchema = z.object({
+  session_ref: z.string().default(""),
+  flush_interval_ms: z.number().int().min(500).max(60000).default(6000),
+  max_batch_size: z.number().int().min(1).max(200).default(40),
+  sample_rate: z.number().min(0).max(1).default(1)
+});
+
 const BootstrapV2DataSchema = z.object({
   ux: z
     .object({
@@ -82,6 +104,9 @@ const BootstrapV2DataSchema = z.object({
   command_catalog: CommandCatalogSchema.optional(),
   runtime_flags_effective: RuntimeFlagsEffectiveSchema.optional(),
   wallet_capabilities: WalletCapabilitiesSchema.optional(),
+  ui_shell: BootstrapV2UiShellSchema.optional(),
+  experiment: ExperimentAssignmentSchema.optional(),
+  analytics: UiEventBatchAnalyticsConfigSchema.optional(),
   api_version: z.string().default("v2")
 });
 
@@ -149,6 +174,24 @@ const KpiBundleRunRequestSchema = z.object({
 const KpiBundleSnapshotResponseSchema = z.object({
   api_version: z.literal("v2"),
   snapshot: KpiBundleSnapshotSchema,
+  webapp_experiment: z
+    .object({
+      available: z.boolean().default(false),
+      experiment_key: z.string().default("webapp_react_v1"),
+      generated_at: z.string().default(""),
+      variants: z.record(
+        z.object({
+          assigned_users: z.number().int().nonnegative().default(0),
+          active_users_24h: z.number().int().nonnegative().default(0),
+          active_users_7d: z.number().int().nonnegative().default(0),
+          sessions_24h: z.number().int().nonnegative().default(0),
+          events_24h: z.number().int().nonnegative().default(0),
+          avg_events_per_user_24h: z.number().nonnegative().default(0),
+          avg_events_per_session_24h: z.number().nonnegative().default(0)
+        })
+      )
+    })
+    .optional(),
   run: z
     .object({
       run_ref: z.string().min(4),
@@ -173,8 +216,10 @@ const AdminQueueActionPayloadV2Schema = z.object({
 module.exports = {
   AdminQueueActionPayloadV2Schema,
   BootstrapV2DataSchema,
+  BootstrapV2UiShellSchema,
   CommandCatalogSchema,
   CommandContractV2Schema,
+  ExperimentAssignmentSchema,
   KpiBundleRunRequestSchema,
   KpiBundleSnapshotResponseSchema,
   KpiBundleSnapshotSchema,
@@ -183,6 +228,7 @@ module.exports = {
   PayoutDisputeMetricsSchema,
   PayoutLockStateSchema,
   RuntimeFlagsEffectiveSchema,
+  UiEventBatchAnalyticsConfigSchema,
   UnifiedAdminQueueItemSchema,
   WalletCapabilitiesSchema
 };

@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_v5_webapp_experiment_assignments_uid_time;
+DROP INDEX IF EXISTS idx_v5_webapp_experiment_assignments_variant_time;
+DROP TABLE IF EXISTS v5_webapp_experiment_assignments;

@@ -88,6 +88,9 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
 
       try {
         const latest = await service.getLatestBundle();
+        const webappExperiment = await service.getWebappExperimentSummary({
+          experiment_key: "webapp_react_v1"
+        });
         const parsedSnapshot = snapshotSchema ? snapshotSchema.safeParse(latest.bundle) : { success: true, data: latest.bundle };
         if (!parsedSnapshot.success) {
           logger.warn({ issues: parsedSnapshot.error?.issues || [] }, "kpi_latest_schema_validation_failed");
@@ -98,7 +101,8 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
         const payload = {
           api_version: "v2",
           snapshot: parsedSnapshot.data,
-          source: "docs_latest"
+          source: "docs_latest",
+          webapp_experiment: webappExperiment
         };
         if (latestResponseSchema) {
           const parsedPayload = latestResponseSchema.safeParse(payload);
@@ -191,6 +195,9 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
         requestedBy: Number(auth.uid || 0),
         config: requestPayload
       });
+      const webappExperiment = await service.getWebappExperimentSummary({
+        experiment_key: "webapp_react_v1"
+      });
 
       if (!run.snapshot) {
         reply.code(502).send({
@@ -217,6 +224,7 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
         api_version: "v2",
         source: "kpi_bundle_runner",
         snapshot: parsedSnapshot.data,
+        webapp_experiment: webappExperiment,
         run: {
           run_ref: run.run_ref,
           status: run.status,

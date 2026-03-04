@@ -110,6 +110,7 @@ V5 compatibility endpoints:
 `GET /webapp/api/v2/payout/status`, `POST /webapp/api/v2/payout/request`,
 `GET /webapp/api/v2/pvp/progression`,
 `GET /webapp/api/v2/admin/queue/unified`,
+`POST /webapp/api/v2/telemetry/ui-events/batch`,
 `POST /webapp/api/v2/admin/economy/payout-release`,
 `POST /webapp/api/v2/admin/payout/release/run`.
 5. Arena flow in WebApp can now run end-to-end (accept, complete, reveal) without leaving the WebApp.
@@ -122,6 +123,8 @@ Generate/update bundled GLB set with:
 8. WebApp now includes adaptive performance controls (Auto/High/Low), reduced-motion mode, and large typography mode.
 9. WebApp TS bundle (Vite) optional rollout:
 `npm run build:webapp` then set `WEBAPP_TS_BUNDLE_ENABLED=1`.
+10. React V1 Neon shell rollout (feature-flag + cohort):
+`WEBAPP_REACT_V1_ENABLED=1`, `WEBAPP_REACT_V1_EXPERIMENT_KEY=webapp_react_v1`, `WEBAPP_REACT_V1_TREATMENT_PCT=<0-100>`.
 
 ## Domain + DNS (k99-exchange.xyz)
 1. For Telegram Mini App mode, `WEBAPP_PUBLIC_URL` must be `https://.../webapp`.

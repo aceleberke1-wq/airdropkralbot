@@ -124,6 +124,106 @@ function createKpiOpsService({ repoRootDir, pool, logger }) {
     };
   }
 
+  async function getWebappExperimentSummary(options = {}) {
+    const experimentKey = String(options.experiment_key || "webapp_react_v1").trim().toLowerCase() || "webapp_react_v1";
+    const fallback = {
+      available: false,
+      experiment_key: experimentKey,
+      generated_at: new Date().toISOString(),
+      variants: {
+        control: {
+          assigned_users: 0,
+          active_users_24h: 0,
+          active_users_7d: 0,
+          sessions_24h: 0,
+          events_24h: 0,
+          avg_events_per_user_24h: 0,
+          avg_events_per_session_24h: 0
+        },
+        treatment: {
+          assigned_users: 0,
+          active_users_24h: 0,
+          active_users_7d: 0,
+          sessions_24h: 0,
+          events_24h: 0,
+          avg_events_per_user_24h: 0,
+          avg_events_per_session_24h: 0
+        }
+      }
+    };
+    if (!pool || typeof pool.query !== "function") {
+      return fallback;
+    }
+
+    try {
+      const base = await pool.query(
+        `SELECT variant_key, COUNT(DISTINCT uid)::bigint AS assigned_users
+         FROM v5_webapp_experiment_assignments
+         WHERE experiment_key = $1
+         GROUP BY variant_key;`,
+        [experimentKey]
+      );
+      for (const row of base.rows || []) {
+        const variant = String(row.variant_key || "").toLowerCase() === "treatment" ? "treatment" : "control";
+        fallback.variants[variant].assigned_users = Number(row.assigned_users || 0);
+      }
+
+      const stats24h = await pool.query(
+        `SELECT
+           a.variant_key,
+           COUNT(*)::bigint AS events_24h,
+           COUNT(DISTINCT e.uid)::bigint AS active_users_24h,
+           COUNT(DISTINCT NULLIF(e.session_ref, ''))::bigint AS sessions_24h
+         FROM v5_webapp_experiment_assignments a
+         JOIN v5_webapp_ui_events e
+           ON e.uid = a.uid
+         WHERE a.experiment_key = $1
+           AND e.created_at >= now() - interval '24 hours'
+         GROUP BY a.variant_key;`,
+        [experimentKey]
+      );
+      for (const row of stats24h.rows || []) {
+        const variant = String(row.variant_key || "").toLowerCase() === "treatment" ? "treatment" : "control";
+        const target = fallback.variants[variant];
+        target.events_24h = Number(row.events_24h || 0);
+        target.active_users_24h = Number(row.active_users_24h || 0);
+        target.sessions_24h = Number(row.sessions_24h || 0);
+      }
+
+      const stats7d = await pool.query(
+        `SELECT
+           a.variant_key,
+           COUNT(DISTINCT e.uid)::bigint AS active_users_7d
+         FROM v5_webapp_experiment_assignments a
+         JOIN v5_webapp_ui_events e
+           ON e.uid = a.uid
+         WHERE a.experiment_key = $1
+           AND e.created_at >= now() - interval '7 days'
+         GROUP BY a.variant_key;`,
+        [experimentKey]
+      );
+      for (const row of stats7d.rows || []) {
+        const variant = String(row.variant_key || "").toLowerCase() === "treatment" ? "treatment" : "control";
+        fallback.variants[variant].active_users_7d = Number(row.active_users_7d || 0);
+      }
+
+      for (const variant of ["control", "treatment"]) {
+        const target = fallback.variants[variant];
+        target.avg_events_per_user_24h =
+          target.active_users_24h > 0 ? Number((target.events_24h / target.active_users_24h).toFixed(4)) : 0;
+        target.avg_events_per_session_24h =
+          target.sessions_24h > 0 ? Number((target.events_24h / target.sessions_24h).toFixed(4)) : 0;
+      }
+      fallback.available = true;
+      return fallback;
+    } catch (err) {
+      if (err.code === "42P01") {
+        return fallback;
+      }
+      throw err;
+    }
+  }
+
   async function runBundle({ requestedBy = 0, triggerSource = "webapp_v2_admin_ops", config = {} } = {}) {
     const runRef = createRunRef();
     const safeConfig = normalizeRunConfig(config);
@@ -196,7 +296,8 @@ function createKpiOpsService({ repoRootDir, pool, logger }) {
 
   return {
     getLatestBundle,
-    runBundle
+    runBundle,
+    getWebappExperimentSummary
   };
 }
 
