@@ -78,6 +78,14 @@ function buildAuth(secret, uid) {
   };
 }
 
+function createActionRequestId(prefix = "rollout") {
+  const cleanPrefix = String(prefix || "rollout")
+    .replace(/[^a-zA-Z0-9:_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
+  return `${cleanPrefix || "rollout"}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`.slice(0, 120);
+}
+
 async function postJson(baseUrl, path, payload) {
   const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
@@ -193,6 +201,7 @@ const STAGE_CANARY_DEFAULTS = Object.freeze({
     max_tx_verify_error_rate_pct: 20,
     max_idempotency_conflict_events_24h: 3,
     max_invalid_action_request_id_events_24h: 1,
+    max_snapshot_age_sec: 1800,
     require_command_events: false,
     require_queue_events: false,
     require_tx_verify_events: false
@@ -205,6 +214,7 @@ const STAGE_CANARY_DEFAULTS = Object.freeze({
     max_tx_verify_error_rate_pct: 12,
     max_idempotency_conflict_events_24h: 2,
     max_invalid_action_request_id_events_24h: 1,
+    max_snapshot_age_sec: 1800,
     require_command_events: true,
     require_queue_events: true,
     require_tx_verify_events: false
@@ -217,6 +227,7 @@ const STAGE_CANARY_DEFAULTS = Object.freeze({
     max_tx_verify_error_rate_pct: 8,
     max_idempotency_conflict_events_24h: 1,
     max_invalid_action_request_id_events_24h: 0,
+    max_snapshot_age_sec: 1800,
     require_command_events: true,
     require_queue_events: true,
     require_tx_verify_events: false
@@ -251,6 +262,8 @@ function buildCanaryThresholdInput(args = {}, stageKey = "admin_canary") {
       args.canary_max_invalid_action_request_id_events_24h ??
       process.env.V5_CANARY_MAX_INVALID_ACTION_REQUEST_ID_EVENTS_24H ??
       defaults.max_invalid_action_request_id_events_24h,
+    max_snapshot_age_sec:
+      args.canary_max_snapshot_age_sec ?? process.env.V5_CANARY_MAX_SNAPSHOT_AGE_SEC ?? defaults.max_snapshot_age_sec,
     require_command_events:
       args.canary_require_command_events ?? process.env.V5_CANARY_REQUIRE_COMMAND_EVENTS ?? String(defaults.require_command_events),
     require_queue_events:
@@ -357,6 +370,7 @@ async function main() {
 
   const payoutRes = await postJsonWithCriticalConfirm(baseUrl, "/webapp/api/v2/admin/economy/payout-release", {
     ...buildAuth(secret, adminUid),
+    action_request_id: createActionRequestId("rollout_payout_release"),
     enabled: true,
     mode: "tiered_drip",
     global_cap_min_usd: 20000000,
@@ -378,6 +392,7 @@ async function main() {
   if (stage.run) {
     runRes = await postJsonWithCriticalConfirm(baseUrl, "/webapp/api/v2/admin/payout/release/run", {
       ...buildAuth(secret, adminUid),
+      action_request_id: createActionRequestId("rollout_release_run"),
       limit: releaseRunLimit,
       apply_rejections: applyRejections
     });

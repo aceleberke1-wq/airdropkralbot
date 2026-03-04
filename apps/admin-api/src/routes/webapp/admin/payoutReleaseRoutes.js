@@ -1,5 +1,7 @@
 "use strict";
 
+const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 function normalizeV2Payload(payload) {
   if (!payload || typeof payload !== "object") {
     return payload;
@@ -53,18 +55,21 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   if (!policyService || typeof policyService.requireCriticalAdminConfirmation !== "function") {
     throw new Error("registerWebappAdminPayoutReleaseRoutes requires policyService");
   }
+  const requireActionRequestId = createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 });
 
   fastify.post(
     "/webapp/api/admin/economy/payout-release",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             confirm_token: { type: "string", minLength: 16, maxLength: 128 },
             enabled: { type: "boolean" },
             mode: { type: "string", minLength: 2, maxLength: 48 },
@@ -219,14 +224,16 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/payout/release/run",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             confirm_token: { type: "string", minLength: 16, maxLength: 128 },
             limit: { type: "integer", minimum: 1, maximum: 200 },
             apply_rejections: { type: "boolean" }
@@ -427,14 +434,16 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/v2/admin/economy/payout-release",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
-            sig: { type: "string" }
+            sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" }
           },
           additionalProperties: true
         }
@@ -452,14 +461,16 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/v2/admin/payout/release/run",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             confirm_token: { type: "string", minLength: 16, maxLength: 128 },
             limit: { type: "integer", minimum: 1, maximum: 200 },
             apply_rejections: { type: "boolean" }

@@ -1,5 +1,7 @@
 "use strict";
 
+const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -54,19 +56,22 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
   if (!economyStore || typeof economyStore.creditCurrency !== "function") {
     throw new Error("registerWebappAdminKycTokenDecisionRoutes requires economyStore.creditCurrency");
   }
+  const requireActionRequestId = createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 });
 
   fastify.post(
     "/webapp/api/admin/kyc/decision",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "request_id", "decision"],
+          required: ["uid", "ts", "sig", "request_id", "decision", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             request_id: { type: "integer", minimum: 1 },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             decision: { type: "string", minLength: 3, maxLength: 32 },
             reason: { type: "string", maxLength: 500 }
           }
@@ -256,15 +261,17 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/token/approve",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "request_id"],
+          required: ["uid", "ts", "sig", "request_id", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             request_id: { type: "integer", minimum: 1 },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             token_amount: { type: "number", minimum: 0.00000001 },
             tx_hash: { type: "string", minLength: 8, maxLength: 255 },
             note: { type: "string", maxLength: 500 }
@@ -415,15 +422,17 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/token/reject",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "request_id"],
+          required: ["uid", "ts", "sig", "request_id", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             request_id: { type: "integer", minimum: 1 },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             reason: { type: "string", maxLength: 500 }
           }
         }

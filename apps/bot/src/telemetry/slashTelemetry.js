@@ -5,6 +5,7 @@ function createSlashCommandTelemetryMiddleware(options = {}) {
   const resolvePreferredLanguage = options.resolvePreferredLanguage;
   const logV5CommandEvent = options.logV5CommandEvent;
   const logEvent = typeof options.logEvent === "function" ? options.logEvent : () => {};
+  const nowFn = typeof options.nowFn === "function" ? options.nowFn : () => new Date();
 
   if (typeof parseSlashCommandText !== "function") {
     throw new Error("slash_telemetry_requires_parseSlashCommandText");
@@ -37,13 +38,17 @@ function createSlashCommandTelemetryMiddleware(options = {}) {
           locale,
           text,
           argsText: slash.argsText,
-          isSlash: true
+          isSlash: true,
+          ok: true,
+          ts: nowFn().toISOString()
         });
       } catch (err) {
         logEvent("slash_command_log_failed", {
           user_id: Number(ctx?.from?.id || 0),
           error: String(err?.message || err),
-          command_key: slash.key
+          command_key: slash.key,
+          source: "bot_slash",
+          phase: "middleware_pre_dispatch"
         });
       }
     }

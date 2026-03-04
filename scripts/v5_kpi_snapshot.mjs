@@ -40,23 +40,47 @@ function pct(numerator, denominator) {
   return Number(((toNumber(numerator, 0) / d) * 100).toFixed(2));
 }
 
+const QUEUE_STATUS_SUCCESS = Object.freeze(["completed", "ok"]);
+const QUEUE_STATUS_FAILED = Object.freeze(["failed"]);
+const QUEUE_STATUS_PENDING = Object.freeze(["queued"]);
+
 function normalizeQueueActionStats(raw = {}) {
+  const totalEvents = toNumber(raw.total_events, 0);
+  const successEvents = toNumber(raw.success_events, 0);
+  const failedEvents = toNumber(raw.failed_events, 0);
+  const queuedEvents = toNumber(raw.queued_events, 0);
   return {
-    total_events: toNumber(raw.total_events, 0),
-    success_events: toNumber(raw.success_events, 0),
-    non_ok_events: toNumber(raw.non_ok_events, 0),
+    total_events: totalEvents,
+    success_events: successEvents,
+    non_ok_events: failedEvents,
+    pending_events: queuedEvents,
     completed_events: toNumber(raw.completed_events, 0),
-    failed_events: toNumber(raw.failed_events, 0),
-    queued_events: toNumber(raw.queued_events, 0),
-    ok_events: toNumber(raw.ok_events, 0)
+    failed_events: failedEvents,
+    queued_events: queuedEvents,
+    ok_events: toNumber(raw.ok_events, 0),
+    success_rate: pct(successEvents, totalEvents),
+    pending_rate: pct(queuedEvents, totalEvents),
+    failure_rate: pct(failedEvents, totalEvents)
   };
 }
 
 function normalizeQueueFailureReasons(rows = []) {
-  return (Array.isArray(rows) ? rows : []).map((row) => ({
-    reason: String(row.reason || "unknown"),
-    event_count: toNumber(row.event_count, 0)
-  }));
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const resultCode = String(row.result_code || "").trim() || null;
+    const errorCode = String(row.error_code || "").trim() || null;
+    const exceptionClass = String(row.exception_class || "").trim() || null;
+    const httpStatusRaw = Number(row.http_status);
+    const httpStatus = Number.isFinite(httpStatusRaw) && httpStatusRaw > 0 ? Math.round(httpStatusRaw) : null;
+    const reason = errorCode || resultCode || (httpStatus ? `http_${httpStatus}` : "") || exceptionClass || "unknown";
+    return {
+      reason,
+      result_code: resultCode,
+      error_code: errorCode,
+      http_status: httpStatus,
+      exception_class: exceptionClass,
+      event_count: toNumber(row.event_count, 0)
+    };
+  });
 }
 
 function sign(secret, uid, ts) {
@@ -184,12 +208,12 @@ async function buildSnapshot({ windowHours = 24 }) {
           pool,
           `SELECT
              COUNT(*)::bigint AS total_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') IN ('completed','ok'))::bigint AS success_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') NOT IN ('completed','ok'))::bigint AS non_ok_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') = 'completed')::bigint AS completed_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') = 'failed')::bigint AS failed_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') = 'queued')::bigint AS queued_events,
-             COUNT(*) FILTER (WHERE COALESCE(status, '') = 'ok')::bigint AS ok_events
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) IN ('completed','ok'))::bigint AS success_events,
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'failed')::bigint AS non_ok_events,
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'completed')::bigint AS completed_events,
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'failed')::bigint AS failed_events,
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'queued')::bigint AS queued_events,
+             COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'ok')::bigint AS ok_events
            FROM v5_unified_admin_queue_action_events
            WHERE created_at >= now() - ($1::interval);`,
           [windowExpr]
@@ -199,20 +223,50 @@ async function buildSnapshot({ windowHours = 24 }) {
       ? await queryRows(
           pool,
           `SELECT
-             COALESCE(
-               NULLIF(result_json->>'error', ''),
-               NULLIF(result_json->'data'->>'error', ''),
-               NULLIF(result_json->'data'->'kyc_guard'->>'reason_code', ''),
-               NULLIF(result_json->'data'->>'reason', ''),
-               NULLIF(status, ''),
-               'unknown'
-             ) AS reason,
+             NULLIF(
+               COALESCE(
+                 NULLIF(result_json->>'result_code', ''),
+                 NULLIF(result_json->'data'->>'result_code', ''),
+                 NULLIF(result_json->'data'->>'reason', '')
+               ),
+               ''
+             ) AS result_code,
+             NULLIF(
+               COALESCE(
+                 NULLIF(result_json->>'error', ''),
+                 NULLIF(result_json->'data'->>'error', ''),
+                 NULLIF(result_json->'data'->'kyc_guard'->>'reason_code', ''),
+                 NULLIF(result_json->'error'->>'code', '')
+               ),
+               ''
+             ) AS error_code,
+             CASE
+               WHEN COALESCE(
+                 NULLIF(result_json->>'status_code', ''),
+                 NULLIF(result_json->>'http_status', ''),
+                 NULLIF(result_json->'raw_payload'->>'status_code', '')
+               ) ~ '^[0-9]{3}$'
+                 THEN COALESCE(
+                   NULLIF(result_json->>'status_code', ''),
+                   NULLIF(result_json->>'http_status', ''),
+                   NULLIF(result_json->'raw_payload'->>'status_code', '')
+                 )::int
+               ELSE NULL
+             END AS http_status,
+             NULLIF(
+               COALESCE(
+                 NULLIF(result_json->'exception'->>'class', ''),
+                 NULLIF(result_json->>'exception_class', ''),
+                 NULLIF(result_json->'error'->>'class', '')
+               ),
+               ''
+             ) AS exception_class,
              COUNT(*)::bigint AS event_count
            FROM v5_unified_admin_queue_action_events
            WHERE created_at >= now() - ($1::interval)
-             AND COALESCE(status, '') NOT IN ('completed','ok')
-           GROUP BY reason
-           ORDER BY event_count DESC, reason ASC
+             AND LOWER(COALESCE(status, '')) IN ('failed')
+           GROUP BY result_code, error_code, http_status, exception_class
+           ORDER BY event_count DESC, error_code ASC NULLS LAST, result_code ASC NULLS LAST
            LIMIT 20;`,
           [windowExpr]
         ).catch(() => [])
@@ -353,6 +407,7 @@ async function buildSnapshot({ windowHours = 24 }) {
 
     return {
       generated_at: nowIso,
+      freshness_sec: 0,
       window_hours: windowHoursSafe,
       schema: {
         tables_checked: exists
@@ -372,6 +427,9 @@ async function buildSnapshot({ windowHours = 24 }) {
         idempotency_conflict_events_24h: toNumber(idempotencyErrorStats.idempotency_conflict_events, 0),
         invalid_action_request_id_events_24h: toNumber(idempotencyErrorStats.invalid_action_request_id_events, 0),
         queue_action_events_24h: queueEventsTotal,
+        queue_success_rate_pct: Number(normalizedQueueStats.success_rate || 0),
+        queue_pending_rate_pct: Number(normalizedQueueStats.pending_rate || 0),
+        queue_failure_rate_pct: Number(normalizedQueueStats.failure_rate || 0),
         admin_audit_entries_24h: auditEventsTotal,
         audit_coverage_proxy_pct: pct(auditEventsTotal, queueEventsTotal),
         wallet_challenge_verify_rate_pct: pct(toNumber(walletStats.consumed_challenges, 0), toNumber(walletStats.issued_challenges, 0)),
@@ -395,6 +453,11 @@ async function buildSnapshot({ windowHours = 24 }) {
         },
         payout_release_events: releaseEventStats,
         queue_actions: normalizedQueueStats,
+        queue_status_dictionary: {
+          success: QUEUE_STATUS_SUCCESS,
+          failed: QUEUE_STATUS_FAILED,
+          pending: QUEUE_STATUS_PENDING
+        },
         queue_failure_reasons: normalizeQueueFailureReasons(queueFailureReasons),
         admin_audit: auditStats,
         wallet: walletStats,

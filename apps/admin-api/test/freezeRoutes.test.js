@@ -44,7 +44,7 @@ test("freeze route returns confirmation required when token missing", async () =
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/freeze",
-    payload: { uid: "100", ts: "1", sig: "x", freeze: true }
+    payload: { uid: "100", ts: "1", sig: "x", freeze: true, action_request_id: "act_freeze_on_1" }
   });
   assert.equal(res.statusCode, 409);
   const payload = JSON.parse(res.payload);
@@ -87,7 +87,15 @@ test("freeze route applies state update after confirmation and cooldown checks",
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/freeze",
-    payload: { uid: "100", ts: "1", sig: "x", freeze: false, confirm_token: "confirm_sig_token_ok_12345", reason: "test" }
+    payload: {
+      uid: "100",
+      ts: "1",
+      sig: "x",
+      freeze: false,
+      confirm_token: "confirm_sig_token_ok_12345",
+      action_request_id: "act_freeze_off_1",
+      reason: "test"
+    }
   });
   assert.equal(res.statusCode, 200);
   const payload = JSON.parse(res.payload);

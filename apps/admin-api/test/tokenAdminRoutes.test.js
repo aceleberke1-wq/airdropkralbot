@@ -61,7 +61,7 @@ test("token config rejects empty patch", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/token/config",
-    payload: { uid: "100", ts: "1", sig: "x" }
+    payload: { uid: "100", ts: "1", sig: "x", action_request_id: "act_token_cfg_1" }
   });
   assert.equal(res.statusCode, 400);
   const payload = JSON.parse(res.payload);
@@ -81,6 +81,7 @@ test("token config rejects invalid market cap band", async () => {
       uid: "100",
       ts: "1",
       sig: "x",
+      action_request_id: "act_token_cfg_2",
       min_market_cap_usd: 500,
       target_band_max_usd: 100
     }
@@ -113,6 +114,7 @@ test("token config applies patch and returns summary", async () => {
       uid: "100",
       ts: "1",
       sig: "x",
+      action_request_id: "act_token_cfg_3",
       usd_price: 0.25,
       min_market_cap_usd: 20000000,
       target_band_max_usd: 25000000

@@ -60,3 +60,35 @@ test("slash telemetry middleware ignores unknown slash commands", async () => {
 
   assert.equal(logged, false);
 });
+
+test("slash telemetry middleware does not break chain when command event insert fails", async () => {
+  const events = [];
+  const middleware = createSlashCommandTelemetryMiddleware({
+    parseSlashCommandText: () => ({ key: "tasks", argsText: "" }),
+    commandAliasLookup: new Map([["tasks", "tasks"]]),
+    ensureProfile: async () => ({ user_id: 42, locale: "tr" }),
+    resolvePreferredLanguage: () => "tr",
+    logV5CommandEvent: async () => {
+      throw new Error("db_down");
+    },
+    logEvent: (event, payload) => {
+      events.push({ event, payload });
+    }
+  });
+
+  let nextCalled = false;
+  await middleware(
+    {
+      from: { id: 77 },
+      message: { text: "/tasks" }
+    },
+    async () => {
+      nextCalled = true;
+    }
+  );
+
+  assert.equal(nextCalled, true);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event, "slash_command_log_failed");
+  assert.equal(events[0].payload.command_key, "tasks");
+});

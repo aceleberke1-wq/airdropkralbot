@@ -500,7 +500,8 @@ async function logV5IntentResolution(pool, ctx, payload = {}) {
         telegram_id: Number(ctx?.from?.id || 0),
         locale: String(payload.locale || "tr"),
         action: String(payload.action || ""),
-        args_text: String(payload.argsText || "")
+        args_text: String(payload.argsText || ""),
+        ts: String(payload.ts || new Date().toISOString())
       })
     ]
   );
@@ -532,10 +533,39 @@ async function logV5CommandEvent(pool, ctx, payload = {}) {
         telegram_id: Number(ctx?.from?.id || 0),
         text: String(payload.text || ""),
         args_text: String(payload.argsText || ""),
-        is_slash: Boolean(payload.isSlash)
+        is_slash: Boolean(payload.isSlash),
+        ok: payload.ok == null ? true : Boolean(payload.ok),
+        ts: String(payload.ts || new Date().toISOString())
       })
     ]
   );
+}
+
+async function safeLogV5IntentResolution(pool, ctx, payload = {}) {
+  try {
+    await logV5IntentResolution(pool, ctx, payload);
+  } catch (err) {
+    logEvent("intent_resolution_log_failed", {
+      user_id: Number(ctx?.from?.id || 0),
+      error: String(err?.message || err),
+      matched_key: String(payload.matchedKey || ""),
+      source: String(payload.source || "bot")
+    });
+  }
+}
+
+async function safeLogV5CommandEvent(pool, ctx, payload = {}) {
+  try {
+    await logV5CommandEvent(pool, ctx, payload);
+  } catch (err) {
+    logEvent("command_event_log_failed", {
+      user_id: Number(ctx?.from?.id || 0),
+      error: String(err?.message || err),
+      command_key: String(payload.commandKey || ""),
+      source: String(payload.source || "bot"),
+      is_slash: Boolean(payload.isSlash)
+    });
+  }
 }
 
 function parseConfirmArgs(text) {
@@ -2955,7 +2985,11 @@ async function submitTokenTx(ctx, pool, appConfig, requestIdRaw, txHashRaw) {
 
       await riskStore.insertBehaviorEvent(db, profile.user_id, "token_tx_submitted", {
         request_id: requestId,
-        tx_hash: formatCheck.normalizedHash.slice(0, 18)
+        tx_hash: formatCheck.normalizedHash.slice(0, 18),
+        tx_verify_mode: Boolean(verifyConfig.tokenTxVerifyEnabled) ? "enabled" : "disabled",
+        tx_verify_strict: Boolean(verifyConfig.tokenTxVerifyStrict),
+        tx_verify_status: String(verifyResult.status || "unknown"),
+        tx_verify_provider: String(verifyResult.provider || "none")
       });
 
       return { ok: true, request: updated };
@@ -3178,7 +3212,9 @@ async function adminApproveToken(ctx, pool, appConfig, requestIdRaw, noteRaw) {
   }
 
   if (!result.ok) {
-    await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token Approve", `Basarisiz: ${result.reason}`));
+    await ctx.replyWithMarkdown(
+      messages.formatAdminActionResult("Token Approve", `Basarisiz: ${escapeMarkdownText(result.reason || "unknown_error")}`)
+    );
     return;
   }
 
@@ -3605,7 +3641,7 @@ async function handleArenaRaid(ctx, pool) {
       await ctx.replyWithMarkdown("*Arena Hazir Degil*\nMigration calistir: `scripts/migrate.ps1`");
       return;
     }
-    await ctx.replyWithMarkdown(`*Arena Hatasi*\n${payload.error}`);
+    await ctx.replyWithMarkdown(`*Arena Hatasi*\n${escapeMarkdownText(payload.error || "bilinmeyen_hata")}`);
     return;
   }
 
@@ -4109,7 +4145,8 @@ async function handleTextIntent(ctx, pool, commandHandlerMap) {
   }
   const profile = await ensureProfile(pool, ctx);
   const locale = resolvePreferredLanguage(profile, ctx, "tr");
-  await logV5IntentResolution(pool, ctx, {
+  const eventTs = new Date().toISOString();
+  await safeLogV5IntentResolution(pool, ctx, {
     userId: Number(profile.user_id || 0),
     inputText: text,
     normalizedText: normalizeIntentText(text),
@@ -4119,9 +4156,10 @@ async function handleTextIntent(ctx, pool, commandHandlerMap) {
     source: "bot_text_intent",
     locale,
     action: String(intent.commandKey || ""),
-    argsText: String(intent.argsText || "")
+    argsText: String(intent.argsText || ""),
+    ts: eventTs
   });
-  await logV5CommandEvent(pool, ctx, {
+  await safeLogV5CommandEvent(pool, ctx, {
     userId: Number(profile.user_id || 0),
     commandKey: String(intent.commandKey || ""),
     handlerKey: String(intent.commandKey || ""),
@@ -4129,7 +4167,9 @@ async function handleTextIntent(ctx, pool, commandHandlerMap) {
     locale,
     text,
     argsText: String(intent.argsText || ""),
-    isSlash: false
+    isSlash: false,
+    ok: true,
+    ts: eventTs
   });
   return runIntentCommandHandler(ctx, intent, handler);
 }
@@ -4675,7 +4715,7 @@ async function start() {
       commandAliasLookup: COMMAND_ALIAS_LOOKUP,
       ensureProfile: (ctx) => ensureProfile(pool, ctx),
       resolvePreferredLanguage,
-      logV5CommandEvent: (ctx, payload) => logV5CommandEvent(pool, ctx, payload),
+      logV5CommandEvent: (ctx, payload) => safeLogV5CommandEvent(pool, ctx, payload),
       logEvent
     })
   );
@@ -4959,6 +4999,45 @@ async function start() {
       console.warn(`setMyCommands failed (${item.lang}${item.scope ? ":scoped" : ":default"})`, err?.message || err);
     }
   }
+
+  async function verifyTelegramCommandPublication(locales = []) {
+    for (const item of locales) {
+      const expected = toTelegramCommands(COMMAND_REGISTRY, item.lang).map((row) => String(row.command || ""));
+      try {
+        const listed = item.scope ? await bot.telegram.getMyCommands(item.scope) : await bot.telegram.getMyCommands();
+        const actual = Array.isArray(listed) ? listed.map((row) => String(row.command || "")) : [];
+        const missing = expected.filter((key) => !actual.includes(key));
+        if (missing.length > 0) {
+          logEvent("setMyCommands_verify_mismatch", {
+            lang: item.lang,
+            scoped: Boolean(item.scope),
+            expected_count: expected.length,
+            actual_count: actual.length,
+            missing_keys: missing.slice(0, 12)
+          });
+          console.warn(
+            `setMyCommands verify mismatch (${item.lang}${item.scope ? ":scoped" : ":default"})`,
+            `missing=${missing.join(",")}`
+          );
+          continue;
+        }
+        logEvent("setMyCommands_verify_ok", {
+          lang: item.lang,
+          scoped: Boolean(item.scope),
+          command_count: actual.length
+        });
+      } catch (err) {
+        logEvent("setMyCommands_verify_failed", {
+          lang: item.lang,
+          scoped: Boolean(item.scope),
+          error: String(err?.message || err)
+        });
+        console.warn(`setMyCommands verify failed (${item.lang}${item.scope ? ":scoped" : ":default"})`, err?.message || err);
+      }
+    }
+  }
+
+  await verifyTelegramCommandPublication(commandLocales);
 
   bot.launch();
   console.log("Bot running...");

@@ -25,6 +25,7 @@ import { installAdminOverviewBridge } from "./ui/adminOverviewBridge";
 import { installNetSchedulerBridge } from "./net/schedulerBridge";
 import { installNetApiBridge } from "./net/apiBridge";
 import { installV3StateMutatorBridge } from "./game/state/v3StateBridge";
+import { installAdminActionDispatchBridge } from "./core/admin/actionDispatchBridge.js";
 
 installPerfBridge();
 installTelemetryDeckBridge();
@@ -52,6 +53,7 @@ installAdminOverviewBridge();
 installNetSchedulerBridge();
 installNetApiBridge();
 installV3StateMutatorBridge();
+installAdminActionDispatchBridge();
 
 // Legacy runtime stays source of truth while V3.2 TS bundle rolls out.
 // @ts-ignore TS2306: legacy bootstrap file is plain script and intentionally side-effect imported.

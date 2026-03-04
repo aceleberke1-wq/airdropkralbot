@@ -315,19 +315,37 @@ function createCriticalAdminPolicyService(options = {}) {
     return { ok: true, policy, wait_sec: 0 };
   }
 
+  function stableStringify(value) {
+    if (value == null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+    const entries = Object.entries(value)
+      .filter(([, row]) => row !== undefined)
+      .sort(([a], [b]) => String(a).localeCompare(String(b)));
+    return `{${entries.map(([key, row]) => `${JSON.stringify(key)}:${stableStringify(row)}`).join(",")}}`;
+  }
+
+  function buildQueueActionPayloadHash(input = {}) {
+    const canonicalPayload = {
+      uid: String(input.uid || "").trim(),
+      action_key: String(input.actionKey || "").trim().toLowerCase(),
+      kind: String(input.kind || "").trim().toLowerCase(),
+      request_id: String(input.requestId || "").trim(),
+      action_request_id: String(input.actionRequestId || "").trim(),
+      confirm_token: String(input.confirmToken || "").trim(),
+      reason: String(input.reason || "").trim(),
+      tx_hash: String(input.txHash || "").trim(),
+      decision: String(input.decision || "").trim().toLowerCase()
+    };
+    return crypto.createHash("sha256").update(stableStringify(canonicalPayload)).digest("hex");
+  }
+
   function buildQueueActionIdempotencyKey(input = {}) {
     const actionRequestId = String(input.actionRequestId || "").trim();
-    const legacyFingerprint = crypto
-      .createHash("sha256")
-      .update(
-        [
-          String(input.confirmToken || "").trim(),
-          String(input.reason || "").trim(),
-          String(input.txHash || "").trim()
-        ].join("|")
-      )
-      .digest("hex")
-      .slice(0, 24);
+    const legacyFingerprint = buildQueueActionPayloadHash(input).slice(0, 24);
     const parts = [
       String(input.uid || "").trim(),
       String(input.actionKey || "").trim().toLowerCase(),
@@ -339,6 +357,7 @@ function createCriticalAdminPolicyService(options = {}) {
   }
 
   return {
+    buildQueueActionPayloadHash,
     buildQueueActionIdempotencyKey,
     enforceCriticalAdminCooldown,
     requireCriticalAdminConfirmation

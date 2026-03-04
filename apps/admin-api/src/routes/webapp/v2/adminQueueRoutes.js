@@ -1,28 +1,47 @@
 "use strict";
 
+const { buildActionPayloadHash, createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 const IDEMPOTENCY_FALLBACK_TTL_MS = 15 * 60 * 1000;
 const queueActionIdempotencyFallback = new Map();
 
 function cleanupQueueActionFallback(now = Date.now()) {
-  for (const [key, expiresAt] of queueActionIdempotencyFallback.entries()) {
-    if (!expiresAt || Number(expiresAt) <= now) {
+  for (const [key, entry] of queueActionIdempotencyFallback.entries()) {
+    const expiresAt = Number(entry && typeof entry === "object" ? entry.expiresAt : entry);
+    if (!expiresAt || expiresAt <= now) {
       queueActionIdempotencyFallback.delete(key);
     }
   }
 }
 
-function reserveQueueActionFallback(idempotencyKey, ttlMs = IDEMPOTENCY_FALLBACK_TTL_MS) {
+function reserveQueueActionFallback(idempotencyKey, payloadHash, ttlMs = IDEMPOTENCY_FALLBACK_TTL_MS) {
   const now = Date.now();
   cleanupQueueActionFallback(now);
   const key = String(idempotencyKey || "").trim();
   if (!key) {
     return { ok: false, reason: "missing_idempotency_key" };
   }
-  const existing = Number(queueActionIdempotencyFallback.get(key) || 0);
-  if (existing > now) {
+  const existingRaw = queueActionIdempotencyFallback.get(key);
+  const existing =
+    existingRaw && typeof existingRaw === "object"
+      ? {
+          expiresAt: Number(existingRaw.expiresAt || 0),
+          payloadHash: String(existingRaw.payloadHash || "")
+        }
+      : {
+          expiresAt: Number(existingRaw || 0),
+          payloadHash: ""
+        };
+  if (existing.expiresAt > now) {
+    if (existing.payloadHash && payloadHash && existing.payloadHash !== String(payloadHash)) {
+      return { ok: false, reason: "action_request_payload_conflict" };
+    }
     return { ok: false, reason: "idempotency_conflict" };
   }
-  queueActionIdempotencyFallback.set(key, now + Math.max(1000, Number(ttlMs || IDEMPOTENCY_FALLBACK_TTL_MS)));
+  queueActionIdempotencyFallback.set(key, {
+    expiresAt: now + Math.max(1000, Number(ttlMs || IDEMPOTENCY_FALLBACK_TTL_MS)),
+    payloadHash: String(payloadHash || "")
+  });
   return { ok: true };
 }
 
@@ -125,6 +144,7 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/v2/admin/queue/action",
     {
+      preValidation: createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 }),
       schema: {
         body: {
           type: "object",
@@ -154,13 +174,9 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
       const actionKey = String(request.body.action_key || "").trim().toLowerCase();
       const kind = String(request.body.kind || "").trim().toLowerCase();
       const requestId = Math.max(0, Number(request.body.request_id || 0));
-      const actionRequestId = String(request.body.action_request_id || "").trim();
+      const actionRequestId = String(request.adminActionRequestId || request.body.action_request_id || "").trim();
       if (!actionKey || requestId <= 0) {
         reply.code(400).send({ success: false, error: "invalid_admin_queue_action_payload" });
-        return;
-      }
-      if (!/^[a-zA-Z0-9:_-]{6,120}$/.test(actionRequestId)) {
-        reply.code(400).send({ success: false, error: "invalid_action_request_id" });
         return;
       }
 
@@ -290,9 +306,42 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
         reason,
         txHash
       });
-      const fallbackIdempotency = reserveQueueActionFallback(idempotencyKey);
+      const idempotencyContext = {
+        uid: auth.uid,
+        actionKey,
+        kind,
+        requestId,
+        actionRequestId,
+        confirmToken,
+        reason,
+        txHash,
+        decision: String(forwardPayload.decision || "")
+      };
+      const actionPayloadHash =
+        typeof policyService.buildQueueActionPayloadHash === "function"
+          ? String(policyService.buildQueueActionPayloadHash(idempotencyContext) || "")
+          : buildActionPayloadHash(idempotencyContext);
+      const fallbackIdempotency = reserveQueueActionFallback(idempotencyKey, actionPayloadHash);
       if (!fallbackIdempotency.ok) {
-        reply.code(409).send({ success: false, error: "idempotency_conflict" });
+        if (fallbackIdempotency.reason === "action_request_payload_conflict") {
+          fastify.log.warn(
+            {
+              event: "admin_queue_action_request_payload_conflict",
+              uid: Number(auth.uid || 0),
+              action_key: actionKey,
+              request_id: requestId,
+              action_request_id: actionRequestId
+            },
+            "Queue action replay with different payload."
+          );
+        }
+        reply.code(409).send({
+          success: false,
+          error: fallbackIdempotency.reason === "action_request_payload_conflict" ? "action_request_payload_conflict" : "idempotency_conflict",
+          data: {
+            action_request_id: actionRequestId
+          }
+        });
         return;
       }
       let queueActionEventAvailable = true;
@@ -327,6 +376,7 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
               kind: kind || null,
               request_id: requestId,
               action_request_id: actionRequestId,
+              payload_hash: actionPayloadHash,
               confirm_token: confirmToken || null,
               reason: reason || null,
               tx_hash: txHash || null
@@ -336,6 +386,38 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
         );
       } catch (err) {
         if (err.code === "23505") {
+          const existing = await queueActionEventClient
+            .query(
+              `SELECT payload_json
+                 FROM v5_unified_admin_queue_action_events
+                WHERE idempotency_key = $1
+                ORDER BY id DESC
+                LIMIT 1;`,
+              [idempotencyKey]
+            )
+            .then((res) => res.rows?.[0] || null)
+            .catch(() => null);
+          const existingPayloadHash = String(existing?.payload_json?.payload_hash || existing?.payload_json?.idempotency_context?.payload_hash || "");
+          if (existingPayloadHash && actionPayloadHash && existingPayloadHash !== actionPayloadHash) {
+            fastify.log.warn(
+              {
+                event: "admin_queue_action_request_payload_conflict",
+                uid: Number(auth.uid || 0),
+                action_key: actionKey,
+                request_id: requestId,
+                action_request_id: actionRequestId
+              },
+              "Queue action replay with different payload."
+            );
+            reply.code(409).send({
+              success: false,
+              error: "action_request_payload_conflict",
+              data: {
+                action_request_id: actionRequestId
+              }
+            });
+            return;
+          }
           reply.code(409).send({ success: false, error: "idempotency_conflict" });
           return;
         }

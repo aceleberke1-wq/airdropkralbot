@@ -44,7 +44,7 @@ test("payout pay rejects unauthorized admin signature", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/payout/pay",
-    payload: { uid: "100", ts: "1", sig: "bad", request_id: 9, tx_hash: "0xabc12345" }
+    payload: { uid: "100", ts: "1", sig: "bad", request_id: 9, tx_hash: "0xabc12345", action_request_id: "act_100_pay_1" }
   });
   assert.equal(res.statusCode, 401);
   const payload = JSON.parse(res.payload);
@@ -69,7 +69,7 @@ test("payout pay returns not found when request is missing", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/payout/pay",
-    payload: { uid: "100", ts: "1", sig: "x", request_id: 999, tx_hash: "0xabc12345" }
+    payload: { uid: "100", ts: "1", sig: "x", request_id: 999, tx_hash: "0xabc12345", action_request_id: "act_100_pay_2" }
   });
   assert.equal(res.statusCode, 404);
   const payload = JSON.parse(res.payload);
@@ -87,7 +87,7 @@ test("payout reject updates request and returns summary", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/payout/reject",
-    payload: { uid: "100", ts: "1", sig: "x", request_id: 9, reason: "duplicate" }
+    payload: { uid: "100", ts: "1", sig: "x", request_id: 9, action_request_id: "act_100_reject_1", reason: "duplicate" }
   });
   assert.equal(res.statusCode, 200);
   const payload = JSON.parse(res.payload);

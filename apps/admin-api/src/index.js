@@ -761,21 +761,50 @@ function normalizeActionRequestId(value) {
   return normalized;
 }
 
-function reserveWebAppActionIdempotencyFallback(idempotencyKey, ttlMs = WEBAPP_ACTION_IDEMPOTENCY_FALLBACK_TTL_MS) {
+function stableStringify(value) {
+  if (value == null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((row) => stableStringify(row)).join(",")}]`;
+  }
+  const entries = Object.entries(value)
+    .filter(([, row]) => row !== undefined)
+    .sort(([left], [right]) => String(left).localeCompare(String(right)));
+  return `{${entries.map(([key, row]) => `${JSON.stringify(key)}:${stableStringify(row)}`).join(",")}}`;
+}
+
+function buildWebAppActionPayloadHash(meta = {}) {
+  return crypto
+    .createHash("sha256")
+    .update(stableStringify(meta && typeof meta === "object" ? meta : {}))
+    .digest("hex");
+}
+
+function reserveWebAppActionIdempotencyFallback(idempotencyKey, payloadHash, ttlMs = WEBAPP_ACTION_IDEMPOTENCY_FALLBACK_TTL_MS) {
   const key = String(idempotencyKey || "").trim();
   if (!key) {
     return { ok: false, reason: "invalid_action_request_id" };
   }
   const now = Date.now();
-  for (const [entryKey, expireAt] of WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.entries()) {
+  for (const [entryKey, entry] of WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.entries()) {
+    const expireAt = Number(entry && typeof entry === "object" ? entry.expiresAt : entry);
     if (expireAt <= now) {
       WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.delete(entryKey);
     }
   }
   if (WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.has(key)) {
+    const existingRaw = WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.get(key);
+    const existingHash = String(existingRaw && typeof existingRaw === "object" ? existingRaw.payloadHash || "" : "");
+    if (existingHash && payloadHash && existingHash !== String(payloadHash)) {
+      return { ok: false, reason: "action_request_payload_conflict" };
+    }
     return { ok: false, reason: "idempotency_conflict" };
   }
-  WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.set(key, now + Math.max(1000, Number(ttlMs || WEBAPP_ACTION_IDEMPOTENCY_FALLBACK_TTL_MS)));
+  WEBAPP_ACTION_IDEMPOTENCY_FALLBACK.set(key, {
+    expiresAt: now + Math.max(1000, Number(ttlMs || WEBAPP_ACTION_IDEMPOTENCY_FALLBACK_TTL_MS)),
+    payloadHash: String(payloadHash || "")
+  });
   return { ok: true };
 }
 
@@ -791,6 +820,13 @@ async function reserveWebAppActionIdempotency(db, { userId, actionKey, requestId
     .slice(0, 64);
   const idempotencyKey = `${actorId}:${normalizedAction}:${normalizedRequestId}`;
   const eventRef = deterministicUuid(`webapp:idempotency:${idempotencyKey}`);
+  const metaObject = meta && typeof meta === "object" ? { ...meta } : {};
+  const payloadHash = buildWebAppActionPayloadHash({
+    user_id: actorId,
+    action_key: normalizedAction,
+    request_id: normalizedRequestId,
+    meta: metaObject
+  });
   try {
     const inserted = await db.query(
       `WITH ins AS (
@@ -807,23 +843,39 @@ async function reserveWebAppActionIdempotency(db, { userId, actionKey, requestId
         JSON.stringify({
           idempotency_key: idempotencyKey,
           request_id: normalizedRequestId,
-          ...(meta && typeof meta === "object" ? meta : {})
+          payload_hash: payloadHash,
+          ...metaObject
         })
       ]
     );
     if (Number(inserted.rows?.[0]?.inserted || 0) === 0) {
+      const existingMeta = await db
+        .query(
+          `SELECT meta_json
+             FROM webapp_events
+            WHERE event_ref = $1
+            ORDER BY id DESC
+            LIMIT 1;`,
+          [eventRef]
+        )
+        .then((res) => res.rows?.[0]?.meta_json || null)
+        .catch(() => null);
+      const existingPayloadHash = String(existingMeta?.payload_hash || "");
+      if (existingPayloadHash && existingPayloadHash !== payloadHash) {
+        return { ok: false, reason: "action_request_payload_conflict", requestId: normalizedRequestId };
+      }
       return { ok: false, reason: "idempotency_conflict", requestId: normalizedRequestId };
     }
-    return { ok: true, requestId: normalizedRequestId, idempotencyKey };
+    return { ok: true, requestId: normalizedRequestId, idempotencyKey, payloadHash };
   } catch (err) {
     if (String(err?.code || "") !== "42P01") {
       throw err;
     }
-    const fallback = reserveWebAppActionIdempotencyFallback(idempotencyKey);
+    const fallback = reserveWebAppActionIdempotencyFallback(idempotencyKey, payloadHash);
     if (!fallback.ok) {
       return { ok: false, reason: fallback.reason || "idempotency_conflict", requestId: normalizedRequestId };
     }
-    return { ok: true, requestId: normalizedRequestId, idempotencyKey, fallback: true };
+    return { ok: true, requestId: normalizedRequestId, idempotencyKey, payloadHash, fallback: true };
   }
 }
 
@@ -1083,15 +1135,18 @@ function verifyWebAppAuth(uidRaw, tsRaw, sigRaw) {
   const ts = String(tsRaw || "");
   const sig = String(sigRaw || "");
   if (!uid || !ts || !sig) {
-    return { ok: false, reason: "missing_fields" };
+    return { ok: false, reason: "missing" };
   }
 
   const tsNum = Number(ts);
   if (!Number.isFinite(tsNum)) {
-    return { ok: false, reason: "invalid_timestamp" };
+    return { ok: false, reason: "missing" };
   }
   const ageSec = Math.floor((Date.now() - tsNum) / 1000);
-  if (ageSec < -30 || ageSec > WEBAPP_AUTH_TTL_SEC) {
+  if (ageSec < -30) {
+    return { ok: false, reason: "skew" };
+  }
+  if (ageSec > WEBAPP_AUTH_TTL_SEC) {
     return { ok: false, reason: "expired" };
   }
 
@@ -1099,10 +1154,10 @@ function verifyWebAppAuth(uidRaw, tsRaw, sigRaw) {
   const expectedBuffer = Buffer.from(expected, "hex");
   const providedBuffer = Buffer.from(sig, "hex");
   if (expectedBuffer.length !== providedBuffer.length) {
-    return { ok: false, reason: "invalid_signature" };
+    return { ok: false, reason: "bad_sig" };
   }
   if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-    return { ok: false, reason: "invalid_signature" };
+    return { ok: false, reason: "bad_sig" };
   }
   return { ok: true, uid: Number(uid) };
 }

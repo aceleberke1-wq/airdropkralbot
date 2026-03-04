@@ -23,10 +23,28 @@ function parseThresholds(args = {}) {
     max_tx_verify_error_rate_pct: Math.max(0, Math.min(100, toNumber(args.max_tx_verify_error_rate_pct, 20))),
     max_idempotency_conflict_events_24h: Math.max(0, toNumber(args.max_idempotency_conflict_events_24h, 3)),
     max_invalid_action_request_id_events_24h: Math.max(0, toNumber(args.max_invalid_action_request_id_events_24h, 1)),
+    max_snapshot_age_sec: Math.max(60, toNumber(args.max_snapshot_age_sec, 1800)),
     require_queue_events: parseBool(args.require_queue_events, false),
     require_tx_verify_events: parseBool(args.require_tx_verify_events, false),
     require_command_events: parseBool(args.require_command_events, true)
   };
+}
+
+function computeSnapshotFreshnessSec(snapshot) {
+  const explicitFreshness = toNumber(snapshot?.freshness_sec, -1);
+  const generatedAtRaw = String(snapshot?.generated_at || "").trim();
+  const generatedAtMs = generatedAtRaw ? Date.parse(generatedAtRaw) : NaN;
+  const derivedFreshness = Number.isFinite(generatedAtMs) && generatedAtMs > 0 ? Math.max(0, Math.floor((Date.now() - generatedAtMs) / 1000)) : -1;
+  if (explicitFreshness >= 0 && derivedFreshness >= 0) {
+    return Math.max(Math.round(explicitFreshness), derivedFreshness);
+  }
+  if (explicitFreshness >= 0) {
+    return Math.max(0, Math.round(explicitFreshness));
+  }
+  if (derivedFreshness >= 0) {
+    return derivedFreshness;
+  }
+  return -1;
 }
 
 function evaluateCanary(snapshot, thresholds) {
@@ -44,6 +62,15 @@ function evaluateCanary(snapshot, thresholds) {
   const kpis = snapshot?.kpis && typeof snapshot.kpis === "object" ? snapshot.kpis : {};
   const queue = snapshot?.details?.queue_actions && typeof snapshot.details.queue_actions === "object" ? snapshot.details.queue_actions : {};
   const txSubmit = snapshot?.details?.tx_submit && typeof snapshot.details.tx_submit === "object" ? snapshot.details.tx_submit : {};
+  const freshnessSec = computeSnapshotFreshnessSec(snapshot);
+
+  if (freshnessSec < 0) {
+    pushCheck("warn", "snapshot_freshness_sec", "unknown", `<= ${thresholds.max_snapshot_age_sec}`, "snapshot generated_at missing or invalid.");
+  } else if (freshnessSec > thresholds.max_snapshot_age_sec) {
+    pushCheck("fail", "snapshot_freshness_sec", freshnessSec, `<= ${thresholds.max_snapshot_age_sec}`, "snapshot is stale.");
+  } else {
+    pushCheck("pass", "snapshot_freshness_sec", freshnessSec, `<= ${thresholds.max_snapshot_age_sec}`);
+  }
 
   const commandEvents = toNumber(kpis.command_events_24h, 0);
   if (thresholds.require_command_events && commandEvents < thresholds.min_command_events_24h) {
@@ -173,7 +200,7 @@ async function main() {
   }
 }
 
-export { evaluateCanary, parseThresholds };
+export { evaluateCanary, parseThresholds, computeSnapshotFreshnessSec };
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";
 if (invokedPath === import.meta.url) {
@@ -182,4 +209,3 @@ if (invokedPath === import.meta.url) {
     process.exitCode = 1;
   });
 }
-

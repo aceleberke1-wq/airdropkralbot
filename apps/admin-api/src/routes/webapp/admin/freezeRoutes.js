@@ -1,5 +1,7 @@
 "use strict";
 
+const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 function registerWebappAdminFreezeRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -26,19 +28,22 @@ function registerWebappAdminFreezeRoutes(fastify, deps = {}) {
   if (!policyService || typeof policyService.requireCriticalAdminConfirmation !== "function") {
     throw new Error("registerWebappAdminFreezeRoutes requires policyService");
   }
+  const requireActionRequestId = createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 });
 
   fastify.post(
     "/webapp/api/admin/freeze",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "freeze"],
+          required: ["uid", "ts", "sig", "freeze", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             freeze: { type: "boolean" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             confirm_token: { type: "string", minLength: 16, maxLength: 128 },
             reason: { type: "string", maxLength: 240 }
           }

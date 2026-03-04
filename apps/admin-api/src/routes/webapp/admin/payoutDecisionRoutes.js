@@ -1,5 +1,7 @@
 "use strict";
 
+const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -28,20 +30,23 @@ function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
   if (!configService || typeof configService.getEconomyConfig !== "function") {
     throw new Error("registerWebappAdminPayoutDecisionRoutes requires configService.getEconomyConfig");
   }
+  const requireActionRequestId = createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 });
 
   fastify.post(
     "/webapp/api/admin/payout/pay",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "request_id", "tx_hash"],
+          required: ["uid", "ts", "sig", "request_id", "tx_hash", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             request_id: { type: "integer", minimum: 1 },
-            tx_hash: { type: "string", minLength: 8, maxLength: 255 }
+            tx_hash: { type: "string", minLength: 8, maxLength: 255 },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" }
           }
         }
       }
@@ -111,15 +116,17 @@ function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/payout/reject",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig", "request_id"],
+          required: ["uid", "ts", "sig", "request_id", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
             request_id: { type: "integer", minimum: 1 },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             reason: { type: "string", maxLength: 500 }
           }
         }

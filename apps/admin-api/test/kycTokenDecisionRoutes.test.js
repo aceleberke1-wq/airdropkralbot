@@ -65,7 +65,7 @@ test("kyc decision rejects unsupported decision value", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/kyc/decision",
-    payload: { uid: "100", ts: "1", sig: "x", request_id: 77, decision: "maybe" }
+    payload: { uid: "100", ts: "1", sig: "x", request_id: 77, decision: "maybe", action_request_id: "act_kyc_77_1" }
   });
   assert.equal(res.statusCode, 400);
   const payload = JSON.parse(res.payload);
@@ -87,7 +87,15 @@ test("token approve rejects unauthorized admin signature", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/token/approve",
-    payload: { uid: "100", ts: "1", sig: "bad", request_id: 9, tx_hash: "0xabc12345", token_amount: 10 }
+    payload: {
+      uid: "100",
+      ts: "1",
+      sig: "bad",
+      request_id: 9,
+      tx_hash: "0xabc12345",
+      token_amount: 10,
+      action_request_id: "act_token_approve_9"
+    }
   });
   assert.equal(res.statusCode, 401);
   const payload = JSON.parse(res.payload);
@@ -109,7 +117,7 @@ test("token reject rejects unauthorized admin signature", async () => {
   const res = await app.inject({
     method: "POST",
     url: "/webapp/api/admin/token/reject",
-    payload: { uid: "100", ts: "1", sig: "bad", request_id: 9, reason: "x" }
+    payload: { uid: "100", ts: "1", sig: "bad", request_id: 9, reason: "x", action_request_id: "act_token_reject_9" }
   });
   assert.equal(res.statusCode, 401);
   const payload = JSON.parse(res.payload);

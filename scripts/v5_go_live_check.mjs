@@ -60,6 +60,11 @@ function buildGoLiveThresholdInput(args = {}, stageKey = "rollout_100") {
       args.max_invalid_action_request_id_events_24h ??
       process.env.V5_GOLIVE_MAX_INVALID_ACTION_REQUEST_ID_EVENTS_24H ??
       defaults.max_invalid_action_request_id_events_24h,
+    max_snapshot_age_sec:
+      args.max_snapshot_age_sec ??
+      process.env.V5_GOLIVE_MAX_SNAPSHOT_AGE_SEC ??
+      defaults.max_snapshot_age_sec ??
+      1800,
     require_command_events:
       args.require_command_events ?? process.env.V5_GOLIVE_REQUIRE_COMMAND_EVENTS ?? String(defaults.require_command_events),
     require_queue_events:
@@ -243,7 +248,9 @@ async function main() {
     "--canary_max_idempotency_conflict_events_24h",
     String(toNumber(thresholds.max_idempotency_conflict_events_24h, 0)),
     "--canary_max_invalid_action_request_id_events_24h",
-    String(toNumber(thresholds.max_invalid_action_request_id_events_24h, 0))
+    String(toNumber(thresholds.max_invalid_action_request_id_events_24h, 0)),
+    "--canary_max_snapshot_age_sec",
+    String(toNumber(thresholds.max_snapshot_age_sec, 1800))
   ];
 
   if (runChain && stage.key === "rollout_100") {

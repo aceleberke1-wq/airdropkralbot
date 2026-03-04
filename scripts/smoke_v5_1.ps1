@@ -502,10 +502,13 @@ try {
   }
 
   # Dry smoke: 2-step confirmation + cooldown rails for unified queue action.
+  $queueActionReq1 = "smoke_queue_${fixtureRequestId}_a1"
+  $queueActionReq2 = "smoke_queue_${fixtureRequestId}_a2"
   $queueActionStep1 = Invoke-V2Post -Path "/webapp/api/v2/admin/queue/action" -Body @{
     action_key = "payout_reject"
     kind = "payout_request"
     request_id = $fixtureRequestId
+    action_request_id = $queueActionReq1
     reason = "smoke_probe"
   } -Uid $uid -Secret $secret
   $confirmToken1 = ""
@@ -524,6 +527,7 @@ try {
     action_key = "payout_reject"
     kind = "payout_request"
     request_id = $fixtureRequestId
+    action_request_id = $queueActionReq1
     reason = "smoke_probe"
     confirm_token = $confirmToken1
   } -Uid $uid -Secret $secret
@@ -539,6 +543,7 @@ try {
     action_key = "payout_reject"
     kind = "payout_request"
     request_id = $fixtureRequestId
+    action_request_id = $queueActionReq2
     reason = "smoke_probe"
   } -Uid $uid -Secret $secret
   $confirmToken2 = ""
@@ -557,6 +562,7 @@ try {
     action_key = "payout_reject"
     kind = "payout_request"
     request_id = $fixtureRequestId
+    action_request_id = $queueActionReq2
     reason = "smoke_probe"
     confirm_token = $confirmToken2
   } -Uid $uid -Secret $secret
@@ -569,10 +575,15 @@ try {
   }
 
   if ($fixtureKycUserId -gt 0) {
+    $kycActionReq1 = "smoke_kyc_${fixtureKycUserId}_approve1"
+    $kycActionReq2 = "smoke_kyc_${fixtureKycUserId}_approve2"
+    $kycRejectReq = "smoke_kyc_${fixtureKycUserId}_reject"
+    $kycBlockReq = "smoke_kyc_${fixtureKycUserId}_block"
     $kycActionStep1 = Invoke-V2Post -Path "/webapp/api/v2/admin/queue/action" -Body @{
       action_key = "kyc_approve"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycActionReq1
       reason = "smoke_kyc_probe"
     } -Uid $uid -Secret $secret
     $kycConfirmToken1 = ""
@@ -591,6 +602,7 @@ try {
       action_key = "kyc_approve"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycActionReq1
       reason = "smoke_kyc_probe"
       confirm_token = $kycConfirmToken1
     } -Uid $uid -Secret $secret
@@ -606,6 +618,7 @@ try {
       action_key = "kyc_approve"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycActionReq2
       reason = "smoke_kyc_probe"
     } -Uid $uid -Secret $secret
     $kycConfirmToken2 = ""
@@ -624,6 +637,7 @@ try {
       action_key = "kyc_approve"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycActionReq2
       reason = "smoke_kyc_probe"
       confirm_token = $kycConfirmToken2
     } -Uid $uid -Secret $secret
@@ -639,6 +653,7 @@ try {
       action_key = "kyc_reject"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycRejectReq
       reason = "smoke_kyc_reject"
     } -Uid $uid -Secret $secret
     $kycRejectToken1 = ""
@@ -657,6 +672,7 @@ try {
       action_key = "kyc_reject"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycRejectReq
       reason = "smoke_kyc_reject"
       confirm_token = $kycRejectToken1
     } -Uid $uid -Secret $secret
@@ -672,6 +688,7 @@ try {
       action_key = "kyc_block"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycBlockReq
       reason = "smoke_kyc_block"
     } -Uid $uid -Secret $secret
     $kycBlockToken1 = ""
@@ -690,6 +707,7 @@ try {
       action_key = "kyc_block"
       kind = "kyc_manual_review"
       request_id = $fixtureKycUserId
+      action_request_id = $kycBlockReq
       reason = "smoke_kyc_block"
       confirm_token = $kycBlockToken1
     } -Uid $uid -Secret $secret

@@ -267,7 +267,25 @@ function renderMarkdownReport(bundle) {
   const longQueueTotal = toNumber(long.details?.queue_actions?.total_events, 0);
   const shortQueueSuccess = toNumber(short.details?.queue_actions?.success_events, 0);
   const longQueueSuccess = toNumber(long.details?.queue_actions?.success_events, 0);
-  lines.push(`| Queue success rate % | ${pct(shortQueueSuccess, shortQueueTotal)} | ${pct(longQueueSuccess, longQueueTotal)} |`);
+  lines.push(
+    `| Queue success rate % | ${toNumber(short.details?.queue_actions?.success_rate, pct(shortQueueSuccess, shortQueueTotal))} | ${toNumber(
+      long.details?.queue_actions?.success_rate,
+      pct(longQueueSuccess, longQueueTotal)
+    )} |`
+  );
+  lines.push(
+    `| Queue pending rate % | ${toNumber(short.details?.queue_actions?.pending_rate, pct(short.details?.queue_actions?.queued_events, shortQueueTotal))} | ${toNumber(
+      long.details?.queue_actions?.pending_rate,
+      pct(long.details?.queue_actions?.queued_events, longQueueTotal)
+    )} |`
+  );
+  lines.push(
+    `| Queue failure rate % | ${toNumber(short.details?.queue_actions?.failure_rate, pct(short.details?.queue_actions?.failed_events, shortQueueTotal))} | ${toNumber(
+      long.details?.queue_actions?.failure_rate,
+      pct(long.details?.queue_actions?.failed_events, longQueueTotal)
+    )} |`
+  );
+  lines.push(`| Queue completed events | ${toNumber(short.details?.queue_actions?.completed_events, 0)} | ${toNumber(long.details?.queue_actions?.completed_events, 0)} |`);
   lines.push(`| Queue failed events | ${toNumber(short.details?.queue_actions?.failed_events, 0)} | ${toNumber(long.details?.queue_actions?.failed_events, 0)} |`);
   lines.push(`| Queue queued events | ${toNumber(short.details?.queue_actions?.queued_events, 0)} | ${toNumber(long.details?.queue_actions?.queued_events, 0)} |`);
   lines.push("");
@@ -275,10 +293,14 @@ function renderMarkdownReport(bundle) {
   if (queueReasons.length > 0) {
     lines.push("## Queue Failure Reasons (24h)");
     lines.push("");
-    lines.push("| Reason | Events |");
-    lines.push("|---|---:|");
+    lines.push("| Reason | Result Code | Error Code | HTTP | Exception | Events |");
+    lines.push("|---|---|---|---:|---|---:|");
     for (const row of queueReasons.slice(0, 10)) {
-      lines.push(`| ${String(row.reason || "unknown")} | ${toNumber(row.event_count, 0)} |`);
+      lines.push(
+        `| ${String(row.reason || "unknown")} | ${String(row.result_code || "-")} | ${String(row.error_code || "-")} | ${String(
+          row.http_status || "-"
+        )} | ${String(row.exception_class || "-")} | ${toNumber(row.event_count, 0)} |`
+      );
     }
     lines.push("");
   }

@@ -4260,7 +4260,7 @@
   }
 
   function buildPacket(action, extra = {}) {
-    const actionRequestId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const actionRequestId = createActionRequestId("webapp_action");
     const merged = extra && typeof extra === "object" ? { ...extra } : {};
     if (!merged.action_request_id) {
       merged.action_request_id = actionRequestId;
@@ -15617,6 +15617,13 @@
   }
 
   function createActionRequestId(prefix = "webapp_admin") {
+    const bridge = window.__AKR_ADMIN_ACTION__;
+    if (bridge && typeof bridge.createActionRequestId === "function") {
+      const bridged = String(bridge.createActionRequestId(prefix) || "").trim();
+      if (bridged) {
+        return bridged.slice(0, 120);
+      }
+    }
     const cleanPrefix = String(prefix || "webapp_admin")
       .replace(/[^a-zA-Z0-9:_-]+/g, "_")
       .replace(/^_+|_+$/g, "")
@@ -15626,6 +15633,10 @@
   }
 
   function normalizeActionRequestId(value) {
+    const bridge = window.__AKR_ADMIN_ACTION__;
+    if (bridge && typeof bridge.normalizeActionRequestId === "function") {
+      return String(bridge.normalizeActionRequestId(value) || "");
+    }
     const clean = String(value || "")
       .trim()
       .slice(0, 120);
@@ -15726,6 +15737,91 @@
     }
   }
 
+  function resolveAdminActionRequestId(explicitActionRequestId, pendingActionRequestId, prefix = "admin") {
+    const bridge = window.__AKR_ADMIN_ACTION__;
+    if (bridge && typeof bridge.resolveActionRequestId === "function") {
+      const bridged = String(bridge.resolveActionRequestId(explicitActionRequestId, pendingActionRequestId, prefix) || "").trim();
+      if (bridged) {
+        return bridged.slice(0, 120);
+      }
+    }
+    const explicit = normalizeActionRequestId(explicitActionRequestId);
+    if (explicit) {
+      return explicit;
+    }
+    const pending = normalizeActionRequestId(pendingActionRequestId);
+    if (pending) {
+      return pending;
+    }
+    return createActionRequestId(prefix);
+  }
+
+  function isRetriableAdminFetchError(err) {
+    const bridge = window.__AKR_ADMIN_ACTION__;
+    if (bridge && typeof bridge.isRetriableAdminFetchError === "function") {
+      return Boolean(bridge.isRetriableAdminFetchError(err));
+    }
+    const name = String(err?.name || "").toLowerCase();
+    const message = String(err?.message || "").toLowerCase();
+    if (name === "aborterror") {
+      return true;
+    }
+    if (message.includes("networkerror") || message.includes("failed to fetch") || message.includes("timed out")) {
+      return true;
+    }
+    return false;
+  }
+
+  function waitMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.floor(ms || 0))));
+  }
+
+  async function postAdminRequestWithRetry(cleanPath, requestBody, options = {}) {
+    const timeoutMs = Math.max(2000, Math.min(30000, Math.floor(asNum(options.timeoutMs || 12000))));
+    const maxAttempts = Math.max(1, Math.min(3, Math.floor(asNum(options.maxAttempts || 2))));
+    const baseDelayMs = Math.max(120, Math.min(2000, Math.floor(asNum(options.baseDelayMs || 260))));
+    let lastErr = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const t0 = performance.now();
+      let timeoutHandle = null;
+      if (controller) {
+        timeoutHandle = setTimeout(() => {
+          try {
+            controller.abort();
+          } catch {}
+        }, timeoutMs);
+      }
+      try {
+        const res = await fetch(cleanPath, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          ...(controller ? { signal: controller.signal } : {})
+        });
+        markLatency(performance.now() - t0);
+        const payload = await res.json().catch(() => ({
+          success: false,
+          error: `admin_action_failed:${res.status}`,
+          data: {}
+        }));
+        return { res, payload };
+      } catch (err) {
+        markLatency(performance.now() - t0);
+        lastErr = err;
+        if (!isRetriableAdminFetchError(err) || attempt >= maxAttempts) {
+          throw err;
+        }
+        await waitMs(baseDelayMs * attempt);
+      } finally {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+      }
+    }
+    throw lastErr || new Error("admin_transport_error");
+  }
+
   async function postAdmin(path, extraBody = {}) {
     const cleanPath = String(path || "").trim();
     const cacheKey = buildAdminConfirmCacheKey(cleanPath, extraBody);
@@ -15738,24 +15834,27 @@
       ...extraBody
     };
     const explicitActionRequestId = normalizeActionRequestId(requestBody.action_request_id);
-    requestBody.action_request_id =
-      explicitActionRequestId || normalizeActionRequestId(pendingActionRequestId) || createActionRequestId("admin");
+    requestBody.action_request_id = resolveAdminActionRequestId(explicitActionRequestId, pendingActionRequestId, "admin");
     writeAdminPendingActionRequest(cacheKey, requestBody.action_request_id);
     if (!requestBody.confirm_token && pending?.token) {
       requestBody.confirm_token = pending.token;
     }
-    const t0 = performance.now();
-    const res = await fetch(cleanPath, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody)
-    });
-    markLatency(performance.now() - t0);
-    const payload = await res.json().catch(() => ({
-      success: false,
-      error: `admin_action_failed:${res.status}`,
-      data: {}
-    }));
+    let transport;
+    try {
+      transport = await postAdminRequestWithRetry(cleanPath, requestBody, {
+        timeoutMs: 12000,
+        maxAttempts: 2,
+        baseDelayMs: 260
+      });
+    } catch (err) {
+      const networkError = new Error("admin_action_transport_failed");
+      networkError.code = 0;
+      networkError.uiMessage = "Ag hatasi veya timeout. Kisa sure sonra tekrar dene.";
+      networkError.cause = err;
+      throw networkError;
+    }
+    const res = transport.res;
+    const payload = transport.payload;
     if (!res.ok || !payload.success) {
       const code = String(payload.error || `admin_action_failed:${res.status}`);
       const meta = payload.data && typeof payload.data === "object" ? payload.data : {};
@@ -19122,6 +19221,7 @@
       payout_not_eligible: "Mevcut tier payout acmaya uygun degil.",
       tier_locked: "Mevcut tier payout acmaya uygun degil.",
       idempotency_conflict: "Ayni aksiyon istegi tekrar kullanilamaz, paneli yenileyip tekrar dene.",
+      action_request_payload_conflict: "Ayni aksiyon kimligi farkli veriyle kullanildi. Paneli yenileyip tekrar dene.",
       invalid_action_request_id: "Aksiyon kimligi gecersiz. Paneli yenileyip tekrar dene.",
       cooldown_active: "Cooldown aktif, kisa sure sonra tekrar dene.",
       unsupported_payout_currency: "Bu payout para birimi su an desteklenmiyor.",
@@ -19139,6 +19239,7 @@
       invalid_admin_queue_action_kind: "Bu queue kaydi bu aksiyonla uyumlu degil.",
       unsupported_admin_queue_action: "Bu queue kaydi icin aksiyon tanimli degil.",
       tx_hash_required: "Bu aksiyon icin TX hash zorunlu.",
+      admin_action_transport_failed: "Ag hatasi veya timeout. Kisa sure sonra tekrar dene.",
       admin_required: "Bu islem admin hesabi gerektirir.",
       no_patch_fields: "Guncelleme icin en az bir alan gir.",
       invalid_gate_band: "Gate max degeri min degerden kucuk olamaz.",
@@ -19148,11 +19249,14 @@
       already_approved: "Talep zaten onayli.",
       already_rejected: "Talep reddedilmis.",
       expired: "Session suresi doldu. Telegram uzerinden WebApp'i yeniden ac.",
+      skew: "Session zaman damgasi gecersiz. Cihaz saatini kontrol edip tekrar dene.",
+      bad_sig: "Session imzasi gecersiz. Telegram uzerinden WebApp'i yeniden ac.",
+      missing: "Session alanlari eksik. Bot menuden WebApp'i tekrar baslat.",
       invalid_signature: "Session imzasi gecersiz. Telegram uzerinden WebApp'i yeniden ac.",
       missing_fields: "Session alanlari eksik. Bot menuden WebApp'i tekrar baslat.",
       webapp_secret_missing: "Sunucu webapp imza sirri tanimli degil. Kisa sure sonra tekrar dene."
     };
-    const blockingCodes = new Set(["expired", "invalid_signature", "missing_fields", "webapp_secret_missing"]);
+    const blockingCodes = new Set(["expired", "skew", "bad_sig", "missing", "invalid_signature", "missing_fields", "webapp_secret_missing"]);
     if (blockingCodes.has(raw)) {
       showBlockingRecoveryError(raw, map[raw] || "Session yenileme gerekiyor.");
     }

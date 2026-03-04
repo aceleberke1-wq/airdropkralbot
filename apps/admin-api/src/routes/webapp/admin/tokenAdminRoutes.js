@@ -1,5 +1,7 @@
 "use strict";
 
+const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+
 function registerWebappAdminTokenRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -44,18 +46,21 @@ function registerWebappAdminTokenRoutes(fastify, deps = {}) {
   if (typeof upsertFeatureFlag !== "function") {
     throw new Error("registerWebappAdminTokenRoutes requires upsertFeatureFlag");
   }
+  const requireActionRequestId = createRequireActionRequestIdPreValidation({ field: "action_request_id", statusCode: 400 });
 
   fastify.post(
     "/webapp/api/admin/token/config",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             usd_price: { type: "number", minimum: 0.00000001, maximum: 10 },
             min_market_cap_usd: { type: "number", minimum: 1 },
             target_band_max_usd: { type: "number", minimum: 1 }
@@ -124,14 +129,16 @@ function registerWebappAdminTokenRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/token/auto_policy",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             enabled: { type: "boolean" },
             auto_usd_limit: { type: "number", minimum: 0.5 },
             risk_threshold: { type: "number", minimum: 0, maximum: 1 },
@@ -299,14 +306,16 @@ function registerWebappAdminTokenRoutes(fastify, deps = {}) {
   fastify.post(
     "/webapp/api/admin/token/curve",
     {
+      preValidation: requireActionRequestId,
       schema: {
         body: {
           type: "object",
-          required: ["uid", "ts", "sig"],
+          required: ["uid", "ts", "sig", "action_request_id"],
           properties: {
             uid: { type: "string" },
             ts: { type: "string" },
             sig: { type: "string" },
+            action_request_id: { type: "string", minLength: 6, maxLength: 120, pattern: "^[a-zA-Z0-9:_-]{6,120}$" },
             enabled: { type: "boolean" },
             admin_floor_usd: { type: "number", minimum: 0.00000001 },
             base_usd: { type: "number", minimum: 0.00000001 },
