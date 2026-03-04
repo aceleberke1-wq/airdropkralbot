@@ -52,11 +52,11 @@ services:
       - key: TOKEN_AUTO_APPROVE_ENABLED
         value: "1"
       - key: WEBAPP_REACT_V1_ENABLED
-        value: "0"
+        value: "1"
       - key: WEBAPP_REACT_V1_EXPERIMENT_KEY
         value: webapp_react_v1
       - key: WEBAPP_REACT_V1_TREATMENT_PCT
-        value: "0"
+        value: "100"
       - key: WEBAPP_ANALYTICS_FLUSH_INTERVAL_MS
         value: "6000"
       - key: WEBAPP_ANALYTICS_MAX_BATCH_SIZE
