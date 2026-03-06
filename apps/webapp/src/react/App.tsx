@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildPvpSessionMachine } from "../core/player/pvpSessionMachine";
-import { resolveAdminPanelVisibility } from "../core/admin/adminPanelSwitches";
 import {
   buildRouteKey,
   buildUiEventRecord,
@@ -15,7 +14,6 @@ import type {
   AnalyticsConfig,
   BootstrapV2Payload,
   TabKey,
-  UiPreferencesPatch,
   WebAppApiResponse,
   WebAppAuth
 } from "./types";
@@ -33,6 +31,7 @@ import { useBootstrapRefreshController } from "./features/shell/useBootstrapRefr
 import { MetaStrip } from "./features/shell/MetaStrip";
 import { PlayerTabs } from "./features/shell/PlayerTabs";
 import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
+import { useShellSessionPrefsController } from "./features/shell/useShellSessionPrefsController";
 import { useShellTopBarController } from "./features/shell/useShellTopBarController";
 import { ShellStatus } from "./features/shell/ShellStatus";
 import { TopBar } from "./features/shell/TopBar";
@@ -255,52 +254,19 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const [walletVerify, { isLoading: walletVerifyLoading }] = useWalletVerifyV2Mutation();
   const [walletUnlink, { isLoading: walletUnlinkLoading }] = useWalletUnlinkV2Mutation();
   const [payoutRequest, { isLoading: payoutRequestLoading }] = usePayoutRequestV2Mutation();
-  const adminPanelVisibility = useMemo(
-    () =>
-      resolveAdminPanelVisibility({
-        runtimeFlags:
-          (adminPanels?.runtime_flags as Record<string, unknown> | null) ||
-          ((adminRuntimeFlagsQuery.data as WebAppApiResponse | undefined)?.data as Record<string, unknown> | null) ||
-          null,
-        fallbackFlags:
-          (data as any)?.feature_flags ||
-          ((adminRuntime.summary as Record<string, unknown> | null)?.feature_flags as Record<string, unknown> | undefined) ||
-          null
-      }),
-    [adminPanels?.runtime_flags, adminRuntimeFlagsQuery.data, data, adminRuntime.summary]
-  );
-
-  const ensureAdminPanelEnabled = (
-    panelKey: "queue" | "dynamicPolicy" | "runtimeFlags" | "runtimeBot" | "runtimeMeta"
-  ): boolean => {
-    if (adminPanelVisibility[panelKey]) {
-      return true;
-    }
-    setError("admin_panel_disabled_by_flag");
-    return false;
-  };
-
-  const applySession = (payload: any) => {
-    if (payload?.session?.uid && payload?.session?.ts && payload?.session?.sig) {
-      setAuth({
-        uid: String(payload.session.uid),
-        ts: String(payload.session.ts),
-        sig: String(payload.session.sig)
-      });
-    }
-  };
-
-  const syncPrefs = async (patch: Record<string, unknown>) => {
-    if (!hasActiveAuth) return;
-    const res = await patchUiPreferences({
-      auth: activeAuth,
-      patch: patch as UiPreferencesPatch
-    })
-      .unwrap()
-      .catch(() => null);
-    if (!res?.success || !res.data?.ui_preferences) return;
-    patchData({ ui_prefs: res.data.ui_preferences });
-  };
+  const { adminPanelVisibility, ensureAdminPanelEnabled, applySession, syncPrefs } = useShellSessionPrefsController({
+    adminPanelsRuntimeFlags: (adminPanels?.runtime_flags as Record<string, unknown> | null) || null,
+    runtimeFlagsQueryData: (adminRuntimeFlagsQuery.data as WebAppApiResponse | null | undefined) || null,
+    fallbackFeatureFlags:
+      ((data as any)?.feature_flags as Record<string, unknown> | undefined) ||
+      (((adminRuntime.summary as Record<string, unknown> | null)?.feature_flags as Record<string, unknown> | undefined) || null),
+    setError,
+    setAuth,
+    hasActiveAuth,
+    activeAuth,
+    patchUiPreferences: patchUiPreferences as any,
+    patchData
+  });
 
   const resolveTelemetryTabKey = (): string => (workspace === "admin" ? "admin" : tab);
   const resolveTelemetryRouteKey = (): string => buildRouteKey(workspace, resolveTelemetryTabKey());
