@@ -1,7 +1,8 @@
 import { useCallback } from "react";
-import type { WebAppApiResponse, WebAppAuth } from "../../types";
+import type { WebAppAuth } from "../../types";
 import { buildActionRequestId } from "../../api";
 import { UI_FUNNEL_KEY, UI_SURFACE_KEY } from "../../../core/telemetry/uiEventTaxonomy";
+import type { RunRetriableApiCall } from "../shared/useRetriableAction";
 
 type PvpSessionMachineLike = {
   session_ref?: string;
@@ -13,23 +14,6 @@ type PvpSessionMachineLike = {
 };
 
 type MutationRunner = (payload: Record<string, unknown>) => { unwrap: () => Promise<any> };
-
-type RunRetriableApiCall = (
-  runner: (attempt: number) => Promise<any>,
-  fallback: string,
-  options?: {
-    maxAttempts?: number;
-    baseDelayMs?: number;
-    telemetry?: {
-      panelKey?: string;
-      funnelKey?: string;
-      surfaceKey?: string;
-      economyEventKey?: string;
-      txState?: string;
-      actionKey?: string;
-    };
-  }
-) => Promise<WebAppApiResponse | null>;
 
 type PvpControllerOptions = {
   machine: PvpSessionMachineLike;
