@@ -45,6 +45,7 @@ import { TopBar } from "./features/shell/TopBar";
 import { TasksPanel } from "./features/tasks/TasksPanel";
 import { useTasksController } from "./features/tasks/useTasksController";
 import { VaultPanel } from "./features/vault/VaultPanel";
+import { useVaultController } from "./features/vault/useVaultController";
 import {
   useActionAcceptV2Mutation,
   useActionClaimMissionV2Mutation,
@@ -1338,310 +1339,42 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     claimMissionAction,
     tasksRerollAction
   });
-
-  const handleTokenQuote = async () => {
-    const payload = await runRetriableApiCall(
-      async () =>
-        loadTokenQuote({
-          auth: activeAuth,
-          usd: Number(quoteUsd || 0),
-          chain: quoteChain
-        }).unwrap(),
-      "token_quote_failed",
-      {
-        maxAttempts: 2,
-        baseDelayMs: 140,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.TOKEN_REVENUE,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.TOKEN_QUOTE,
-          actionKey: "token_quote",
-          txState: "quote"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    setVaultData((prev: any) => ({ ...prev, quote: payload.data || null }));
-  };
-
-  const handleTokenBuyIntent = async () => {
-    const actionRequestId = buildActionRequestId("buy");
-    const payload = await runRetriableApiCall(
-      async () =>
-        tokenBuyIntent({
-          auth: activeAuth,
-          usd_amount: Number(quoteUsd || 0),
-          chain: quoteChain,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "token_buy_intent_failed",
-      {
-        maxAttempts: 3,
-        baseDelayMs: 200,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.TOKEN_REVENUE,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.TOKEN_BUY_INTENT,
-          actionKey: "token_buy_intent",
-          txState: "intent"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    setVaultData((prev: any) => ({ ...prev, buy: payload.data || null }));
-    await refreshVault();
-  };
-
-  const handleTokenSubmitTx = async () => {
-    const actionRequestId = buildActionRequestId("submit");
-    const payload = await runRetriableApiCall(
-      async () =>
-        tokenSubmitTx({
-          auth: activeAuth,
-          request_id: Number(submitRequestId || 0),
-          tx_hash: submitTxHash,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "token_submit_failed",
-      {
-        maxAttempts: 3,
-        baseDelayMs: 220,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.TOKEN_REVENUE,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.TOKEN_SUBMIT_TX,
-          actionKey: "token_submit_tx",
-          txState: "submit"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    setVaultData((prev: any) => ({ ...prev, submit: payload.data || null }));
-    await refreshVault();
-  };
-
-  const handleWalletChallenge = async () => {
-    const chain = String(walletChain || "").trim().toUpperCase();
-    const address = String(walletAddress || "").trim();
-    if (!chain || !address) {
-      setError("wallet_input_missing");
-      return;
-    }
-    const payload = await runRetriableApiCall(
-      async () =>
-        walletChallenge({
-          auth: activeAuth,
-          chain,
-          address,
-          statement: "AirdropKralBot wallet link challenge"
-        }).unwrap(),
-      "wallet_challenge_failed",
-      {
-        maxAttempts: 2,
-        baseDelayMs: 180,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.VAULT_LOOP,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          actionKey: "wallet_challenge",
-          txState: "challenge"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    const challenge = (payloadData.challenge as Record<string, unknown> | undefined) || null;
-    const challengeRef = String((challenge?.challenge_ref as string | undefined) || "").trim();
-    if (challengeRef) {
-      setWalletChallengeRef(challengeRef);
-    }
-    setVaultData((prev: any) => ({
-      ...prev,
-      wallet_challenge: challenge
-    }));
-  };
-
-  const handleWalletVerify = async () => {
-    const chain = String(walletChain || "").trim().toUpperCase();
-    const address = String(walletAddress || "").trim();
-    const challengeRef = String(walletChallengeRef || "").trim();
-    const signature = String(walletSignature || "").trim();
-    if (!chain || !address || !challengeRef || !signature) {
-      setError("wallet_verify_input_missing");
-      return;
-    }
-    const payload = await runRetriableApiCall(
-      async () =>
-        walletVerify({
-          auth: activeAuth,
-          challenge_ref: challengeRef,
-          chain,
-          address,
-          signature
-        }).unwrap(),
-      "wallet_verify_failed",
-      {
-        maxAttempts: 2,
-        baseDelayMs: 180,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.VAULT_LOOP,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          actionKey: "wallet_verify",
-          txState: "verify"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    setVaultData((prev: any) => ({
-      ...prev,
-      wallet_verify: payloadData,
-      wallet: payloadData
-    }));
-    await refreshVault();
-  };
-
-  const handleWalletUnlink = async () => {
-    const chain = String(walletChain || "").trim().toUpperCase();
-    const address = String(walletAddress || "").trim();
-    const payload = await runRetriableApiCall(
-      async () =>
-        walletUnlink({
-          auth: activeAuth,
-          chain: chain || undefined,
-          address: address || undefined,
-          reason: "user_requested_unlink"
-        }).unwrap(),
-      "wallet_unlink_failed",
-      {
-        maxAttempts: 2,
-        baseDelayMs: 180,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.VAULT_LOOP,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          actionKey: "wallet_unlink",
-          txState: "unlink"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    setVaultData((prev: any) => ({
-      ...prev,
-      wallet_unlink: payloadData,
-      wallet: payloadData
-    }));
-    await refreshVault();
-  };
-
-  const handlePayoutRequest = async () => {
-    const currency = String(payoutCurrency || "BTC").trim().toUpperCase() || "BTC";
-    const payload = await runRetriableApiCall(
-      async () =>
-        payoutRequest({
-          auth: activeAuth,
-          currency
-        }).unwrap(),
-      "payout_request_failed",
-      {
-        maxAttempts: 3,
-        baseDelayMs: 200,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.VAULT_LOOP,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.PAYOUT_REQUEST,
-          actionKey: "payout_request",
-          txState: "request"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    setVaultData((prev: any) => ({
-      ...prev,
-      payout_request: payloadData,
-      payout: payloadData
-    }));
-    await refreshVault();
-  };
-
-  const handlePassPurchase = async (passKey: string, paymentCurrency?: string) => {
-    const safePassKey = String(passKey || "").trim();
-    if (!safePassKey) return;
-    const purchaseRef = buildActionRequestId("pass_purchase");
-    const payload = await runRetriableApiCall(
-      async () =>
-        monetizationPassPurchase({
-          auth: activeAuth,
-          pass_key: safePassKey,
-          payment_currency: paymentCurrency ? String(paymentCurrency).toUpperCase() : undefined,
-          purchase_ref: purchaseRef
-        }).unwrap(),
-      "pass_purchase_failed",
-      {
-        maxAttempts: 3,
-        baseDelayMs: 220,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.TOKEN_REVENUE,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.PASS_PURCHASE,
-          actionKey: "monetization_pass_purchase",
-          txState: "purchase"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    setVaultData((prev: any) => ({
-      ...prev,
-      pass_purchase: (payloadData.purchase as Record<string, unknown> | undefined) || null,
-      monetization: (payloadData.monetization as Record<string, unknown> | undefined) || prev?.monetization || null
-    }));
-    await refreshVault();
-  };
-
-  const handleCosmeticPurchase = async (itemKey: string, paymentCurrency?: string) => {
-    const safeItemKey = String(itemKey || "").trim();
-    if (!safeItemKey) return;
-    const purchaseRef = buildActionRequestId("cosmetic_purchase");
-    const payload = await runRetriableApiCall(
-      async () =>
-        monetizationCosmeticPurchase({
-          auth: activeAuth,
-          item_key: safeItemKey,
-          payment_currency: paymentCurrency ? String(paymentCurrency).toUpperCase() : undefined,
-          purchase_ref: purchaseRef
-        }).unwrap(),
-      "cosmetic_purchase_failed",
-      {
-        maxAttempts: 3,
-        baseDelayMs: 220,
-        telemetry: {
-          panelKey: UI_SURFACE_KEY.PANEL_VAULT,
-          funnelKey: UI_FUNNEL_KEY.TOKEN_REVENUE,
-          surfaceKey: UI_SURFACE_KEY.PANEL_VAULT,
-          economyEventKey: UI_ECONOMY_EVENT_KEY.COSMETIC_PURCHASE,
-          actionKey: "monetization_cosmetic_purchase",
-          txState: "purchase"
-        }
-      }
-    );
-    if (!payload?.success) return;
-    const payloadData = (payload.data as Record<string, unknown> | undefined) || {};
-    setVaultData((prev: any) => ({
-      ...prev,
-      cosmetic_purchase: (payloadData.purchase as Record<string, unknown> | undefined) || null,
-      monetization: (payloadData.monetization as Record<string, unknown> | undefined) || prev?.monetization || null
-    }));
-    await refreshVault();
-  };
+  const {
+    handleTokenQuote,
+    handleTokenBuyIntent,
+    handleTokenSubmitTx,
+    handleWalletChallenge,
+    handleWalletVerify,
+    handleWalletUnlink,
+    handlePayoutRequest,
+    handlePassPurchase,
+    handleCosmeticPurchase
+  } = useVaultController({
+    activeAuth,
+    quoteUsd,
+    quoteChain,
+    submitRequestId,
+    submitTxHash,
+    walletChain,
+    walletAddress,
+    walletChallengeRef,
+    walletSignature,
+    payoutCurrency,
+    runRetriableApiCall,
+    setError,
+    setVaultData,
+    setWalletChallengeRef,
+    refreshVault,
+    loadTokenQuote,
+    tokenBuyIntent,
+    tokenSubmitTx,
+    walletChallenge,
+    walletVerify,
+    walletUnlink,
+    payoutRequest,
+    monetizationPassPurchase,
+    monetizationCosmeticPurchase
+  });
 
   return (
     <div className={rootClassName}>
