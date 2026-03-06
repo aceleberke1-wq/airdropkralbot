@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  fetchTokenRouteStatusV2,
-  fetchTokenSummaryV2,
-} from "./api";
 import { buildPvpSessionMachine } from "../core/player/pvpSessionMachine";
 import { resolveAdminPanelVisibility } from "../core/admin/adminPanelSwitches";
 import {
@@ -42,6 +38,7 @@ import { useTaskMutationRunner } from "./features/tasks/useTaskMutationRunner";
 import { useTasksController } from "./features/tasks/useTasksController";
 import { VaultPanel } from "./features/vault/VaultPanel";
 import { useVaultController } from "./features/vault/useVaultController";
+import { useVaultRefreshController } from "./features/vault/useVaultRefreshController";
 import {
   useActionAcceptV2Mutation,
   useActionClaimMissionV2Mutation,
@@ -638,53 +635,17 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     setTaskResult,
     refreshBootstrap
   });
-
-  const refreshVault = async () => {
-    if (!hasActiveAuth) return;
-    trackUiEvent({
-      event_key: UI_EVENT_KEY.REFRESH_REQUEST,
-      panel_key: UI_SURFACE_KEY.PANEL_VAULT,
-      funnel_key: UI_FUNNEL_KEY.VAULT_LOOP,
-      surface_key: UI_SURFACE_KEY.PANEL_VAULT,
-      payload_json: { target: "vault_overview" }
-    });
-    const [overviewRefetch, summary, route, monetizationRefetch, walletRefetch, payoutRefetch] = await Promise.all([
-      vaultOverviewQuery.refetch().catch(() => null),
-      fetchTokenSummaryV2(activeAuth).catch(() => null),
-      fetchTokenRouteStatusV2(activeAuth).catch(() => null),
-      monetizationOverviewQuery.refetch().catch(() => null),
-      walletSessionQuery.refetch().catch(() => null),
-      payoutStatusQuery.refetch().catch(() => null)
-    ]);
-    const overview = (overviewRefetch?.data || null) as WebAppApiResponse | null;
-    const monetization = (monetizationRefetch?.data || null) as WebAppApiResponse | null;
-    const wallet = (walletRefetch?.data || null) as WebAppApiResponse | null;
-    const payout = (payoutRefetch?.data || null) as WebAppApiResponse | null;
-    applySession(summary);
-    setVaultData((prev: any) => ({
-      ...prev,
-      overview: overview?.data || null,
-      summary: summary?.data || null,
-      route: route?.data || null,
-      monetization: monetization?.data || null,
-      wallet: wallet?.data || null,
-      payout: payout?.data || null
-    }));
-    trackUiEvent({
-      event_key:
-        overview?.success || monetization?.success ? UI_EVENT_KEY.REFRESH_SUCCESS : UI_EVENT_KEY.REFRESH_FAILED,
-      panel_key: UI_SURFACE_KEY.PANEL_VAULT,
-      funnel_key: UI_FUNNEL_KEY.VAULT_LOOP,
-      surface_key: UI_SURFACE_KEY.PANEL_VAULT,
-      payload_json: {
-        target: "vault_overview",
-        overview_success: Boolean(overview?.success),
-        monetization_success: Boolean(monetization?.success),
-        wallet_success: Boolean(wallet?.success),
-        payout_success: Boolean(payout?.success)
-      }
-    });
-  };
+  const { refreshVault } = useVaultRefreshController({
+    hasActiveAuth,
+    activeAuth,
+    trackUiEvent,
+    applySession,
+    setVaultData,
+    vaultOverviewQuery,
+    monetizationOverviewQuery,
+    walletSessionQuery,
+    payoutStatusQuery
+  });
 
   const { runQueueAction, patchQueueAction } = useAdminQueueController({
     hasActiveAuth,
