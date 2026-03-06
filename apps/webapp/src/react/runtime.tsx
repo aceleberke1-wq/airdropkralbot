@@ -1,8 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { Provider } from "react-redux";
 import { fetchBootstrapV2, readWebAppAuth } from "./api";
 import { normalizeLang } from "./i18n";
 import { ReactWebAppV1 } from "./App";
+import { appStore } from "./redux/store";
 
 function ensureRootNode(): HTMLElement {
   const existing = document.getElementById("akr-react-root");
@@ -47,5 +49,9 @@ export async function mountReactWebAppV1(): Promise<void> {
     return;
   }
   const root = createRoot(ensureRootNode());
-  root.render(<ReactWebAppV1 auth={auth} bootstrap={payload} />);
+  root.render(
+    <Provider store={appStore}>
+      <ReactWebAppV1 auth={auth} bootstrap={payload} />
+    </Provider>
+  );
 }

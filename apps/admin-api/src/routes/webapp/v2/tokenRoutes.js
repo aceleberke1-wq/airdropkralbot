@@ -1,6 +1,11 @@
 "use strict";
 
 const { normalizeActionRequestId } = require("../shared/actionRequestGuard");
+const { normalizeV2Payload } = require("./shared/v2ResponseNormalizer");
+
+const TOKEN_V2_ERROR_MAP = Object.freeze({
+  duplicate_or_locked_request: "idempotency_conflict"
+});
 
 function requireDependency(deps, key, type = "function") {
   const value = deps[key];
@@ -11,34 +16,6 @@ function requireDependency(deps, key, type = "function") {
     throw new Error(`registerWebappV2TokenRoutes requires ${key}`);
   }
   return value;
-}
-
-function normalizeTokenV2Error(rawError) {
-  const key = String(rawError || "").trim();
-  if (!key) {
-    return key;
-  }
-  const map = {
-    duplicate_or_locked_request: "idempotency_conflict"
-  };
-  return map[key] || key;
-}
-
-function normalizeTokenV2Payload(payload, actionRequestId = "") {
-  if (!payload || typeof payload !== "object") {
-    return payload;
-  }
-  if (!payload.data || typeof payload.data !== "object") {
-    payload.data = {};
-  }
-  payload.data.api_version = "v2";
-  if (actionRequestId) {
-    payload.data.action_request_id = actionRequestId;
-  }
-  if (payload.success === false && payload.error) {
-    payload.error = normalizeTokenV2Error(payload.error);
-  }
-  return payload;
 }
 
 function resolveActionRequestId(body) {
@@ -56,7 +33,7 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
     await proxyWebAppApiV1(request, reply, {
       targetPath: "/webapp/api/token/summary",
       method: "GET",
-      transform: (payload) => normalizeTokenV2Payload(payload)
+      transform: (payload) => normalizeV2Payload(payload, { errorMap: TOKEN_V2_ERROR_MAP })
     });
   });
 
@@ -64,7 +41,7 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
     await proxyWebAppApiV1(request, reply, {
       targetPath: "/webapp/api/token/quote",
       method: "GET",
-      transform: (payload) => normalizeTokenV2Payload(payload)
+      transform: (payload) => normalizeV2Payload(payload, { errorMap: TOKEN_V2_ERROR_MAP })
     });
   });
 
@@ -100,7 +77,8 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/token/mint",
         method: "POST",
-        transform: (payload) => normalizeTokenV2Payload(payload, actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId, errorMap: TOKEN_V2_ERROR_MAP })
       });
     }
   );
@@ -138,7 +116,8 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/token/buy_intent",
         method: "POST",
-        transform: (payload) => normalizeTokenV2Payload(payload, actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId, errorMap: TOKEN_V2_ERROR_MAP })
       });
     }
   );
@@ -174,7 +153,8 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/token/submit_tx",
         method: "POST",
-        transform: (payload) => normalizeTokenV2Payload(payload, actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId, errorMap: TOKEN_V2_ERROR_MAP })
       });
     }
   );
@@ -183,7 +163,7 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
     await proxyWebAppApiV1(request, reply, {
       targetPath: "/webapp/api/token/route/status",
       method: "GET",
-      transform: (payload) => normalizeTokenV2Payload(payload)
+      transform: (payload) => normalizeV2Payload(payload, { errorMap: TOKEN_V2_ERROR_MAP })
     });
   });
 
@@ -205,7 +185,7 @@ function registerWebappV2TokenRoutes(fastify, deps = {}) {
     await proxyWebAppApiV1(request, reply, {
       targetPath: "/webapp/api/token/decision/traces",
       method: "GET",
-      transform: (payload) => normalizeTokenV2Payload(payload)
+      transform: (payload) => normalizeV2Payload(payload, { errorMap: TOKEN_V2_ERROR_MAP })
     });
   });
 }

@@ -274,6 +274,95 @@ const TokenSubmitTxRequestV2Schema = WebAppAuthEnvelopeSchema.extend({
   action_request_id: z.string().min(6).max(120)
 });
 
+const PlayerActionResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    action_request_id: z.string().min(6).max(120).optional(),
+    snapshot: z.record(z.any()).optional()
+  })
+  .passthrough();
+
+const PvpMutationResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    action_request_id: z.string().min(6).max(120).optional(),
+    session: z.record(z.any()).nullable().optional()
+  })
+  .passthrough();
+
+const PvpSessionStateResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    session: z.record(z.any()).nullable().optional()
+  })
+  .passthrough();
+
+const PvpLiveResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2")
+  })
+  .passthrough();
+
+const TokenQueryResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2")
+  })
+  .passthrough();
+
+const TokenActionResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    action_request_id: z.string().min(6).max(120).optional()
+  })
+  .passthrough();
+
+const WalletSessionStateV2Schema = z
+  .object({
+    enabled: z.boolean().optional(),
+    verify_mode: z.string().optional(),
+    active: z.boolean().optional(),
+    chain: z.string().optional(),
+    address: z.string().optional(),
+    address_masked: z.string().optional(),
+    linked_at: z.string().nullable().optional(),
+    expires_at: z.string().nullable().optional(),
+    session_ref: z.string().optional(),
+    kyc_status: z.string().optional()
+  })
+  .passthrough();
+
+const WalletSessionResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    wallet_capabilities: z.record(z.any()).default({}),
+    wallet_session: WalletSessionStateV2Schema.default({}),
+    links: z.array(z.record(z.any())).default([]),
+    kyc_status: z.record(z.any()).default({})
+  })
+  .passthrough();
+
+const PayoutStatusResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    currency: z.string().optional(),
+    can_request: z.boolean().optional(),
+    unlock_tier: z.string().optional(),
+    unlock_progress: z.number().optional(),
+    requestable_btc: z.number().optional(),
+    entitled_btc: z.number().optional(),
+    latest_request_id: z.number().optional(),
+    latest_status: z.string().optional(),
+    payout_gate: z.record(z.any()).optional(),
+    payout_release: z.record(z.any()).optional()
+  })
+  .passthrough();
+
+const PayoutMutationResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2")
+  })
+  .passthrough();
+
 const UiPreferencesSchema = z.object({
   ui_mode: z.string().default("hardcore"),
   quality_mode: z.string().default("auto"),
@@ -306,6 +395,120 @@ const UiPreferencesResponseV2Schema = z.object({
   ui_preferences: UiPreferencesSchema
 });
 
+const UiEventSchema = z.object({
+  event_key: z.string().min(2).max(80),
+  tab_key: z.string().min(1).max(40).default("home"),
+  panel_key: z.string().min(1).max(64).default("default"),
+  route_key: z.string().max(80).default(""),
+  funnel_key: z.string().max(64).default(""),
+  surface_key: z.string().max(64).default(""),
+  economy_event_key: z.string().max(80).default(""),
+  tx_state: z.string().max(32).default(""),
+  event_value: z.number().default(0),
+  value_usd: z.number().min(0).default(0),
+  payload_json: z.record(z.any()).default({}),
+  client_ts: z.string().default(""),
+  variant_key: z.string().max(24).default("control"),
+  experiment_key: z.string().max(80).default("webapp_react_v1"),
+  cohort_bucket: z.number().int().min(0).max(99).default(0)
+});
+
+const HomeFeedV2Schema = z.object({
+  api_version: z.literal("v2"),
+  generated_at: z.string(),
+  profile: z.record(z.any()).default({}),
+  season: z.record(z.any()).default({}),
+  daily: z.record(z.any()).default({}),
+  contract: z.record(z.any()).default({}),
+  risk: z.record(z.any()).default({}),
+  mission: z.record(z.any()).default({}),
+  wallet_quick: z.record(z.any()).default({}),
+  monetization_quick: z.record(z.any()).default({}),
+  command_hint: z.array(z.record(z.any())).default([])
+});
+
+const PvpLeagueOverviewV2Schema = z.object({
+  api_version: z.literal("v2"),
+  generated_at: z.string(),
+  daily_duel: z.record(z.any()).default({}),
+  weekly_ladder: z.record(z.any()).default({}),
+  season_arc_boss: z.record(z.any()).default({}),
+  leaderboard_snippet: z.array(z.record(z.any())).default([]),
+  last_session_trend: z.array(z.record(z.any())).default([]),
+  session_snapshot: z.record(z.any()).default({})
+});
+
+const VaultOverviewV2Schema = z.object({
+  api_version: z.literal("v2"),
+  generated_at: z.string(),
+  token_summary: z.record(z.any()).default({}),
+  route_status: z.record(z.any()).default({}),
+  payout_status: z.record(z.any()).default({}),
+  wallet_session: z.record(z.any()).default({}),
+  monetization_status: z.record(z.any()).default({})
+});
+
+const MonetizationOverviewV2Schema = z.object({
+  api_version: z.literal("v2"),
+  generated_at: z.string(),
+  catalog: z.record(z.any()).default({}),
+  status: z.record(z.any()).default({}),
+  active_effects: z.record(z.any()).default({})
+});
+
+const MonetizationPurchaseResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    purchase: z.record(z.any()).optional(),
+    balances: z.record(z.any()).optional(),
+    monetization: z.record(z.any()).optional()
+  })
+  .passthrough();
+
+const AdminMonetizationFeeEventResponseV2Schema = z
+  .object({
+    api_version: z.literal("v2"),
+    event: z
+      .object({
+        event_ref: z.string().min(1),
+        user_id: z.number().int().positive(),
+        fee_kind: z.string().min(1),
+        gross_amount: z.number().min(0),
+        fee_amount: z.number().min(0),
+        fee_currency: z.string().min(2).max(8),
+        created_at: z.string().min(1)
+      })
+      .passthrough()
+  })
+  .passthrough();
+
+const DynamicAutoPolicySegmentSchema = z.object({
+  token_symbol: z.string().default("NXT"),
+  segment_key: z.string().min(3).max(64),
+  priority: z.number().int().min(1).max(999).default(100),
+  max_auto_usd: z.number().min(0.5).default(10),
+  risk_threshold: z.number().min(0).max(1).default(0.35),
+  velocity_per_hour: z.number().int().min(1).default(8),
+  require_onchain_verified: z.boolean().default(true),
+  require_kyc_status: z.string().default(""),
+  enabled: z.boolean().default(true),
+  degrade_factor: z.number().min(0.3).max(1).default(1),
+  meta_json: z.record(z.any()).default({}),
+  updated_by: z.number().int().default(0),
+  updated_at: z.string().nullable().default(null)
+});
+
+const DynamicAutoPolicySchema = z.object({
+  api_version: z.literal("v2"),
+  token_symbol: z.string().default("NXT"),
+  base_policy: z.record(z.any()).default({}),
+  anomaly_state: z.record(z.any()).default({}),
+  segments: z.array(DynamicAutoPolicySegmentSchema).default([]),
+  preview: z.record(z.any()).nullable().default(null),
+  generated_at: z.string().optional(),
+  updated_at: z.string().optional()
+});
+
 module.exports = {
   AdminQueueActionPayloadV2Schema,
   BootstrapV2DataSchema,
@@ -324,17 +527,36 @@ module.exports = {
   PlayerActionClaimMissionRequestV2Schema,
   PlayerActionCompleteRequestV2Schema,
   PlayerActionRevealRequestV2Schema,
+  PlayerActionResponseV2Schema,
+  DynamicAutoPolicySchema,
+  DynamicAutoPolicySegmentSchema,
+  HomeFeedV2Schema,
+  AdminMonetizationFeeEventResponseV2Schema,
+  MonetizationOverviewV2Schema,
+  MonetizationPurchaseResponseV2Schema,
+  PvpLeagueOverviewV2Schema,
+  PvpLiveResponseV2Schema,
+  PvpMutationResponseV2Schema,
+  PvpSessionStateResponseV2Schema,
   PvpSessionActionRequestV2Schema,
   PvpSessionResolveRequestV2Schema,
   PvpSessionStartRequestV2Schema,
   RuntimeFlagsEffectiveSchema,
   TokenBuyIntentRequestV2Schema,
+  TokenActionResponseV2Schema,
   TokenMintRequestV2Schema,
+  TokenQueryResponseV2Schema,
   TokenSubmitTxRequestV2Schema,
+  WalletSessionResponseV2Schema,
+  WalletSessionStateV2Schema,
+  PayoutStatusResponseV2Schema,
+  PayoutMutationResponseV2Schema,
+  UiEventSchema,
   UiPreferencesResponseV2Schema,
   UiPreferencesSchema,
   UiEventBatchAnalyticsConfigSchema,
   UnifiedAdminQueueItemSchema,
+  VaultOverviewV2Schema,
   WebAppActionMutationRequestV2Schema,
   WebAppAuthEnvelopeSchema,
   WalletCapabilitiesSchema

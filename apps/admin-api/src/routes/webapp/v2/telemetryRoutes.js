@@ -94,6 +94,11 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
             tab_key: { type: "string", maxLength: 40 },
             panel_key: { type: "string", maxLength: 64 },
             route_key: { type: "string", maxLength: 80 },
+            funnel_key: { type: "string", maxLength: 64 },
+            surface_key: { type: "string", maxLength: 64 },
+            economy_event_key: { type: "string", maxLength: 80 },
+            value_usd: { type: "number", minimum: 0 },
+            tx_state: { type: "string", maxLength: 32 },
             variant_key: { type: "string", maxLength: 24 },
             experiment_key: { type: "string", maxLength: 80 },
             cohort_bucket: { type: "integer", minimum: 0, maximum: 99 },
@@ -109,6 +114,11 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
                   tab_key: { type: "string", maxLength: 40 },
                   panel_key: { type: "string", maxLength: 64 },
                   route_key: { type: "string", maxLength: 80 },
+                  funnel_key: { type: "string", maxLength: 64 },
+                  surface_key: { type: "string", maxLength: 64 },
+                  economy_event_key: { type: "string", maxLength: 80 },
+                  value_usd: { type: "number", minimum: 0 },
+                  tx_state: { type: "string", maxLength: 32 },
                   event_value: { type: "number" },
                   payload_json: { type: "object" },
                   client_ts: { anyOf: [{ type: "string" }, { type: "number" }] },
@@ -156,6 +166,11 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
         tab_key: String(request.body.tab_key || "home"),
         panel_key: String(request.body.panel_key || "default"),
         route_key: String(request.body.route_key || ""),
+        funnel_key: String(request.body.funnel_key || ""),
+        surface_key: String(request.body.surface_key || ""),
+        economy_event_key: String(request.body.economy_event_key || ""),
+        value_usd: Number(request.body.value_usd || 0),
+        tx_state: String(request.body.tx_state || ""),
         variant_key: String(request.body.variant_key || DEFAULT_VARIANT_CONTROL),
         experiment_key: String(request.body.experiment_key || DEFAULT_EXPERIMENT_KEY),
         cohort_bucket: Number(request.body.cohort_bucket || 0)
@@ -213,6 +228,11 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
                language,
                payload_json,
                route_key,
+               funnel_key,
+               surface_key,
+               economy_event_key,
+               value_usd,
+               tx_state,
                variant_key,
                experiment_key,
                cohort_bucket,
@@ -222,7 +242,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
                event_seq
              )
              VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15::timestamptz, $16
+              $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::timestamptz, $21
              );`,
             [
               Number(auth.uid || 0),
@@ -234,6 +254,11 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
               language,
               JSON.stringify(event.payload_json || {}),
               String(event.route_key || ""),
+              String(event.funnel_key || ""),
+              String(event.surface_key || ""),
+              String(event.economy_event_key || ""),
+              Number(event.value_usd || 0),
+              String(event.tx_state || ""),
               String(event.variant_key || DEFAULT_VARIANT_CONTROL),
               String(event.experiment_key || DEFAULT_EXPERIMENT_KEY),
               Math.max(0, Math.min(99, Number(event.cohort_bucket || 0))),

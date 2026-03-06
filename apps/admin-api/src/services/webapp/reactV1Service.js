@@ -233,6 +233,22 @@ function isSafeEventKey(value) {
   return /^[a-z0-9:_-]{2,80}$/.test(clean);
 }
 
+function normalizeEventDimension(value, maxLen = 80) {
+  const clean = toSafeText(value, maxLen, "").toLowerCase();
+  if (!clean) {
+    return "";
+  }
+  return /^[a-z0-9:_-]{2,80}$/.test(clean) ? clean : "";
+}
+
+function normalizeTxState(value) {
+  const clean = toSafeText(value, 32, "").toLowerCase();
+  if (!clean) {
+    return "";
+  }
+  return /^[a-z0-9:_-]{2,32}$/.test(clean) ? clean : "";
+}
+
 function normalizeUiEvent(rawEvent, defaults = {}) {
   const raw = rawEvent && typeof rawEvent === "object" ? rawEvent : null;
   if (!raw) {
@@ -251,6 +267,10 @@ function normalizeUiEvent(rawEvent, defaults = {}) {
     80,
     DEFAULT_EXPERIMENT_KEY
   ).toLowerCase();
+  const funnelKey = normalizeEventDimension(raw.funnel_key || defaults.funnel_key || "", 64);
+  const surfaceKey = normalizeEventDimension(raw.surface_key || defaults.surface_key || "", 64);
+  const economyEventKey = normalizeEventDimension(raw.economy_event_key || defaults.economy_event_key || "", 80);
+  const txState = normalizeTxState(raw.tx_state || defaults.tx_state || "");
   const payloadJson = raw.payload_json && typeof raw.payload_json === "object" ? raw.payload_json : {};
   const payloadText = JSON.stringify(payloadJson);
   if (Buffer.byteLength(payloadText, "utf8") > 4096) {
@@ -258,6 +278,7 @@ function normalizeUiEvent(rawEvent, defaults = {}) {
   }
   const cohortBucket = clampInt(raw.cohort_bucket ?? defaults.cohort_bucket, 0, 99, 0);
   const eventValue = toEventValue(raw.event_value);
+  const valueUsd = Math.max(0, toEventValue(raw.value_usd));
   const clientTsIso = toIsoOrNull(raw.client_ts) || toIsoOrNull(raw.client_at) || new Date().toISOString();
 
   return {
@@ -265,6 +286,11 @@ function normalizeUiEvent(rawEvent, defaults = {}) {
     tab_key: tabKey,
     panel_key: panelKey,
     route_key: routeKey,
+    funnel_key: funnelKey,
+    surface_key: surfaceKey,
+    economy_event_key: economyEventKey,
+    value_usd: valueUsd,
+    tx_state: txState,
     variant_key: variantKey,
     experiment_key: experimentKey,
     cohort_bucket: cohortBucket,

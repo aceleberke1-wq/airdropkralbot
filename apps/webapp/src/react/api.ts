@@ -8,6 +8,13 @@ export {
   postRevealActionV2,
   postTasksRerollV2
 } from "./api/playerApi";
+export { fetchHomeFeedV2 } from "./api/homeApi";
+export {
+  fetchPvpDiagnosticsLiveV2,
+  fetchPvpLeaderboardLiveV2,
+  fetchPvpLeagueOverviewV2,
+  fetchPvpMatchTickV2
+} from "./api/leagueApi";
 export {
   applyPvpSessionActionV2,
   fetchPvpSessionStateV2,
@@ -15,6 +22,7 @@ export {
   startPvpSessionV2
 } from "./api/pvpApi";
 export {
+  fetchVaultOverviewV2,
   fetchTokenDecisionTracesV2,
   fetchTokenQuoteV2,
   fetchTokenRouteStatusV2,
@@ -23,6 +31,20 @@ export {
   postTokenMintV2,
   postTokenSubmitTxV2
 } from "./api/vaultApi";
+export {
+  fetchWalletSessionV2,
+  postWalletChallengeV2,
+  postWalletUnlinkV2,
+  postWalletVerifyV2
+} from "./api/walletApi";
+export { fetchPayoutStatusV2, postPayoutRequestV2 } from "./api/payoutApi";
+export {
+  fetchMonetizationCatalogV2,
+  fetchMonetizationOverviewV2,
+  fetchMonetizationStatusV2,
+  postCosmeticPurchaseV2,
+  postPassPurchaseV2
+} from "./api/monetizationApi";
 export {
   fetchAdminAssetsStatusV2,
   fetchAdminAuditDataIntegrityV2,
@@ -38,6 +60,7 @@ export {
   postAdminRuntimeBotReconcileV2,
   postAdminRuntimeFlagsV2
 } from "./api/adminApi";
+export { fetchAdminDynamicAutoPolicyV2, postAdminDynamicAutoPolicyV2 } from "./api/adminPolicyApi";
 export { fetchUiPreferencesV2, postUiPreferencesV2 } from "./api/prefsApi";
 export { postUiEventsBatch } from "./api/telemetryApi";
 

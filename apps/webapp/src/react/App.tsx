@@ -43,6 +43,7 @@ import { PlayerTabs } from "./features/shell/PlayerTabs";
 import { ShellStatus } from "./features/shell/ShellStatus";
 import { TopBar } from "./features/shell/TopBar";
 import { TasksPanel } from "./features/tasks/TasksPanel";
+import { useTasksController } from "./features/tasks/useTasksController";
 import { VaultPanel } from "./features/vault/VaultPanel";
 import {
   useActionAcceptV2Mutation,
@@ -1322,99 +1323,21 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     pvpSessionResolve,
     loadPvpSessionState
   });
-
-  const handleTasksReroll = async () => {
-    const actionRequestId = buildActionRequestId("reroll");
-    await runMutation(
-      async () =>
-        tasksRerollAction({
-          auth: activeAuth,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "tasks_reroll_failed",
-      {
-        panelKey: UI_SURFACE_KEY.PANEL_TASKS,
-        funnelKey: UI_FUNNEL_KEY.TASKS_LOOP,
-        surfaceKey: UI_SURFACE_KEY.PANEL_TASKS,
-        actionKey: "tasks_reroll"
-      }
-    );
-  };
-
-  const handleTaskComplete = async () => {
-    const actionRequestId = buildActionRequestId("complete");
-    await runMutation(
-      async () =>
-        completeAction({
-          auth: activeAuth,
-          mode: "balanced",
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "task_complete_failed",
-      {
-        panelKey: UI_SURFACE_KEY.PANEL_TASKS,
-        funnelKey: UI_FUNNEL_KEY.TASKS_LOOP,
-        surfaceKey: UI_SURFACE_KEY.PANEL_TASKS,
-        actionKey: "tasks_complete"
-      }
-    );
-  };
-
-  const handleTaskReveal = async () => {
-    const actionRequestId = buildActionRequestId("reveal");
-    await runMutation(
-      async () =>
-        revealAction({
-          auth: activeAuth,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "task_reveal_failed",
-      {
-        panelKey: UI_SURFACE_KEY.PANEL_TASKS,
-        funnelKey: UI_FUNNEL_KEY.TASKS_LOOP,
-        surfaceKey: UI_SURFACE_KEY.PANEL_TASKS,
-        actionKey: "tasks_reveal"
-      }
-    );
-  };
-
-  const handleTaskAccept = async (offerId: number) => {
-    const actionRequestId = buildActionRequestId("accept");
-    await runMutation(
-      async () =>
-        acceptAction({
-          auth: activeAuth,
-          offer_id: offerId,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "task_accept_failed",
-      {
-        panelKey: UI_SURFACE_KEY.PANEL_TASKS,
-        funnelKey: UI_FUNNEL_KEY.TASKS_LOOP,
-        surfaceKey: UI_SURFACE_KEY.PANEL_TASKS,
-        actionKey: "tasks_accept_offer"
-      }
-    );
-  };
-
-  const handleMissionClaim = async (missionKey: string) => {
-    const actionRequestId = buildActionRequestId("claim");
-    await runMutation(
-      async () =>
-        claimMissionAction({
-          auth: activeAuth,
-          mission_key: missionKey,
-          action_request_id: actionRequestId
-        }).unwrap(),
-      "mission_claim_failed",
-      {
-        panelKey: UI_SURFACE_KEY.PANEL_TASKS,
-        funnelKey: UI_FUNNEL_KEY.TASKS_LOOP,
-        surfaceKey: UI_SURFACE_KEY.PANEL_TASKS,
-        actionKey: "tasks_claim_mission"
-      }
-    );
-  };
+  const {
+    handleTasksReroll,
+    handleTaskComplete,
+    handleTaskReveal,
+    handleTaskAccept,
+    handleMissionClaim
+  } = useTasksController({
+    activeAuth,
+    runMutation,
+    acceptAction,
+    completeAction,
+    revealAction,
+    claimMissionAction,
+    tasksRerollAction
+  });
 
   const handleTokenQuote = async () => {
     const payload = await runRetriableApiCall(

@@ -1,6 +1,11 @@
 "use strict";
 
 const { normalizeActionRequestId } = require("../shared/actionRequestGuard");
+const { normalizeV2Payload } = require("./shared/v2ResponseNormalizer");
+
+const PLAYER_V2_ERROR_MAP = Object.freeze({
+  duplicate_or_locked_request: "idempotency_conflict"
+});
 
 function requireProxy(deps) {
   const proxyWebAppApiV1 = deps.proxyWebAppApiV1;
@@ -8,34 +13,6 @@ function requireProxy(deps) {
     throw new Error("registerWebappV2PlayerRoutes requires proxyWebAppApiV1");
   }
   return proxyWebAppApiV1;
-}
-
-function normalizePlayerV2Error(rawError) {
-  const key = String(rawError || "").trim();
-  if (!key) {
-    return key;
-  }
-  const map = {
-    duplicate_or_locked_request: "idempotency_conflict"
-  };
-  return map[key] || key;
-}
-
-function normalizePlayerV2Payload(payload, actionRequestId = "") {
-  if (!payload || typeof payload !== "object") {
-    return payload;
-  }
-  if (!payload.data || typeof payload.data !== "object") {
-    payload.data = {};
-  }
-  payload.data.api_version = "v2";
-  if (actionRequestId) {
-    payload.data.action_request_id = actionRequestId;
-  }
-  if (payload.success === false && payload.error) {
-    payload.error = normalizePlayerV2Error(payload.error);
-  }
-  return payload;
 }
 
 function resolveActionRequestId(body) {
@@ -91,7 +68,8 @@ function registerWebappV2PlayerRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/actions/accept",
         method: "POST",
-        transform: (payload) => normalizePlayerV2Payload(payload, action.actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId: action.actionRequestId, errorMap: PLAYER_V2_ERROR_MAP })
       });
     }
   );
@@ -125,7 +103,8 @@ function registerWebappV2PlayerRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/actions/complete",
         method: "POST",
-        transform: (payload) => normalizePlayerV2Payload(payload, action.actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId: action.actionRequestId, errorMap: PLAYER_V2_ERROR_MAP })
       });
     }
   );
@@ -158,7 +137,8 @@ function registerWebappV2PlayerRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/actions/reveal",
         method: "POST",
-        transform: (payload) => normalizePlayerV2Payload(payload, action.actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId: action.actionRequestId, errorMap: PLAYER_V2_ERROR_MAP })
       });
     }
   );
@@ -191,7 +171,8 @@ function registerWebappV2PlayerRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/actions/claim_mission",
         method: "POST",
-        transform: (payload) => normalizePlayerV2Payload(payload, action.actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId: action.actionRequestId, errorMap: PLAYER_V2_ERROR_MAP })
       });
     }
   );
@@ -223,7 +204,8 @@ function registerWebappV2PlayerRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/tasks/reroll",
         method: "POST",
-        transform: (payload) => normalizePlayerV2Payload(payload, action.actionRequestId)
+        transform: (payload) =>
+          normalizeV2Payload(payload, { actionRequestId: action.actionRequestId, errorMap: PLAYER_V2_ERROR_MAP })
       });
     }
   );

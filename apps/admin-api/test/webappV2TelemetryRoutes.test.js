@@ -79,8 +79,13 @@ test("webapp v2 telemetry route accepts valid events and reports rejected count"
       session_ref: "sess_abc",
       variant_key: "treatment",
       experiment_key: "webapp_react_v1",
+      funnel_key: "vault_intent",
+      surface_key: "vault_panel",
+      economy_event_key: "token_intent",
+      value_usd: 12.5,
+      tx_state: "intent",
       events: [
-        { event_key: "tab_open", tab_key: "home", panel_key: "hero", event_value: 1 },
+        { event_key: "tab_open", tab_key: "home", panel_key: "hero", event_value: 1, value_usd: 12.5 },
         { event_key: "invalid key with spaces" }
       ]
     }
@@ -91,6 +96,11 @@ test("webapp v2 telemetry route accepts valid events and reports rejected count"
   assert.equal(body.data.accepted_count, 1);
   assert.equal(body.data.rejected_count, 1);
   assert.equal(inserts.length, 1);
+  assert.equal(String(inserts[0][9] || ""), "vault_intent");
+  assert.equal(String(inserts[0][10] || ""), "vault_panel");
+  assert.equal(String(inserts[0][11] || ""), "token_intent");
+  assert.equal(Number(inserts[0][12] || 0), 12.5);
+  assert.equal(String(inserts[0][13] || ""), "intent");
   await app.close();
 });
 
@@ -112,5 +122,46 @@ test("webapp v2 telemetry route returns idempotency conflict on duplicate key", 
   const body = res.json();
   assert.equal(body.success, false);
   assert.equal(body.error, "idempotency_conflict");
+  await app.close();
+});
+
+test("webapp v2 telemetry route enforces per-user batch rate limit", async () => {
+  const uid = "55555";
+  const { app } = await createHarness({ auth: { ok: true, uid: Number(uid) } });
+  const eightyEvents = Array.from({ length: 80 }, (_, idx) => ({
+    event_key: "tab_open",
+    panel_key: "hero",
+    tab_key: "home",
+    client_ts: `2026-03-05T00:00:${String(idx).padStart(2, "0")}.000Z`
+  }));
+
+  const requestPayload = {
+    uid,
+    ts: "1",
+    sig: "ok",
+    session_ref: "sess_rate",
+    events: eightyEvents
+  };
+
+  const first = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/telemetry/ui-events/batch",
+    payload: requestPayload
+  });
+  const second = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/telemetry/ui-events/batch",
+    payload: requestPayload
+  });
+  const third = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/telemetry/ui-events/batch",
+    payload: requestPayload
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(third.statusCode, 429);
+  assert.equal(third.json().error, "ui_events_rate_limited");
   await app.close();
 });

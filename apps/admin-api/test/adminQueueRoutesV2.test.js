@@ -65,6 +65,56 @@ test("v2 queue action rejects payload without action_request_id", async () => {
   await app.close();
 });
 
+test("v2 unified queue wrapper normalizes item envelope and keeps v2 api marker", async () => {
+  const app = Fastify();
+  let hitPath = "";
+  registerWebappV2AdminQueueRoutes(
+    app,
+    buildDeps({
+      proxyWebAppApiV1: async (_request, reply, options = {}) => {
+        hitPath = String(options.targetPath || "");
+        const payload = options.transform
+          ? options.transform({
+              success: true,
+              data: {
+                items: [
+                  {
+                    kind: "payout_request",
+                    request_id: 99,
+                    status: "queued",
+                    action_policy: {
+                      payout_pay: {
+                        allowed: true,
+                        confirmation_required: true,
+                        cooldown_ms: 8000
+                      }
+                    }
+                  }
+                ]
+              }
+            })
+          : { success: true, data: {} };
+        reply.send(payload);
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "GET",
+    url: "/webapp/api/v2/admin/queue/unified?uid=7001&ts=1&sig=sig"
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(hitPath, "/webapp/api/admin/queue/unified");
+  const payload = JSON.parse(res.payload);
+  assert.equal(payload.success, true);
+  assert.equal(payload.data.api_version, "v2");
+  assert.ok(Array.isArray(payload.data.items));
+  assert.equal(payload.data.items.length, 1);
+  assert.equal(payload.data.items[0].request_id, 99);
+  assert.equal(payload.data.items[0].action_policy.payout_pay.confirmation_required, true);
+  await app.close();
+});
+
 test("v2 queue action includes action_request_id in idempotency context and response", async () => {
   const buildCalls = [];
   const app = Fastify();

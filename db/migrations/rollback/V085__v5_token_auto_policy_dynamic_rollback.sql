@@ -1,0 +1,8 @@
+DROP INDEX IF EXISTS idx_v5_token_auto_policy_dynamic_audit_actor_time;
+DROP INDEX IF EXISTS idx_v5_token_auto_policy_dynamic_audit_token_time;
+DROP TABLE IF EXISTS v5_token_auto_policy_dynamic_audit;
+
+DROP INDEX IF EXISTS idx_v5_token_auto_policy_dynamic_enabled;
+DROP INDEX IF EXISTS idx_v5_token_auto_policy_dynamic_priority;
+DROP TABLE IF EXISTS v5_token_auto_policy_dynamic;
+

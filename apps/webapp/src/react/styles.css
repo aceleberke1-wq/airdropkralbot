@@ -32,6 +32,19 @@ body {
   position: relative;
 }
 
+.akrReactRoot.isLargeText {
+  font-size: 1.08rem;
+}
+
+.akrReactRoot.isReducedMotion *,
+.akrReactRoot.isReducedMotion *::before,
+.akrReactRoot.isReducedMotion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 .akrBgAura {
   position: fixed;
   inset: -12vmax;
@@ -203,6 +216,20 @@ body {
   gap: 12px;
 }
 
+.akrMiniPanel {
+  margin-top: 12px;
+  border: 1px solid rgba(104, 173, 212, 0.28);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(7, 23, 46, 0.74);
+}
+
+.akrMiniPanel h4 {
+  margin: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.03em;
+}
+
 .akrValue {
   margin: 8px 0 0;
   font-size: 1.2rem;
@@ -231,6 +258,21 @@ body {
   padding: 9px 10px;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.72rem;
+}
+
+.akrTextarea {
+  width: 100%;
+  min-height: 180px;
+  margin-top: 10px;
+  border: 1px solid rgba(117, 171, 202, 0.36);
+  background: rgba(7, 23, 46, 0.88);
+  color: #e6f4ff;
+  border-radius: 10px;
+  padding: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  resize: vertical;
 }
 
 .akrJsonBlock {

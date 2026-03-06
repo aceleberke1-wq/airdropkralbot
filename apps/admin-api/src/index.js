@@ -44,6 +44,9 @@ const { registerWebappV2PvpRoutes } = require("./routes/webapp/v2/pvpRoutes");
 const { registerWebappV2TokenRoutes } = require("./routes/webapp/v2/tokenRoutes");
 const { registerWebappV2AdminRuntimeRoutes } = require("./routes/webapp/v2/adminRuntimeRoutes");
 const { registerWebappV2UiPrefsRoutes } = require("./routes/webapp/v2/uiPrefsRoutes");
+const { registerWebappV2GrowthRoutes } = require("./routes/webapp/v2/growthRoutes");
+const { registerWebappV2MonetizationRoutes } = require("./routes/webapp/v2/monetizationRoutes");
+const { registerWebappV2AdminTokenDynamicPolicyRoutes } = require("./routes/webapp/v2/adminTokenDynamicPolicyRoutes");
 const { registerWebappAdminPayoutReleaseRoutes } = require("./routes/webapp/admin/payoutReleaseRoutes");
 const { registerWebappAdminFreezeRoutes } = require("./routes/webapp/admin/freezeRoutes");
 const { registerWebappAdminTokenRoutes } = require("./routes/webapp/admin/tokenAdminRoutes");
@@ -60,6 +63,8 @@ const {
   DEFAULT_VARIANT_CONTROL,
   resolveExperimentAssignment
 } = require("./services/webapp/reactV1Service");
+const { resolveDynamicAutoPolicyDecision } = require("./services/webapp/dynamicAutoPolicyService");
+const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichmentService");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -4096,7 +4101,22 @@ async function buildAdminMetrics(db) {
     risk_low_count: 0,
     sc_today: 0,
     hc_today: 0,
-    rc_today: 0
+    rc_today: 0,
+    ui_events_ingested_24h: 0,
+    ui_events_valid_24h: 0,
+    ui_events_with_funnel_24h: 0,
+    ui_events_value_usd_24h: 0,
+    ui_event_quality_score_24h: 0,
+    ui_event_quality_band_24h: "red",
+    funnel_intent_24h: 0,
+    funnel_tx_submit_24h: 0,
+    funnel_approved_24h: 0,
+    funnel_pass_purchase_24h: 0,
+    funnel_cosmetic_purchase_24h: 0,
+    funnel_value_usd_24h: 0,
+    funnel_intent_to_submit_rate_24h: 0,
+    funnel_submit_to_approved_rate_24h: 0,
+    funnel_conversion_band_24h: "low_volume"
   };
 
   const coreRes = await db.query(
@@ -4138,6 +4158,97 @@ async function buildAdminMetrics(db) {
       throw err;
     }
   }
+
+  try {
+    const uiEventsRes = await db.query(
+      `SELECT
+          COUNT(*)::bigint AS ui_events_ingested_24h,
+          COUNT(*) FILTER (
+            WHERE COALESCE(event_key, '') <> ''
+              AND COALESCE(tab_key, '') <> ''
+              AND COALESCE(panel_key, '') <> ''
+              AND COALESCE(route_key, '') <> ''
+              AND COALESCE(funnel_key, '') <> ''
+              AND COALESCE(surface_key, '') <> ''
+          )::bigint AS ui_events_valid_24h,
+          COUNT(*) FILTER (WHERE COALESCE(funnel_key, '') <> '')::bigint AS ui_events_with_funnel_24h,
+          COALESCE(SUM(value_usd), 0)::numeric AS ui_events_value_usd_24h
+       FROM v5_webapp_ui_events
+       WHERE created_at >= now() - interval '24 hours';`
+    );
+    const uiRow = uiEventsRes.rows[0] || {};
+    for (const [key, value] of Object.entries(uiRow)) {
+      metrics[key] = Number(value || 0);
+    }
+  } catch (err) {
+    if (err.code !== "42P01" && err.code !== "42703") {
+      throw err;
+    }
+  }
+
+  const applyFunnelRow = (funnelRow) => {
+    for (const [key, value] of Object.entries(funnelRow || {})) {
+      metrics[key] = Number(value || 0);
+    }
+  };
+
+  try {
+    const funnelRes = await db.query(
+      `SELECT
+          COALESCE(SUM(event_count) FILTER (WHERE stage_key = 'intent'), 0)::bigint AS funnel_intent_24h,
+          COALESCE(SUM(event_count) FILTER (WHERE stage_key = 'tx_submit'), 0)::bigint AS funnel_tx_submit_24h,
+          COALESCE(SUM(event_count) FILTER (WHERE stage_key = 'approved'), 0)::bigint AS funnel_approved_24h,
+          COALESCE(SUM(event_count) FILTER (WHERE stage_key = 'pass_purchase'), 0)::bigint AS funnel_pass_purchase_24h,
+          COALESCE(SUM(event_count) FILTER (WHERE stage_key = 'cosmetic_purchase'), 0)::bigint AS funnel_cosmetic_purchase_24h,
+          COALESCE(SUM(value_usd_total), 0)::numeric AS funnel_value_usd_24h
+       FROM v5_revenue_funnel_rollups_hourly
+       WHERE bucket_ts >= now() - interval '24 hours';`
+    );
+    applyFunnelRow(funnelRes.rows[0] || {});
+  } catch (err) {
+    if (err.code !== "42P01") {
+      throw err;
+    }
+    try {
+      const fallbackRes = await db.query(
+        `WITH classified AS (
+           SELECT
+             COALESCE(value_usd, 0)::numeric(24,8) AS value_usd,
+             CASE
+               WHEN economy_event_key IN ('token_intent', 'buy_intent', 'token_buy_intent') THEN 'intent'
+               WHEN economy_event_key IN ('tx_submit', 'token_tx_submit') THEN 'tx_submit'
+               WHEN economy_event_key IN ('approved', 'token_approved') THEN 'approved'
+               WHEN economy_event_key IN ('pass_purchase') THEN 'pass_purchase'
+               WHEN economy_event_key IN ('cosmetic_purchase') THEN 'cosmetic_purchase'
+               WHEN event_key IN ('token_buy_intent', 'vault_buy_intent') THEN 'intent'
+               WHEN event_key IN ('token_submit_tx', 'vault_submit_tx') THEN 'tx_submit'
+               WHEN event_key IN ('token_auto_approved', 'token_purchase_approved') THEN 'approved'
+               WHEN event_key IN ('pass_purchase', 'monetization_pass_purchase') THEN 'pass_purchase'
+               WHEN event_key IN ('cosmetic_purchase', 'monetization_cosmetic_purchase') THEN 'cosmetic_purchase'
+               ELSE NULL
+             END AS stage_key
+           FROM v5_webapp_ui_events
+           WHERE created_at >= now() - interval '24 hours'
+         )
+         SELECT
+           COUNT(*) FILTER (WHERE stage_key = 'intent')::bigint AS funnel_intent_24h,
+           COUNT(*) FILTER (WHERE stage_key = 'tx_submit')::bigint AS funnel_tx_submit_24h,
+           COUNT(*) FILTER (WHERE stage_key = 'approved')::bigint AS funnel_approved_24h,
+           COUNT(*) FILTER (WHERE stage_key = 'pass_purchase')::bigint AS funnel_pass_purchase_24h,
+           COUNT(*) FILTER (WHERE stage_key = 'cosmetic_purchase')::bigint AS funnel_cosmetic_purchase_24h,
+           COALESCE(SUM(value_usd), 0)::numeric AS funnel_value_usd_24h
+         FROM classified
+         WHERE stage_key IS NOT NULL;`
+      );
+      applyFunnelRow(fallbackRes.rows[0] || {});
+    } catch (fallbackErr) {
+      if (fallbackErr.code !== "42P01" && fallbackErr.code !== "42703") {
+        throw fallbackErr;
+      }
+    }
+  }
+
+  enrichWebappRevenueMetrics(metrics);
 
   return metrics;
 }
@@ -5816,563 +5927,6 @@ fastify.get("/webapp/api/v2/commands/catalog", async (request, reply) => {
     client.release();
   }
 });
-
-fastify.get("/webapp/api/v2/monetization/catalog", async (request, reply) => {
-  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
-  if (!auth.ok) {
-    reply.code(401).send({ success: false, error: auth.reason });
-    return;
-  }
-  const lang = normalizeLanguage(String(request.query.lang || "tr"), "tr");
-  const client = await pool.connect();
-  try {
-    const profile = await getProfileByTelegram(client, auth.uid);
-    if (!profile) {
-      reply.code(404).send({ success: false, error: "user_not_started" });
-      return;
-    }
-    const featureFlags = await loadFeatureFlags(client);
-    const summary = await buildMonetizationSummary(client, {
-      featureFlags,
-      userId: profile.user_id,
-      lang
-    });
-    reply.send({
-      success: true,
-      session: issueWebAppSession(auth.uid),
-      data: {
-        api_version: "v2",
-        language: lang,
-        enabled: Boolean(summary.enabled),
-        tables_available: Boolean(summary.tables_available),
-        pass_catalog: Array.isArray(summary.pass_catalog) ? summary.pass_catalog : [],
-        cosmetic_catalog: Array.isArray(summary.cosmetic_catalog) ? summary.cosmetic_catalog : [],
-        player_effects: summary.player_effects || {
-          premium_active: false,
-          sc_boost_multiplier: 0,
-          season_bonus_multiplier: 0
-        },
-        active_pass_count: Array.isArray(summary.active_passes) ? summary.active_passes.length : 0,
-        updated_at: summary.updated_at || new Date().toISOString()
-      }
-    });
-  } catch (err) {
-    if (err.code === "42P01") {
-      reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-      return;
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
-});
-
-fastify.get("/webapp/api/v2/monetization/status", async (request, reply) => {
-  const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
-  if (!auth.ok) {
-    reply.code(401).send({ success: false, error: auth.reason });
-    return;
-  }
-  const lang = normalizeLanguage(String(request.query.lang || "tr"), "tr");
-  const client = await pool.connect();
-  try {
-    const profile = await getProfileByTelegram(client, auth.uid);
-    if (!profile) {
-      reply.code(404).send({ success: false, error: "user_not_started" });
-      return;
-    }
-    const featureFlags = await loadFeatureFlags(client);
-    const summary = await buildMonetizationSummary(client, {
-      featureFlags,
-      userId: profile.user_id,
-      lang
-    });
-    reply.send({
-      success: true,
-      session: issueWebAppSession(auth.uid),
-      data: {
-        api_version: "v2",
-        language: lang,
-        monetization: summary
-      }
-    });
-  } catch (err) {
-    if (err.code === "42P01") {
-      reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-      return;
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
-});
-
-fastify.post(
-  "/webapp/api/v2/monetization/pass/purchase",
-  {
-    schema: {
-      body: {
-        type: "object",
-        required: ["uid", "ts", "sig", "pass_key"],
-        properties: {
-          uid: { type: "string" },
-          ts: { type: "string" },
-          sig: { type: "string" },
-          pass_key: { type: "string", minLength: 3, maxLength: 64 },
-          payment_currency: { type: "string", minLength: 2, maxLength: 8 },
-          purchase_ref: { type: "string", minLength: 6, maxLength: 120 }
-        }
-      }
-    }
-  },
-  async (request, reply) => {
-    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
-    if (!auth.ok) {
-      reply.code(401).send({ success: false, error: auth.reason });
-      return;
-    }
-    const passKey = String(request.body.pass_key || "").trim().toLowerCase();
-    if (!passKey) {
-      reply.code(400).send({ success: false, error: "pass_key_invalid" });
-      return;
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const profile = await getProfileByTelegram(client, auth.uid);
-      if (!profile) {
-        await client.query("ROLLBACK");
-        reply.code(404).send({ success: false, error: "user_not_started" });
-        return;
-      }
-      const freeze = await getFreezeState(client);
-      if (freeze.freeze) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
-        return;
-      }
-      const featureFlags = await loadFeatureFlags(client);
-      if (!isFeatureEnabled(featureFlags, "MONETIZATION_CORE_V1_ENABLED")) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "monetization_feature_disabled" });
-        return;
-      }
-      const tables = await hasMonetizationTables(client);
-      if (!tables.all) {
-        await client.query("ROLLBACK");
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-
-      await ensureDefaultPassProducts(client);
-      const product = await getPassProductForUpdate(client, passKey);
-      if (!product || product.active === false) {
-        await client.query("ROLLBACK");
-        reply.code(404).send({ success: false, error: "pass_product_not_found" });
-        return;
-      }
-      const productCurrency = normalizeMonetizationCurrency(product.price_currency, "SC");
-      const paymentCurrency = normalizeMonetizationCurrency(request.body.payment_currency || productCurrency, productCurrency);
-      if (paymentCurrency !== productCurrency) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "pass_currency_mismatch" });
-        return;
-      }
-      const priceAmount = toPositiveNumber(product.price_amount, 0);
-      if (priceAmount <= 0) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "pass_price_invalid" });
-        return;
-      }
-
-      const purchaseRefInput = String(request.body.purchase_ref || "").trim();
-      const purchaseRef =
-        purchaseRefInput ||
-        deterministicUuid(`v5_pass_purchase:${profile.user_id}:${passKey}:${Date.now()}:${Math.random()}`);
-      const debit = await economyStore.debitCurrency(client, {
-        userId: profile.user_id,
-        currency: paymentCurrency,
-        amount: priceAmount,
-        reason: "v5_pass_purchase",
-        refEventId: deterministicUuid(`v5_pass_debit:${purchaseRef}`),
-        meta: {
-          source: "webapp",
-          pass_key: passKey,
-          purchase_ref: purchaseRef
-        }
-      });
-      if (!debit.applied) {
-        await client.query("ROLLBACK");
-        if (debit.reason === "insufficient_balance") {
-          reply.code(409).send({ success: false, error: "insufficient_balance" });
-          return;
-        }
-        reply.code(409).send({ success: false, error: debit.reason || "pass_debit_failed" });
-        return;
-      }
-
-      const effects = product.effects_json && typeof product.effects_json === "object" ? product.effects_json : {};
-      const durationDays = Math.max(1, Number(product.duration_days || 1));
-      const purchase = await insertUserPassPurchase(client, {
-        user_id: profile.user_id,
-        pass_key: passKey,
-        duration_days: durationDays,
-        purchase_ref: purchaseRef,
-        payload_json: {
-          source: "webapp",
-          pass_key: passKey,
-          price_amount: priceAmount,
-          price_currency: paymentCurrency,
-          effects
-        }
-      });
-
-      await shopStore.addOrExtendEffect(client, {
-        userId: profile.user_id,
-        effectKey: String(effects.effect_key || "premium_pass"),
-        level: 1,
-        durationHours: durationDays * 24,
-        meta: {
-          ...effects,
-          pass_key: passKey,
-          purchase_ref: purchaseRef
-        }
-      });
-
-      await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_pass_purchase", {
-        pass_key: passKey,
-        purchase_ref: purchaseRef,
-        price_amount: priceAmount,
-        price_currency: paymentCurrency
-      }).catch((err) => {
-        if (err.code !== "42P01") {
-          throw err;
-        }
-      });
-
-      const monetization = await buildMonetizationSummary(client, {
-        featureFlags,
-        userId: profile.user_id,
-        lang: request.body.lang || "tr"
-      });
-      const balances = await economyStore.getBalances(client, profile.user_id);
-      await client.query("COMMIT");
-      reply.send({
-        success: true,
-        session: issueWebAppSession(auth.uid),
-        data: {
-          api_version: "v2",
-          purchase: mapUserPassView(purchase),
-          balances,
-          monetization
-        }
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      if (err.code === "42P01") {
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-      if (err.code === "23505") {
-        reply.code(409).send({ success: false, error: "idempotency_conflict" });
-        return;
-      }
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-);
-
-fastify.post(
-  "/webapp/api/v2/monetization/cosmetic/purchase",
-  {
-    schema: {
-      body: {
-        type: "object",
-        required: ["uid", "ts", "sig", "item_key"],
-        properties: {
-          uid: { type: "string" },
-          ts: { type: "string" },
-          sig: { type: "string" },
-          item_key: { type: "string", minLength: 3, maxLength: 96 },
-          payment_currency: { type: "string", minLength: 2, maxLength: 8 },
-          purchase_ref: { type: "string", minLength: 6, maxLength: 120 }
-        }
-      }
-    }
-  },
-  async (request, reply) => {
-    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
-    if (!auth.ok) {
-      reply.code(401).send({ success: false, error: auth.reason });
-      return;
-    }
-    const itemKey = String(request.body.item_key || "").trim().toLowerCase();
-    if (!itemKey) {
-      reply.code(400).send({ success: false, error: "item_key_invalid" });
-      return;
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const profile = await getProfileByTelegram(client, auth.uid);
-      if (!profile) {
-        await client.query("ROLLBACK");
-        reply.code(404).send({ success: false, error: "user_not_started" });
-        return;
-      }
-      const freeze = await getFreezeState(client);
-      if (freeze.freeze) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "freeze_mode", reason: freeze.reason });
-        return;
-      }
-      const featureFlags = await loadFeatureFlags(client);
-      if (!isFeatureEnabled(featureFlags, "MONETIZATION_CORE_V1_ENABLED")) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "monetization_feature_disabled" });
-        return;
-      }
-      const tables = await hasMonetizationTables(client);
-      if (!tables.all) {
-        await client.query("ROLLBACK");
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-
-      const item = getCosmeticCatalogItem(itemKey);
-      if (!item) {
-        await client.query("ROLLBACK");
-        reply.code(404).send({ success: false, error: "cosmetic_item_not_found" });
-        return;
-      }
-      const productCurrency = normalizeMonetizationCurrency(item.price_currency, "SC");
-      const paymentCurrency = normalizeMonetizationCurrency(request.body.payment_currency || productCurrency, productCurrency);
-      if (paymentCurrency !== productCurrency) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "cosmetic_currency_mismatch" });
-        return;
-      }
-      const priceAmount = toPositiveNumber(item.price_amount, 0);
-      if (priceAmount <= 0) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "cosmetic_price_invalid" });
-        return;
-      }
-
-      const purchaseRefInput = String(request.body.purchase_ref || "").trim();
-      const purchaseRef =
-        purchaseRefInput ||
-        deterministicUuid(`v5_cosmetic_purchase:${profile.user_id}:${itemKey}:${Date.now()}:${Math.random()}`);
-      const debit = await economyStore.debitCurrency(client, {
-        userId: profile.user_id,
-        currency: paymentCurrency,
-        amount: priceAmount,
-        reason: "v5_cosmetic_purchase",
-        refEventId: deterministicUuid(`v5_cosmetic_debit:${purchaseRef}`),
-        meta: {
-          source: "webapp",
-          item_key: itemKey,
-          purchase_ref: purchaseRef
-        }
-      });
-      if (!debit.applied) {
-        await client.query("ROLLBACK");
-        if (debit.reason === "insufficient_balance") {
-          reply.code(409).send({ success: false, error: "insufficient_balance" });
-          return;
-        }
-        reply.code(409).send({ success: false, error: debit.reason || "cosmetic_debit_failed" });
-        return;
-      }
-
-      const purchase = await insertCosmeticPurchase(client, {
-        user_id: profile.user_id,
-        item_key: itemKey,
-        category: String(item.category || "cosmetic"),
-        amount_paid: priceAmount,
-        currency: paymentCurrency,
-        purchase_ref: purchaseRef,
-        payload_json: {
-          source: "webapp",
-          rarity: String(item.rarity || "common")
-        }
-      });
-
-      await riskStore.insertBehaviorEvent(client, profile.user_id, "webapp_cosmetic_purchase", {
-        item_key: itemKey,
-        purchase_ref: purchaseRef,
-        amount_paid: priceAmount,
-        currency: paymentCurrency
-      }).catch((err) => {
-        if (err.code !== "42P01") {
-          throw err;
-        }
-      });
-
-      const monetization = await buildMonetizationSummary(client, {
-        featureFlags,
-        userId: profile.user_id,
-        lang: request.body.lang || "tr"
-      });
-      const balances = await economyStore.getBalances(client, profile.user_id);
-      await client.query("COMMIT");
-      reply.send({
-        success: true,
-        session: issueWebAppSession(auth.uid),
-        data: {
-          api_version: "v2",
-          purchase: mapCosmeticPurchaseView(purchase),
-          balances,
-          monetization
-        }
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      if (err.code === "42P01") {
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-      if (err.code === "23505") {
-        reply.code(409).send({ success: false, error: "idempotency_conflict" });
-        return;
-      }
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-);
-
-fastify.post(
-  "/webapp/api/v2/admin/monetization/fee-event",
-  {
-    schema: {
-      body: {
-        type: "object",
-        required: ["uid", "ts", "sig", "event_ref", "fee_kind", "gross_amount", "fee_amount", "fee_currency"],
-        properties: {
-          uid: { type: "string" },
-          ts: { type: "string" },
-          sig: { type: "string" },
-          event_ref: { type: "string", minLength: 6, maxLength: 128 },
-          fee_kind: { type: "string", minLength: 2, maxLength: 40 },
-          gross_amount: { type: "number", minimum: 0 },
-          fee_amount: { type: "number", minimum: 0 },
-          fee_currency: { type: "string", minLength: 2, maxLength: 8 },
-          user_id: { type: "integer", minimum: 1 },
-          payload_json: { type: "object" }
-        }
-      }
-    }
-  },
-  async (request, reply) => {
-    const auth = verifyWebAppAuth(request.body.uid, request.body.ts, request.body.sig);
-    if (!auth.ok) {
-      reply.code(401).send({ success: false, error: auth.reason });
-      return;
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const adminProfile = await requireWebAppAdmin(client, reply, auth.uid);
-      if (!adminProfile) {
-        await client.query("ROLLBACK");
-        return;
-      }
-      const featureFlags = await loadFeatureFlags(client);
-      if (!isFeatureEnabled(featureFlags, "MONETIZATION_CORE_V1_ENABLED")) {
-        await client.query("ROLLBACK");
-        reply.code(409).send({ success: false, error: "monetization_feature_disabled" });
-        return;
-      }
-      const tables = await hasMonetizationTables(client);
-      if (!tables.all) {
-        await client.query("ROLLBACK");
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-
-      const eventRef = String(request.body.event_ref || "").trim();
-      const targetUserId = Number(request.body.user_id || adminProfile.user_id || 0);
-      const feeCurrency = normalizeMonetizationCurrency(request.body.fee_currency, "SC");
-      const payloadJson = request.body.payload_json && typeof request.body.payload_json === "object"
-        ? request.body.payload_json
-        : {};
-      const inserted = await client.query(
-        `INSERT INTO v5_marketplace_fee_events (
-           event_ref,
-           user_id,
-           fee_kind,
-           gross_amount,
-           fee_amount,
-           fee_currency,
-           payload_json
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-         RETURNING event_ref, user_id, fee_kind, gross_amount, fee_amount, fee_currency, payload_json, created_at;`,
-        [
-          eventRef,
-          targetUserId,
-          String(request.body.fee_kind || ""),
-          Math.max(0, Number(request.body.gross_amount || 0)),
-          Math.max(0, Number(request.body.fee_amount || 0)),
-          feeCurrency,
-          JSON.stringify(payloadJson)
-        ]
-      );
-      const row = inserted.rows?.[0] || null;
-      await client.query(
-        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
-         VALUES ($1, 'monetization_fee_event', $2, $3::jsonb);`,
-        [
-          Number(auth.uid),
-          `fee_event:${eventRef}`,
-          JSON.stringify({
-            user_id: targetUserId,
-            fee_kind: String(request.body.fee_kind || ""),
-            fee_amount: Math.max(0, Number(request.body.fee_amount || 0)),
-            fee_currency: feeCurrency
-          })
-        ]
-      );
-      await client.query("COMMIT");
-      reply.send({
-        success: true,
-        session: issueWebAppSession(auth.uid),
-        data: {
-          api_version: "v2",
-          event: {
-            event_ref: String(row?.event_ref || eventRef),
-            user_id: Number(row?.user_id || targetUserId),
-            fee_kind: String(row?.fee_kind || request.body.fee_kind || ""),
-            gross_amount: Number(row?.gross_amount || request.body.gross_amount || 0),
-            fee_amount: Number(row?.fee_amount || request.body.fee_amount || 0),
-            fee_currency: String(row?.fee_currency || feeCurrency),
-            created_at: row?.created_at || new Date().toISOString()
-          }
-        }
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      if (err.code === "42P01") {
-        reply.code(503).send({ success: false, error: "monetization_tables_missing" });
-        return;
-      }
-      if (err.code === "23505") {
-        reply.code(409).send({ success: false, error: "idempotency_conflict" });
-        return;
-      }
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-);
 
 fastify.get("/webapp/api/telemetry/perf-profile", async (request, reply) => {
   const auth = verifyWebAppAuth(request.query.uid, request.query.ts, request.query.sig);
@@ -10448,7 +10002,37 @@ fastify.post(
         throw err;
       });
       const riskState = await riskStore.getRiskState(client, profile.user_id);
+      const kycState = await readKycProfile(client, profile.user_id)
+        .then((row) => normalizeKycState(row))
+        .catch((err) => {
+          if (err.code === "42P01") {
+            return normalizeKycState(null);
+          }
+          throw err;
+        });
       const onchainVerified = isOnchainVerifiedStatus(txCheck.verify?.status);
+      const baseAutoPolicy = {
+        enabled: autoPolicyEnabled,
+        autoUsdLimit: Number(guardrail?.auto_usd_limit || curveState.autoPolicy.autoUsdLimit || 10),
+        riskThreshold: Number(guardrail?.risk_threshold || curveState.autoPolicy.riskThreshold || 0.35),
+        velocityPerHour: Number(guardrail?.velocity_per_hour || curveState.autoPolicy.velocityPerHour || 8),
+        requireOnchainVerified:
+          typeof guardrail?.require_onchain_verified === "boolean"
+            ? Boolean(guardrail.require_onchain_verified)
+            : Boolean(curveState.autoPolicy.requireOnchainVerified)
+      };
+      const dynamicAutoPolicy = await resolveDynamicAutoPolicyDecision(client, {
+        token_symbol: tokenConfig.symbol,
+        base_policy: baseAutoPolicy,
+        input: {
+          risk_score: Number(riskState.riskScore || 0),
+          velocity_per_hour: Number(velocityPerHour || 0),
+          usd_amount: Number(purchaseRequest.usd_amount || 0),
+          gate_open: Boolean(marketGate.allowed),
+          kyc_status: String(kycState.status || "unknown")
+        }
+      });
+      const effectiveAutoPolicy = dynamicAutoPolicy?.policy || baseAutoPolicy;
       const autoDecision = tokenEngine.evaluateAutoApprovePolicy(
         {
           usdAmount: Number(purchaseRequest.usd_amount || 0),
@@ -10457,24 +10041,22 @@ fastify.post(
           onchainVerified,
           gateOpen: marketGate.allowed
         },
-        {
-          enabled: autoPolicyEnabled,
-          autoUsdLimit: Number(guardrail?.auto_usd_limit || curveState.autoPolicy.autoUsdLimit || 10),
-          riskThreshold: Number(guardrail?.risk_threshold || curveState.autoPolicy.riskThreshold || 0.35),
-          velocityPerHour: Number(guardrail?.velocity_per_hour || curveState.autoPolicy.velocityPerHour || 8),
-          requireOnchainVerified:
-            typeof guardrail?.require_onchain_verified === "boolean"
-              ? Boolean(guardrail.require_onchain_verified)
-              : Boolean(curveState.autoPolicy.requireOnchainVerified)
-        }
+        effectiveAutoPolicy
       );
+      const autoDecisionPolicyPayload = {
+        ...(autoDecision.policy || {}),
+        dynamic_segment_key: String(dynamicAutoPolicy?.selected_segment_key || ""),
+        dynamic_segment_reason: String(dynamicAutoPolicy?.segment_reason || ""),
+        dynamic_required_kyc_mismatch: Boolean(dynamicAutoPolicy?.required_kyc_mismatch),
+        dynamic_anomaly_state: dynamicAutoPolicy?.anomaly_state || null
+      };
       await tokenStore
         .insertTokenAutoDecision(client, {
           requestId,
           tokenSymbol: tokenConfig.symbol,
           decision: autoDecision.decision,
           reason: autoDecision.reason,
-          policy: autoDecision.policy,
+          policy: autoDecisionPolicyPayload,
           riskScore: Number(riskState.riskScore || 0),
           usdAmount: Number(purchaseRequest.usd_amount || 0),
           txHash: txCheck.formatCheck.normalizedHash,
@@ -10515,7 +10097,15 @@ fastify.post(
           auto_decision: autoDecision.decision,
           auto_decision_reason: autoDecision.reason,
           auto_decision_reasons: autoDecision.reasons || [],
-          auto_policy: autoDecision.policy || {},
+          auto_policy: autoDecisionPolicyPayload,
+          dynamic_auto_policy: {
+            selected_segment_key: String(dynamicAutoPolicy?.selected_segment_key || ""),
+            segment_reason: String(dynamicAutoPolicy?.segment_reason || ""),
+            required_kyc_mismatch: Boolean(dynamicAutoPolicy?.required_kyc_mismatch),
+            kyc_status: String(kycState.status || "unknown"),
+            anomaly_state: dynamicAutoPolicy?.anomaly_state || null,
+            effective_policy: effectiveAutoPolicy
+          },
           market_gate: marketGate,
           curve_price_usd: Number(spotUsd || 0),
           curve_enabled: curveEnabled,
@@ -10864,8 +10454,51 @@ registerWebappV2UiPrefsRoutes(fastify, {
   webappStore
 });
 
+registerWebappV2GrowthRoutes(fastify, {
+  proxyWebAppApiV1
+});
+
+registerWebappV2MonetizationRoutes(fastify, {
+  pool,
+  verifyWebAppAuth,
+  issueWebAppSession,
+  requireWebAppAdmin,
+  normalizeLanguage,
+  getProfileByTelegram,
+  loadFeatureFlags,
+  buildMonetizationSummary,
+  getFreezeState,
+  isFeatureEnabled,
+  hasMonetizationTables,
+  ensureDefaultPassProducts,
+  getPassProductForUpdate,
+  normalizeMonetizationCurrency,
+  toPositiveNumber,
+  deterministicUuid,
+  economyStore,
+  insertUserPassPurchase,
+  shopStore,
+  riskStore,
+  mapUserPassView,
+  getCosmeticCatalogItem,
+  insertCosmeticPurchase,
+  mapCosmeticPurchaseView
+});
+
 registerWebappV2AdminRuntimeRoutes(fastify, {
   proxyWebAppApiV1
+});
+
+registerWebappV2AdminTokenDynamicPolicyRoutes(fastify, {
+  pool,
+  verifyWebAppAuth,
+  issueWebAppSession,
+  requireWebAppAdmin,
+  loadFeatureFlags,
+  isFeatureEnabled,
+  configService,
+  tokenEngine,
+  tokenStore
 });
 
 fastify.get("/webapp/api/v2/pvp/progression", async (request, reply) => {

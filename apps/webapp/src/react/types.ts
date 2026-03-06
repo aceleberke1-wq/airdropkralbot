@@ -37,11 +37,122 @@ export type ExperimentAssignment = {
   cohort_bucket: number;
 };
 
+export type WalletSession = {
+  active: boolean;
+  chain: string;
+  address: string;
+  address_masked?: string;
+  linked_at: string | null;
+  expires_at: string | null;
+  session_ref: string;
+  kyc_status: string;
+};
+
+export type WalletSessionV2Payload = {
+  api_version: "v2" | string;
+  wallet_capabilities?: Record<string, unknown>;
+  wallet_session?: Record<string, unknown>;
+  links?: Array<Record<string, unknown>>;
+  kyc_status?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type PayoutStatusV2Payload = {
+  api_version: "v2" | string;
+  [key: string]: unknown;
+};
+
+export type HomeFeed = {
+  api_version: string;
+  generated_at?: string;
+  profile?: Record<string, unknown>;
+  season?: Record<string, unknown>;
+  daily?: Record<string, unknown>;
+  contract?: Record<string, unknown>;
+  risk?: Record<string, unknown>;
+  mission?: Record<string, unknown>;
+  wallet_quick?: Record<string, unknown>;
+  monetization_quick?: Record<string, unknown>;
+  command_hint?: Array<Record<string, unknown>>;
+};
+
+export type LeagueOverview = {
+  api_version: string;
+  generated_at?: string;
+  daily_duel?: Record<string, unknown>;
+  weekly_ladder?: Record<string, unknown>;
+  season_arc_boss?: Record<string, unknown>;
+  leaderboard_snippet?: Array<Record<string, unknown>>;
+  last_session_trend?: Array<Record<string, unknown>>;
+  session_snapshot?: Record<string, unknown>;
+};
+
+export type VaultOverview = {
+  api_version: string;
+  generated_at?: string;
+  token_summary?: Record<string, unknown>;
+  route_status?: Record<string, unknown>;
+  payout_status?: Record<string, unknown>;
+  wallet_session?: WalletSession;
+  monetization_status?: Record<string, unknown>;
+};
+
+export type MonetizationOverview = {
+  api_version: string;
+  generated_at?: string;
+  catalog?: {
+    pass_catalog?: Array<Record<string, unknown>>;
+    cosmetic_catalog?: Array<Record<string, unknown>>;
+  };
+  status?: Record<string, unknown>;
+  active_effects?: Record<string, unknown>;
+};
+
+export type DynamicAutoPolicySegment = {
+  token_symbol: string;
+  segment_key: string;
+  priority: number;
+  max_auto_usd: number;
+  risk_threshold: number;
+  velocity_per_hour: number;
+  require_onchain_verified: boolean;
+  require_kyc_status: string;
+  enabled: boolean;
+  degrade_factor: number;
+  meta_json?: Record<string, unknown>;
+  updated_by?: number;
+  updated_at?: string | null;
+};
+
+export type DynamicAutoPolicy = {
+  api_version: string;
+  token_symbol: string;
+  base_policy?: Record<string, unknown>;
+  anomaly_state?: Record<string, unknown>;
+  segments: DynamicAutoPolicySegment[];
+  preview?: Record<string, unknown> | null;
+  generated_at?: string;
+  updated_at?: string;
+};
+
+export type UiFunnelEvent = {
+  funnel_key?: string;
+  surface_key?: string;
+  economy_event_key?: string;
+  value_usd?: number;
+  tx_state?: string;
+};
+
 export type UiEventRecord = {
   event_key: string;
   tab_key?: string;
   panel_key?: string;
   route_key?: string;
+  funnel_key?: string;
+  surface_key?: string;
+  economy_event_key?: string;
+  value_usd?: number;
+  tx_state?: string;
   event_value?: number;
   payload_json?: Record<string, unknown>;
   client_ts?: string | number;
@@ -59,6 +170,11 @@ export type UiEventBatchRequest = {
   tab_key?: string;
   panel_key?: string;
   route_key?: string;
+  funnel_key?: string;
+  surface_key?: string;
+  economy_event_key?: string;
+  value_usd?: number;
+  tx_state?: string;
   variant_key?: ExperimentVariant;
   experiment_key?: string;
   cohort_bucket?: number;
@@ -95,6 +211,14 @@ export type UiPreferences = {
     workspace?: WorkspaceKey;
     [key: string]: unknown;
   };
+};
+
+export type MonetizationPurchasePayload = {
+  api_version: "v2" | string;
+  purchase?: Record<string, unknown>;
+  balances?: Record<string, unknown>;
+  monetization?: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 export type UiPreferencesPatch = {

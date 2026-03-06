@@ -38,7 +38,7 @@
     "kpi:v5:task:register": "powershell -ExecutionPolicy Bypass -File scripts/register_v5_kpi_tasks.ps1 -TaskName \"AirdropKralBot-V5-KPI-6H\" -EveryHours 6",
     "kpi:v5:task:remove": "powershell -ExecutionPolicy Bypass -File scripts/register_v5_kpi_tasks.ps1 -TaskName \"AirdropKralBot-V5-KPI-6H\" -UnregisterOnly",
     "check:markdown": "node scripts/check_markdown_interpolation.mjs",
-    "check:release": "powershell -ExecutionPolicy Bypass -File scripts/check_release_readiness.ps1",
+    "check:release": "node scripts/check_real_data_only.mjs && powershell -ExecutionPolicy Bypass -File scripts/check_release_readiness.ps1",
     "rollout:v4": "node scripts/v4_rollout_canary.mjs --stage admin",
     "rollout:v4:25": "node scripts/v4_rollout_canary.mjs --stage 25",
     "rollout:v4:100": "node scripts/v4_rollout_canary.mjs --stage 100",

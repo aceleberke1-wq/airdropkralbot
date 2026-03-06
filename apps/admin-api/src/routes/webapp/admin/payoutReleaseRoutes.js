@@ -1,17 +1,7 @@
 "use strict";
 
 const { createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
-
-function normalizeV2Payload(payload) {
-  if (!payload || typeof payload !== "object") {
-    return payload;
-  }
-  if (!payload.data || typeof payload.data !== "object") {
-    payload.data = {};
-  }
-  payload.data.api_version = "v2";
-  return payload;
-}
+const { normalizeV2Payload } = require("../v2/shared/v2ResponseNormalizer");
 
 function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   const pool = deps.pool;

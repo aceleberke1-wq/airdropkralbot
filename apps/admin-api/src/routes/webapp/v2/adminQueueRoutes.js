@@ -1,6 +1,7 @@
 "use strict";
 
 const { buildActionPayloadHash, createRequireActionRequestIdPreValidation } = require("../shared/actionRequestGuard");
+const { normalizeV2Payload } = require("./shared/v2ResponseNormalizer");
 
 const IDEMPOTENCY_FALLBACK_TTL_MS = 15 * 60 * 1000;
 const queueActionIdempotencyFallback = new Map();
@@ -113,30 +114,27 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
         if (!payload || typeof payload !== "object") {
           return payload;
         }
-        if (!payload.data || typeof payload.data !== "object") {
-          payload.data = {};
-        }
-        payload.data.api_version = "v2";
-        payload.data.items = Array.isArray(payload.data.items)
-          ? payload.data.items.map((item) => normalizeUnifiedQueueItem(item))
+        const out = normalizeV2Payload(payload);
+        out.data.items = Array.isArray(out.data.items)
+          ? out.data.items.map((item) => normalizeUnifiedQueueItem(item))
           : [];
-        payload.data.counts =
-          payload.data.counts && typeof payload.data.counts === "object"
-            ? payload.data.counts
+        out.data.counts =
+          out.data.counts && typeof out.data.counts === "object"
+            ? out.data.counts
             : {
                 payout_queue: 0,
                 token_manual_queue: 0,
                 token_auto_decisions: 0,
                 kyc_manual_queue: 0
               };
-        payload.data.policy_counts =
-          payload.data.policy_counts && typeof payload.data.policy_counts === "object"
-            ? payload.data.policy_counts
+        out.data.policy_counts =
+          out.data.policy_counts && typeof out.data.policy_counts === "object"
+            ? out.data.policy_counts
             : {
                 confirmation_required: 0,
                 high_priority: 0
               };
-        return payload;
+        return out;
       }
     });
   });
@@ -469,15 +467,11 @@ function registerWebappV2AdminQueueRoutes(fastify, deps = {}) {
       }
 
       if (payload && typeof payload === "object") {
-        if (!payload.data || typeof payload.data !== "object") {
-          payload.data = {};
-        }
-        payload.data.api_version = "v2";
-        payload.data.action_key = actionKey;
-        payload.data.kind = kind || null;
-        payload.data.request_id = requestId;
-        payload.data.action_request_id = actionRequestId;
-        reply.code(injectRes.statusCode).send(payload);
+        const out = normalizeV2Payload(payload, { actionRequestId });
+        out.data.action_key = actionKey;
+        out.data.kind = kind || null;
+        out.data.request_id = requestId;
+        reply.code(injectRes.statusCode).send(out);
         return;
       }
       reply

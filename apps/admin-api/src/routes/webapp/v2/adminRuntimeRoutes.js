@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeV2Payload } = require("./shared/v2ResponseNormalizer");
+
 function resolveProxy(deps) {
   const proxyWebAppApiV1 = deps.proxyWebAppApiV1;
   if (typeof proxyWebAppApiV1 !== "function") {
@@ -12,11 +14,7 @@ function normalizeAdminRuntimePayload(payload) {
   if (!payload || typeof payload !== "object") {
     return payload;
   }
-  if (!payload.data || typeof payload.data !== "object") {
-    payload.data = {};
-  }
-  payload.data.api_version = "v2";
-  return payload;
+  return normalizeV2Payload(payload);
 }
 
 function registerWebappV2AdminRuntimeRoutes(fastify, deps = {}) {

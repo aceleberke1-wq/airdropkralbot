@@ -40,11 +40,21 @@ test("normalizeUiEvent rejects invalid event key and accepts bounded payload", (
     tab_key: "home",
     panel_key: "hero",
     event_value: 1,
+    funnel_key: "vault_intent",
+    surface_key: "vault_panel",
+    economy_event_key: "token_intent",
+    value_usd: 11.25,
+    tx_state: "intent",
     payload_json: { foo: "bar" }
   });
   assert.ok(valid);
   assert.equal(valid.event_key, "tab_open");
   assert.equal(valid.tab_key, "home");
+  assert.equal(valid.funnel_key, "vault_intent");
+  assert.equal(valid.surface_key, "vault_panel");
+  assert.equal(valid.economy_event_key, "token_intent");
+  assert.equal(valid.value_usd, 11.25);
+  assert.equal(valid.tx_state, "intent");
 });
 
 test("normalizeUiEventBatch returns accepted and rejected counts", () => {

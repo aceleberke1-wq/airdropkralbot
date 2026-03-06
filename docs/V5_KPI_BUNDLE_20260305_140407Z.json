@@ -1,0 +1,456 @@
+{
+  "generated_at": "2026-03-05T14:04:07.675Z",
+  "config": {
+    "hours_short": 24,
+    "hours_long": 72,
+    "trend_days": 7,
+    "emit_slo": true
+  },
+  "snapshots": {
+    "h24": {
+      "generated_at": "2026-03-05T14:04:03.758Z",
+      "freshness_sec": 0,
+      "window_hours": 24,
+      "schema": {
+        "tables_checked": {
+          "v5_command_events": true,
+          "v5_intent_resolution_events": true,
+          "behavior_events": true,
+          "payout_requests": true,
+          "payout_release_events": true,
+          "v5_unified_admin_queue_action_events": true,
+          "chain_verify_logs": true,
+          "admin_audit": true,
+          "v5_wallet_challenges": true,
+          "v5_kyc_threshold_decisions": true,
+          "v5_pvp_progression_daily": true,
+          "v5_operational_slo_metrics": true,
+          "v5_cutover_primary_switch_events": true
+        }
+      },
+      "kpis": {
+        "command_events_24h": 4,
+        "command_unique_users_24h": 1,
+        "unknown_intent_rate_pct": 0,
+        "unknown_intent_events_24h": 0,
+        "payout_requests_24h": 0,
+        "payout_rejected_24h": 0,
+        "payout_rejected_rate_pct": 0,
+        "tx_submit_events_24h": 0,
+        "tx_verify_events_24h": 0,
+        "tx_verify_error_rate_pct": 0,
+        "tx_verify_timeout_rate_pct": 0,
+        "idempotency_conflict_events_24h": 0,
+        "invalid_action_request_id_events_24h": 0,
+        "queue_action_events_24h": 69,
+        "queue_success_rate_pct": 100,
+        "queue_pending_rate_pct": 0,
+        "queue_failure_rate_pct": 0,
+        "admin_audit_entries_24h": 90,
+        "audit_coverage_proxy_pct": 130.43,
+        "wallet_challenge_verify_rate_pct": 100,
+        "kyc_manual_review_rate_pct": 0,
+        "pvp_progression_updates_24h": 0,
+        "pvp_progression_unique_users_24h": 0
+      },
+      "details": {
+        "intent": {
+          "total_events": "0",
+          "unknown_events": "0",
+          "mode_extracted_events": "0"
+        },
+        "payout": {
+          "total_requests": "0",
+          "paid_requests": "0",
+          "rejected_requests": "0",
+          "active_requests": "0"
+        },
+        "tx_submit": {
+          "submitted_events": 0,
+          "verify_events": 0,
+          "verify_success_events": 0,
+          "verify_error_events": 0,
+          "verify_timeout_events": 0
+        },
+        "webapp_action_errors": {
+          "idempotency_conflict_events": 0,
+          "invalid_action_request_id_events": 0
+        },
+        "payout_release_events": [],
+        "queue_actions": {
+          "total_events": 69,
+          "success_events": 69,
+          "non_ok_events": 0,
+          "pending_events": 0,
+          "completed_events": 69,
+          "failed_events": 0,
+          "queued_events": 0,
+          "ok_events": 0,
+          "success_rate": 100,
+          "pending_rate": 0,
+          "failure_rate": 0
+        },
+        "queue_status_dictionary": {
+          "success": [
+            "completed",
+            "ok"
+          ],
+          "failed": [
+            "failed"
+          ],
+          "pending": [
+            "queued"
+          ]
+        },
+        "queue_failure_reasons": [],
+        "admin_audit": {
+          "total_entries": "90"
+        },
+        "wallet": {
+          "issued_challenges": "23",
+          "consumed_challenges": "23"
+        },
+        "kyc": {
+          "total_decisions": "0",
+          "manual_review_decisions": "0",
+          "blocked_decisions": "0"
+        },
+        "pvp": {
+          "updated_rows": "0",
+          "unique_users": "0"
+        },
+        "slo_latest_by_key": [
+          {
+            "metric_key": "audit_coverage_proxy_pct",
+            "metric_value": "136.36000000",
+            "sample_size": "33",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.383Z"
+          },
+          {
+            "metric_key": "idempotency_conflict_events_24h",
+            "metric_value": "0.00000000",
+            "sample_size": "33",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.465Z"
+          },
+          {
+            "metric_key": "payout_dispute_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "7d",
+            "measured_at": "2026-03-05T02:04:07.589Z"
+          },
+          {
+            "metric_key": "payout_rejected_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "72h",
+            "measured_at": "2026-03-05T02:04:07.342Z"
+          },
+          {
+            "metric_key": "revenue_amount",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "7d",
+            "measured_at": "2026-03-05T02:04:07.547Z"
+          },
+          {
+            "metric_key": "tx_verify_error_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.424Z"
+          },
+          {
+            "metric_key": "unknown_intent_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "72h",
+            "measured_at": "2026-03-05T02:04:07.260Z"
+          },
+          {
+            "metric_key": "wallet_challenge_verify_rate_pct",
+            "metric_value": "100.00000000",
+            "sample_size": "11",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.507Z"
+          }
+        ],
+        "cutover_switch_events": [],
+        "bootstrap": null
+      }
+    },
+    "h72": {
+      "generated_at": "2026-03-05T14:04:05.467Z",
+      "freshness_sec": 0,
+      "window_hours": 72,
+      "schema": {
+        "tables_checked": {
+          "v5_command_events": true,
+          "v5_intent_resolution_events": true,
+          "behavior_events": true,
+          "payout_requests": true,
+          "payout_release_events": true,
+          "v5_unified_admin_queue_action_events": true,
+          "chain_verify_logs": true,
+          "admin_audit": true,
+          "v5_wallet_challenges": true,
+          "v5_kyc_threshold_decisions": true,
+          "v5_pvp_progression_daily": true,
+          "v5_operational_slo_metrics": true,
+          "v5_cutover_primary_switch_events": true
+        }
+      },
+      "kpis": {
+        "command_events_24h": 22,
+        "command_unique_users_24h": 1,
+        "unknown_intent_rate_pct": 0,
+        "unknown_intent_events_24h": 0,
+        "payout_requests_24h": 0,
+        "payout_rejected_24h": 0,
+        "payout_rejected_rate_pct": 0,
+        "tx_submit_events_24h": 0,
+        "tx_verify_events_24h": 1,
+        "tx_verify_error_rate_pct": 0,
+        "tx_verify_timeout_rate_pct": 0,
+        "idempotency_conflict_events_24h": 0,
+        "invalid_action_request_id_events_24h": 0,
+        "queue_action_events_24h": 85,
+        "queue_success_rate_pct": 100,
+        "queue_pending_rate_pct": 0,
+        "queue_failure_rate_pct": 0,
+        "admin_audit_entries_24h": 143,
+        "audit_coverage_proxy_pct": 168.24,
+        "wallet_challenge_verify_rate_pct": 100,
+        "kyc_manual_review_rate_pct": 0,
+        "pvp_progression_updates_24h": 0,
+        "pvp_progression_unique_users_24h": 0
+      },
+      "details": {
+        "intent": {
+          "total_events": "0",
+          "unknown_events": "0",
+          "mode_extracted_events": "0"
+        },
+        "payout": {
+          "total_requests": "0",
+          "paid_requests": "0",
+          "rejected_requests": "0",
+          "active_requests": "0"
+        },
+        "tx_submit": {
+          "submitted_events": 0,
+          "verify_events": 1,
+          "verify_success_events": 1,
+          "verify_error_events": 0,
+          "verify_timeout_events": 0
+        },
+        "webapp_action_errors": {
+          "idempotency_conflict_events": 0,
+          "invalid_action_request_id_events": 0
+        },
+        "payout_release_events": [],
+        "queue_actions": {
+          "total_events": 85,
+          "success_events": 85,
+          "non_ok_events": 0,
+          "pending_events": 0,
+          "completed_events": 85,
+          "failed_events": 0,
+          "queued_events": 0,
+          "ok_events": 0,
+          "success_rate": 100,
+          "pending_rate": 0,
+          "failure_rate": 0
+        },
+        "queue_status_dictionary": {
+          "success": [
+            "completed",
+            "ok"
+          ],
+          "failed": [
+            "failed"
+          ],
+          "pending": [
+            "queued"
+          ]
+        },
+        "queue_failure_reasons": [],
+        "admin_audit": {
+          "total_entries": "143"
+        },
+        "wallet": {
+          "issued_challenges": "28",
+          "consumed_challenges": "28"
+        },
+        "kyc": {
+          "total_decisions": "0",
+          "manual_review_decisions": "0",
+          "blocked_decisions": "0"
+        },
+        "pvp": {
+          "updated_rows": "0",
+          "unique_users": "0"
+        },
+        "slo_latest_by_key": [
+          {
+            "metric_key": "audit_coverage_proxy_pct",
+            "metric_value": "136.36000000",
+            "sample_size": "33",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.383Z"
+          },
+          {
+            "metric_key": "idempotency_conflict_events_24h",
+            "metric_value": "0.00000000",
+            "sample_size": "33",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.465Z"
+          },
+          {
+            "metric_key": "payout_dispute_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "7d",
+            "measured_at": "2026-03-05T02:04:07.589Z"
+          },
+          {
+            "metric_key": "payout_rejected_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "72h",
+            "measured_at": "2026-03-05T02:04:07.342Z"
+          },
+          {
+            "metric_key": "revenue_amount",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "7d",
+            "measured_at": "2026-03-05T02:04:07.547Z"
+          },
+          {
+            "metric_key": "tx_verify_error_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.424Z"
+          },
+          {
+            "metric_key": "unknown_intent_rate_pct",
+            "metric_value": "0.00000000",
+            "sample_size": "0",
+            "window_key": "72h",
+            "measured_at": "2026-03-05T02:04:07.260Z"
+          },
+          {
+            "metric_key": "wallet_challenge_verify_rate_pct",
+            "metric_value": "100.00000000",
+            "sample_size": "11",
+            "window_key": "24h",
+            "measured_at": "2026-03-05T02:04:07.507Z"
+          }
+        ],
+        "cutover_switch_events": [],
+        "bootstrap": null
+      }
+    }
+  },
+  "weekly": {
+    "trend_days": 7,
+    "by_day": [
+      {
+        "day": "2026-02-27",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-02-28",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-03-01",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-03-02",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-03-03",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-03-04",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      },
+      {
+        "day": "2026-03-05",
+        "revenue_amount": 0,
+        "revenue_events": 0,
+        "payout_total_requests": 0,
+        "payout_rejected_requests": 0,
+        "payout_paid_requests": 0,
+        "payout_rejected_rate_pct": 0
+      }
+    ],
+    "totals": {
+      "revenue_amount": 0,
+      "payout_total_requests": 0,
+      "payout_rejected_requests": 0,
+      "payout_rejected_rate_pct": 0
+    },
+    "monetization": {
+      "by_kind": [],
+      "pass": {
+        "activations": 0,
+        "buyers": 0
+      },
+      "cosmetic": {
+        "purchases": 0,
+        "buyers": 0,
+        "amount_total": 0
+      },
+      "marketplace_fee": {
+        "events": 0,
+        "fee_total": 0
+      }
+    },
+    "sources": {
+      "monetizationLedger": true,
+      "payoutRequests": true,
+      "userPasses": true,
+      "cosmeticPurchases": true,
+      "marketplaceFees": true
+    }
+  }
+}

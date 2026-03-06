@@ -1,6 +1,7 @@
 "use strict";
 
 const { normalizeActionRequestId } = require("../shared/actionRequestGuard");
+const { normalizeV2Payload } = require("./shared/v2ResponseNormalizer");
 
 function resolveProxy(deps) {
   const proxyWebAppApiV1 = deps.proxyWebAppApiV1;
@@ -8,20 +9,6 @@ function resolveProxy(deps) {
     throw new Error("registerWebappV2PvpRoutes requires proxyWebAppApiV1");
   }
   return proxyWebAppApiV1;
-}
-
-function normalizePvpV2Payload(payload, actionRequestId = "") {
-  if (!payload || typeof payload !== "object") {
-    return payload;
-  }
-  if (!payload.data || typeof payload.data !== "object") {
-    payload.data = {};
-  }
-  payload.data.api_version = "v2";
-  if (actionRequestId) {
-    payload.data.action_request_id = actionRequestId;
-  }
-  return payload;
 }
 
 function resolveActionRequestId(body) {
@@ -64,7 +51,7 @@ function registerWebappV2PvpRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/pvp/session/start",
         method: "POST",
-        transform: (payload) => normalizePvpV2Payload(payload, actionRequestId)
+        transform: (payload) => normalizeV2Payload(payload, { actionRequestId })
       });
     }
   );
@@ -95,7 +82,7 @@ function registerWebappV2PvpRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/pvp/session/action",
         method: "POST",
-        transform: (payload) => normalizePvpV2Payload(payload, actionRequestId)
+        transform: (payload) => normalizeV2Payload(payload, { actionRequestId })
       });
     }
   );
@@ -122,7 +109,7 @@ function registerWebappV2PvpRoutes(fastify, deps = {}) {
       await proxyWebAppApiV1(request, reply, {
         targetPath: "/webapp/api/pvp/session/resolve",
         method: "POST",
-        transform: (payload) => normalizePvpV2Payload(payload, actionRequestId)
+        transform: (payload) => normalizeV2Payload(payload, { actionRequestId })
       });
     }
   );
@@ -131,7 +118,31 @@ function registerWebappV2PvpRoutes(fastify, deps = {}) {
     await proxyWebAppApiV1(request, reply, {
       targetPath: "/webapp/api/pvp/session/state",
       method: "GET",
-      transform: (payload) => normalizePvpV2Payload(payload, "")
+      transform: (payload) => normalizeV2Payload(payload)
+    });
+  });
+
+  fastify.get("/webapp/api/v2/pvp/leaderboard/live", async (request, reply) => {
+    await proxyWebAppApiV1(request, reply, {
+      targetPath: "/webapp/api/pvp/leaderboard/live",
+      method: "GET",
+      transform: (payload) => normalizeV2Payload(payload)
+    });
+  });
+
+  fastify.get("/webapp/api/v2/pvp/diagnostics/live", async (request, reply) => {
+    await proxyWebAppApiV1(request, reply, {
+      targetPath: "/webapp/api/pvp/diagnostics/live",
+      method: "GET",
+      transform: (payload) => normalizeV2Payload(payload)
+    });
+  });
+
+  fastify.get("/webapp/api/v2/pvp/match/tick", async (request, reply) => {
+    await proxyWebAppApiV1(request, reply, {
+      targetPath: "/webapp/api/pvp/match/tick",
+      method: "GET",
+      transform: (payload) => normalizeV2Payload(payload)
     });
   });
 }
