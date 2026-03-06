@@ -3,18 +3,12 @@ import {
   fetchTokenRouteStatusV2,
   fetchTokenSummaryV2,
 } from "./api";
-import {
-  parseBotReconcileDraft,
-  parseDynamicPolicySegmentsDraft,
-  parseRuntimeFlagsDraft
-} from "../core/admin/adminDraftParsers";
 import { buildPvpSessionMachine } from "../core/player/pvpSessionMachine";
 import { resolveAdminPanelVisibility } from "../core/admin/adminPanelSwitches";
 import { runMutationWithBackoff } from "../core/player/mutationPolicy";
 import {
   buildRouteKey,
   buildUiEventRecord,
-  UI_ECONOMY_EVENT_KEY,
   UI_EVENT_KEY,
   UI_FUNNEL_KEY,
   UI_SURFACE_KEY
@@ -32,6 +26,7 @@ import type {
 } from "./types";
 import { AdminPanel } from "./features/admin/AdminPanel";
 import { useAdminQueueController } from "./features/admin/useAdminQueueController";
+import { useAdminRuntimeController } from "./features/admin/useAdminRuntimeController";
 import { HomePanel } from "./features/home/HomePanel";
 import { OnboardingOverlay } from "./features/onboarding/OnboardingOverlay";
 import { PvpPanel } from "./features/pvp/PvpPanel";
@@ -564,345 +559,56 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     });
   };
 
-  const refreshAdmin = async () => {
-    if (!adminQueryEnabled) return;
-    const [
-      summaryRefetch,
-      queueRefetch,
-      metricsRefetch,
-      opsKpiRefetch,
-      assetsRefetch,
-      runtimeFlagsRefetch,
-      runtimeBotRefetch,
-      deployStatusRefetch,
-      auditPhaseRefetch,
-      auditIntegrityRefetch,
-      dynamicPolicyRefetch
-    ] = await Promise.all([
-      adminBootstrapQuery.refetch().catch(() => null),
-      adminQueueQuery.refetch().catch(() => null),
-      adminMetricsQuery.refetch().catch(() => null),
-      adminOpsKpiLatestQuery.refetch().catch(() => null),
-      adminAssetsQuery.refetch().catch(() => null),
-      adminRuntimeFlagsQuery.refetch().catch(() => null),
-      adminRuntimeBotQuery.refetch().catch(() => null),
-      adminDeployStatusQuery.refetch().catch(() => null),
-      adminAuditPhaseStatusQuery.refetch().catch(() => null),
-      adminAuditIntegrityQuery.refetch().catch(() => null),
-      adminDynamicPolicyQuery.refetch().catch(() => null)
-    ]);
-    const summary = (summaryRefetch?.data || null) as WebAppApiResponse | null;
-    const queue = (queueRefetch?.data || null) as WebAppApiResponse | null;
-    const metrics = (metricsRefetch?.data || null) as WebAppApiResponse | null;
-    const opsKpi = (opsKpiRefetch?.data || null) as WebAppApiResponse | null;
-    const assets = (assetsRefetch?.data || null) as WebAppApiResponse | null;
-    const runtimeFlags = (runtimeFlagsRefetch?.data || null) as WebAppApiResponse | null;
-    const runtimeBot = (runtimeBotRefetch?.data || null) as WebAppApiResponse | null;
-    const deployStatus = (deployStatusRefetch?.data || null) as WebAppApiResponse | null;
-    const auditPhaseStatus = (auditPhaseRefetch?.data || null) as WebAppApiResponse | null;
-    const auditDataIntegrity = (auditIntegrityRefetch?.data || null) as WebAppApiResponse | null;
-    const dynamicPolicy = (dynamicPolicyRefetch?.data || null) as WebAppApiResponse | null;
-    if (summary && !summary.success) {
-      setError(asError(summary, "admin_bootstrap_failed"));
-      return;
-    }
-    setAdminRuntime(summary?.data || null, (queue?.data as any)?.items || []);
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      metrics: metrics?.data || null,
-      ops_kpi: opsKpi?.data || null,
-      assets: assets?.data || null,
-      runtime_flags: runtimeFlags?.data || null,
-      runtime_bot: runtimeBot?.data || null,
-      deploy_status: deployStatus?.data || null,
-      audit_phase_status: auditPhaseStatus?.data || null,
-      audit_data_integrity: auditDataIntegrity?.data || null,
-      dynamic_policy: dynamicPolicy?.data || null
-    }));
-    if (runtimeFlags?.success) {
-      const flagsPayload = (runtimeFlags.data as { flags?: Record<string, unknown> } | undefined)?.flags || {};
-      const boolFlags = Object.fromEntries(
-        Object.entries(flagsPayload).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")
-      );
-      setRuntimeFlagsDraft(JSON.stringify(boolFlags, null, 2));
-      setRuntimeFlagsError("");
-    }
-    if (runtimeBot?.success) {
-      const fallbackStateKey = String((runtimeBot.data as { latest?: { state_key?: string } } | undefined)?.latest?.state_key || "");
-      if (fallbackStateKey) {
-        setBotReconcileDraft((prev) => {
-          const current = String(prev || "").trim();
-          if (current && current !== '{"state_key":"","reason":"","force_stop":false}') {
-            return prev;
-          }
-          return JSON.stringify({ state_key: fallbackStateKey, reason: "", force_stop: false }, null, 2);
-        });
-      }
-      setBotReconcileError("");
-    }
-    if (dynamicPolicy?.success) {
-      const segments = Array.isArray((dynamicPolicy.data as { segments?: Array<Record<string, unknown>> } | undefined)?.segments)
-        ? ((dynamicPolicy.data as { segments?: Array<Record<string, unknown>> }).segments as Array<Record<string, unknown>>)
-        : [];
-      setDynamicPolicyDraft(JSON.stringify(segments, null, 2));
-      setDynamicPolicyError("");
-    }
-  };
-
-  const refreshDynamicPolicy = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("dynamicPolicy")) return;
-    setDynamicPolicyError("");
-    const refetch = await adminDynamicPolicyQuery.refetch().catch(() => null);
-    const payload = (refetch?.data || null) as WebAppApiResponse | null;
-    if (!payload?.success) {
-      setDynamicPolicyError(asError(payload, "dynamic_policy_fetch_failed"));
-      return;
-    }
-    const segments = Array.isArray((payload.data as { segments?: Array<Record<string, unknown>> } | undefined)?.segments)
-      ? ((payload.data as { segments?: Array<Record<string, unknown>> }).segments as Array<Record<string, unknown>>)
-      : [];
-    setDynamicPolicyDraft(JSON.stringify(segments, null, 2));
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      dynamic_policy: payload.data || null
-    }));
-  };
-
-  const saveDynamicPolicy = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("dynamicPolicy")) return;
-    setDynamicPolicyError("");
-    const parsedDraft = parseDynamicPolicySegmentsDraft(dynamicPolicyDraft || "[]");
-    if (!parsedDraft.ok) {
-      setDynamicPolicyError(parsedDraft.error || "dynamic_policy_invalid_json");
-      return;
-    }
-    const payload = await adminDynamicPolicyUpsert({
-      auth: activeAuth,
-      token_symbol: String(dynamicPolicyTokenSymbol || "").trim().toUpperCase() || undefined,
-      replace_missing: true,
-      reason: "webapp_admin_dynamic_auto_policy_update",
-      segments: parsedDraft.segments as Array<Record<string, unknown>>
-    })
-      .unwrap()
-      .catch(() => null);
-    if (!payload?.success) {
-      setDynamicPolicyError(asError(payload, "dynamic_policy_save_failed"));
-      return;
-    }
-    const segments = Array.isArray((payload.data as { segments?: Array<Record<string, unknown>> } | undefined)?.segments)
-      ? ((payload.data as { segments?: Array<Record<string, unknown>> }).segments as Array<Record<string, unknown>>)
-      : [];
-    setDynamicPolicyDraft(JSON.stringify(segments, null, 2));
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      dynamic_policy: payload.data || null
-    }));
-    await refreshAdmin();
-  };
-
-  const refreshRuntimeFlags = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeFlags")) return;
-    setRuntimeFlagsError("");
-    const refetch = await adminRuntimeFlagsQuery.refetch().catch(() => null);
-    const payload = (refetch?.data || null) as WebAppApiResponse | null;
-    if (!payload?.success) {
-      setRuntimeFlagsError(asError(payload, "runtime_flags_fetch_failed"));
-      return;
-    }
-    const flagsPayload = (payload.data as { flags?: Record<string, unknown> } | undefined)?.flags || {};
-    const boolFlags = Object.fromEntries(
-      Object.entries(flagsPayload).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")
-    );
-    setRuntimeFlagsDraft(JSON.stringify(boolFlags, null, 2));
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      runtime_flags: payload.data || null
-    }));
-  };
-
-  const saveRuntimeFlags = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeFlags")) return;
-    setRuntimeFlagsError("");
-    const parsedDraft = parseRuntimeFlagsDraft(runtimeFlagsDraft || "{}");
-    if (!parsedDraft.ok) {
-      setRuntimeFlagsError(parsedDraft.error || "runtime_flags_invalid_json");
-      return;
-    }
-    const payload = await adminRuntimeFlagsUpdate({
-      auth: activeAuth,
-      source_mode: (parsedDraft.source_mode as "env_locked" | "db_override" | undefined) || undefined,
-      source_json: (parsedDraft.source_json as Record<string, unknown> | undefined) || undefined,
-      flags: parsedDraft.flags
-    })
-      .unwrap()
-      .catch(() => null);
-    if (!payload?.success) {
-      setRuntimeFlagsError(asError(payload, "runtime_flags_save_failed"));
-      return;
-    }
-    setRuntimeFlagsDraft(JSON.stringify(parsedDraft.flags, null, 2));
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      runtime_flags: payload.data || null
-    }));
-    await refreshAdmin();
-  };
-
-  const refreshBotRuntime = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeBot")) return;
-    setBotReconcileError("");
-    const refetch = await adminRuntimeBotQuery.refetch().catch(() => null);
-    const payload = (refetch?.data || null) as WebAppApiResponse | null;
-    if (!payload?.success) {
-      setBotReconcileError(asError(payload, "runtime_bot_fetch_failed"));
-      return;
-    }
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      runtime_bot: payload.data || null
-    }));
-  };
-
-  const runBotReconcile = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeBot")) return;
-    setBotReconcileError("");
-    const parsedDraft = parseBotReconcileDraft(botReconcileDraft || "{}");
-    if (!parsedDraft.ok) {
-      setBotReconcileError(parsedDraft.error || "runtime_bot_invalid_json");
-      return;
-    }
-    const payload = await adminRuntimeBotReconcile({
-      auth: activeAuth,
-      state_key: parsedDraft.state_key,
-      reason: parsedDraft.reason || undefined,
-      force_stop: parsedDraft.force_stop
-    })
-      .unwrap()
-      .catch(() => null);
-    if (!payload?.success) {
-      setBotReconcileError(asError(payload, "runtime_bot_reconcile_failed"));
-      return;
-    }
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      runtime_bot_reconcile: payload.data || null
-    }));
-    await refreshAdmin();
-  };
-
-  const refreshRuntimeMeta = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeMeta")) return;
-    const [opsKpiRefetch, deployRefetch, assetsRefetch, auditPhaseRefetch, auditIntegrityRefetch] = await Promise.all([
-      adminOpsKpiLatestQuery.refetch().catch(() => null),
-      adminDeployStatusQuery.refetch().catch(() => null),
-      adminAssetsQuery.refetch().catch(() => null),
-      adminAuditPhaseStatusQuery.refetch().catch(() => null),
-      adminAuditIntegrityQuery.refetch().catch(() => null)
-    ]);
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      ops_kpi: (opsKpiRefetch?.data as WebAppApiResponse | undefined)?.data || null,
-      deploy_status: (deployRefetch?.data as WebAppApiResponse | undefined)?.data || null,
-      assets: (assetsRefetch?.data as WebAppApiResponse | undefined)?.data || null,
-      audit_phase_status: (auditPhaseRefetch?.data as WebAppApiResponse | undefined)?.data || null,
-      audit_data_integrity: (auditIntegrityRefetch?.data as WebAppApiResponse | undefined)?.data || null
-    }));
-  };
-
-  const refreshOpsKpi = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeMeta")) return;
-    setOpsKpiRunError("");
-    const refetch = await adminOpsKpiLatestQuery.refetch().catch(() => null);
-    const payload = (refetch?.data || null) as WebAppApiResponse | null;
-    if (!payload?.success) {
-      setOpsKpiRunError(asError(payload, "admin_ops_kpi_latest_failed"));
-      return;
-    }
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      ops_kpi: payload.data || null
-    }));
-  };
-
-  const runOpsKpiBundle = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeMeta")) return;
-    setOpsKpiRunError("");
-    trackUiEvent({
-      event_key: UI_EVENT_KEY.ACTION_REQUEST,
-      panel_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-      funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
-      surface_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-      payload_json: {
-        action_key: "admin_ops_kpi_run"
-      }
-    });
-    const payload = await adminOpsKpiRun({
-      auth: activeAuth,
-      hours_short: 24,
-      hours_long: 72,
-      trend_days: 7,
-      emit_slo: true
-    })
-      .unwrap()
-      .catch(() => null);
-    applySession(payload);
-    if (!payload?.success) {
-      const nextError = asError(payload, "admin_ops_kpi_run_failed");
-      setOpsKpiRunError(nextError);
-      trackUiEvent({
-        event_key: UI_EVENT_KEY.ACTION_FAILED,
-        panel_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-        funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
-        surface_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-        payload_json: {
-          action_key: "admin_ops_kpi_run",
-          error: nextError
-        }
-      });
-      return;
-    }
-    trackUiEvent({
-      event_key: UI_EVENT_KEY.ACTION_SUCCESS,
-      panel_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-      funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
-      surface_key: UI_SURFACE_KEY.PANEL_ADMIN_RUNTIME,
-      payload_json: {
-        action_key: "admin_ops_kpi_run"
-      }
-    });
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      ops_kpi: payload.data || null,
-      ops_kpi_run: payload.data || null
-    }));
-    await refreshOpsKpi();
-  };
-
-  const reloadAssets = async () => {
-    if (!adminQueryEnabled) return;
-    if (!ensureAdminPanelEnabled("runtimeMeta")) return;
-    const payload = await adminAssetsReload({ auth: activeAuth })
-      .unwrap()
-      .catch(() => null);
-    if (!payload?.success) {
-      setError(asError(payload, "assets_reload_failed"));
-      return;
-    }
-    setAdminPanels((prev: any) => ({
-      ...(prev || {}),
-      assets_reload: payload.data || null
-    }));
-    await refreshAdmin();
-  };
+  const {
+    refreshAdmin,
+    refreshDynamicPolicy,
+    saveDynamicPolicy,
+    refreshRuntimeFlags,
+    saveRuntimeFlags,
+    refreshBotRuntime,
+    runBotReconcile,
+    refreshRuntimeMeta,
+    refreshOpsKpi,
+    runOpsKpiBundle,
+    reloadAssets
+  } = useAdminRuntimeController({
+    adminQueryEnabled,
+    activeAuth,
+    dynamicPolicyTokenSymbol,
+    dynamicPolicyDraft,
+    runtimeFlagsDraft,
+    botReconcileDraft,
+    setDynamicPolicyDraft,
+    setDynamicPolicyError,
+    setRuntimeFlagsDraft,
+    setRuntimeFlagsError,
+    setBotReconcileDraft,
+    setBotReconcileError,
+    setOpsKpiRunError,
+    setAdminPanels,
+    setAdminRuntime,
+    setError,
+    asError,
+    ensureAdminPanelEnabled,
+    trackUiEvent,
+    applySession,
+    adminBootstrapQuery,
+    adminQueueQuery,
+    adminMetricsQuery,
+    adminOpsKpiLatestQuery,
+    adminAssetsQuery,
+    adminRuntimeFlagsQuery,
+    adminRuntimeBotQuery,
+    adminDeployStatusQuery,
+    adminAuditPhaseStatusQuery,
+    adminAuditIntegrityQuery,
+    adminDynamicPolicyQuery,
+    adminDynamicPolicyUpsert,
+    adminRuntimeFlagsUpdate,
+    adminRuntimeBotReconcile,
+    adminOpsKpiRun,
+    adminAssetsReload
+  });
 
   const refreshHome = async () => {
     if (!hasActiveAuth) return;
