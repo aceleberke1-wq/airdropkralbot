@@ -31,6 +31,7 @@ import { usePvpController } from "./features/pvp/usePvpController";
 import { useRetriableAction } from "./features/shared/useRetriableAction";
 import { MetaStrip } from "./features/shell/MetaStrip";
 import { PlayerTabs } from "./features/shell/PlayerTabs";
+import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
 import { useShellTopBarController } from "./features/shell/useShellTopBarController";
 import { ShellStatus } from "./features/shell/ShellStatus";
 import { TopBar } from "./features/shell/TopBar";
@@ -682,6 +683,12 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     setWorkspace,
     refreshBootstrap
   });
+  const { onTabChange } = usePlayerTabsController({
+    tab,
+    setTab,
+    trackUiEvent,
+    syncPrefs
+  });
   const pvpSessionMachine = useMemo(
     () =>
       buildPvpSessionMachine({
@@ -788,20 +795,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
             lang={lang}
             tab={tab}
             tabs={tabs}
-            onChange={(entry) => {
-              trackUiEvent({
-                event_key: UI_EVENT_KEY.TAB_SWITCH,
-                panel_key: UI_SURFACE_KEY.PLAYER_TABS,
-                funnel_key: UI_FUNNEL_KEY.PLAYER_LOOP,
-                surface_key: UI_SURFACE_KEY.PLAYER_TABS,
-                payload_json: {
-                  from: tab,
-                  to: entry
-                }
-              });
-              setTab(entry);
-              void syncPrefs({ last_tab: entry });
-            }}
+            onChange={onTabChange}
           />
           <main className="akrPanelGrid">
             {tab === "home" && <HomePanel lang={lang} advanced={advanced} homeFeed={homeFeed} data={data} onRefresh={() => void refreshHome()} />}
