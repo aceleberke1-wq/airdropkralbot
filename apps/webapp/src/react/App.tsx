@@ -13,20 +13,18 @@ import type {
   WebAppApiResponse,
   WebAppAuth
 } from "./types";
-import { AdminPanel } from "./features/admin/AdminPanel";
+import { AdminWorkspace } from "./features/admin/AdminWorkspace";
 import { useAdminQueueController } from "./features/admin/useAdminQueueController";
 import { useAdminRuntimeController } from "./features/admin/useAdminRuntimeController";
-import { HomePanel } from "./features/home/HomePanel";
 import { OnboardingOverlay } from "./features/onboarding/OnboardingOverlay";
+import { PlayerWorkspace } from "./features/player/PlayerWorkspace";
 import { usePlayerRefreshController } from "./features/player/usePlayerRefreshController";
-import { PvpPanel } from "./features/pvp/PvpPanel";
 import { usePvpAutoRefresh } from "./features/pvp/usePvpAutoRefresh";
 import { usePvpController } from "./features/pvp/usePvpController";
 import { useRetriableAction } from "./features/shared/useRetriableAction";
 import { useBootstrapRefreshController } from "./features/shell/useBootstrapRefreshController";
 import { LaunchHandoffStrip } from "./features/shell/LaunchHandoffStrip";
 import { MetaStrip } from "./features/shell/MetaStrip";
-import { PlayerTabs } from "./features/shell/PlayerTabs";
 import { useLaunchFocusController } from "./features/shell/useLaunchFocusController";
 import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
 import { useShellDataSyncController } from "./features/shell/useShellDataSyncController";
@@ -35,10 +33,8 @@ import { useShellTelemetryController } from "./features/shell/useShellTelemetryC
 import { useShellTopBarController } from "./features/shell/useShellTopBarController";
 import { ShellStatus } from "./features/shell/ShellStatus";
 import { TopBar } from "./features/shell/TopBar";
-import { TasksPanel } from "./features/tasks/TasksPanel";
 import { useTaskMutationRunner } from "./features/tasks/useTaskMutationRunner";
 import { useTasksController } from "./features/tasks/useTasksController";
-import { VaultPanel } from "./features/vault/VaultPanel";
 import { useVaultController } from "./features/vault/useVaultController";
 import { useVaultRefreshController } from "./features/vault/useVaultRefreshController";
 import {
@@ -565,133 +561,101 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           focusLabel={launchSummary.focusLabel}
         />
       ) : null}
-
       {workspace === "player" && (
-        <>
-          <PlayerTabs
-            lang={lang}
-            tab={tab}
-            tabs={tabs}
-            onChange={onTabChange}
-          />
-          <main className="akrPanelGrid">
-            {tab === "home" && <HomePanel lang={lang} advanced={advanced} homeFeed={homeFeed} data={data} onRefresh={() => void refreshHome()} />}
-            {tab === "pvp" && (
-              <PvpPanel
-                lang={lang}
-                advanced={advanced}
-                pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
-                leagueOverview={leagueOverview}
-                liveLeaderboard={(pvpLive?.leaderboard as Record<string, unknown> | null) || null}
-                liveDiagnostics={(pvpLive?.diagnostics as Record<string, unknown> | null) || null}
-                liveTick={(pvpLive?.tick as Record<string, unknown> | null) || null}
-                canStart={pvpSessionMachine.can_start}
-                canRefreshState={pvpSessionMachine.can_refresh_state}
-                canStrike={pvpSessionMachine.can_strike}
-                canResolve={pvpSessionMachine.can_resolve}
-                onStart={() => void handlePvpStart()}
-                onRefreshState={() => void handlePvpRefreshState()}
-                onRefreshLeague={() => void refreshLeagueOverview()}
-                onRefreshLive={() => void refreshPvpLive()}
-                onStrike={() => void handlePvpStrike()}
-                onResolve={() => void handlePvpResolve()}
-              />
-            )}
-            {tab === "tasks" && (
-              <TasksPanel
-                lang={lang}
-                advanced={advanced}
-                offers={((data as any)?.offers || []) as Array<Record<string, unknown>>}
-                missions={((data?.missions?.list as any[]) || []) as Array<Record<string, unknown>>}
-                attempts={(data?.attempts as Record<string, unknown> | null) || null}
-                daily={(data?.daily as Record<string, unknown> | null) || null}
-                taskResult={taskResult}
-                onReroll={() => void handleTasksReroll()}
-                onComplete={() => void handleTaskComplete()}
-                onReveal={() => void handleTaskReveal()}
-                onAccept={(offerId) => void handleTaskAccept(offerId)}
-                onClaim={(missionKey) => void handleMissionClaim(missionKey)}
-              />
-            )}
-            {tab === "vault" && (
-              <VaultPanel
-                lang={lang}
-                advanced={advanced}
-                vaultData={vaultData}
-                quoteUsd={quoteUsd}
-                quoteChain={quoteChain}
-                submitRequestId={submitRequestId}
-                submitTxHash={submitTxHash}
-                walletChain={walletChain}
-                walletAddress={walletAddress}
-                walletChallengeRef={walletChallengeRef}
-                walletSignature={walletSignature}
-                payoutCurrency={payoutCurrency}
-                onRefresh={() => void refreshVault()}
-                onQuote={() => void handleTokenQuote()}
-                onBuyIntent={() => void handleTokenBuyIntent()}
-                onSubmitTx={() => void handleTokenSubmitTx()}
-                onWalletChallenge={() => void handleWalletChallenge()}
-                onWalletVerify={() => void handleWalletVerify()}
-                onWalletUnlink={() => void handleWalletUnlink()}
-                onPayoutRequest={() => void handlePayoutRequest()}
-                onPassPurchase={(passKey, paymentCurrency) => void handlePassPurchase(passKey, paymentCurrency)}
-                onCosmeticPurchase={(itemKey, paymentCurrency) => void handleCosmeticPurchase(itemKey, paymentCurrency)}
-                walletChallengeLoading={walletChallengeLoading}
-                walletVerifyLoading={walletVerifyLoading}
-                walletUnlinkLoading={walletUnlinkLoading}
-                payoutRequestLoading={payoutRequestLoading}
-                passPurchaseLoading={passPurchaseLoading}
-                cosmeticPurchaseLoading={cosmeticPurchaseLoading}
-                onQuoteUsdChange={setQuoteUsd}
-                onQuoteChainChange={setQuoteChain}
-                onSubmitRequestIdChange={setSubmitRequestId}
-                onSubmitTxHashChange={setSubmitTxHash}
-                onWalletChainChange={setWalletChain}
-                onWalletAddressChange={setWalletAddress}
-                onWalletChallengeRefChange={setWalletChallengeRef}
-                onWalletSignatureChange={setWalletSignature}
-                onPayoutCurrencyChange={setPayoutCurrency}
-              />
-            )}
-          </main>
-        </>
+        <PlayerWorkspace
+          lang={lang}
+          tab={tab}
+          tabs={tabs}
+          advanced={advanced}
+          data={data}
+          homeFeed={(homeFeed as Record<string, unknown> | null) || null}
+          pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
+          leagueOverview={(leagueOverview as Record<string, unknown> | null) || null}
+          pvpLive={{
+            leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
+            diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
+            tick: (pvpLive?.tick as Record<string, unknown> | null) || null
+          }}
+          pvpCapabilities={{
+            canStart: pvpSessionMachine.can_start,
+            canRefreshState: pvpSessionMachine.can_refresh_state,
+            canStrike: pvpSessionMachine.can_strike,
+            canResolve: pvpSessionMachine.can_resolve
+          }}
+          taskResult={(taskResult as Record<string, unknown> | null) || null}
+          vaultData={(vaultData as Record<string, unknown> | null) || null}
+          quoteUsd={quoteUsd}
+          quoteChain={quoteChain}
+          submitRequestId={submitRequestId}
+          submitTxHash={submitTxHash}
+          walletChain={walletChain}
+          walletAddress={walletAddress}
+          walletChallengeRef={walletChallengeRef}
+          walletSignature={walletSignature}
+          payoutCurrency={payoutCurrency}
+          walletChallengeLoading={walletChallengeLoading}
+          walletVerifyLoading={walletVerifyLoading}
+          walletUnlinkLoading={walletUnlinkLoading}
+          payoutRequestLoading={payoutRequestLoading}
+          passPurchaseLoading={passPurchaseLoading}
+          cosmeticPurchaseLoading={cosmeticPurchaseLoading}
+          onTabChange={onTabChange}
+          onRefreshHome={() => void refreshHome()}
+          onPvpStart={() => void handlePvpStart()}
+          onPvpRefreshState={() => void handlePvpRefreshState()}
+          onPvpRefreshLeague={() => void refreshLeagueOverview()}
+          onPvpRefreshLive={() => void refreshPvpLive()}
+          onPvpStrike={() => void handlePvpStrike()}
+          onPvpResolve={() => void handlePvpResolve()}
+          onTasksReroll={() => void handleTasksReroll()}
+          onTaskComplete={() => void handleTaskComplete()}
+          onTaskReveal={() => void handleTaskReveal()}
+          onTaskAccept={(offerId) => void handleTaskAccept(offerId)}
+          onMissionClaim={(missionKey) => void handleMissionClaim(missionKey)}
+          onVaultRefresh={() => void refreshVault()}
+          onTokenQuote={() => void handleTokenQuote()}
+          onTokenBuyIntent={() => void handleTokenBuyIntent()}
+          onTokenSubmitTx={() => void handleTokenSubmitTx()}
+          onWalletChallenge={() => void handleWalletChallenge()}
+          onWalletVerify={() => void handleWalletVerify()}
+          onWalletUnlink={() => void handleWalletUnlink()}
+          onPayoutRequest={() => void handlePayoutRequest()}
+          onPassPurchase={(passKey, paymentCurrency) => void handlePassPurchase(passKey, paymentCurrency)}
+          onCosmeticPurchase={(itemKey, paymentCurrency) => void handleCosmeticPurchase(itemKey, paymentCurrency)}
+          onQuoteUsdChange={setQuoteUsd}
+          onQuoteChainChange={setQuoteChain}
+          onSubmitRequestIdChange={setSubmitRequestId}
+          onSubmitTxHashChange={setSubmitTxHash}
+          onWalletChainChange={setWalletChain}
+          onWalletAddressChange={setWalletAddress}
+          onWalletChallengeRefChange={setWalletChallengeRef}
+          onWalletSignatureChange={setWalletSignature}
+          onPayoutCurrencyChange={setPayoutCurrency}
+        />
       )}
 
       {workspace === "admin" && (
-        <AdminPanel
+        <AdminWorkspace
           lang={lang}
           isAdmin={isAdmin}
           advanced={advanced}
           adminRuntime={adminRuntime}
           adminPanels={adminPanels}
           queueAction={queueAction}
-          onQueueActionChange={patchQueueAction}
-          onRefresh={() => void refreshAdmin()}
-          onRunQueueAction={() => void runQueueAction()}
+          panelVisibility={adminPanelVisibility}
           dynamicPolicyData={(adminPanels?.dynamic_policy as Record<string, unknown> | null) || null}
           dynamicPolicyTokenSymbol={dynamicPolicyTokenSymbol}
           dynamicPolicyDraft={dynamicPolicyDraft}
           dynamicPolicyError={dynamicPolicyError}
           dynamicPolicySaving={dynamicPolicySaving}
-          onDynamicPolicyTokenSymbolChange={(value) => setDynamicPolicyTokenSymbol(value)}
-          onDynamicPolicyDraftChange={(value) => setDynamicPolicyDraft(value)}
-          onRefreshDynamicPolicy={() => void refreshDynamicPolicy()}
-          onSaveDynamicPolicy={() => void saveDynamicPolicy()}
           runtimeFlagsData={(adminPanels?.runtime_flags as Record<string, unknown> | null) || null}
           runtimeFlagsDraft={runtimeFlagsDraft}
           runtimeFlagsError={runtimeFlagsError}
           runtimeFlagsSaving={runtimeFlagsSaving}
-          onRuntimeFlagsDraftChange={(value) => setRuntimeFlagsDraft(value)}
-          onRefreshRuntimeFlags={() => void refreshRuntimeFlags()}
-          onSaveRuntimeFlags={() => void saveRuntimeFlags()}
           botRuntimeData={(adminPanels?.runtime_bot as Record<string, unknown> | null) || null}
           botReconcileDraft={botReconcileDraft}
           botReconcileError={botReconcileError}
           botReconcileSaving={botReconcileSaving}
-          onBotReconcileDraftChange={(value) => setBotReconcileDraft(value)}
-          onRefreshBotRuntime={() => void refreshBotRuntime()}
-          onRunBotReconcile={() => void runBotReconcile()}
           metricsData={(adminPanels?.metrics as Record<string, unknown> | null) || null}
           opsKpiData={(adminPanels?.ops_kpi as Record<string, unknown> | null) || null}
           opsKpiRunData={(adminPanels?.ops_kpi_run as Record<string, unknown> | null) || null}
@@ -702,11 +666,23 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           assetsReloading={assetsReloading}
           auditPhaseStatusData={(adminPanels?.audit_phase_status as Record<string, unknown> | null) || null}
           auditIntegrityData={(adminPanels?.audit_data_integrity as Record<string, unknown> | null) || null}
+          onQueueActionChange={patchQueueAction}
+          onRefresh={() => void refreshAdmin()}
+          onRunQueueAction={() => void runQueueAction()}
+          onDynamicPolicyTokenSymbolChange={setDynamicPolicyTokenSymbol}
+          onDynamicPolicyDraftChange={setDynamicPolicyDraft}
+          onRefreshDynamicPolicy={() => void refreshDynamicPolicy()}
+          onSaveDynamicPolicy={() => void saveDynamicPolicy()}
+          onRuntimeFlagsDraftChange={setRuntimeFlagsDraft}
+          onRefreshRuntimeFlags={() => void refreshRuntimeFlags()}
+          onSaveRuntimeFlags={() => void saveRuntimeFlags()}
+          onBotReconcileDraftChange={setBotReconcileDraft}
+          onRefreshBotRuntime={() => void refreshBotRuntime()}
+          onRunBotReconcile={() => void runBotReconcile()}
           onRefreshRuntimeMeta={() => void refreshRuntimeMeta()}
           onRefreshOpsKpi={() => void refreshOpsKpi()}
           onRunOpsKpi={() => void runOpsKpiBundle()}
           onReloadAssets={() => void reloadAssets()}
-          panelVisibility={adminPanelVisibility}
         />
       )}
 

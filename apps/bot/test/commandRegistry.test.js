@@ -31,6 +31,7 @@ test("primary commands are consistent between help and setMyCommands payload", (
     assert.ok(Array.isArray(cmd.scenarios) && cmd.scenarios.length > 0, `missing scenarios for ${cmd.key}`);
     assert.ok(Array.isArray(cmd.outcomes) && cmd.outcomes.length > 0, `missing outcomes for ${cmd.key}`);
   }
+  assert.ok(telegram.length <= 14, `command menu too large: ${telegram.length}`);
 });
 
 test("legacy aliases map to new command keys", () => {

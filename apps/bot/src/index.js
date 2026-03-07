@@ -64,6 +64,10 @@ const {
   buildProfileKeyboard,
   buildStatusKeyboard,
   buildRewardsKeyboard,
+  buildEventKeyboard,
+  buildDiscoverKeyboard,
+  buildSettingsKeyboard,
+  buildSupportKeyboard,
   buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
@@ -2550,6 +2554,46 @@ async function sendProfile(ctx, pool, appConfig) {
   );
 }
 
+async function sendRewards(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const balances = await economyStore.getBalances(db, profile.user_id);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const payout = await buildPayoutView(db, profile, appConfig, runtimeConfig);
+    return { profile, balances, payout };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const rewardsUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.VAULT,
+    panelKey: CANONICAL_PANEL_KEY.REWARDS,
+    focusKey: "premium_pass"
+  });
+  const leaderboardUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SEASON,
+    panelKey: CANONICAL_PANEL_KEY.LEADERBOARD,
+    focusKey: "leaderboard"
+  });
+  const entitled = Number(payload.payout.entitledBtc || 0).toFixed(8);
+  const requestable = Number(payload.payout.requestableBtc || 0).toFixed(8);
+  const latestRef = escapeMarkdownText(
+    payload.payout.latest?.payout_request_ref || payload.payout.latest?.pass_purchase_ref || payload.payout.latest?.submit_tx_hash || "-"
+  );
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*Rewards Center*\n` +
+          `Balances: *${Number(payload.balances.SC || 0)} SC / ${Number(payload.balances.HC || 0)} HC / ${Number(payload.balances.RC || 0)} RC*\n` +
+          `Entitled: *${entitled} BTC* | Requestable: *${requestable} BTC*\n` +
+          `Payout: *${payload.payout.canRequest ? "open" : "locked"}* | Cooldown: *${payload.payout.cooldownUntil ? "active" : "clear"}*\n` +
+          `Latest Ref: *${latestRef}*`
+      : `*Odul Merkezi*\n` +
+          `Bakiyeler: *${Number(payload.balances.SC || 0)} SC / ${Number(payload.balances.HC || 0)} HC / ${Number(payload.balances.RC || 0)} RC*\n` +
+          `Hak Edilen: *${entitled} BTC* | Talep Edilebilir: *${requestable} BTC*\n` +
+          `Payout: *${payload.payout.canRequest ? "acik" : "kilitli"}* | Cooldown: *${payload.payout.cooldownUntil ? "aktif" : "temiz"}*\n` +
+          `Son Ref: *${latestRef}*`,
+    buildRewardsKeyboard(rewardsUrl || "", leaderboardUrl || "", lang)
+  );
+}
+
 async function sendWallet(ctx, pool, appConfig) {
   const snapshot = await getSnapshot(pool, ctx);
   const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
@@ -2584,6 +2628,59 @@ async function sendSeason(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(
     messages.formatSeason(payload.season, payload.stat, payload.rank),
     buildSeasonKeyboard(seasonUrl || "", leaderboardUrl || "", resolvePreferredLanguage(payload.profile, ctx, "tr"))
+  );
+}
+
+async function sendEvents(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+    const war = await globalStore.getWarStatus(db, season.seasonId);
+    const rows = await seasonStore.getLeaderboard(db, { seasonId: season.seasonId, limit: 3 });
+    return { profile, season, anomaly, contract, war, rows };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const [eventsUrl, seasonUrl, leaderboardUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
+      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
+      focusKey: "command_center"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SEASON
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SEASON,
+      panelKey: CANONICAL_PANEL_KEY.LEADERBOARD,
+      focusKey: "leaderboard"
+    })
+  ]);
+  const lead = (payload.rows || [])
+    .slice(0, 3)
+    .map((row, idx) => `${idx + 1}. ${escapeMarkdownText(row.public_name || "player")} (${Math.floor(Number(row.points || 0))})`)
+    .join("\n");
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*Live Events*\n` +
+          `Season: *S${payload.season.seasonId}* | *${payload.season.daysLeft} days left*\n` +
+          `Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}* (${Number(payload.anomaly.pressure_pct || 0)}% pressure)\n` +
+          `Contract: *${escapeMarkdownText(payload.contract.title || "-")}* [${escapeMarkdownText(payload.contract.required_mode || "balanced")}]\n` +
+          `War Tier: *${escapeMarkdownText(payload.war.tier || "seed")}* | Pool *${Math.floor(Number(payload.war.value || 0))}*\n\n` +
+          `Top Ladder\n${lead || "-"}`
+      : `*Canli Eventler*\n` +
+          `Sezon: *S${payload.season.seasonId}* | *${payload.season.daysLeft} gun kaldi*\n` +
+          `Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}* (${Number(payload.anomaly.pressure_pct || 0)}% basinc)\n` +
+          `Kontrat: *${escapeMarkdownText(payload.contract.title || "-")}* [${escapeMarkdownText(payload.contract.required_mode || "balanced")}]\n` +
+          `War Tier: *${escapeMarkdownText(payload.war.tier || "seed")}* | Havuz *${Math.floor(Number(payload.war.value || 0))}*\n\n` +
+          `Top Ladder\n${lead || "-"}`,
+    buildEventKeyboard(eventsUrl || "", seasonUrl || "", leaderboardUrl || "", lang)
   );
 }
 
@@ -2631,6 +2728,52 @@ async function sendShop(ctx, pool, appConfig) {
   );
 }
 
+async function sendDiscover(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const offers = await taskStore.listActiveOffers(db, profile.user_id);
+    const missions = await missionStore.getMissionBoard(db, profile.user_id);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const season = seasonStore.getSeasonInfo(runtimeConfig);
+    const anomaly = nexusEventEngine.publicAnomalyView(
+      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+        seasonId: season.seasonId
+      })
+    );
+    return { profile, offers, missions, anomaly };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const readyMissions = payload.missions.filter((row) => row.completed && !row.claimed).length;
+  const openOffers = payload.offers.length;
+  const [discoverUrl, missionsUrl, playUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
+      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
+      focusKey: "command_center"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+      panelKey: CANONICAL_PANEL_KEY.QUESTS,
+      focusKey: "board"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB
+    })
+  ]);
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*Discover*\n` +
+          `Active Offers: *${openOffers}* | Ready Missions: *${readyMissions}*\n` +
+          `Current Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}*\n` +
+          `Best next move: *${readyMissions > 0 ? "claim missions" : openOffers > 0 ? "open mission quarter" : "enter arena"}*`
+      : `*Kesfet*\n` +
+          `Aktif Offer: *${openOffers}* | Hazir Misyon: *${readyMissions}*\n` +
+          `Guncel Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}*\n` +
+          `En iyi sonraki hamle: *${readyMissions > 0 ? "misyon claim" : openOffers > 0 ? "mission quarter ac" : "arenaya gir"}*`,
+    buildDiscoverKeyboard(discoverUrl || "", missionsUrl || "", playUrl || "", lang)
+  );
+}
+
 async function sendMissions(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
@@ -2673,6 +2816,141 @@ async function sendDaily(ctx, pool, appConfig) {
   await ctx.replyWithMarkdown(
     messages.formatDaily(payload.profile, payload.daily, payload.board, payload.balances, payload.anomaly, payload.contract),
     buildMissionKeyboard(payload.board, resolvePreferredLanguage(payload.profile, ctx, "tr"), missionsUrl || "")
+  );
+}
+
+async function sendSettings(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const prefs = await webappStore.getUserUiPrefs(db, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    const perf = await webappStore.getLatestPerfProfile(db, profile.user_id, "").catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    return { profile, prefs, perf };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const settingsUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+    panelKey: CANONICAL_PANEL_KEY.LANGUAGE,
+    focusKey: "locale_override"
+  });
+  const supportUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+    panelKey: CANONICAL_PANEL_KEY.SUPPORT,
+    focusKey: "faq_cards"
+  });
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*Settings*\n` +
+          `Locale: *${escapeMarkdownText(payload.profile.locale || "en")}*\n` +
+          `UI Mode: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}* | Quality: *${escapeMarkdownText(payload.prefs?.quality_mode || "auto")}*\n` +
+          `Reduced Motion: *${payload.prefs?.reduced_motion ? "on" : "off"}* | Large Text: *${payload.prefs?.large_text ? "on" : "off"}*\n` +
+          `Sound: *${payload.prefs?.sound_enabled === false ? "off" : "on"}* | FPS(avg): *${payload.perf?.fps_avg ? Number(payload.perf.fps_avg).toFixed(1) : "-"}*`
+      : `*Ayarlar*\n` +
+          `Locale: *${escapeMarkdownText(payload.profile.locale || "tr")}*\n` +
+          `UI Mod: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}* | Kalite: *${escapeMarkdownText(payload.prefs?.quality_mode || "auto")}*\n` +
+          `Reduced Motion: *${payload.prefs?.reduced_motion ? "acik" : "kapali"}* | Buyuk Metin: *${payload.prefs?.large_text ? "acik" : "kapali"}*\n` +
+          `Ses: *${payload.prefs?.sound_enabled === false ? "kapali" : "acik"}* | FPS(avg): *${payload.perf?.fps_avg ? Number(payload.perf.fps_avg).toFixed(1) : "-"}*`,
+    buildSettingsKeyboard(settingsUrl || "", supportUrl || "", lang)
+  );
+}
+
+async function sendSupport(ctx, pool, appConfig) {
+  const payload = await withTransaction(pool, async (db) => {
+    const profile = await ensureProfileTx(db, ctx);
+    const runtimeConfig = await configService.getEconomyConfig(db);
+    const payout = await buildPayoutView(db, profile, appConfig, runtimeConfig);
+    const prefs = await webappStore.getUserUiPrefs(db, profile.user_id).catch((err) => {
+      if (err.code === "42P01") return null;
+      throw err;
+    });
+    return { profile, payout, prefs };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const [statusUrl, payoutUrl, settingsUrl, faqUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB,
+      panelKey: CANONICAL_PANEL_KEY.STATUS,
+      focusKey: "system_status"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.VAULT,
+      panelKey: CANONICAL_PANEL_KEY.PAYOUT,
+      focusKey: "request"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+      panelKey: CANONICAL_PANEL_KEY.LANGUAGE,
+      focusKey: "locale_override"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+      panelKey: CANONICAL_PANEL_KEY.SUPPORT,
+      focusKey: "faq_cards"
+    })
+  ]);
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*Support Triage*\n` +
+          `Language: *${escapeMarkdownText(payload.profile.locale || "en")}* | UI mode: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}*\n` +
+          `Payout Route: *${payload.payout.canRequest ? "open" : "review or locked"}*\n\n` +
+          `1. Use */status* for runtime or loading issues.\n` +
+          `2. Use */vault* for payout or wallet path issues.\n` +
+          `3. Use */settings* when language or accessibility feels wrong.\n` +
+          `4. Use */faq* before escalation for common answers.`
+      : `*Destek Triage*\n` +
+          `Dil: *${escapeMarkdownText(payload.profile.locale || "tr")}* | UI mod: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}*\n` +
+          `Payout Yolu: *${payload.payout.canRequest ? "acik" : "inceleme veya kilitli"}*\n\n` +
+          `1. Runtime veya yukleme sorunu icin */status*.\n` +
+          `2. Payout veya wallet sorunu icin */vault*.\n` +
+          `3. Dil/accessibility sorunu icin */settings*.\n` +
+          `4. Sik sorular icin once */faq*.`,
+    buildSupportKeyboard(statusUrl || "", payoutUrl || "", settingsUrl || "", faqUrl || "", lang)
+  );
+}
+
+async function sendFaq(ctx, pool, appConfig) {
+  const profile = await ensureProfile(pool, ctx);
+  const lang = resolvePreferredLanguage(profile, ctx, "tr");
+  const [statusUrl, payoutUrl, settingsUrl, faqUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB,
+      panelKey: CANONICAL_PANEL_KEY.STATUS,
+      focusKey: "system_status"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.VAULT,
+      panelKey: CANONICAL_PANEL_KEY.PAYOUT,
+      focusKey: "request"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+      panelKey: CANONICAL_PANEL_KEY.LANGUAGE,
+      focusKey: "locale_override"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.SETTINGS,
+      panelKey: CANONICAL_PANEL_KEY.SUPPORT,
+      focusKey: "faq_cards"
+    })
+  ]);
+  await ctx.replyWithMarkdown(
+    lang === "en"
+      ? `*FAQ*\n` +
+          `• *Why is payout locked?* Market-cap, drip or review gates may still be active.\n` +
+          `• *Why did wallet verify fail?* Address, challenge ref or signature may not match the selected chain.\n` +
+          `• *Why is the UI slow?* Use reduced motion or lower quality in settings and retry.\n` +
+          `• *Why did a mission not claim?* Claim only opens when mission is completed and not already claimed.`
+      : `*SSS*\n` +
+          `• *Payout neden kilitli?* Market-cap, drip veya review gate halen aktif olabilir.\n` +
+          `• *Wallet verify neden basarisiz?* Adres, challenge ref veya imza secili chain ile eslesmiyor olabilir.\n` +
+          `• *UI neden yavas?* Settings icinden reduced motion veya dusuk kaliteyi dene.\n` +
+          `• *Misyon neden claim olmadi?* Claim sadece tamamlanan ve daha once alinmayan misyonda acilir.`,
+    buildSupportKeyboard(statusUrl || "", payoutUrl || "", settingsUrl || "", faqUrl || "", lang)
   );
 }
 
@@ -5075,6 +5353,7 @@ function buildCommandHandlerMap({ pool, appConfig }) {
   const map = new Map();
 
   map.set("profile", async (ctx) => sendProfile(ctx, pool, appConfig));
+  map.set("rewards", async (ctx) => sendRewards(ctx, pool, appConfig));
   map.set("tasks", async (ctx) => sendTasks(ctx, pool, appConfig));
   map.set("wallet", async (ctx) => sendWallet(ctx, pool, appConfig));
   map.set("token", async (ctx) => sendToken(ctx, pool, appConfig));
@@ -5109,6 +5388,8 @@ function buildCommandHandlerMap({ pool, appConfig }) {
   map.set("kingdom", async (ctx) => sendKingdom(ctx, pool));
   map.set("season", async (ctx) => sendSeason(ctx, pool, appConfig));
   map.set("leaderboard", async (ctx) => sendLeaderboard(ctx, pool, appConfig));
+  map.set("events", async (ctx) => sendEvents(ctx, pool, appConfig));
+  map.set("discover", async (ctx) => sendDiscover(ctx, pool, appConfig));
   map.set("shop", async (ctx) => sendShop(ctx, pool, appConfig));
   map.set("missions", async (ctx) => sendMissions(ctx, pool, appConfig));
   map.set("war", async (ctx) => sendWar(ctx, pool));
@@ -5118,6 +5399,9 @@ function buildCommandHandlerMap({ pool, appConfig }) {
   });
   map.set("vault", async (ctx) => sendPayout(ctx, pool, appConfig));
   map.set("status", async (ctx) => sendStatus(ctx, pool, appConfig));
+  map.set("settings", async (ctx) => sendSettings(ctx, pool, appConfig));
+  map.set("support", async (ctx) => sendSupport(ctx, pool, appConfig));
+  map.set("faq", async (ctx) => sendFaq(ctx, pool, appConfig));
   map.set("nexus", async (ctx) => sendNexus(ctx, pool, appConfig));
   map.set("ops", async (ctx) => sendOps(ctx, pool));
   map.set("pvp", async (ctx) => {

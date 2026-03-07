@@ -132,7 +132,24 @@ const RAW_COMMAND_REGISTRY = Object.freeze([
     outcomes: ["kullanici locale ayarini kalici gunceller", "yardim ve ipucu metinleri secilen dilde akar"],
     primary: true
   },
-  { key: "profile", aliases: [], description_tr: "Profil, tier, itibar ve sezon karti", description_en: "Profile card with tier and season", intents: [] },
+  {
+    key: "profile",
+    aliases: [],
+    description_tr: "Profil, tier, itibar ve sezon karti",
+    description_en: "Profile card with tier and season",
+    intents: ["profile", "profil"],
+    scenarios: ["/profile", "profil", "profile"],
+    outcomes: ["profil ozetini goster", "profil hub paneline gecis sagla"]
+  },
+  {
+    key: "rewards",
+    aliases: ["oduller", "loot"],
+    description_tr: "Odul ozeti, entitlement ve reward vault gecisi",
+    description_en: "Reward summary, entitlement and reward vault handoff",
+    intents: ["rewards", "oduller", "loot", "reward center"],
+    scenarios: ["/rewards", "oduller", "reward center"],
+    outcomes: ["odul ozetini goster", "reward vault paneline gecis sagla"]
+  },
   { key: "mint", aliases: [], description_tr: "SC/HC/RC bakiyesini tokena cevir", description_en: "Convert SC/HC/RC balances to token", intents: ["mint", "donustur", "convert"] },
   { key: "buytoken", aliases: [], description_tr: "Token alim talebi ve quote olustur", description_en: "Create token buy request and quote", intents: ["buytoken", "token buy", "token al"] },
   { key: "tx", aliases: [], description_tr: "Token talebine tx hash bagla ve dogrula", description_en: "Attach tx hash to token request", intents: ["tx", "token tx"] },
@@ -140,10 +157,55 @@ const RAW_COMMAND_REGISTRY = Object.freeze([
   { key: "kingdom", aliases: [], description_tr: "Tier/reputation ve progression ozeti", description_en: "Tier, reputation and progression summary", intents: ["kingdom", "tier"] },
   { key: "season", aliases: [], description_tr: "Sezon puan, hedef ve kalan gun", description_en: "Season points, goals and days left", intents: ["season", "sezon"] },
   { key: "leaderboard", aliases: [], description_tr: "Top siralama ve rank farklari", description_en: "Top leaderboard with rank deltas", intents: ["leaderboard", "siralama"] },
+  {
+    key: "events",
+    aliases: ["event", "etkinlikler"],
+    description_tr: "Canli event, war ve sezon anomali merkezi",
+    description_en: "Live event, war and season anomaly center",
+    intents: ["events", "event", "etkinlik", "etkinlikler", "live events"],
+    scenarios: ["/events", "etkinlikler", "live events"],
+    outcomes: ["event ozetini goster", "event zone deeplinkleri sun"]
+  },
+  {
+    key: "discover",
+    aliases: ["kesfet", "kesif"],
+    description_tr: "Kesif, sonraki hamle ve route onerileri",
+    description_en: "Discovery surface with next-step route hints",
+    intents: ["discover", "kesfet", "kesif", "next step"],
+    scenarios: ["/discover", "kesfet", "next step"],
+    outcomes: ["sonraki hamleyi ozetle", "ilgili panel deeplinklerini goster"]
+  },
   { key: "shop", aliases: [], description_tr: "Boost dukkani ve satin alma aksiyonlari", description_en: "Boost shop and purchase actions", intents: ["shop", "dukkan"] },
   { key: "missions", aliases: ["misyon"], description_tr: "Misyon listesi, claim ve ilerleme", description_en: "Mission board with claim status", intents: ["missions", "misyon", "mission"] },
   { key: "war", aliases: [], description_tr: "Topluluk savasi tier/havuz paneli", description_en: "Community war room tier/pool panel", intents: ["war", "savasi"] },
   { key: "streak", aliases: [], description_tr: "Streak seviyesi ve reset riski", description_en: "Streak level and reset risk", intents: ["streak"] },
+  {
+    key: "settings",
+    aliases: ["ayarlar", "preferences"],
+    description_tr: "Dil, accessibility ve UI tercih ozeti",
+    description_en: "Language, accessibility and UI preference summary",
+    intents: ["settings", "ayarlar", "preferences", "ayar"],
+    scenarios: ["/settings", "ayarlar", "preferences"],
+    outcomes: ["kayitli UI tercihlerini goster", "settings paneline gecis sagla"]
+  },
+  {
+    key: "support",
+    aliases: ["destek"],
+    description_tr: "Trust-safe destek girisi ve issue triage",
+    description_en: "Trust-safe support entry and issue triage",
+    intents: ["support", "destek", "support ticket", "contact support"],
+    scenarios: ["/support", "destek", "support"],
+    outcomes: ["sorunu kategorize et", "status/payout/settings yardim yuzeyine yonlendir"]
+  },
+  {
+    key: "faq",
+    aliases: ["sss"],
+    description_tr: "Kisa lokalize SSS kartlari",
+    description_en: "Compact localized FAQ cards",
+    intents: ["faq", "sss", "common issues", "questions"],
+    scenarios: ["/faq", "sss", "common issues"],
+    outcomes: ["sik sorulari kisa kartlarla goster", "gerekirse support akisini oner"]
+  },
   { key: "status", aliases: ["durum"], description_tr: "Sistem, arena ve runtime snapshot", description_en: "System, arena and runtime snapshot", intents: ["status", "durum"] },
   { key: "nexus", aliases: ["contract", "kontrat"], description_tr: "Nexus pulse, anomaly ve aktif kontrat", description_en: "Nexus pulse, anomaly and contract", intents: ["nexus", "contract", "kontrat", "anomaly", "pulse"] },
   { key: "ops", aliases: [], description_tr: "Ops runtime, alarm ve queue ozeti", description_en: "Ops runtime, alarms and queues", intents: ["ops", "operation"] },
@@ -179,7 +241,8 @@ function getCommandRegistry() {
 }
 
 function toTelegramCommands(registryInput, lang = "tr") {
-  const registry = Array.isArray(registryInput) ? registryInput : getCommandRegistry();
+  const source = Array.isArray(registryInput) ? registryInput : getCommandRegistry();
+  const registry = getPrimaryCommands(source);
   const normalizedLang = normalizeLanguage(lang, "tr");
   const output = [];
   const seen = new Set();

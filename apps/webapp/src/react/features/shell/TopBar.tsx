@@ -39,6 +39,8 @@ export function TopBar(props: TopBarProps) {
           onClick={() => {
             props.onToggleReducedMotion(!props.reducedMotion);
           }}
+          data-akr-panel-key="language"
+          data-akr-focus-key="accessibility"
         >
           {props.reducedMotion ? t(props.lang, "reduced_motion_on") : t(props.lang, "reduced_motion_off")}
         </button>
@@ -47,6 +49,8 @@ export function TopBar(props: TopBarProps) {
           onClick={() => {
             props.onToggleLargeText(!props.largeText);
           }}
+          data-akr-panel-key="language"
+          data-akr-focus-key="accessibility"
         >
           {props.largeText ? t(props.lang, "large_text_on") : t(props.lang, "large_text_off")}
         </button>
@@ -56,6 +60,8 @@ export function TopBar(props: TopBarProps) {
             const next = normalizeLang(props.lang) === "tr" ? "en" : "tr";
             props.onToggleLanguage(next);
           }}
+          data-akr-panel-key="language"
+          data-akr-focus-key="locale_override"
         >
           {t(props.lang, "language")}: {String(props.lang).toUpperCase()}
         </button>

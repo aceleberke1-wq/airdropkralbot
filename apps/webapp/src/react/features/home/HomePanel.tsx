@@ -16,6 +16,11 @@ export function HomePanel(props: HomePanelProps) {
     bootstrap: props.data
   });
   const summary = view.summary;
+  const prefs = (props.data?.ui_prefs as {
+    reduced_motion?: boolean;
+    large_text?: boolean;
+    sound_enabled?: boolean;
+  } | null) || { reduced_motion: false, large_text: false, sound_enabled: true };
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="profile" data-akr-focus-key="identity">
@@ -94,6 +99,35 @@ export function HomePanel(props: HomePanelProps) {
           <p className="akrMuted">{t(props.lang, "home_commands_empty")}</p>
         )}
       </section>
+
+      <div className="akrSplit">
+        <section className="akrMiniPanel" data-akr-panel-key="language" data-akr-focus-key="locale_override">
+          <h4>{t(props.lang, "home_settings_title")}</h4>
+          <div className="akrChipRow">
+            <span className="akrChip">{String(props.lang).toUpperCase()}</span>
+            <span className="akrChip">{prefs.reduced_motion ? "motion_reduced" : "motion_normal"}</span>
+            <span className="akrChip">{prefs.large_text ? "large_text" : "base_text"}</span>
+            <span className="akrChip">{prefs.sound_enabled === false ? "sound_off" : "sound_on"}</span>
+          </div>
+        </section>
+        <section className="akrMiniPanel" data-akr-panel-key="support" data-akr-focus-key="faq_cards">
+          <h4>{t(props.lang, "home_support_title")}</h4>
+          <ul className="akrList">
+            <li>
+              <strong>/status</strong>
+              <span>{t(props.lang, "home_support_status")}</span>
+            </li>
+            <li>
+              <strong>/vault</strong>
+              <span>{t(props.lang, "home_support_vault")}</span>
+            </li>
+            <li>
+              <strong>/settings</strong>
+              <span>{t(props.lang, "home_support_settings")}</span>
+            </li>
+          </ul>
+        </section>
+      </div>
 
       {!view.has_data ? <p className="akrMuted">{t(props.lang, "home_empty")}</p> : null}
 

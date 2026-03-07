@@ -51,6 +51,10 @@ const BOT_UI_TEXT = Object.freeze({
     open_status_hub: "Durum Hub",
     open_discover_panel: "Kesfet",
     open_rewards_vault: "Odul Vault",
+    open_events_hall: "Event Merkezi",
+    open_settings_panel: "Ayarlar",
+    open_support_panel: "Destek",
+    open_faq_panel: "SSS",
     open_mission_quarter: "Mission Quarter",
     open_wallet_panel: "Wallet Panel",
     open_payout_screen: "Payout Ekrani",
@@ -132,6 +136,10 @@ const BOT_UI_TEXT = Object.freeze({
     open_status_hub: "Status Hub",
     open_discover_panel: "Discover",
     open_rewards_vault: "Rewards Vault",
+    open_events_hall: "Events Hub",
+    open_settings_panel: "Settings",
+    open_support_panel: "Support",
+    open_faq_panel: "FAQ",
     open_mission_quarter: "Mission Quarter",
     open_wallet_panel: "Wallet Panel",
     open_payout_screen: "Payout Screen",
@@ -475,6 +483,50 @@ function buildRewardsKeyboard(rewardsUrl, leaderboardUrl, lang = "tr") {
   );
 }
 
+function buildEventKeyboard(eventsUrl, seasonUrl, leaderboardUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_events_hall"), url: eventsUrl },
+      { label: uiText(lang, "open_season_hall"), url: seasonUrl },
+      { label: uiText(lang, "open_leaderboard_panel"), url: leaderboardUrl }
+    ],
+    2
+  );
+}
+
+function buildDiscoverKeyboard(discoverUrl, missionsUrl, playUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_discover_panel"), url: discoverUrl },
+      { label: uiText(lang, "open_mission_quarter"), url: missionsUrl },
+      { label: uiText(lang, "open_play"), url: playUrl }
+    ],
+    2
+  );
+}
+
+function buildSettingsKeyboard(settingsUrl, supportUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_settings_panel"), url: settingsUrl },
+      { label: uiText(lang, "open_support_panel"), url: supportUrl }
+    ],
+    2
+  );
+}
+
+function buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_status_hub"), url: statusUrl },
+      { label: uiText(lang, "open_payout_screen"), url: payoutUrl },
+      { label: uiText(lang, "open_settings_panel"), url: settingsUrl },
+      { label: uiText(lang, "open_faq_panel"), url: faqUrl }
+    ],
+    2
+  );
+}
+
 function buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang = "tr") {
   const rows = [];
   const seasonButton = buildLaunchButton(uiText(lang, "open_season_hall"), seasonUrl);
@@ -605,6 +657,10 @@ module.exports = {
   buildProfileKeyboard,
   buildStatusKeyboard,
   buildRewardsKeyboard,
+  buildEventKeyboard,
+  buildDiscoverKeyboard,
+  buildSettingsKeyboard,
+  buildSupportKeyboard,
   buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
