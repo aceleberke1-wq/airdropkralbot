@@ -8,7 +8,7 @@ type HomePanelProps = {
   homeFeed: Record<string, unknown> | null;
   data: BootstrapV2Data | null;
   onRefresh: () => void;
-  onOpenShellPanel: (panelKey: "settings" | "support" | "discover", focusKey?: string) => void;
+  onOpenShellPanel: (panelKey: "profile" | "status" | "settings" | "support" | "discover", focusKey?: string) => void;
 };
 
 export function HomePanel(props: HomePanelProps) {
@@ -28,6 +28,12 @@ export function HomePanel(props: HomePanelProps) {
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
           {t(props.lang, "home_feed_refresh")}
+        </button>
+        <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenShellPanel("profile", "identity")}>
+          {t(props.lang, "shell_panel_open_profile")}
+        </button>
+        <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenShellPanel("status", "system_status")}>
+          {t(props.lang, "shell_panel_open_status")}
         </button>
       </div>
       <h3>{t(props.lang, "home_overview")}</h3>

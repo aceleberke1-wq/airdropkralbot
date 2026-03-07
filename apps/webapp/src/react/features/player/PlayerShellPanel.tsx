@@ -116,6 +116,88 @@ export function PlayerShellPanel(props: PlayerShellPanelProps) {
         </div>
       ) : null}
 
+      {props.panelKey === "profile" ? (
+        <div className="akrSplit">
+          <section className="akrMiniPanel" data-akr-focus-key="identity">
+            <h4>{t(props.lang, "shell_panel_profile_identity_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">{homeView.summary.player_name || t(props.lang, "unknown_player")}</span>
+              <span className="akrChip">Tier {Math.floor(homeView.summary.kingdom_tier)}</span>
+              <span className="akrChip">Streak {Math.floor(homeView.summary.streak)}</span>
+              <span className="akrChip">Season #{Math.floor(homeView.summary.season_id)}</span>
+              <span className="akrChip">Pts {Math.floor(homeView.summary.season_points)}</span>
+            </div>
+            <div className="akrActionRow">
+              <button className="akrBtn akrBtnAccent" onClick={() => props.onTabChange("pvp")}>
+                {t(props.lang, "shell_panel_go_pvp")}
+              </button>
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onTabChange("tasks")}>
+                {t(props.lang, "shell_panel_go_tasks")}
+              </button>
+            </div>
+          </section>
+          <section className="akrMiniPanel" data-akr-focus-key={props.focusKey || "balances"}>
+            <h4>{t(props.lang, "shell_panel_profile_balance_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">SC {Math.floor(homeView.summary.sc_earned)}</span>
+              <span className="akrChip">RC {Math.floor(homeView.summary.rc_earned)}</span>
+              <span className="akrChip">HC {Math.floor(homeView.summary.hc_earned)}</span>
+              <span className="akrChip">{homeView.summary.wallet_active ? "wallet_on" : "wallet_off"}</span>
+              <span className="akrChip">{homeView.summary.wallet_chain || "-"}</span>
+            </div>
+            <div className="akrActionRow">
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenPanel("status", "system_status")}>
+                {t(props.lang, "shell_panel_open_status")}
+              </button>
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onTabChange("vault")}>
+                {t(props.lang, "shell_panel_go_vault")}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {props.panelKey === "status" ? (
+        <div className="akrSplit">
+          <section className="akrMiniPanel" data-akr-focus-key="system_status">
+            <h4>{t(props.lang, "shell_panel_status_runtime_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">Tasks {Math.floor(homeView.summary.tasks_done)}/{Math.floor(homeView.summary.daily_cap)}</span>
+              <span className="akrChip">Ready {Math.floor(homeView.summary.mission_ready)}</span>
+              <span className="akrChip">Open {Math.floor(homeView.summary.mission_open)}</span>
+              <span className="akrChip">{homeView.summary.wallet_active ? "wallet_on" : "wallet_off"}</span>
+              <span className="akrChip">{homeView.summary.wallet_kyc_status || t(props.lang, "status_unknown")}</span>
+            </div>
+            <div className="akrActionRow">
+              <button className="akrBtn akrBtnAccent" onClick={() => props.onTabChange("tasks")}>
+                {t(props.lang, "shell_panel_go_tasks")}
+              </button>
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenPanel("support", "system_status")}>
+                {t(props.lang, "shell_panel_open_support")}
+              </button>
+            </div>
+          </section>
+          <section className="akrMiniPanel" data-akr-focus-key={props.focusKey || "economy_status"}>
+            <h4>{t(props.lang, "shell_panel_status_economy_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">{vaultView.summary.token_symbol || "-"}</span>
+              <span className="akrChip">{vaultView.summary.route_status || "-"}</span>
+              <span className="akrChip">Req {vaultView.summary.payout_requestable_btc.toFixed(8)} BTC</span>
+              <span className="akrChip">Pass {Math.floor(vaultView.summary.active_pass_count)}</span>
+              <span className="akrChip">Premium {vaultView.summary.premium_active ? "on" : "off"}</span>
+            </div>
+            <div className="akrActionRow">
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenPanel("rewards", "premium_pass")}>
+                {t(props.lang, "shell_panel_open_rewards")}
+              </button>
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onTabChange("vault")}>
+                {t(props.lang, "shell_panel_go_vault")}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {props.panelKey === "support" ? (
         <div className="akrSplit">
           <section className="akrMiniPanel" data-akr-focus-key="system_status">
@@ -193,6 +275,40 @@ export function PlayerShellPanel(props: PlayerShellPanelProps) {
             ) : (
               <p className="akrMuted">{t(props.lang, "shell_panel_discover_empty")}</p>
             )}
+          </section>
+        </div>
+      ) : null}
+
+      {props.panelKey === "rewards" ? (
+        <div className="akrSplit">
+          <section className="akrMiniPanel" data-akr-focus-key="premium_pass">
+            <h4>{t(props.lang, "shell_panel_rewards_catalog_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">Pass {vaultView.catalog.passes.length}</span>
+              <span className="akrChip">Cosmetics {vaultView.catalog.cosmetics.length}</span>
+              <span className="akrChip">Owned {Math.floor(vaultView.summary.cosmetics_owned_count)}</span>
+              <span className="akrChip">History {Math.floor(vaultView.summary.pass_history_count)}</span>
+            </div>
+            <div className="akrActionRow">
+              <button className="akrBtn akrBtnAccent" onClick={() => props.onOpenPanel("support", "faq_cards")}>
+                {t(props.lang, "shell_panel_open_support")}
+              </button>
+              <button className="akrBtn akrBtnGhost" onClick={() => props.onTabChange("vault")}>
+                {t(props.lang, "shell_panel_go_vault")}
+              </button>
+            </div>
+          </section>
+          <section className="akrMiniPanel" data-akr-focus-key={props.focusKey || "payout_lane"}>
+            <h4>{t(props.lang, "shell_panel_rewards_payout_title")}</h4>
+            <div className="akrChipRow">
+              <span className="akrChip">{vaultView.summary.payout_can_request ? "can_request" : "locked"}</span>
+              <span className="akrChip">{vaultView.summary.payout_unlock_tier || "-"}</span>
+              <span className="akrChip">Req {vaultView.summary.payout_requestable_btc.toFixed(8)} BTC</span>
+              <span className="akrChip">Entitled {vaultView.summary.payout_entitled_btc.toFixed(8)} BTC</span>
+            </div>
+            <p className="akrMuted">
+              {vaultView.latest.payout_request_status || t(props.lang, "status_unknown")} | {vaultView.latest.submit_tx_hash || "-"}
+            </p>
           </section>
         </div>
       ) : null}

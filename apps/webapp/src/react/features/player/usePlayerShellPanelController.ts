@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolvePlayerShellPanelTarget } from "../../../core/player/shellPanelState.js";
+import { resolvePlayerShellPanelTarget, resolvePlayerShellPanelTab } from "../../../core/player/shellPanelState.js";
 import { UI_EVENT_KEY, UI_FUNNEL_KEY } from "../../../core/telemetry/uiEventTaxonomy";
 import type { LaunchContext, TabKey } from "../../types";
 
-export type PlayerShellPanelKey = "settings" | "support" | "discover";
+export type PlayerShellPanelKey = "profile" | "status" | "rewards" | "settings" | "support" | "discover";
 
 type PlayerShellPanelControllerOptions = {
   launchContext: LaunchContext | null;
@@ -23,11 +23,13 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
   const [activeFocusKey, setActiveFocusKey] = useState<string>(launchTarget?.focus_key || "");
 
   useEffect(() => {
-    if (options.tab !== "home") {
+    if (activePanelKey && resolvePlayerShellPanelTab(activePanelKey) !== options.tab) {
       setActivePanelKey(null);
       setActiveFocusKey("");
-      return;
     }
+  }, [activePanelKey, options.tab]);
+
+  useEffect(() => {
     if (!launchTarget) {
       return;
     }
@@ -48,7 +50,7 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
         shell_panel: launchTarget.panel_key
       }
     });
-  }, [launchTarget, options.tab, options.trackUiEvent]);
+  }, [launchTarget, options.trackUiEvent]);
 
   const openPanel = useCallback(
     (panelKey: PlayerShellPanelKey, focusKey = "") => {

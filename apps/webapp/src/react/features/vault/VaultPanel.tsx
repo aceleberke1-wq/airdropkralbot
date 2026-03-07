@@ -30,6 +30,7 @@ type VaultPanelProps = {
   payoutRequestLoading: boolean;
   passPurchaseLoading: boolean;
   cosmeticPurchaseLoading: boolean;
+  onOpenShellPanel: (panelKey: "rewards", focusKey?: string) => void;
   onQuoteUsdChange: (value: string) => void;
   onQuoteChainChange: (value: string) => void;
   onSubmitRequestIdChange: (value: string) => void;
@@ -54,6 +55,9 @@ export function VaultPanel(props: VaultPanelProps) {
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
           {t(props.lang, "vault_refresh")}
+        </button>
+        <button className="akrBtn akrBtnGhost" onClick={() => props.onOpenShellPanel("rewards", "premium_pass")}>
+          {t(props.lang, "shell_panel_open_rewards")}
         </button>
         <button className="akrBtn akrBtnGhost" onClick={props.onQuote}>
           {t(props.lang, "vault_quote")}

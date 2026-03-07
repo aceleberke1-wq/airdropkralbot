@@ -64,3 +64,54 @@ test("resolvePlayerShellPanelTarget maps support and discover panels only on hom
     null
   );
 });
+
+test("resolvePlayerShellPanelTarget maps profile and status on home, rewards on vault", async () => {
+  const mod = await loadModule();
+
+  assert.deepEqual(
+    mod.resolvePlayerShellPanelTarget({
+      tab: "home",
+      launchContext: { route_key: "hub", panel_key: "profile" }
+    }),
+    {
+      panel_key: "profile",
+      source_panel_key: "profile",
+      focus_key: "identity",
+      token: "profile:profile:identity"
+    }
+  );
+
+  assert.deepEqual(
+    mod.resolvePlayerShellPanelTarget({
+      tab: "home",
+      launchContext: { route_key: "hub", panel_key: "status" }
+    }),
+    {
+      panel_key: "status",
+      source_panel_key: "status",
+      focus_key: "system_status",
+      token: "status:status:system_status"
+    }
+  );
+
+  assert.deepEqual(
+    mod.resolvePlayerShellPanelTarget({
+      tab: "vault",
+      launchContext: { route_key: "vault", panel_key: "rewards" }
+    }),
+    {
+      panel_key: "rewards",
+      source_panel_key: "rewards",
+      focus_key: "premium_pass",
+      token: "rewards:rewards:premium_pass"
+    }
+  );
+
+  assert.equal(
+    mod.resolvePlayerShellPanelTarget({
+      tab: "home",
+      launchContext: { route_key: "vault", panel_key: "rewards" }
+    }),
+    null
+  );
+});

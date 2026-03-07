@@ -95,7 +95,7 @@ export function PlayerWorkspace(props: PlayerWorkspaceProps) {
     <>
       <PlayerTabs lang={props.lang} tab={props.tab} tabs={props.tabs} onChange={props.onTabChange} />
       <main className="akrPanelGrid">
-        {props.tab === "home" && activePanelKey ? (
+        {(props.tab === "home" || props.tab === "vault") && activePanelKey ? (
           <PlayerShellPanel
             lang={props.lang}
             panelKey={activePanelKey}
@@ -188,6 +188,7 @@ export function PlayerWorkspace(props: PlayerWorkspaceProps) {
             payoutRequestLoading={props.payoutRequestLoading}
             passPurchaseLoading={props.passPurchaseLoading}
             cosmeticPurchaseLoading={props.cosmeticPurchaseLoading}
+            onOpenShellPanel={(panelKey, focusKey) => openPanel(panelKey as "rewards", focusKey)}
             onQuoteUsdChange={props.onQuoteUsdChange}
             onQuoteChainChange={props.onQuoteChainChange}
             onSubmitRequestIdChange={props.onSubmitRequestIdChange}
