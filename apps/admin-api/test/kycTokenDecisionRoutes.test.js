@@ -33,8 +33,8 @@ function buildDeps(calls, overrides = {}) {
     tokenStore: {
       lockPurchaseRequest: async () => null,
       submitPurchaseTxHash: async () => {},
-      markPurchaseApproved: async () => ({}),
-      markPurchaseRejected: async () => ({})
+      markPurchaseApproved: async () => ({ id: 9, user_id: 77, status: "approved", chain: "eth", token_symbol: "NXT" }),
+      markPurchaseRejected: async () => ({ id: 9, user_id: 77, status: "rejected", chain: "eth", token_symbol: "NXT" })
     },
     validateAndVerifyTokenTx: async () => ({
       ok: true,
@@ -104,6 +104,56 @@ test("token approve rejects unauthorized admin signature", async () => {
   await app.close();
 });
 
+test("token approve sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerWebappAdminKycTokenDecisionRoutes(
+    app,
+    buildDeps(calls, {
+      tokenStore: {
+        lockPurchaseRequest: async () => ({
+          user_id: 77,
+          chain: "eth",
+          status: "pending",
+          token_amount: 10,
+          tx_hash: "0xabc12345",
+          token_symbol: "NXT",
+          usd_amount: 15
+        }),
+        submitPurchaseTxHash: async () => {},
+        markPurchaseApproved: async () => ({ id: 9, user_id: 77, status: "approved", chain: "eth", token_symbol: "NXT", tx_hash: "0xabc12345" }),
+        markPurchaseRejected: async () => ({})
+      },
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/webapp/api/admin/token/approve",
+    payload: {
+      uid: "100",
+      ts: "1",
+      sig: "x",
+      request_id: 9,
+      tx_hash: "0xabc12345",
+      token_amount: 10,
+      action_request_id: "act_token_approve_10"
+    }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].kind, "token");
+  assert.equal(notifications[0].decision, "approved");
+  assert.equal(notifications[0].userId, 77);
+  await app.close();
+});
+
 test("token reject rejects unauthorized admin signature", async () => {
   const app = Fastify();
   const calls = [];
@@ -123,5 +173,46 @@ test("token reject rejects unauthorized admin signature", async () => {
   const payload = JSON.parse(res.payload);
   assert.equal(payload.error, "invalid_sig");
   assert.equal(calls.length, 0);
+  await app.close();
+});
+
+test("token reject sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerWebappAdminKycTokenDecisionRoutes(
+    app,
+    buildDeps(calls, {
+      tokenStore: {
+        lockPurchaseRequest: async () => ({
+          id: 9,
+          user_id: 77,
+          chain: "eth",
+          status: "pending",
+          token_amount: 10,
+          tx_hash: "0xabc12345",
+          token_symbol: "NXT",
+          usd_amount: 15
+        }),
+        submitPurchaseTxHash: async () => {},
+        markPurchaseApproved: async () => ({}),
+        markPurchaseRejected: async () => ({ id: 9, user_id: 77, status: "rejected", chain: "eth", token_symbol: "NXT" })
+      },
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/webapp/api/admin/token/reject",
+    payload: { uid: "100", ts: "1", sig: "x", request_id: 9, reason: "duplicate", action_request_id: "act_token_reject_10" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].decision, "rejected");
   await app.close();
 });

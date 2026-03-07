@@ -6,6 +6,7 @@ function registerAdminPayoutRoutes(fastify, deps = {}) {
   const parseLimit = deps.parseLimit;
   const parseAdminId = deps.parseAdminId;
   const deterministicUuid = deps.deterministicUuid;
+  const sendTrustNotification = deps.sendTrustNotification;
 
   if (!pool || typeof pool.query !== "function" || typeof pool.connect !== "function") {
     throw new Error("registerAdminPayoutRoutes requires pool query/connect");
@@ -235,6 +236,15 @@ function registerAdminPayoutRoutes(fastify, deps = {}) {
           [requestId]
         );
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && out.rows?.[0]?.user_id && current.status !== "paid") {
+          await sendTrustNotification({
+            kind: "payout",
+            decision: "paid",
+            userId: Number(out.rows[0].user_id || 0),
+            request: out.rows[0],
+            txHash
+          });
+        }
         reply.send({ success: true, data: out.rows[0] });
       } catch (err) {
         await client.query("ROLLBACK");
@@ -359,6 +369,15 @@ function registerAdminPayoutRoutes(fastify, deps = {}) {
         );
 
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && out.rows?.[0]?.user_id) {
+          await sendTrustNotification({
+            kind: "payout",
+            decision: "rejected",
+            userId: Number(out.rows[0].user_id || 0),
+            request: out.rows[0],
+            reason
+          });
+        }
         reply.send({ success: true, data: out.rows[0] });
       } catch (err) {
         await client.query("ROLLBACK");

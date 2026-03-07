@@ -10,6 +10,7 @@ function registerAdminTokenRequestRoutes(fastify, deps = {}) {
   const tokenEngine = deps.tokenEngine;
   const economyStore = deps.economyStore;
   const deterministicUuid = deps.deterministicUuid;
+  const sendTrustNotification = deps.sendTrustNotification;
 
   if (!pool || typeof pool.connect !== "function") {
     throw new Error("registerAdminTokenRequestRoutes requires pool.connect");
@@ -182,6 +183,15 @@ function registerAdminTokenRequestRoutes(fastify, deps = {}) {
         );
 
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && updated?.user_id) {
+          await sendTrustNotification({
+            kind: "token",
+            decision: "approved",
+            userId: Number(updated.user_id || locked.user_id || 0),
+            request: updated,
+            txHash: txCheck.formatCheck.normalizedHash
+          });
+        }
         reply.send({ success: true, data: updated });
       } catch (err) {
         await client.query("ROLLBACK");
@@ -245,6 +255,15 @@ function registerAdminTokenRequestRoutes(fastify, deps = {}) {
         );
 
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && updated?.user_id) {
+          await sendTrustNotification({
+            kind: "token",
+            decision: "rejected",
+            userId: Number(updated.user_id || locked.user_id || 0),
+            request: updated,
+            reason: reason || "rejected_by_admin"
+          });
+        }
         reply.send({ success: true, data: updated });
       } catch (err) {
         await client.query("ROLLBACK");

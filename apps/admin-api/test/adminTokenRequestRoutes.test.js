@@ -30,8 +30,8 @@ function buildDeps(calls, overrides = {}) {
         usd_amount: 100
       }),
       submitPurchaseTxHash: async () => {},
-      markPurchaseApproved: async () => ({ id: 1, status: "approved" }),
-      markPurchaseRejected: async () => ({ id: 1, status: "rejected" })
+      markPurchaseApproved: async () => ({ id: 1, user_id: 5, status: "approved", chain: "eth", token_symbol: "NXT" }),
+      markPurchaseRejected: async () => ({ id: 1, user_id: 5, status: "rejected", chain: "eth", token_symbol: "NXT" })
     },
     parseLimit: () => 50,
     parseAdminId: () => 12,
@@ -119,6 +119,33 @@ test("admin token approve returns not_found when request cannot be locked", asyn
   await app.close();
 });
 
+test("admin token approve sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerAdminTokenRequestRoutes(
+    app,
+    buildDeps(calls, {
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/admin/token/requests/5/approve",
+    payload: { token_amount: 10, tx_hash: "0xabc12345" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].kind, "token");
+  assert.equal(notifications[0].decision, "approved");
+  await app.close();
+});
+
 test("admin token reject blocks already approved requests", async () => {
   const app = Fastify();
   const calls = [];
@@ -143,5 +170,31 @@ test("admin token reject blocks already approved requests", async () => {
   assert.equal(res.statusCode, 409);
   const payload = JSON.parse(res.payload);
   assert.equal(payload.error, "already_approved");
+  await app.close();
+});
+
+test("admin token reject sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerAdminTokenRequestRoutes(
+    app,
+    buildDeps(calls, {
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/admin/token/requests/9/reject",
+    payload: { reason: "duplicate" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].decision, "rejected");
   await app.close();
 });

@@ -21,6 +21,7 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
   const buildPayoutLockState = deps.buildPayoutLockState;
   const policyService = deps.policyService;
   const proxyWebAppApiV1 = deps.proxyWebAppApiV1;
+  const sendTrustNotification = deps.sendTrustNotification;
   const adminCriticalCooldownMs = Math.max(1000, Number(deps.adminCriticalCooldownMs || 8000));
 
   if (!pool || typeof pool.connect !== "function") {
@@ -300,6 +301,7 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
         });
 
         const decisions = [];
+        const trustNotifications = [];
         let eligibleCount = 0;
         let rejectedCount = 0;
         for (const row of requestedRows) {
@@ -360,6 +362,15 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
             if (String(rejectResult.status || "") === "rejected") {
               rejectedCount += 1;
               action = "rejected";
+              if (typeof sendTrustNotification === "function" && rejectResult.request?.user_id) {
+                trustNotifications.push({
+                  kind: "payout",
+                  decision: "rejected",
+                  userId: Number(rejectResult.request.user_id || 0),
+                  request: rejectResult.request,
+                  reason: `release_run_${reason}`.slice(0, 120)
+                });
+              }
             } else {
               action = String(rejectResult.status || "skip");
             }
@@ -397,6 +408,9 @@ function registerWebappAdminPayoutReleaseRoutes(fastify, deps = {}) {
         );
 
         await client.query("COMMIT");
+        if (trustNotifications.length > 0) {
+          await Promise.allSettled(trustNotifications.map((payload) => sendTrustNotification(payload)));
+        }
         reply.send({
           success: true,
           session: issueWebAppSession(auth.uid),

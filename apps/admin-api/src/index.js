@@ -71,6 +71,7 @@ const {
 } = require("./services/webapp/reactV1Service");
 const { resolveDynamicAutoPolicyDecision } = require("./services/webapp/dynamicAutoPolicyService");
 const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichmentService");
+const { createChatTrustNotificationService } = require("./services/chatTrustNotificationService");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -103,6 +104,8 @@ const RENDER_GIT_COMMIT = String(process.env.RENDER_GIT_COMMIT || "").trim();
 const RELEASE_GIT_REVISION_ENV = String(process.env.RELEASE_GIT_REVISION || process.env.GIT_COMMIT || "").trim();
 const WEBAPP_STARTUP_TIMESTAMP = String(Date.now());
 const WEBAPP_HMAC_SECRET = process.env.WEBAPP_HMAC_SECRET || "";
+const BOT_TOKEN = String(process.env.BOT_TOKEN || "").trim();
+const BOT_USERNAME = String(process.env.BOT_USERNAME || "airdropkral_2026_bot").trim();
 const WEBAPP_AUTH_TTL_SEC = Number(process.env.WEBAPP_AUTH_TTL_SEC || 900);
 const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
 const TOKEN_TX_VERIFY_STRICT = process.env.TOKEN_TX_VERIFY_STRICT === "1";
@@ -1182,6 +1185,24 @@ async function resolveWebAppVersion(db) {
   const startupVersion = sanitizeWebAppVersion(WEBAPP_STARTUP_TIMESTAMP) || "startup";
   return { version: startupVersion, source: "startup_timestamp" };
 }
+
+const chatTrustNotificationService = createChatTrustNotificationService({
+  pool,
+  getProfileByUserId,
+  fetchImpl: typeof fetch === "function" ? fetch.bind(globalThis) : null,
+  botToken: BOT_TOKEN,
+  botUsername: BOT_USERNAME,
+  webappPublicUrl: WEBAPP_PUBLIC_URL,
+  webappHmacSecret: WEBAPP_HMAC_SECRET,
+  resolveWebappVersion: async () => resolveWebAppVersion(pool),
+  logger(level, payload) {
+    if (typeof fastify.log?.[level] === "function") {
+      fastify.log[level](payload);
+      return;
+    }
+    fastify.log.info(payload);
+  }
+});
 
 function signWebAppPayload(uid, ts) {
   return crypto.createHmac("sha256", WEBAPP_HMAC_SECRET).update(`${uid}.${ts}`).digest("hex");
@@ -2274,6 +2295,7 @@ async function getProfileByUserId(db, userId) {
     `SELECT
         u.id AS user_id,
         u.telegram_id,
+        u.locale,
         i.public_name,
         i.kingdom_tier,
         i.reputation_score,
@@ -11159,6 +11181,7 @@ registerWebappAdminPayoutReleaseRoutes(fastify, {
   economyStore,
   buildTokenSummary,
   buildPayoutLockState,
+  sendTrustNotification: (payload) => chatTrustNotificationService.sendTrustNotification(payload),
   policyService: criticalAdminPolicyService,
   proxyWebAppApiV1,
   adminCriticalCooldownMs: ADMIN_CRITICAL_COOLDOWN_MS
@@ -11223,7 +11246,8 @@ registerWebappAdminKycTokenDecisionRoutes(fastify, {
   validateAndVerifyTokenTx,
   tokenEngine,
   economyStore,
-  deterministicUuid
+  deterministicUuid,
+  sendTrustNotification: (payload) => chatTrustNotificationService.sendTrustNotification(payload)
 });
 
 registerWebappAdminPayoutDecisionRoutes(fastify, {
@@ -11233,7 +11257,8 @@ registerWebappAdminPayoutDecisionRoutes(fastify, {
   requireWebAppAdmin,
   payoutStore,
   configService,
-  buildAdminSummary
+  buildAdminSummary,
+  sendTrustNotification: (payload) => chatTrustNotificationService.sendTrustNotification(payload)
 });
 
 fastify.addHook("preHandler", async (request, reply) => {
@@ -11889,7 +11914,8 @@ registerAdminPayoutRoutes(fastify, {
   requirePayoutTables,
   parseLimit,
   parseAdminId,
-  deterministicUuid
+  deterministicUuid,
+  sendTrustNotification: (payload) => chatTrustNotificationService.sendTrustNotification(payload)
 });
 
 registerAdminTokenRequestRoutes(fastify, {
@@ -11901,7 +11927,8 @@ registerAdminTokenRequestRoutes(fastify, {
   configService,
   tokenEngine,
   economyStore,
-  deterministicUuid
+  deterministicUuid,
+  sendTrustNotification: (payload) => chatTrustNotificationService.sendTrustNotification(payload)
 });
 
 registerWebappV2AdminOpsRoutes(fastify, {

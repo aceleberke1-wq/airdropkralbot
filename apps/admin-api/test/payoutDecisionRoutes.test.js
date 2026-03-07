@@ -22,8 +22,8 @@ function buildDeps(calls, overrides = {}) {
     issueWebAppSession: () => ({ uid: "100", ts: "1", sig: "x" }),
     requireWebAppAdmin: async () => ({ user_id: 1 }),
     payoutStore: {
-      markPaid: async () => ({ status: "paid", request: { id: 9 } }),
-      markRejected: async () => ({ status: "rejected", request: { id: 9 } })
+      markPaid: async () => ({ status: "paid", request: { id: 9, user_id: 77 } }),
+      markRejected: async () => ({ status: "rejected", request: { id: 9, user_id: 77 } })
     },
     configService: { getEconomyConfig: async () => ({}) },
     buildAdminSummary: async () => ({ ok: true }),
@@ -79,10 +79,47 @@ test("payout pay returns not found when request is missing", async () => {
   await app.close();
 });
 
+test("payout pay sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerWebappAdminPayoutDecisionRoutes(
+    app,
+    buildDeps(calls, {
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/webapp/api/admin/payout/pay",
+    payload: { uid: "100", ts: "1", sig: "x", request_id: 9, tx_hash: "0xabc12345", action_request_id: "act_100_pay_3" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].kind, "payout");
+  assert.equal(notifications[0].decision, "paid");
+  assert.equal(notifications[0].userId, 77);
+  await app.close();
+});
+
 test("payout reject updates request and returns summary", async () => {
   const app = Fastify();
   const calls = [];
-  registerWebappAdminPayoutDecisionRoutes(app, buildDeps(calls));
+  const notifications = [];
+  registerWebappAdminPayoutDecisionRoutes(
+    app,
+    buildDeps(calls, {
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
 
   const res = await app.inject({
     method: "POST",
@@ -93,5 +130,7 @@ test("payout reject updates request and returns summary", async () => {
   const payload = JSON.parse(res.payload);
   assert.equal(payload.success, true);
   assert.ok(calls.some((sql) => sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].decision, "rejected");
   await app.close();
 });

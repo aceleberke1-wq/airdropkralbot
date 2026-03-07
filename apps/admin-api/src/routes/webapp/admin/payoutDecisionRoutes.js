@@ -10,6 +10,7 @@ function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
   const payoutStore = deps.payoutStore;
   const configService = deps.configService;
   const buildAdminSummary = deps.buildAdminSummary;
+  const sendTrustNotification = deps.sendTrustNotification;
 
   if (!pool || typeof pool.connect !== "function") {
     throw new Error("registerWebappAdminPayoutDecisionRoutes requires pool");
@@ -99,6 +100,15 @@ function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
         const runtimeConfig = await configService.getEconomyConfig(client);
         const summary = await buildAdminSummary(client, runtimeConfig);
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && String(paid.status) === "paid" && paid.request?.user_id) {
+          await sendTrustNotification({
+            kind: "payout",
+            decision: "paid",
+            userId: Number(paid.request.user_id || 0),
+            request: paid.request,
+            txHash
+          });
+        }
         reply.send({
           success: true,
           session: issueWebAppSession(auth.uid),
@@ -166,6 +176,15 @@ function registerWebappAdminPayoutDecisionRoutes(fastify, deps = {}) {
         const runtimeConfig = await configService.getEconomyConfig(client);
         const summary = await buildAdminSummary(client, runtimeConfig);
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && result.request?.user_id) {
+          await sendTrustNotification({
+            kind: "payout",
+            decision: "rejected",
+            userId: Number(result.request.user_id || 0),
+            request: result.request,
+            reason
+          });
+        }
         reply.send({
           success: true,
           session: issueWebAppSession(auth.uid),

@@ -93,6 +93,48 @@ test("admin payout pay rejects invalid id", async () => {
   await app.close();
 });
 
+test("admin payout pay sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerAdminPayoutRoutes(
+    app,
+    buildDeps(calls, {
+      pool: buildPoolStub(
+        calls,
+        async () => ({ rows: [] }),
+        async (sqlText) => {
+          if (sqlText.includes("FROM payout_requests") && sqlText.includes("FOR UPDATE")) {
+            return { rows: [{ id: 8, status: "requested" }] };
+          }
+          if (sqlText.includes("FROM payout_requests r") && sqlText.includes("LEFT JOIN payout_tx")) {
+            return {
+              rows: [{ id: 8, user_id: 77, currency: "BTC", amount: 0.0002, status: "paid", tx_hash: "0xabc12345" }]
+            };
+          }
+          return { rows: [] };
+        }
+      ),
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/admin/payouts/8/pay",
+    payload: { tx_hash: "0xabc12345" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((call) => call.sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].kind, "payout");
+  assert.equal(notifications[0].decision, "paid");
+  await app.close();
+});
+
 test("admin payout reject returns not_found when locked row does not exist", async () => {
   const app = Fastify();
   const calls = [];
@@ -122,5 +164,49 @@ test("admin payout reject returns not_found when locked row does not exist", asy
   assert.equal(payload.error, "not_found");
   assert.ok(calls.some((call) => call.sql.includes("BEGIN")));
   assert.ok(calls.some((call) => call.sql.includes("ROLLBACK")));
+  await app.close();
+});
+
+test("admin payout reject sends trust notification after commit", async () => {
+  const app = Fastify();
+  const calls = [];
+  const notifications = [];
+  registerAdminPayoutRoutes(
+    app,
+    buildDeps(calls, {
+      pool: buildPoolStub(
+        calls,
+        async () => ({ rows: [] }),
+        async (sqlText) => {
+          if (sqlText.includes("FROM payout_requests") && sqlText.includes("FOR UPDATE")) {
+            return { rows: [{ id: 8, user_id: 77, status: "requested", source_hc_amount: 2.5 }] };
+          }
+          if (sqlText.includes("INSERT INTO currency_ledger")) {
+            return { rows: [{ delta: 2.5 }] };
+          }
+          if (sqlText.includes("FROM payout_requests r") && sqlText.includes("LEFT JOIN payout_tx")) {
+            return {
+              rows: [{ id: 8, user_id: 77, currency: "BTC", amount: 0.0002, status: "rejected", tx_hash: null }]
+            };
+          }
+          return { rows: [] };
+        }
+      ),
+      sendTrustNotification: async (payload) => {
+        notifications.push(payload);
+        return { sent: true };
+      }
+    })
+  );
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/admin/payouts/8/reject",
+    payload: { reason: "duplicate" }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.some((call) => call.sql.includes("COMMIT")));
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].decision, "rejected");
   await app.close();
 });

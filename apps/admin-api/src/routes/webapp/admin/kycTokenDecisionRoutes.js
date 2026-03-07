@@ -21,6 +21,7 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
   const tokenEngine = deps.tokenEngine;
   const economyStore = deps.economyStore;
   const deterministicUuid = deps.deterministicUuid;
+  const sendTrustNotification = deps.sendTrustNotification;
 
   if (!pool || typeof pool.connect !== "function") {
     throw new Error("registerWebappAdminKycTokenDecisionRoutes requires pool");
@@ -401,6 +402,15 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
 
         const summary = await buildAdminSummary(client, runtimeConfig);
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && updated?.user_id) {
+          await sendTrustNotification({
+            kind: "token",
+            decision: "approved",
+            userId: Number(updated.user_id || 0),
+            request: updated,
+            txHash: txCheck.formatCheck.normalizedHash
+          });
+        }
         reply.send({
           success: true,
           session: issueWebAppSession(auth.uid),
@@ -487,6 +497,15 @@ function registerWebappAdminKycTokenDecisionRoutes(fastify, deps = {}) {
         const runtimeConfig = await configService.getEconomyConfig(client);
         const summary = await buildAdminSummary(client, runtimeConfig);
         await client.query("COMMIT");
+        if (typeof sendTrustNotification === "function" && updated?.user_id) {
+          await sendTrustNotification({
+            kind: "token",
+            decision: "rejected",
+            userId: Number(updated.user_id || 0),
+            request: updated,
+            reason
+          });
+        }
         reply.send({
           success: true,
           session: issueWebAppSession(auth.uid),
