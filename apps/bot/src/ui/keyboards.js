@@ -47,11 +47,18 @@ const BOT_UI_TEXT = Object.freeze({
     token_status: "Token Durumu",
     token_mint_max: "Token Mint (Max)",
     token_buy_quick: "Hizli Satin Alma",
+    open_profile_hub: "Profil Hub",
+    open_status_hub: "Durum Hub",
+    open_discover_panel: "Kesfet",
+    open_rewards_vault: "Odul Vault",
     open_mission_quarter: "Mission Quarter",
     open_wallet_panel: "Wallet Panel",
     open_payout_screen: "Payout Ekrani",
     open_season_hall: "Season Hall",
     open_leaderboard_panel: "Leaderboard",
+    open_admin_workspace: "Admin Workspace",
+    admin_policy_panel: "Policy Panel",
+    admin_runtime_panel: "Runtime Panel",
     back_to_panel: "Bot Paneline Don",
     open_browser: "Tarayici ile Ac",
     raid_safe: "Raid Temkinli",
@@ -121,11 +128,18 @@ const BOT_UI_TEXT = Object.freeze({
     token_status: "Token Status",
     token_mint_max: "Token Mint (Max)",
     token_buy_quick: "Quick Buy Intent",
+    open_profile_hub: "Profile Hub",
+    open_status_hub: "Status Hub",
+    open_discover_panel: "Discover",
+    open_rewards_vault: "Rewards Vault",
     open_mission_quarter: "Mission Quarter",
     open_wallet_panel: "Wallet Panel",
     open_payout_screen: "Payout Screen",
     open_season_hall: "Season Hall",
     open_leaderboard_panel: "Leaderboard",
+    open_admin_workspace: "Admin Workspace",
+    admin_policy_panel: "Policy Panel",
+    admin_runtime_panel: "Runtime Panel",
     back_to_panel: "Back to Bot Panel",
     open_browser: "Open in Browser",
     raid_safe: "Raid Safe",
@@ -167,6 +181,31 @@ function buildLaunchButton(label, url) {
     return Markup.button.webApp(label, safeUrl);
   }
   return Markup.button.url(label, safeUrl);
+}
+
+function buildLaunchGridRows(entries = [], columns = 2) {
+  const safeColumns = Math.max(1, Math.min(3, Number(columns || 2) || 2));
+  const buttons = (entries || [])
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+      return buildLaunchButton(String(entry.label || "").trim(), entry.url);
+    })
+    .filter(Boolean);
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += safeColumns) {
+    rows.push(buttons.slice(i, i + safeColumns));
+  }
+  return rows;
+}
+
+function buildLaunchGridKeyboard(entries = [], columns = 2) {
+  const rows = buildLaunchGridRows(entries, columns);
+  if (!rows.length) {
+    return undefined;
+  }
+  return Markup.inlineKeyboard(rows);
 }
 
 function buildTaskKeyboard(offers, lang = "tr", miniAppUrl = "") {
@@ -326,11 +365,19 @@ function buildPostRevealKeyboard(lang = "tr") {
   );
 }
 
-function buildShopKeyboard(offers, lang = "tr") {
+function buildShopKeyboard(offers, lang = "tr", miniAppUrl = "") {
   const buttons = offers.map((offer, index) =>
     Markup.button.callback(`${uiText(lang, "shop_buy_prefix")} ${index + 1}`, `BUY_OFFER:${offer.id}`)
   );
-  return Markup.inlineKeyboard(buttons, { columns: 2 });
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
+  const launchButton = buildLaunchButton(uiText(lang, "open_rewards_vault"), miniAppUrl);
+  if (launchButton) {
+    rows.push([launchButton]);
+  }
+  return Markup.inlineKeyboard(rows, { columns: 2 });
 }
 
 function buildMissionKeyboard(board, lang = "tr", miniAppUrl = "") {
@@ -398,6 +445,36 @@ function buildWalletKeyboard(url, lang = "tr") {
   return Markup.inlineKeyboard([[launchButton]], { columns: 1 });
 }
 
+function buildProfileKeyboard(profileUrl, walletUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_profile_hub"), url: profileUrl },
+      { label: uiText(lang, "open_wallet_panel"), url: walletUrl }
+    ],
+    2
+  );
+}
+
+function buildStatusKeyboard(statusUrl, discoverUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_status_hub"), url: statusUrl },
+      { label: uiText(lang, "open_discover_panel"), url: discoverUrl }
+    ],
+    2
+  );
+}
+
+function buildRewardsKeyboard(rewardsUrl, leaderboardUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_rewards_vault"), url: rewardsUrl },
+      { label: uiText(lang, "open_leaderboard_panel"), url: leaderboardUrl }
+    ],
+    2
+  );
+}
+
 function buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang = "tr") {
   const rows = [];
   const seasonButton = buildLaunchButton(uiText(lang, "open_season_hall"), seasonUrl);
@@ -428,7 +505,7 @@ function buildRaidKeyboard(lang = "tr") {
   );
 }
 
-function buildAdminKeyboard(snapshot = {}, lang = "tr") {
+function buildAdminKeyboard(snapshot = {}, lang = "tr", launchEntries = []) {
   const payoutButtons = (snapshot.pendingPayouts || [])
     .slice(0, 3)
     .map((row) => [Markup.button.callback(`Payout #${row.id}`, `ADMIN_PAYOUT_PICK:${row.id}`)]);
@@ -440,18 +517,32 @@ function buildAdminKeyboard(snapshot = {}, lang = "tr") {
     ? Markup.button.callback(uiText(lang, "admin_freeze_off"), "ADMIN_FREEZE_OFF")
     : Markup.button.callback(uiText(lang, "admin_freeze_on"), "ADMIN_FREEZE_ON");
 
-  return Markup.inlineKeyboard(
+  const rows = [
+    [Markup.button.callback(uiText(lang, "admin_refresh"), "ADMIN_PANEL_REFRESH"), freezeToggle],
+    [Markup.button.callback(uiText(lang, "admin_unified_queue"), "ADMIN_OPEN_QUEUE")],
     [
-      [Markup.button.callback(uiText(lang, "admin_refresh"), "ADMIN_PANEL_REFRESH"), freezeToggle],
-      [Markup.button.callback(uiText(lang, "admin_unified_queue"), "ADMIN_OPEN_QUEUE")],
-      [
-        Markup.button.callback(uiText(lang, "admin_payout_queue"), "ADMIN_OPEN_PAYOUTS"),
-        Markup.button.callback(uiText(lang, "admin_token_queue"), "ADMIN_OPEN_TOKENS")
-      ],
-      ...payoutButtons,
-      ...tokenButtons
+      Markup.button.callback(uiText(lang, "admin_payout_queue"), "ADMIN_OPEN_PAYOUTS"),
+      Markup.button.callback(uiText(lang, "admin_token_queue"), "ADMIN_OPEN_TOKENS")
     ],
-    { columns: 1 }
+    ...payoutButtons,
+    ...tokenButtons
+  ];
+  const launchRows = buildLaunchGridRows(launchEntries, 2);
+  if (launchRows.length) {
+    rows.push(...launchRows);
+  }
+  return Markup.inlineKeyboard(rows, { columns: 1 });
+}
+
+function buildAdminWorkspaceKeyboard(adminUrl, queueUrl, policyUrl, runtimeUrl, lang = "tr") {
+  return buildLaunchGridKeyboard(
+    [
+      { label: uiText(lang, "open_admin_workspace"), url: adminUrl },
+      { label: uiText(lang, "admin_unified_queue"), url: queueUrl },
+      { label: uiText(lang, "admin_policy_panel"), url: policyUrl },
+      { label: uiText(lang, "admin_runtime_panel"), url: runtimeUrl }
+    ],
+    2
   );
 }
 
@@ -511,9 +602,13 @@ module.exports = {
   buildTokenKeyboard,
   buildPlayKeyboard,
   buildWalletKeyboard,
+  buildProfileKeyboard,
+  buildStatusKeyboard,
+  buildRewardsKeyboard,
   buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
+  buildAdminWorkspaceKeyboard,
   buildAdminPayoutActionKeyboard,
   buildAdminTokenActionKeyboard
 };

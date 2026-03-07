@@ -18,7 +18,7 @@ export function HomePanel(props: HomePanelProps) {
   const summary = view.summary;
 
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="profile" data-akr-focus-key="identity">
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
           {t(props.lang, "home_feed_refresh")}
@@ -38,7 +38,7 @@ export function HomePanel(props: HomePanelProps) {
       </div>
 
       <div className="akrSplit">
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="status" data-akr-focus-key="mission_status">
           <h4>{t(props.lang, "home_mission_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">Total {Math.floor(summary.mission_total)}</span>
@@ -59,7 +59,7 @@ export function HomePanel(props: HomePanelProps) {
           )}
         </section>
 
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="status" data-akr-focus-key="system_status">
           <h4>{t(props.lang, "home_wallet_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">{summary.wallet_active ? "active" : "inactive"}</span>
@@ -79,7 +79,7 @@ export function HomePanel(props: HomePanelProps) {
         </section>
       </div>
 
-      <section className="akrMiniPanel">
+      <section className="akrMiniPanel" data-akr-panel-key="discover" data-akr-focus-key="command_center">
         <h4>{t(props.lang, "home_commands_title")}</h4>
         {view.command_hints.length ? (
           <ul className="akrList">

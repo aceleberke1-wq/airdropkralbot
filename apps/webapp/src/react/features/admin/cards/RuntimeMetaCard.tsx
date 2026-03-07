@@ -39,7 +39,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const funnelBand = String(props.metricsData?.funnel_conversion_band_24h || "unknown");
 
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_meta">
       <h3>{t(props.lang, "admin_runtime_meta_title")}</h3>
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshRuntimeMeta}>

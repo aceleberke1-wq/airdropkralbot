@@ -61,9 +61,13 @@ const {
   buildTokenKeyboard,
   buildPlayKeyboard,
   buildWalletKeyboard,
+  buildProfileKeyboard,
+  buildStatusKeyboard,
+  buildRewardsKeyboard,
   buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
+  buildAdminWorkspaceKeyboard,
   buildAdminPayoutActionKeyboard,
   buildAdminTokenActionKeyboard
 } = require("./ui/keyboards");
@@ -419,6 +423,35 @@ async function resolveMiniAppRouteUrl(pool, appConfig, telegramId, navigation = 
   }
   const launchBaseUrl = await resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId);
   return buildSignedWebAppUrl(appConfig, telegramId, launchBaseUrl, navigation);
+}
+
+async function resolveAdminWorkspaceUrls(pool, appConfig, telegramId) {
+  const [adminUrl, queueUrl, policyUrl, runtimeUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
+      routeKey: CANONICAL_ROUTE_KEY.ADMIN
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
+      routeKey: CANONICAL_ROUTE_KEY.ADMIN,
+      panelKey: CANONICAL_PANEL_KEY.PANEL_ADMIN_QUEUE,
+      focusKey: "queue_action"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
+      routeKey: CANONICAL_ROUTE_KEY.ADMIN,
+      panelKey: CANONICAL_PANEL_KEY.PANEL_ADMIN_POLICY,
+      focusKey: "dynamic_policy"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
+      routeKey: CANONICAL_ROUTE_KEY.ADMIN,
+      panelKey: CANONICAL_PANEL_KEY.PANEL_ADMIN_RUNTIME,
+      focusKey: "runtime_meta"
+    })
+  ]);
+  return {
+    adminUrl: adminUrl || "",
+    queueUrl: queueUrl || "",
+    policyUrl: policyUrl || "",
+    runtimeUrl: runtimeUrl || ""
+  };
 }
 
 function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "", navigation = {}) {
@@ -2081,7 +2114,22 @@ async function sendNexus(ctx, pool, appConfig) {
   });
 
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  await ctx.replyWithMarkdown(messages.formatNexusPulse(payload), buildGuideKeyboard(lang));
+  const [statusUrl, discoverUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB,
+      panelKey: CANONICAL_PANEL_KEY.STATUS,
+      focusKey: "system_status"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
+      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
+      focusKey: "command_center"
+    })
+  ]);
+  await ctx.replyWithMarkdown(
+    messages.formatNexusPulse(payload),
+    buildStatusKeyboard(statusUrl || "", discoverUrl || "", lang) || buildGuideKeyboard(lang)
+  );
 }
 
 async function sendRaidContract(ctx, pool) {
@@ -2481,6 +2529,27 @@ async function handleReveal(ctx, pool, appConfig) {
   });
 }
 
+async function sendProfile(ctx, pool, appConfig) {
+  const snapshot = await getSnapshot(pool, ctx);
+  const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
+  const [profileUrl, walletUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB,
+      panelKey: CANONICAL_PANEL_KEY.PROFILE,
+      focusKey: "identity"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.EXCHANGE,
+      panelKey: CANONICAL_PANEL_KEY.WALLET,
+      focusKey: "connect"
+    })
+  ]);
+  await ctx.replyWithMarkdown(
+    messages.formatProfile(snapshot.profile, snapshot.balances),
+    buildProfileKeyboard(profileUrl || "", walletUrl || "", lang)
+  );
+}
+
 async function sendWallet(ctx, pool, appConfig) {
   const snapshot = await getSnapshot(pool, ctx);
   const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
@@ -2518,42 +2587,68 @@ async function sendSeason(ctx, pool, appConfig) {
   );
 }
 
-async function sendLeaderboard(ctx, pool) {
+async function sendLeaderboard(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
-    await ensureProfileTx(db, ctx);
+    const profile = await ensureProfileTx(db, ctx);
     const runtimeConfig = await configService.getEconomyConfig(db);
     const season = seasonStore.getSeasonInfo(runtimeConfig);
     const rows = await seasonStore.getLeaderboard(db, { seasonId: season.seasonId, limit: 10 });
-    return { season, rows };
+    return { profile, season, rows };
   });
-  await ctx.replyWithMarkdown(messages.formatLeaderboard(payload.season, payload.rows));
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const seasonUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SEASON
+  });
+  const leaderboardUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SEASON,
+    panelKey: CANONICAL_PANEL_KEY.LEADERBOARD,
+    focusKey: "leaderboard"
+  });
+  await ctx.replyWithMarkdown(
+    messages.formatLeaderboard(payload.season, payload.rows),
+    buildSeasonKeyboard(seasonUrl || "", leaderboardUrl || "", lang)
+  );
 }
 
-async function sendShop(ctx, pool) {
+async function sendShop(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
     await shopStore.ensureDefaultOffers(db);
     const offers = await shopStore.listActiveOffers(db, 8);
     const balances = await economyStore.getBalances(db, profile.user_id);
     const effects = await shopStore.getActiveEffects(db, profile.user_id);
-    return { offers, balances, effects };
+    return { profile, offers, balances, effects };
+  });
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const rewardsUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.VAULT,
+    panelKey: CANONICAL_PANEL_KEY.REWARDS,
+    focusKey: "premium_pass"
   });
   await ctx.replyWithMarkdown(
     messages.formatShop(payload.offers, payload.balances, payload.effects),
-    buildShopKeyboard(payload.offers)
+    buildShopKeyboard(payload.offers, lang, rewardsUrl || "")
   );
 }
 
-async function sendMissions(ctx, pool) {
+async function sendMissions(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
     const board = await missionStore.getMissionBoard(db, profile.user_id);
-    return { board };
+    return { profile, board };
   });
-  await ctx.replyWithMarkdown(messages.formatMissions(payload.board), buildMissionKeyboard(payload.board));
+  const missionsUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+    panelKey: CANONICAL_PANEL_KEY.CLAIM,
+    focusKey: "missions"
+  });
+  await ctx.replyWithMarkdown(
+    messages.formatMissions(payload.board),
+    buildMissionKeyboard(payload.board, resolvePreferredLanguage(payload.profile, ctx, "tr"), missionsUrl || "")
+  );
 }
 
-async function sendDaily(ctx, pool) {
+async function sendDaily(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
     const balances = await economyStore.getBalances(db, profile.user_id);
@@ -2570,9 +2665,14 @@ async function sendDaily(ctx, pool) {
     const daily = buildDailyView(runtimeConfig, profile, dailyRaw);
     return { profile, balances, daily, board, anomaly, contract };
   });
+  const missionsUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+    panelKey: CANONICAL_PANEL_KEY.QUESTS,
+    focusKey: "board"
+  });
   await ctx.replyWithMarkdown(
     messages.formatDaily(payload.profile, payload.daily, payload.board, payload.balances, payload.anomaly, payload.contract),
-    buildMissionKeyboard(payload.board)
+    buildMissionKeyboard(payload.board, resolvePreferredLanguage(payload.profile, ctx, "tr"), missionsUrl || "")
   );
 }
 
@@ -2946,7 +3046,17 @@ async function sendAdminPanel(ctx, pool, appConfig) {
     return;
   }
   const snapshot = await withTransaction(pool, async (db) => buildAdminSnapshot(db, appConfig));
-  await ctx.replyWithMarkdown(messages.formatAdminPanel(snapshot, true), buildAdminKeyboard(snapshot));
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    messages.formatAdminPanel(snapshot, true),
+    buildAdminKeyboard(snapshot, lang, [
+      { label: "Admin Workspace", url: launch.adminUrl },
+      { label: "Unified Queue", url: launch.queueUrl },
+      { label: "Policy Panel", url: launch.policyUrl },
+      { label: "Runtime Panel", url: launch.runtimeUrl }
+    ])
+  );
 }
 
 async function sendAdminPayoutQueue(ctx, pool, appConfig) {
@@ -2963,7 +3073,12 @@ async function sendAdminPayoutQueue(ctx, pool, appConfig) {
           )
           .join("\n")
       : "Bekleyen payout talebi yok.";
-  await ctx.replyWithMarkdown(`*Payout Queue*\n${lines}`);
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    `*Payout Queue*\n${lines}`,
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+  );
 }
 
 async function sendAdminTokenQueue(ctx, pool, appConfig) {
@@ -2991,7 +3106,12 @@ async function sendAdminTokenQueue(ctx, pool, appConfig) {
           })
           .join("\n")
       : "Bekleyen token talebi yok.";
-  await ctx.replyWithMarkdown(`*Token Queue*\n${lines}`);
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    `*Token Queue*\n${lines}`,
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+  );
 }
 
 async function sendAdminQueue(ctx, pool, appConfig) {
@@ -3011,7 +3131,12 @@ async function sendAdminQueue(ctx, pool, appConfig) {
     }
     return { payouts, tokens };
   });
-  await ctx.replyWithMarkdown(messages.formatAdminQueue(payload));
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    messages.formatAdminQueue(payload),
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+  );
 }
 
 async function sendAdminMetrics(ctx, pool, appConfig) {
@@ -3020,6 +3145,8 @@ async function sendAdminMetrics(ctx, pool, appConfig) {
   }
   const metrics = await withTransaction(pool, async (db) => fetchBotAdminMetrics(db));
 
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
   await ctx.replyWithMarkdown(
     `*Admin Metrikler (24s)*\n` +
       `Users: *${Number(metrics.users_total || 0)}* | Active: *${Number(metrics.users_active_24h || 0)}*\n` +
@@ -3027,7 +3154,8 @@ async function sendAdminMetrics(ctx, pool, appConfig) {
       `Reveal: *${Number(metrics.reveals_24h || 0)}*\n` +
       `Payout: *${Number(metrics.payouts_requested_24h || 0)}* req / *${Number(metrics.payouts_paid_24h || 0)}* paid / *${Number(metrics.payouts_paid_btc_24h || 0).toFixed(8)} BTC*\n` +
       `Token: *${Number(metrics.token_intents_24h || 0)}* intents / *${Number(metrics.token_approved_24h || 0)}* approved / *$${Number(metrics.token_usd_volume_24h || 0).toFixed(2)}*\n` +
-      `Today emission: *${Number(metrics.sc_today || 0).toFixed(2)} SC* | *${Number(metrics.hc_today || 0).toFixed(2)} HC* | *${Number(metrics.rc_today || 0).toFixed(2)} RC*`
+      `Today emission: *${Number(metrics.sc_today || 0).toFixed(2)} SC* | *${Number(metrics.hc_today || 0).toFixed(2)} HC* | *${Number(metrics.rc_today || 0).toFixed(2)} RC*`,
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
   );
 }
 
@@ -3052,7 +3180,17 @@ async function sendAdminLive(ctx, pool, appConfig) {
       webappUrl: appConfig.webappPublicUrl || ""
     };
   });
-  await ctx.replyWithMarkdown(messages.formatAdminLive(payload), buildAdminKeyboard(payload.snapshot));
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    messages.formatAdminLive(payload),
+    buildAdminKeyboard(payload.snapshot, lang, [
+      { label: "Admin Workspace", url: launch.adminUrl },
+      { label: "Unified Queue", url: launch.queueUrl },
+      { label: "Policy Panel", url: launch.policyUrl },
+      { label: "Runtime Panel", url: launch.runtimeUrl }
+    ])
+  );
 }
 
 async function sendAdminConfig(ctx, pool, appConfig) {
@@ -3069,6 +3207,8 @@ async function sendAdminConfig(ctx, pool, appConfig) {
   });
   const gate = payload.token.payout_gate || {};
   const release = payload.token.payout_release || {};
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
   await ctx.replyWithMarkdown(
     `*Admin Config*\n` +
       `Kaynak: *${payload.source}*\n` +
@@ -3081,7 +3221,8 @@ async function sendAdminConfig(ctx, pool, appConfig) {
       `Gate Target Max: *$${Math.floor(Number(gate.target_band_max_usd || 0))}*\n` +
       `Release: *${release.enabled ? "ON" : "OFF"}* (${String(release.mode || "tiered_drip")})\n` +
       `Release Global Cap: *$${Math.floor(Number(release.global_cap_min_usd || 0))}*\n` +
-      `Release Daily Drip Max: *${(Number(release.daily_drip_pct_max || 0) * 100).toFixed(2)}%*`
+      `Release Daily Drip Max: *${(Number(release.daily_drip_pct_max || 0) * 100).toFixed(2)}%*`,
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
   );
 }
 
@@ -3980,6 +4121,18 @@ async function sendStatus(ctx, pool, appConfig) {
   const safeContractMode = escapeMarkdownText(payload.contract.required_mode || "balanced");
   const safeTokenSymbol = escapeMarkdownText(payload.tokenView.symbol || "NXT");
   const safeWarTier = escapeMarkdownText(payload.war.tier || "seed");
+  const [statusUrl, discoverUrl] = await Promise.all([
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.HUB,
+      panelKey: CANONICAL_PANEL_KEY.STATUS,
+      focusKey: "system_status"
+    }),
+    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
+      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
+      focusKey: "command_center"
+    })
+  ]);
 
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -4006,7 +4159,8 @@ async function sendStatus(ctx, pool, appConfig) {
         `Misyon: *${payload.readyMissions} hazir / ${payload.openMissions} aktif*\n` +
         `Risk: *${Math.round(payload.risk * 100)}%*\n` +
         `Payout Uygunluk: *${payoutText}*\n` +
-        `${safeTokenSymbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`
+        `${safeTokenSymbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`,
+    buildStatusKeyboard(statusUrl || "", discoverUrl || "", lang)
   );
 }
 
@@ -4394,7 +4548,7 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     return;
   }
   if (action === "open_daily") {
-    await sendDaily(ctx, pool);
+    await sendDaily(ctx, pool, appConfig);
     return;
   }
   if (action === "open_kingdom") {
@@ -4422,7 +4576,7 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     return;
   }
   if (action === "open_missions") {
-    await sendMissions(ctx, pool);
+    await sendMissions(ctx, pool, appConfig);
     return;
   }
   if (action === "open_status") {
@@ -4430,7 +4584,7 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     return;
   }
   if (action === "open_leaderboard") {
-    await sendLeaderboard(ctx, pool);
+    await sendLeaderboard(ctx, pool, appConfig);
     return;
   }
   if (action === "open_play") {
@@ -4920,10 +5074,7 @@ function registerAdminActionHandlers(bot, appConfig, definitions) {
 function buildCommandHandlerMap({ pool, appConfig }) {
   const map = new Map();
 
-  map.set("profile", async (ctx) => {
-    const snapshot = await getSnapshot(pool, ctx);
-    await ctx.replyWithMarkdown(messages.formatProfile(snapshot.profile, snapshot.balances));
-  });
+  map.set("profile", async (ctx) => sendProfile(ctx, pool, appConfig));
   map.set("tasks", async (ctx) => sendTasks(ctx, pool, appConfig));
   map.set("wallet", async (ctx) => sendWallet(ctx, pool, appConfig));
   map.set("token", async (ctx) => sendToken(ctx, pool, appConfig));
@@ -4954,12 +5105,12 @@ function buildCommandHandlerMap({ pool, appConfig }) {
       .filter(Boolean);
     await submitTokenTx(ctx, pool, appConfig, parts[0], parts.slice(1).join(" "));
   });
-  map.set("daily", async (ctx) => sendDaily(ctx, pool));
+  map.set("daily", async (ctx) => sendDaily(ctx, pool, appConfig));
   map.set("kingdom", async (ctx) => sendKingdom(ctx, pool));
   map.set("season", async (ctx) => sendSeason(ctx, pool, appConfig));
-  map.set("leaderboard", async (ctx) => sendLeaderboard(ctx, pool));
-  map.set("shop", async (ctx) => sendShop(ctx, pool));
-  map.set("missions", async (ctx) => sendMissions(ctx, pool));
+  map.set("leaderboard", async (ctx) => sendLeaderboard(ctx, pool, appConfig));
+  map.set("shop", async (ctx) => sendShop(ctx, pool, appConfig));
+  map.set("missions", async (ctx) => sendMissions(ctx, pool, appConfig));
   map.set("war", async (ctx) => sendWar(ctx, pool));
   map.set("streak", async (ctx) => {
     const profile = await ensureProfile(pool, ctx);
@@ -5253,10 +5404,10 @@ async function start() {
     OPEN_WALLET: async (ctx) => sendWallet(ctx, pool, appConfig),
     OPEN_TOKEN: async (ctx) => sendToken(ctx, pool, appConfig),
     OPEN_SEASON: async (ctx) => sendSeason(ctx, pool, appConfig),
-    OPEN_LEADERBOARD: async (ctx) => sendLeaderboard(ctx, pool),
-    OPEN_SHOP: async (ctx) => sendShop(ctx, pool),
-    OPEN_MISSIONS: async (ctx) => sendMissions(ctx, pool),
-    OPEN_DAILY: async (ctx) => sendDaily(ctx, pool),
+    OPEN_LEADERBOARD: async (ctx) => sendLeaderboard(ctx, pool, appConfig),
+    OPEN_SHOP: async (ctx) => sendShop(ctx, pool, appConfig),
+    OPEN_MISSIONS: async (ctx) => sendMissions(ctx, pool, appConfig),
+    OPEN_DAILY: async (ctx) => sendDaily(ctx, pool, appConfig),
     OPEN_KINGDOM: async (ctx) => sendKingdom(ctx, pool),
     OPEN_WAR: async (ctx) => sendWar(ctx, pool),
     OPEN_PAYOUT: async (ctx) => sendPayout(ctx, pool, appConfig),

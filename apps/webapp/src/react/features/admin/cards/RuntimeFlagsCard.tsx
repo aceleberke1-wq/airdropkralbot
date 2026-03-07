@@ -13,7 +13,7 @@ type RuntimeFlagsCardProps = {
 
 export function RuntimeFlagsCard(props: RuntimeFlagsCardProps) {
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_flags">
       <h3>{t(props.lang, "admin_runtime_flags_title")}</h3>
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshRuntimeFlags}>

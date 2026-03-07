@@ -13,7 +13,7 @@ type RuntimeBotCardProps = {
 
 export function RuntimeBotCard(props: RuntimeBotCardProps) {
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_bot">
       <h3>{t(props.lang, "admin_runtime_bot_title")}</h3>
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshBotRuntime}>

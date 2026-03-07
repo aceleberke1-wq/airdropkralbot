@@ -24,7 +24,7 @@ type AdminQueueCardProps = {
 
 export function AdminQueueCard(props: AdminQueueCardProps) {
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_queue" data-akr-focus-key="queue_action">
       <h3>{t(props.lang, "admin_queue_title")}</h3>
       <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
         {t(props.lang, "admin_refresh")}

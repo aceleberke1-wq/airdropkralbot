@@ -15,7 +15,7 @@ type DynamicPolicyCardProps = {
 
 export function DynamicPolicyCard(props: DynamicPolicyCardProps) {
   return (
-    <section className="akrCard akrCardWide">
+    <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_policy" data-akr-focus-key="dynamic_policy">
       <h3>{t(props.lang, "admin_dynamic_policy_title")}</h3>
       <div className="akrInputRow">
         <input
