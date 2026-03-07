@@ -33,8 +33,18 @@ function resolveChatAlertArtifactPaths(repoRootDir) {
   };
 }
 
+function resolveLiveOpsDispatchArtifactPaths(repoRootDir) {
+  const rootDir = resolveRuntimeArtifactsDir(repoRootDir);
+  const outDir = path.join(rootDir, "liveops");
+  return {
+    outDir,
+    latestJsonPath: path.join(outDir, "V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json")
+  };
+}
+
 module.exports = {
   resolveRuntimeArtifactsDir,
   resolveKpiBundleArtifactPaths,
-  resolveChatAlertArtifactPaths
+  resolveChatAlertArtifactPaths,
+  resolveLiveOpsDispatchArtifactPaths
 };

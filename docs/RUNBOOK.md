@@ -141,6 +141,24 @@
 9. Opt-out kaynagi:
 - `user_ui_prefs.prefs_json`
 
+## Live ops campaign scheduler
+1. Tek dispatch smoke:
+`npm run liveops:v5:dispatch -- --dry_run true`
+2. Normal scheduler dispatch:
+`npm run liveops:v5:dispatch`
+3. Windows Task Scheduler kaydi (15 dakikada bir):
+`powershell -ExecutionPolicy Bypass -File scripts/register_v5_live_ops_campaign_tasks.ps1 -TaskName "AirdropKralBot-V5-LiveOps-15M" -EveryMinutes 15`
+4. Scheduler kaldirma:
+`powershell -ExecutionPolicy Bypass -File scripts/register_v5_live_ops_campaign_tasks.ps1 -TaskName "AirdropKralBot-V5-LiveOps-15M" -UnregisterOnly`
+5. Scheduler health kontrolu:
+`npm run liveops:v5:task:check`
+6. Uretilen artifact:
+- `.runtime-artifacts/liveops/V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json`
+7. Duplicate window guard:
+- `admin_audit.action = live_ops_campaign_dispatch`
+- `payload_json.dispatch_source = scheduler`
+- `payload_json.window_key`
+
 ## V5.3 staging + canary checklist
 1. Staging preflight:
 `npm run test:bot`

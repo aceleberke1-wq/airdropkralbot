@@ -630,6 +630,8 @@ const LiveOpsCampaignDispatchHistoryRowSchema = z.object({
   campaign_key: z.string().default(""),
   campaign_version: z.number().int().nonnegative().default(0),
   dispatch_ref: z.string().default(""),
+  dispatch_source: z.enum(["manual", "scheduler"]).default("manual"),
+  window_key: z.string().default(""),
   segment_key: z.string().default(""),
   reason: z.string().default(""),
   dry_run: z.boolean().default(true),
@@ -660,7 +662,20 @@ const LiveOpsCampaignOperatorTimelineRowSchema = z.object({
   approval_state: z.enum(Object.values(LIVE_OPS_APPROVAL_STATE)).default(LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
   schedule_state: z.enum(["missing", "invalid", "scheduled", "open", "expired"]).default("missing"),
   dispatch_ref: z.string().default(""),
+  dispatch_source: z.enum(["manual", "scheduler"]).default("manual"),
+  window_key: z.string().default(""),
   dry_run: z.boolean().default(false)
+});
+
+const LiveOpsCampaignSchedulerSummarySchema = z.object({
+  ready_for_auto_dispatch: z.boolean().default(false),
+  schedule_state: z.enum(["missing", "invalid", "scheduled", "open", "expired"]).default("missing"),
+  approval_state: z.enum(Object.values(LIVE_OPS_APPROVAL_STATE)).default(LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+  window_key: z.string().default(""),
+  already_dispatched_for_window: z.boolean().default(false),
+  latest_auto_dispatch_at: z.string().nullable().default(null),
+  latest_auto_dispatch_ref: z.string().default(""),
+  latest_auto_dispatch_reason: z.string().default("")
 });
 
 const LiveOpsCampaignAnalyticsBucketSchema = z.object({
@@ -689,6 +704,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   updated_by: z.number().int().nonnegative().default(0),
   campaign: LiveOpsCampaignConfigSchema,
   approval_summary: LiveOpsCampaignApprovalSummarySchema.default({}),
+  scheduler_summary: LiveOpsCampaignSchedulerSummarySchema.default({}),
   version_history: z.array(LiveOpsCampaignVersionHistoryRowSchema).default([]),
   dispatch_history: z.array(LiveOpsCampaignDispatchHistoryRowSchema).default([]),
   operator_timeline: z.array(LiveOpsCampaignOperatorTimelineRowSchema).default([]),
@@ -728,6 +744,8 @@ const LiveOpsCampaignDispatchResponseSchema = z.object({
   recorded: z.number().int().nonnegative().default(0),
   skipped_disabled: z.number().int().nonnegative().default(0),
   dispatch_ref: z.string().default(""),
+  dispatch_source: z.enum(["manual", "scheduler"]).default("manual"),
+  window_key: z.string().default(""),
   sample_users: z.array(z.record(z.any())).default([]),
   generated_at: z.string()
 });
@@ -771,6 +789,7 @@ module.exports = {
   LiveOpsCampaignDispatchRequestSchema,
   LiveOpsCampaignDispatchResponseSchema,
   LiveOpsCampaignDispatchHistoryRowSchema,
+  LiveOpsCampaignSchedulerSummarySchema,
   LiveOpsCampaignOperatorTimelineRowSchema,
   LiveOpsCampaignScheduleSchema,
   LiveOpsCampaignSnapshotSchema,

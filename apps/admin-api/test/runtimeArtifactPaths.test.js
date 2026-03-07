@@ -5,7 +5,8 @@ const path = require("node:path");
 const {
   resolveRuntimeArtifactsDir,
   resolveKpiBundleArtifactPaths,
-  resolveChatAlertArtifactPaths
+  resolveChatAlertArtifactPaths,
+  resolveLiveOpsDispatchArtifactPaths
 } = require("../../../packages/shared/src/runtimeArtifactPaths.js");
 
 test("runtime artifact paths default under repo-local ignored directory", () => {
@@ -20,6 +21,9 @@ test("runtime artifact paths default under repo-local ignored directory", () => 
   const alerts = resolveChatAlertArtifactPaths(repoRoot);
   assert.equal(alerts.outDir, path.join(repoRoot, ".runtime-artifacts", "alerts"));
   assert.equal(alerts.latestJsonPath, path.join(repoRoot, ".runtime-artifacts", "alerts", "V5_CHAT_ALERT_DISPATCH_latest.json"));
+  const liveOps = resolveLiveOpsDispatchArtifactPaths(repoRoot);
+  assert.equal(liveOps.outDir, path.join(repoRoot, ".runtime-artifacts", "liveops"));
+  assert.equal(liveOps.latestJsonPath, path.join(repoRoot, ".runtime-artifacts", "liveops", "V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json"));
 });
 
 test("runtime artifact paths honor explicit relative override", () => {

@@ -67,6 +67,7 @@ function formatTimelineActionLabel(lang: Lang, value: string) {
 export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const snapshot = asRecord(props.liveOpsCampaignData);
   const approvalSummary = asRecord(snapshot.approval_summary);
+  const schedulerSummary = asRecord(snapshot.scheduler_summary);
   const versionHistory = asArray(snapshot.version_history);
   const dispatchHistory = asArray(snapshot.dispatch_history);
   const operatorTimeline = asArray(snapshot.operator_timeline);
@@ -214,6 +215,31 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           )}
         </section>
       </div>
+      <section className="akrMiniPanel" data-akr-focus-key="scheduler_summary">
+        <h4>{t(props.lang, "admin_live_ops_scheduler_title")}</h4>
+        <ul className="akrList">
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_window_label")}</span>
+            <strong>{asText(schedulerSummary.window_key)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_ready_label")}</span>
+            <strong>{schedulerSummary.ready_for_auto_dispatch === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_already_sent_label")}</span>
+            <strong>{schedulerSummary.already_dispatched_for_window === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_latest_label")}</span>
+            <strong>{asText(schedulerSummary.latest_auto_dispatch_at)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_reason_label")}</span>
+            <strong>{asText(schedulerSummary.latest_auto_dispatch_reason)}</strong>
+          </li>
+        </ul>
+      </section>
       <section className="akrMiniPanel" data-akr-focus-key="operator_timeline">
         <h4>{t(props.lang, "admin_live_ops_timeline_title")}</h4>
         {operatorTimeline.length ? (

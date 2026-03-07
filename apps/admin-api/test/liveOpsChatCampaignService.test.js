@@ -268,6 +268,22 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
+            if (text.includes("COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'") && text.includes("LIMIT 1")) {
+              return {
+                rows: [
+                  {
+                    admin_id: 7009,
+                    created_at: "2026-03-08T12:20:00.000Z",
+                    payload_json: {
+                      campaign_key: "wallet_reconnect",
+                      dispatch_ref: "wallet_reconnect_scheduler_ref",
+                      reason: "scheduled_window_dispatch",
+                      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z"
+                    }
+                  }
+                ]
+              };
+            }
             if (text.includes("FROM admin_audit")) {
               return {
                 rows: [
@@ -317,6 +333,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.dispatch_history[0].dispatch_ref, "wallet_reconnect_k9");
   assert.equal(snapshot.operator_timeline.length, 2);
   assert.equal(snapshot.operator_timeline[0].action, "live_ops_campaign_dispatch");
+  assert.equal(snapshot.scheduler_summary.window_key, "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z");
+  assert.equal(snapshot.scheduler_summary.latest_auto_dispatch_ref, "wallet_reconnect_scheduler_ref");
   assert.equal(snapshot.delivery_summary.sent_24h, 2);
   assert.equal(snapshot.delivery_summary.experiment_assignment_available, true);
   assert.equal(snapshot.delivery_summary.experiment_key, "webapp_react_v1");
@@ -435,6 +453,9 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
         ]
       };
     }
+    if (text.includes("COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'") && text.includes("LIMIT 1")) {
+      return { rows: [] };
+    }
     if (text.includes("FROM admin_audit")) {
       return { rows: [] };
     }
@@ -484,5 +505,85 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
   assert.equal(approvalAudit.payload.approval_state, "approved");
   assert.equal(snapshot.operator_timeline.length, 1);
   assert.equal(snapshot.operator_timeline[0].action, "live_ops_campaign_approve");
+  assert.equal(snapshot.scheduler_summary.already_dispatched_for_window, false);
   assert.equal(recordedQueries.some((entry) => entry.sql === "COMMIT"), true);
+});
+
+test("live ops chat campaign service runScheduledDispatch skips duplicate scheduler window", async () => {
+  let fetchCalled = false;
+  const service = createLiveOpsChatCampaignService({
+    pool: {
+      async connect() {
+        return {
+          async query(sql) {
+            const text = String(sql || "");
+            if (text.includes("FROM config_versions") && text.includes("LIMIT 1")) {
+              return {
+                rows: [
+                  {
+                    version: 8,
+                    created_at: "2026-03-08T12:00:00.000Z",
+                    created_by: 7001,
+                    config_json: buildCampaign()
+                  }
+                ]
+              };
+            }
+            if (text.includes("COUNT(*)::int AS sent_total")) {
+              return {
+                rows: [
+                  {
+                    sent_total: 1,
+                    sent_72h: 1,
+                    last_sent_at: "2026-03-08T12:20:00.000Z",
+                    last_segment_key: "wallet_unlinked",
+                    last_dispatch_ref: "wallet_reconnect_scheduler_ref"
+                  }
+                ]
+              };
+            }
+            if (text.includes("COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'")) {
+              return {
+                rows: [
+                  {
+                    admin_id: 7010,
+                    created_at: "2026-03-08T12:20:00.000Z",
+                    payload_json: {
+                      campaign_key: "wallet_reconnect",
+                      dispatch_ref: "wallet_reconnect_scheduler_ref",
+                      reason: "scheduled_window_dispatch",
+                      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z"
+                    }
+                  }
+                ]
+              };
+            }
+            return { rows: [] };
+          },
+          release() {}
+        };
+      }
+    },
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return { ok: true };
+    },
+    botToken: "bot_token",
+    botUsername: "airdropkral_2026_bot",
+    webappPublicUrl: "https://example.com/app",
+    webappHmacSecret: "secret",
+    resolveWebappVersion: async () => ({ version: "abc123" }),
+    nowFactory: () => new Date("2026-03-08T12:30:00.000Z"),
+    logger: () => {}
+  });
+
+  const result = await service.runScheduledDispatch({
+    adminId: 7010
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, "already_dispatched_for_window");
+  assert.equal(result.window_key, "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z");
+  assert.equal(fetchCalled, false);
 });

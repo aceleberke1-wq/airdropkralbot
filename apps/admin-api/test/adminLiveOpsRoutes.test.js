@@ -76,6 +76,16 @@ function buildSnapshot(version, approvalState) {
       last_dispatch_at: null,
       warnings: approvalState === "approved" ? [] : ["approval_missing"]
     },
+    scheduler_summary: {
+      ready_for_auto_dispatch: approvalState === "approved",
+      schedule_state: "open",
+      approval_state: approvalState,
+      window_key: "wallet_reconnect:2026-03-08T09:00:00.000Z:2026-03-08T18:00:00.000Z",
+      already_dispatched_for_window: false,
+      latest_auto_dispatch_at: null,
+      latest_auto_dispatch_ref: "",
+      latest_auto_dispatch_reason: ""
+    },
     version_history: [
       {
         version,

@@ -747,6 +747,17 @@ function buildApprovalSummary(campaign, meta = {}) {
   };
 }
 
+function buildScheduleWindowKey(campaign) {
+  const safeCampaign = buildDefaultLiveOpsCampaignConfig(campaign || {});
+  const schedule = safeCampaign.schedule && typeof safeCampaign.schedule === "object" ? safeCampaign.schedule : {};
+  const startAt = String(schedule.start_at || "").trim();
+  const endAt = String(schedule.end_at || "").trim();
+  if (!startAt && !endAt) {
+    return "";
+  }
+  return `${safeCampaign.campaign_key}:${startAt || "open"}:${endAt || "open"}`;
+}
+
 function buildCampaignAuditPayload(campaign, meta = {}) {
   const safeCampaign = buildDefaultLiveOpsCampaignConfig(campaign || {});
   const now = meta.now instanceof Date ? meta.now : new Date();
@@ -754,6 +765,7 @@ function buildCampaignAuditPayload(campaign, meta = {}) {
   return {
     reason: String(meta.reason || "").trim().slice(0, 240),
     version: Number(meta.version || 0),
+    campaign_version: Number(meta.version || 0),
     campaign_key: String(safeCampaign.campaign_key || ""),
     enabled: safeCampaign.enabled === true,
     status: String(safeCampaign.status || "draft"),
@@ -765,6 +777,8 @@ function buildCampaignAuditPayload(campaign, meta = {}) {
     schedule_start_at: scheduleWindow.start_at,
     schedule_end_at: scheduleWindow.end_at,
     dispatch_ref: String(meta.dispatchRef || ""),
+    dispatch_source: String(meta.dispatchSource || "manual").trim().toLowerCase() === "scheduler" ? "scheduler" : "manual",
+    window_key: String(meta.windowKey || buildScheduleWindowKey(safeCampaign) || ""),
     dry_run: meta.dryRun === true,
     attempted: Number(meta.attempted || 0),
     sent: Number(meta.sent || 0),
@@ -822,6 +836,8 @@ async function loadDispatchHistory(client, campaignKey) {
       campaign_key: String(payload.campaign_key || campaignKey || ""),
       campaign_version: Number(payload.campaign_version || 0),
       dispatch_ref: String(payload.dispatch_ref || ""),
+      dispatch_source: String(payload.dispatch_source || "manual"),
+      window_key: String(payload.window_key || ""),
       segment_key: String(payload.segment_key || ""),
       reason: String(payload.reason || ""),
       dry_run: action === "live_ops_campaign_dry_run",
@@ -866,9 +882,80 @@ async function loadOperatorTimeline(client, campaignKey) {
       approval_state: String(payload.approval_state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
       schedule_state: String(payload.schedule_state || "missing"),
       dispatch_ref: String(payload.dispatch_ref || ""),
+      dispatch_source: String(payload.dispatch_source || "manual"),
+      window_key: String(payload.window_key || ""),
       dry_run: action === "live_ops_campaign_dry_run" || payload.dry_run === true
     };
   });
+}
+
+async function loadLatestSchedulerDispatch(client, campaignKey) {
+  const result = await client.query(
+    `SELECT admin_id, action, payload_json, created_at
+     FROM admin_audit
+     WHERE target = $1
+       AND action = 'live_ops_campaign_dispatch'
+       AND COALESCE(payload_json->>'campaign_key', '') = $2
+       AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+     ORDER BY created_at DESC
+     LIMIT 1;`,
+    [`config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`, String(campaignKey || "")]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+  const payload = row.payload_json && typeof row.payload_json === "object" && !Array.isArray(row.payload_json) ? row.payload_json : {};
+  return {
+    created_at: row.created_at || null,
+    dispatch_ref: String(payload.dispatch_ref || ""),
+    reason: String(payload.reason || ""),
+    window_key: String(payload.window_key || ""),
+    admin_id: Number(row.admin_id || 0)
+  };
+}
+
+async function loadSchedulerWindowDispatch(client, campaignKey, windowKey) {
+  if (!windowKey) {
+    return null;
+  }
+  const result = await client.query(
+    `SELECT admin_id, payload_json, created_at
+     FROM admin_audit
+     WHERE target = $1
+       AND action = 'live_ops_campaign_dispatch'
+       AND COALESCE(payload_json->>'campaign_key', '') = $2
+       AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+       AND COALESCE(payload_json->>'window_key', '') = $3
+     ORDER BY created_at DESC
+     LIMIT 1;`,
+    [`config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`, String(campaignKey || ""), String(windowKey || "")]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+  const payload = row.payload_json && typeof row.payload_json === "object" && !Array.isArray(row.payload_json) ? row.payload_json : {};
+  return {
+    created_at: row.created_at || null,
+    dispatch_ref: String(payload.dispatch_ref || ""),
+    reason: String(payload.reason || ""),
+    window_key: String(payload.window_key || ""),
+    admin_id: Number(row.admin_id || 0)
+  };
+}
+
+function buildSchedulerSummary(campaign, approvalSummary, latestSchedulerDispatch, windowDispatch) {
+  return {
+    ready_for_auto_dispatch: approvalSummary?.live_dispatch_ready === true,
+    schedule_state: String(approvalSummary?.schedule_state || "missing"),
+    approval_state: String(approvalSummary?.approval_state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+    window_key: buildScheduleWindowKey(campaign),
+    already_dispatched_for_window: Boolean(windowDispatch),
+    latest_auto_dispatch_at: latestSchedulerDispatch?.created_at || null,
+    latest_auto_dispatch_ref: String(latestSchedulerDispatch?.dispatch_ref || ""),
+    latest_auto_dispatch_reason: String(latestSchedulerDispatch?.reason || "")
+  };
 }
 
 async function buildCampaignSnapshot(client, current) {
@@ -878,11 +965,14 @@ async function buildCampaignSnapshot(client, current) {
     updated_at: snapshotState.created_at || null,
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary] = await Promise.all([
+  const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
-    loadDeliverySummary(client, snapshotState.campaign.campaign_key)
+    loadDeliverySummary(client, snapshotState.campaign.campaign_key),
+    loadLatestSchedulerDispatch(client, snapshotState.campaign.campaign_key),
+    loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey)
   ]);
   return {
     api_version: "v2",
@@ -892,6 +982,7 @@ async function buildCampaignSnapshot(client, current) {
     updated_by: snapshotState.created_by,
     campaign: snapshotState.campaign,
     approval_summary: approvalSummary,
+    scheduler_summary: buildSchedulerSummary(snapshotState.campaign, approvalSummary, latestSchedulerDispatch, schedulerWindowDispatch),
     version_history: versionHistory,
     dispatch_history: dispatchHistory,
     operator_timeline: operatorTimeline,
@@ -1056,6 +1147,8 @@ async function buildCampaignSnapshot(client, current) {
       const dryRun = input.dryRun !== false;
       const adminId = Number(input.adminId || 0);
       const reason = String(input.reason || "live_ops_campaign_dispatch").trim().slice(0, 240);
+      const dispatchSource = String(input.dispatchSource || "manual").trim().toLowerCase() === "scheduler" ? "scheduler" : "manual";
+      const windowKey = String(input.windowKey || buildScheduleWindowKey(campaign) || "");
       const maxRecipients = Math.max(
         1,
         Math.min(500, Number(input.maxRecipients || campaign.targeting.max_recipients || 50))
@@ -1158,6 +1251,8 @@ async function buildCampaignSnapshot(client, current) {
               reason,
               version,
               dispatchRef,
+              dispatchSource,
+              windowKey,
               dryRun,
               sent,
               attempted,
@@ -1194,6 +1289,8 @@ async function buildCampaignSnapshot(client, current) {
           recorded,
           skipped_disabled: skippedDisabled,
           dispatch_ref: dispatchRef,
+          dispatch_source: dispatchSource,
+          window_key: windowKey,
           sample_users: sampleUsers.slice(0, 5),
           generated_at: now.toISOString()
         }
@@ -1203,11 +1300,85 @@ async function buildCampaignSnapshot(client, current) {
     }
   }
 
+  async function runScheduledDispatch(input = {}) {
+    if (!isEnabled()) {
+      return { ok: false, reason: "service_disabled" };
+    }
+
+    let campaign = buildDefaultLiveOpsCampaignConfig();
+    let windowKey = "";
+    const client = await pool.connect();
+    try {
+      const current = await loadLatestConfig(client);
+      campaign = current.campaign;
+      const now = nowFactory();
+      const latestDispatch = await loadLatestDispatchSummary(client, campaign.campaign_key);
+      const approvalSummary = buildApprovalSummary(campaign, {
+        now,
+        updated_at: current.created_at || null,
+        last_dispatch_at: latestDispatch.last_sent_at || null
+      });
+      windowKey = buildScheduleWindowKey(campaign);
+      if (!approvalSummary.live_dispatch_ready) {
+        return {
+          ok: true,
+          skipped: true,
+          reason:
+            approvalSummary.warnings.includes("approval_missing") || approvalSummary.warnings.includes("approval_pending")
+              ? "campaign_approval_required"
+              : approvalSummary.warnings.includes("schedule_not_open") || approvalSummary.warnings.includes("schedule_missing")
+                ? "campaign_schedule_closed"
+                : approvalSummary.warnings.includes("schedule_expired")
+                  ? "campaign_schedule_expired"
+                  : approvalSummary.warnings.includes("schedule_invalid")
+                    ? "campaign_schedule_invalid"
+                    : "campaign_not_ready",
+          campaign_key: campaign.campaign_key,
+          version: current.version,
+          window_key: windowKey,
+          scheduler_summary: buildSchedulerSummary(campaign, approvalSummary, null, null)
+        };
+      }
+
+      const existing = input.dryRun === true ? null : await loadSchedulerWindowDispatch(client, campaign.campaign_key, windowKey);
+      if (existing) {
+        return {
+          ok: true,
+          skipped: true,
+          reason: "already_dispatched_for_window",
+          campaign_key: campaign.campaign_key,
+          version: current.version,
+          window_key: windowKey,
+          latest_dispatch_ref: existing.dispatch_ref,
+          latest_dispatch_at: existing.created_at || null,
+          scheduler_summary: buildSchedulerSummary(campaign, approvalSummary, existing, existing)
+        };
+      }
+    } finally {
+      client.release();
+    }
+
+    const result = await dispatchCampaign({
+      adminId: Number(input.adminId || 0),
+      dryRun: input.dryRun === true,
+      maxRecipients: input.maxRecipients,
+      reason: String(input.reason || "scheduled_window_dispatch"),
+      campaign,
+      dispatchSource: "scheduler",
+      windowKey
+    });
+    if (result?.ok && result.data && !result.data.window_key) {
+      result.data.window_key = windowKey;
+    }
+    return result;
+  }
+
   return {
     getCampaignSnapshot,
     saveCampaignConfig,
     updateCampaignApproval,
-    dispatchCampaign
+    dispatchCampaign,
+    runScheduledDispatch
   };
 }
 
