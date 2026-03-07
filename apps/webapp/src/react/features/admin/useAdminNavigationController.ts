@@ -41,6 +41,7 @@ export function useAdminNavigationController(options: AdminNavigationControllerO
       }) as LaunchContext;
 
       dispatch(navigationActions.routeLaunchContext(target));
+      const launchEventKey = String(target.launch_event_key || "").trim();
       options.trackUiEvent({
         event_key: UI_EVENT_KEY.PANEL_OPEN,
         tab_key: "home",
@@ -51,6 +52,7 @@ export function useAdminNavigationController(options: AdminNavigationControllerO
         surface_key: input.sourcePanelKey || UI_SURFACE_KEY.PANEL_ADMIN,
         payload_json: {
           source: "admin_route_handoff",
+          launch_event_key: launchEventKey,
           source_panel_key: input.sourcePanelKey || UI_SURFACE_KEY.PANEL_ADMIN,
           target_panel_key: target.panel_key || "",
           target_focus_key: target.focus_key || ""

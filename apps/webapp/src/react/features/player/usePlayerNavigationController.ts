@@ -66,6 +66,7 @@ export function usePlayerNavigationController(options: PlayerNavigationControlle
       const targetTab = (target.tab || "home") as TabKey;
 
       dispatch(navigationActions.routeLaunchContext(target));
+      const launchEventKey = String(target.launch_event_key || "").trim();
       options.trackUiEvent({
         event_key: UI_EVENT_KEY.PANEL_OPEN,
         tab_key: targetTab,
@@ -76,6 +77,7 @@ export function usePlayerNavigationController(options: PlayerNavigationControlle
         surface_key: input.sourcePanelKey || UI_SURFACE_KEY.SHELL,
         payload_json: {
           source: "player_route_handoff",
+          launch_event_key: launchEventKey,
           source_panel_key: input.sourcePanelKey || UI_SURFACE_KEY.SHELL,
           target_panel_key: target.panel_key || "",
           from_tab: options.tab,

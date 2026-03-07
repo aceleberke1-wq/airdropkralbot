@@ -37,7 +37,8 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
     (row: Record<string, unknown>) => {
       if (!analyticsRef.current) return;
       const rawPayload = row.payload_json && typeof row.payload_json === "object" ? (row.payload_json as Record<string, unknown>) : {};
-      const launchEventKey = String(options.launchContext?.launch_event_key || "").trim();
+      const explicitLaunchEventKey = String(rawPayload.launch_event_key || "").trim();
+      const launchEventKey = explicitLaunchEventKey || String(options.launchContext?.launch_event_key || "").trim();
       analyticsRef.current.track(
         buildUiEventRecord({
           tab_key: telemetryTabKey,

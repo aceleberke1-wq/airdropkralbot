@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolvePlayerShellPanelTarget, resolvePlayerShellPanelTab } from "../../../core/player/shellPanelState.js";
 import { UI_EVENT_KEY, UI_FUNNEL_KEY } from "../../../core/telemetry/uiEventTaxonomy";
+import * as launchEventContract from "../../../../../../packages/shared/src/launchEventContract.js";
 import type { LaunchContext, TabKey } from "../../types";
+
+const { resolveInternalLaunchEventKey } = launchEventContract;
 
 export type PlayerShellPanelKey = "profile" | "status" | "rewards" | "settings" | "support" | "discover";
 
@@ -47,13 +50,15 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
       focus_key: launchTarget.focus_key || "",
       payload_json: {
         source: "launch_handoff",
-        shell_panel: launchTarget.panel_key
+        shell_panel: launchTarget.panel_key,
+        launch_event_key: String(launchTarget.launch_event_key || "")
       }
     });
   }, [launchTarget, options.trackUiEvent]);
 
   const openPanel = useCallback(
     (panelKey: PlayerShellPanelKey, focusKey = "") => {
+      const launchEventKey = resolveInternalLaunchEventKey(`player_shell_panel_${panelKey}`);
       setActivePanelKey(panelKey);
       setActiveFocusKey(String(focusKey || "").trim().toLowerCase());
       options.trackUiEvent({
@@ -64,7 +69,8 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
         focus_key: String(focusKey || "").trim().toLowerCase(),
         payload_json: {
           source: "manual",
-          shell_panel: panelKey
+          shell_panel: panelKey,
+          launch_event_key: launchEventKey
         }
       });
     },
@@ -75,6 +81,7 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
     if (!activePanelKey) {
       return;
     }
+    const launchEventKey = resolveInternalLaunchEventKey(`player_shell_panel_${activePanelKey}`, "close");
     options.trackUiEvent({
       event_key: UI_EVENT_KEY.PANEL_CLOSE,
       panel_key: activePanelKey,
@@ -83,7 +90,8 @@ export function usePlayerShellPanelController(options: PlayerShellPanelControlle
       focus_key: activeFocusKey || "",
       payload_json: {
         source: "manual",
-        shell_panel: activePanelKey
+        shell_panel: activePanelKey,
+        launch_event_key: launchEventKey
       }
     });
     setActivePanelKey(null);

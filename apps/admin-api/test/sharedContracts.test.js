@@ -105,4 +105,5 @@ test("launch event contract keeps command, surface and callback launch reasons c
   assert.equal(launchEventContract.resolveSurfaceLaunchEventKey("profile_hub"), "launch.surface.profile_hub.open");
   assert.equal(launchEventContract.resolveCallbackLaunchEventKey("OPEN_WALLET"), "launch.callback.open_wallet.open");
   assert.equal(launchEventContract.resolveWebAppActionLaunchEventKey("open_wallet"), "launch.webapp_action.open_wallet.open");
+  assert.equal(launchEventContract.resolveInternalLaunchEventKey("player_route_wallet"), "launch.internal.player_route_wallet.open");
 });

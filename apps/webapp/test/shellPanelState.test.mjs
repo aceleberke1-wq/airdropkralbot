@@ -27,6 +27,29 @@ test("resolvePlayerShellPanelTarget maps settings route and language panel", asy
   );
 });
 
+test("resolvePlayerShellPanelTarget preserves launch event key in token when present", async () => {
+  const mod = await loadModule();
+
+  assert.deepEqual(
+    mod.resolvePlayerShellPanelTarget({
+      tab: "home",
+      launchContext: {
+        route_key: "hub",
+        panel_key: "profile",
+        focus_key: "identity",
+        launch_event_key: "launch.command.profile.open"
+      }
+    }),
+    {
+      panel_key: "profile",
+      source_panel_key: "profile",
+      focus_key: "identity",
+      launch_event_key: "launch.command.profile.open",
+      token: "profile:profile:identity:launch.command.profile.open"
+    }
+  );
+});
+
 test("resolvePlayerShellPanelTarget maps support and discover panels only on home tab", async () => {
   const mod = await loadModule();
 

@@ -93,6 +93,14 @@ function resolveWebAppActionLaunchEventKey(actionKey, verb = "open") {
   });
 }
 
+function resolveInternalLaunchEventKey(key, verb = "open") {
+  return resolveLaunchEventKey({
+    scope: LAUNCH_EVENT_SCOPE.INTERNAL,
+    key,
+    verb
+  });
+}
+
 module.exports = {
   LAUNCH_EVENT_SCOPE,
   normalizeLaunchEventKey,
@@ -101,5 +109,6 @@ module.exports = {
   resolveCommandLaunchEventKey,
   resolveSurfaceLaunchEventKey,
   resolveCallbackLaunchEventKey,
-  resolveWebAppActionLaunchEventKey
+  resolveWebAppActionLaunchEventKey,
+  resolveInternalLaunchEventKey
 };

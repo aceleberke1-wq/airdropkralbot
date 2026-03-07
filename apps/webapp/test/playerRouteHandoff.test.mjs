@@ -22,6 +22,7 @@ test("resolvePlayerRouteHandoff routes payout and wallet surfaces into vault tab
       route_key: "vault",
       panel_key: "wallet",
       focus_key: "connect",
+      launch_event_key: "launch.internal.player_route_wallet.open",
       workspace: "player",
       tab: "vault"
     }
@@ -36,6 +37,7 @@ test("resolvePlayerRouteHandoff routes payout and wallet surfaces into vault tab
       route_key: "vault",
       panel_key: "payout",
       focus_key: "request",
+      launch_event_key: "launch.internal.player_route_payout.open",
       workspace: "player",
       tab: "vault"
     }
@@ -55,6 +57,7 @@ test("resolvePlayerRouteHandoff preserves player-side home support routes", asyn
       route_key: "settings",
       panel_key: "support",
       focus_key: "faq_cards",
+      launch_event_key: "launch.internal.player_route_support.open",
       workspace: "player",
       tab: "home"
     }

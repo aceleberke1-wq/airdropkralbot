@@ -22,6 +22,7 @@ test("resolveAdminRouteHandoff maps queue and runtime panel targets into admin w
       route_key: "admin",
       panel_key: "panel_admin_queue",
       focus_key: "queue_action",
+      launch_event_key: "launch.internal.admin_route_panel_admin_queue.open",
       workspace: "admin",
       tab: "home"
     }
@@ -36,6 +37,7 @@ test("resolveAdminRouteHandoff maps queue and runtime panel targets into admin w
       route_key: "admin",
       panel_key: "panel_admin_runtime",
       focus_key: "runtime_flags",
+      launch_event_key: "launch.internal.admin_route_panel_admin_runtime.open",
       workspace: "admin",
       tab: "home"
     }
