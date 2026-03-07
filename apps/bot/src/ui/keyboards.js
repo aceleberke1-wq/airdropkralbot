@@ -236,6 +236,45 @@ function buildLaunchSurfaceGridKeyboard(entries = [], lang = "tr", columns = 2) 
   return buildLaunchGridKeyboard(launchEntries, columns);
 }
 
+function collectInlineKeyboardRows(keyboards = []) {
+  return (Array.isArray(keyboards) ? keyboards : [])
+    .flatMap((keyboard) => keyboard?.reply_markup?.inline_keyboard || [])
+    .filter((row) => Array.isArray(row) && row.length > 0);
+}
+
+function mergeInlineKeyboards(...keyboards) {
+  const rows = collectInlineKeyboardRows(keyboards);
+  if (!rows.length) {
+    return undefined;
+  }
+  const seen = new Set();
+  const mergedRows = rows
+    .map((row) =>
+      row.filter((button) => {
+        const key = JSON.stringify({
+          text: button?.text || "",
+          callback_data: button?.callback_data || "",
+          url: button?.url || "",
+          web_app_url: button?.web_app?.url || ""
+        });
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      })
+    )
+    .filter((row) => row.length > 0);
+  if (!mergedRows.length) {
+    return undefined;
+  }
+  return Markup.inlineKeyboard(mergedRows, { columns: 2 });
+}
+
+function buildAlertSurfaceKeyboard(entries = [], lang = "tr") {
+  return buildLaunchSurfaceGridKeyboard(entries, lang, 2);
+}
+
 function buildTaskKeyboard(offers, lang = "tr", miniAppUrl = "") {
   const buttons = offers.map((offer, index) =>
     Markup.button.callback(`${uiText(lang, "task_label")} ${index + 1}`, `TASK_ACCEPT:${offer.id}`)
@@ -675,6 +714,7 @@ module.exports = {
   buildHelpKeyboard,
   buildHelpIndexKeyboard,
   buildHelpCommandCardKeyboard,
+  buildAlertSurfaceKeyboard,
   buildCompleteKeyboard,
   buildRevealKeyboard,
   buildPostRevealKeyboard,
@@ -696,5 +736,6 @@ module.exports = {
   buildAdminKeyboard,
   buildAdminWorkspaceKeyboard,
   buildAdminPayoutActionKeyboard,
-  buildAdminTokenActionKeyboard
+  buildAdminTokenActionKeyboard,
+  mergeInlineKeyboards
 };

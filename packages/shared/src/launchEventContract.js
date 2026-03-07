@@ -5,6 +5,7 @@ const { normalizeAnalyticsKey } = require("./telemetryContract");
 const LAUNCH_EVENT_SCOPE = Object.freeze({
   COMMAND: "command",
   SURFACE: "surface",
+  ALERT: "alert",
   CALLBACK: "callback",
   WEBAPP_ACTION: "webapp_action",
   INTERNAL: "internal"
@@ -77,6 +78,15 @@ function resolveSurfaceLaunchEventKey(surfaceKey, verb = "open") {
   });
 }
 
+function resolveAlertLaunchEventKey(alertKey, slotKey = "", verb = "open") {
+  const compositeKey = slotKey ? `${alertKey}_${slotKey}` : alertKey;
+  return resolveLaunchEventKey({
+    scope: LAUNCH_EVENT_SCOPE.ALERT,
+    key: compositeKey,
+    verb
+  });
+}
+
 function resolveCallbackLaunchEventKey(actionKey, verb = "open") {
   return resolveLaunchEventKey({
     scope: LAUNCH_EVENT_SCOPE.CALLBACK,
@@ -108,6 +118,7 @@ module.exports = {
   resolveLaunchEventKey,
   resolveCommandLaunchEventKey,
   resolveSurfaceLaunchEventKey,
+  resolveAlertLaunchEventKey,
   resolveCallbackLaunchEventKey,
   resolveWebAppActionLaunchEventKey,
   resolveInternalLaunchEventKey

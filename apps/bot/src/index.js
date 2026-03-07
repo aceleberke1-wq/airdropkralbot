@@ -42,8 +42,10 @@ const {
 } = require("../../../packages/shared/src/navigationContract");
 const { resolvePlayerCommandNavigation } = require("../../../packages/shared/src/playerCommandNavigation");
 const { resolveAdminCommandNavigation } = require("../../../packages/shared/src/adminCommandNavigation");
+const { resolveChatAlertConfig } = require("../../../packages/shared/src/chatAlertCatalog");
 const { resolveLocalePreference } = require("../../../packages/shared/src/localeContract");
 const { resolveShellActionKeyForBotHandler } = require("../../../packages/shared/src/shellActionCatalog");
+const { resolveAlertLaunchEventKey } = require("../../../packages/shared/src/launchEventContract");
 const { getCommandRegistry, toTelegramCommands, buildAliasLookup } = require("./commands/registry");
 const { buildIntentIndex, resolveIntent, normalizeMode } = require("./commands/intentRouter");
 const { buildSimpleCallbackActionMap, buildSimpleWebAppActionMap } = require("./commands/callbackActionCatalog");
@@ -56,6 +58,7 @@ const {
   buildHelpKeyboard,
   buildHelpIndexKeyboard,
   buildHelpCommandCardKeyboard,
+  buildAlertSurfaceKeyboard,
   buildCompleteKeyboard,
   buildRevealKeyboard,
   buildPostRevealKeyboard,
@@ -77,12 +80,14 @@ const {
   buildAdminKeyboard,
   buildAdminWorkspaceKeyboard,
   buildAdminPayoutActionKeyboard,
-  buildAdminTokenActionKeyboard
+  buildAdminTokenActionKeyboard,
+  mergeInlineKeyboards
 } = require("./ui/keyboards");
 const {
   buildLaunchSurfaceEntries,
   PLAYER_LAUNCH_SURFACE_CATALOG,
-  ADMIN_LAUNCH_SURFACE_CATALOG
+  ADMIN_LAUNCH_SURFACE_CATALOG,
+  resolveLaunchSurface
 } = require("./ui/launchSurfaceCatalog");
 const {
   buildHelpCards,
@@ -465,6 +470,38 @@ async function resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, entri
 
 async function resolveMiniAppLaunchSurfaceBundle(pool, appConfig, telegramId, surfaceKeys = []) {
   return resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, buildLaunchSurfaceEntries(surfaceKeys, PLAYER_LAUNCH_SURFACE_CATALOG));
+}
+
+async function resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, telegramId, alertKey) {
+  const alertConfig = resolveChatAlertConfig(alertKey);
+  if (!alertConfig) {
+    return [];
+  }
+  const entries = alertConfig.surfaces
+    .map((slot) => {
+      const surface = resolveLaunchSurface(slot.surface_key, PLAYER_LAUNCH_SURFACE_CATALOG);
+      if (!surface?.commandKey) {
+        return null;
+      }
+      return {
+        key: String(slot.slot_key || surface.key || "").trim(),
+        commandKey: surface.commandKey,
+        surfaceKey: surface.key,
+        overrides: {
+          ...(surface.overrides || {}),
+          shellActionKey: surface.shellActionKey || surface.overrides?.shellActionKey || "",
+          launchEventKey: resolveAlertLaunchEventKey(alertConfig.key, slot.slot_key || surface.key || "")
+        }
+      };
+    })
+    .filter(Boolean);
+  const bundle = await resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, entries);
+  return entries
+    .map((entry) => ({
+      surfaceKey: entry.surfaceKey,
+      url: bundle[String(entry.key || "").trim()] || ""
+    }))
+    .filter((entry) => entry.surfaceKey && entry.url);
 }
 
 async function resolveMiniAppCommandUrl(pool, appConfig, telegramId, commandKey, overrides = {}) {
@@ -2607,6 +2644,7 @@ async function sendRewards(ctx, pool, appConfig) {
     "rewards_vault",
     "leaderboard_panel"
   ]);
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "chest_ready");
   const entitled = Number(payload.payout.entitledBtc || 0).toFixed(8);
   const requestable = Number(payload.payout.requestableBtc || 0).toFixed(8);
   const latestRef = escapeMarkdownText(
@@ -2624,7 +2662,10 @@ async function sendRewards(ctx, pool, appConfig) {
           `Hak Edilen: *${entitled} BTC* | Talep Edilebilir: *${requestable} BTC*\n` +
           `Payout: *${payload.payout.canRequest ? "acik" : "kilitli"}* | Cooldown: *${payload.payout.cooldownUntil ? "aktif" : "temiz"}*\n` +
           `Son Ref: *${latestRef}*`,
-    buildRewardsKeyboard(rewards_vault, leaderboard_panel, lang)
+    mergeInlineKeyboards(
+      buildRewardsKeyboard(rewards_vault, leaderboard_panel, lang),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
@@ -2651,9 +2692,13 @@ async function sendSeason(ctx, pool, appConfig) {
     "season_hall",
     "leaderboard_panel"
   ]);
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "season_deadline");
   await ctx.replyWithMarkdown(
     messages.formatSeason(payload.season, payload.stat, payload.rank),
-    buildSeasonKeyboard(season_hall, leaderboard_panel, resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    mergeInlineKeyboards(
+      buildSeasonKeyboard(season_hall, leaderboard_panel, resolvePreferredLanguage(payload.profile, ctx, "tr")),
+      buildAlertSurfaceKeyboard(alertEntries, resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    )
   );
 }
 
@@ -2679,6 +2724,7 @@ async function sendEvents(ctx, pool, appConfig) {
     ctx.from?.id,
     ["events_hall", "season_hall", "leaderboard_panel"]
   );
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "event_countdown");
   const lead = (payload.rows || [])
     .slice(0, 3)
     .map((row, idx) => `${idx + 1}. ${escapeMarkdownText(row.public_name || "player")} (${Math.floor(Number(row.points || 0))})`)
@@ -2697,7 +2743,10 @@ async function sendEvents(ctx, pool, appConfig) {
           `Kontrat: *${escapeMarkdownText(payload.contract.title || "-")}* [${escapeMarkdownText(payload.contract.required_mode || "balanced")}]\n` +
           `War Tier: *${escapeMarkdownText(payload.war.tier || "seed")}* | Havuz *${Math.floor(Number(payload.war.value || 0))}*\n\n` +
           `Top Ladder\n${lead || "-"}`,
-    buildEventKeyboard(events_hall, season_hall, leaderboard_panel, lang)
+    mergeInlineKeyboards(
+      buildEventKeyboard(events_hall, season_hall, leaderboard_panel, lang),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
@@ -2760,6 +2809,7 @@ async function sendDiscover(ctx, pool, appConfig) {
     ctx.from?.id,
     ["discover_panel", "mission_quarter", "play_world"]
   );
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "comeback_offer");
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*Discover*\n` +
@@ -2770,7 +2820,10 @@ async function sendDiscover(ctx, pool, appConfig) {
           `Aktif Offer: *${openOffers}* | Hazir Misyon: *${readyMissions}*\n` +
           `Guncel Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}*\n` +
           `En iyi sonraki hamle: *${readyMissions > 0 ? "misyon claim" : openOffers > 0 ? "mission quarter ac" : "arenaya gir"}*`,
-    buildDiscoverKeyboard(discover_panel, mission_quarter, play_world, lang)
+    mergeInlineKeyboards(
+      buildDiscoverKeyboard(discover_panel, mission_quarter, play_world, lang),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
@@ -2863,6 +2916,7 @@ async function sendSupport(ctx, pool, appConfig) {
     ctx.from?.id,
     ["status_hub", "payout_screen", "settings_panel", "faq_panel"]
   );
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "payout_update");
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*Support Triage*\n` +
@@ -2879,7 +2933,10 @@ async function sendSupport(ctx, pool, appConfig) {
           `2. Payout veya wallet sorunu icin */vault*.\n` +
           `3. Dil/accessibility sorunu icin */settings*.\n` +
           `4. Sik sorular icin once */faq*.`,
-    buildSupportKeyboard(status_hub, payout_screen, settings_panel, faq_panel, lang)
+    mergeInlineKeyboards(
+      buildSupportKeyboard(status_hub, payout_screen, settings_panel, faq_panel, lang),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
@@ -3263,9 +3320,14 @@ async function sendPayout(ctx, pool, appConfig) {
     return { profile, view };
   });
   const payoutUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "payout");
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "payout_update");
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
   await ctx.replyWithMarkdown(
     messages.formatPayout(payload.view),
-    buildPayoutKeyboard(payload.view.canRequest, resolvePreferredLanguage(payload.profile, ctx, "tr"), payoutUrl || "")
+    mergeInlineKeyboards(
+      buildPayoutKeyboard(payload.view.canRequest, lang, payoutUrl || ""),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
@@ -4349,6 +4411,7 @@ async function sendStatus(ctx, pool, appConfig) {
     "status_hub",
     "discover_panel"
   ]);
+  const alertEntries = await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, ctx.from?.id, "streak_risk");
 
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -4376,7 +4439,10 @@ async function sendStatus(ctx, pool, appConfig) {
         `Risk: *${Math.round(payload.risk * 100)}%*\n` +
         `Payout Uygunluk: *${payoutText}*\n` +
         `${safeTokenSymbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`,
-    buildStatusKeyboard(status_hub, discover_panel, lang)
+    mergeInlineKeyboards(
+      buildStatusKeyboard(status_hub, discover_panel, lang),
+      buildAlertSurfaceKeyboard(alertEntries, lang)
+    )
   );
 }
 
