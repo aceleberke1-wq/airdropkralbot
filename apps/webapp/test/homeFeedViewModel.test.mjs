@@ -30,6 +30,9 @@ test("buildHomeFeedViewModel maps home feed fields and mission preview", async (
         active_pass_count: 2,
         spend_summary: { SC: 120, RC: 8, HC: 1 }
       },
+      surface_actions: {
+        home_wallet: [{ slot_key: "wallet", action_key: "player.route.wallet_connect" }]
+      },
       command_hint: [{ key: "play", description: "start session", action_key: "player.route.world_hub" }]
     }
   });
@@ -42,6 +45,8 @@ test("buildHomeFeedViewModel maps home feed fields and mission preview", async (
   assert.equal(vm.command_hints[0].key, "play");
   assert.equal(vm.command_hints[0].action_key, "player.route.world_hub");
   assert.equal(vm.command_hints[0].route_key, "hub");
+  assert.equal(vm.surface_actions.home_wallet[0].slot_key, "wallet");
+  assert.equal(vm.surface_actions.home_wallet[0].action_key, "player.route.wallet_connect");
   assert.equal(vm.has_data, true);
 });
 
@@ -57,6 +62,7 @@ test("buildHomeFeedViewModel falls back to bootstrap command catalog", async () 
   assert.equal(vm.command_hints[0].key, "vault");
   assert.equal(vm.command_hints[0].action_key, "player.route.payout_request");
   assert.equal(vm.command_hints[0].panel_key, "payout");
+  assert.equal(vm.surface_actions.home_header[0].action_key, "player.panel.profile");
 });
 
 test("buildHomeFeedViewModel handles empty payload safely", async () => {

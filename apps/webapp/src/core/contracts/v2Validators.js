@@ -33,6 +33,7 @@ const HomeFeedSchema = z
     mission: z.record(z.unknown()).default({}),
     wallet_quick: z.record(z.unknown()).default({}),
     monetization_quick: z.record(z.unknown()).default({}),
+    surface_actions: z.record(z.array(z.record(z.unknown()))).default({}),
     command_hint: z.array(z.record(z.unknown())).default([])
   })
   .passthrough();

@@ -79,6 +79,8 @@ test("v2 home feed transforms bootstrap payload", async () => {
   assert.equal(payload.data.api_version, "v2");
   assert.equal(payload.data.mission.ready, 1);
   assert.equal(payload.data.wallet_quick.active, true);
+  assert.equal(payload.data.surface_actions.home_wallet[0].action_key, "player.route.wallet_connect");
+  assert.equal(payload.data.surface_actions.shell_rewards[1].focus_key, "request");
   assert.equal(payload.data.command_hint[0].action_key, "player.route.world_hub");
   assert.equal(payload.data.command_hint[0].route_key, "hub");
   const contractData = HomeFeedV2Schema.parse(payload.data);

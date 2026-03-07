@@ -1,6 +1,8 @@
 import * as playerCommandNavigation from "../../../../../packages/shared/src/playerCommandNavigation.js";
+import * as playerSurfaceActionCatalog from "../../../../../packages/shared/src/playerSurfaceActionCatalog.js";
 
 const { resolvePlayerCommandActionKey, resolvePlayerCommandNavigation } = playerCommandNavigation;
+const { buildPlayerSurfaceActions } = playerSurfaceActionCatalog;
 
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -27,6 +29,31 @@ function toBool(value) {
   return Boolean(value);
 }
 
+function normalizeActionRef(row) {
+  const item = asRecord(row);
+  return {
+    slot_key: toText(item.slot_key || item.slotKey || ""),
+    action_key: toText(item.action_key || item.shell_action_key || ""),
+    shell_action_key: toText(item.shell_action_key || item.action_key || ""),
+    route_key: toText(item.route_key || ""),
+    panel_key: toText(item.panel_key || ""),
+    focus_key: toText(item.focus_key || ""),
+    tab: toText(item.tab || "")
+  };
+}
+
+function normalizeSurfaceActions(source = {}) {
+  const payload = asRecord(source);
+  return Object.fromEntries(
+    Object.entries(payload).map(([sectionKey, rows]) => [
+      String(sectionKey || "").trim().toLowerCase(),
+      asArray(rows)
+        .map((row) => normalizeActionRef(row))
+        .filter((row) => row.slot_key && row.action_key)
+    ])
+  );
+}
+
 export function buildHomeFeedViewModel(input = {}) {
   const homeFeed = asRecord(input.homeFeed);
   const bootstrap = asRecord(input.bootstrap);
@@ -38,6 +65,10 @@ export function buildHomeFeedViewModel(input = {}) {
   const monetizationQuick = asRecord(homeFeed.monetization_quick || bootstrap.monetization);
   const spendSummary = asRecord(monetizationQuick.spend_summary);
   const balances = asRecord(bootstrap.balances);
+  const surfaceActionsSource = Object.keys(asRecord(homeFeed.surface_actions)).length
+    ? asRecord(homeFeed.surface_actions)
+    : buildPlayerSurfaceActions();
+  const surfaceActions = normalizeSurfaceActions(surfaceActionsSource);
   const commandHintSource = asArray(homeFeed.command_hint).length
     ? asArray(homeFeed.command_hint)
     : asArray(bootstrap.command_catalog).slice(0, 6).map((row) => ({
@@ -115,6 +146,7 @@ export function buildHomeFeedViewModel(input = {}) {
       spend_rc: Math.max(0, toNum(spendSummary.RC || spendSummary.rc || 0))
     },
     mission_preview: missionPreview,
+    surface_actions: surfaceActions,
     command_hints: commandHints,
     has_data: Boolean(Object.keys(homeFeed).length || Object.keys(bootstrap).length)
   };

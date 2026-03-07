@@ -446,6 +446,7 @@ const HomeFeedV2Schema = z.object({
   mission: z.record(z.any()).default({}),
   wallet_quick: z.record(z.any()).default({}),
   monetization_quick: z.record(z.any()).default({}),
+  surface_actions: z.record(z.array(z.record(z.any()))).default({}),
   command_hint: z.array(z.record(z.any())).default([])
 });
 

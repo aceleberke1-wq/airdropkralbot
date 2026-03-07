@@ -4,6 +4,7 @@ const {
   resolvePlayerCommandActionKey,
   resolvePlayerCommandNavigation
 } = require("../../../../../../packages/shared/src/playerCommandNavigation");
+const { buildPlayerSurfaceActions } = require("../../../../../../packages/shared/src/playerSurfaceActionCatalog");
 
 function requireProxy(deps) {
   const proxyWebAppApiV1 = deps.proxyWebAppApiV1;
@@ -89,6 +90,7 @@ function toHomeFeedPayload(payload) {
       active_pass_count: asArray(monetization.active_passes).length,
       spend_summary: asObject(monetization.spend_summary)
     },
+    surface_actions: buildPlayerSurfaceActions(),
     command_hint: commandCatalog.slice(0, 5).map((rowItem) => toCommandHintPayload(asObject(rowItem), language))
   };
   return row;

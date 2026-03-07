@@ -74,6 +74,7 @@ export type HomeFeed = {
   mission?: Record<string, unknown>;
   wallet_quick?: Record<string, unknown>;
   monetization_quick?: Record<string, unknown>;
+  surface_actions?: Record<string, Array<Record<string, unknown>>>;
   command_hint?: Array<Record<string, unknown>>;
 };
 
