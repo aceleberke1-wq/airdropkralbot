@@ -7,12 +7,17 @@ type LiveOpsCampaignCardProps = {
   liveOpsCampaignDispatchData: Record<string, unknown> | null;
   liveOpsCampaignDraft: string;
   liveOpsCampaignError: string;
+  liveOpsCampaignApprovalError: string;
   liveOpsCampaignDispatchError: string;
   liveOpsCampaignSaving: boolean;
+  liveOpsCampaignApprovaling: boolean;
   liveOpsCampaignDispatching: boolean;
   onLiveOpsCampaignDraftChange: (value: string) => void;
   onRefreshLiveOpsCampaign: () => void;
   onSaveLiveOpsCampaign: () => void;
+  onRequestLiveOpsCampaignApproval: () => void;
+  onApproveLiveOpsCampaign: () => void;
+  onRevokeLiveOpsCampaignApproval: () => void;
   onDryRunLiveOpsCampaign: () => void;
   onDispatchLiveOpsCampaign: () => void;
   onSurfaceAction: (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
@@ -55,6 +60,8 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const segmentBreakdown = asArray(deliverySummary.segment_breakdown);
   const surfaceBreakdown = asArray(deliverySummary.surface_breakdown);
   const liveReady = approvalSummary.live_dispatch_ready === true;
+  const approvalState = asText(approvalSummary.approval_state);
+  const scheduleState = asText(approvalSummary.schedule_state);
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_live_ops" data-akr-focus-key="campaign_editor">
@@ -84,6 +91,15 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
         <button className="akrBtn akrBtnAccent" onClick={props.onSaveLiveOpsCampaign} disabled={props.liveOpsCampaignSaving}>
           {props.liveOpsCampaignSaving ? t(props.lang, "admin_live_ops_saving") : t(props.lang, "admin_live_ops_save")}
         </button>
+        <button className="akrBtn akrBtnGhost" onClick={props.onRequestLiveOpsCampaignApproval} disabled={props.liveOpsCampaignApprovaling}>
+          {props.liveOpsCampaignApprovaling ? t(props.lang, "admin_live_ops_approval_running") : t(props.lang, "admin_live_ops_request_approval")}
+        </button>
+        <button className="akrBtn akrBtnGhost" onClick={props.onApproveLiveOpsCampaign} disabled={props.liveOpsCampaignApprovaling}>
+          {props.liveOpsCampaignApprovaling ? t(props.lang, "admin_live_ops_approval_running") : t(props.lang, "admin_live_ops_approve")}
+        </button>
+        <button className="akrBtn akrBtnGhost" onClick={props.onRevokeLiveOpsCampaignApproval} disabled={props.liveOpsCampaignApprovaling}>
+          {props.liveOpsCampaignApprovaling ? t(props.lang, "admin_live_ops_approval_running") : t(props.lang, "admin_live_ops_revoke")}
+        </button>
         <button className="akrBtn akrBtnGhost" onClick={props.onDryRunLiveOpsCampaign} disabled={props.liveOpsCampaignDispatching}>
           {props.liveOpsCampaignDispatching ? t(props.lang, "admin_live_ops_dispatching") : t(props.lang, "admin_live_ops_dry_run")}
         </button>
@@ -99,6 +115,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
         spellCheck={false}
       />
       {props.liveOpsCampaignError ? <p className="akrErrorLine">{props.liveOpsCampaignError}</p> : null}
+      {props.liveOpsCampaignApprovalError ? <p className="akrErrorLine">{props.liveOpsCampaignApprovalError}</p> : null}
       {props.liveOpsCampaignDispatchError ? <p className="akrErrorLine">{props.liveOpsCampaignDispatchError}</p> : null}
       <div className="akrSplit">
         <section className="akrMiniPanel" data-akr-focus-key="approval_gate">
@@ -118,12 +135,32 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
               <strong>{asCount(approvalSummary.max_recipients)}</strong>
             </li>
             <li>
+              <span>{t(props.lang, "admin_live_ops_approval_state_label")}</span>
+              <strong>{approvalState}</strong>
+            </li>
+            <li>
+              <span>{t(props.lang, "admin_live_ops_schedule_state_label")}</span>
+              <strong>{scheduleState}</strong>
+            </li>
+            <li>
+              <span>{t(props.lang, "admin_live_ops_schedule_start_label")}</span>
+              <strong>{asText(approvalSummary.schedule_start_at)}</strong>
+            </li>
+            <li>
+              <span>{t(props.lang, "admin_live_ops_schedule_end_label")}</span>
+              <strong>{asText(approvalSummary.schedule_end_at)}</strong>
+            </li>
+            <li>
               <span>{t(props.lang, "admin_live_ops_last_saved_label")}</span>
               <strong>{asText(approvalSummary.last_saved_at)}</strong>
             </li>
             <li>
               <span>{t(props.lang, "admin_live_ops_last_dispatch_label")}</span>
               <strong>{asText(approvalSummary.last_dispatch_at)}</strong>
+            </li>
+            <li>
+              <span>{t(props.lang, "admin_live_ops_approved_by_label")}</span>
+              <strong>#{asCount(approvalSummary.approval_approved_by)}</strong>
             </li>
           </ul>
           {warnings.length ? (

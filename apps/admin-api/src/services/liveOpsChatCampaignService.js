@@ -10,6 +10,7 @@ const {
   LIVE_OPS_CAMPAIGN_CONFIG_KEY,
   LIVE_OPS_CAMPAIGN_EVENT_TYPE,
   LIVE_OPS_SEGMENT_KEY,
+  LIVE_OPS_APPROVAL_STATE,
   buildDefaultLiveOpsCampaignConfig
 } = require("../../../../packages/shared/src/liveOpsCampaignContract");
 const { normalizeTrustMessageLanguage, escapeMarkdown } = require("../../../../packages/shared/src/chatTrustMessages");
@@ -139,6 +140,56 @@ function formatCampaignMessage(campaign, lang = "tr") {
 function hasLocalizedCopy(copyValue) {
   const copy = copyValue && typeof copyValue === "object" && !Array.isArray(copyValue) ? copyValue : {};
   return ["tr", "en"].some((localeKey) => String(copy[localeKey] || "").trim().length > 0);
+}
+
+function resolveScheduleWindowState(schedule, now) {
+  const scheduleState = schedule && typeof schedule === "object" && !Array.isArray(schedule) ? schedule : {};
+  const startAt = scheduleState.start_at ? new Date(String(scheduleState.start_at)) : null;
+  const endAt = scheduleState.end_at ? new Date(String(scheduleState.end_at)) : null;
+  const startValid = !startAt || !Number.isNaN(startAt.getTime());
+  const endValid = !endAt || !Number.isNaN(endAt.getTime());
+  if (!startValid || !endValid) {
+    return { state: "invalid", start_at: scheduleState.start_at || null, end_at: scheduleState.end_at || null };
+  }
+  if (!startAt && !endAt) {
+    return { state: "missing", start_at: null, end_at: null };
+  }
+  if (startAt && endAt && startAt.getTime() >= endAt.getTime()) {
+    return { state: "invalid", start_at: startAt.toISOString(), end_at: endAt.toISOString() };
+  }
+  const currentTs = now.getTime();
+  if (startAt && currentTs < startAt.getTime()) {
+    return { state: "scheduled", start_at: startAt.toISOString(), end_at: endAt ? endAt.toISOString() : null };
+  }
+  if (endAt && currentTs > endAt.getTime()) {
+    return { state: "expired", start_at: startAt ? startAt.toISOString() : null, end_at: endAt.toISOString() };
+  }
+  return {
+    state: "open",
+    start_at: startAt ? startAt.toISOString() : null,
+    end_at: endAt ? endAt.toISOString() : null
+  };
+}
+
+function buildPersistedCampaign(currentCampaign, nextCampaignInput) {
+  const current = buildDefaultLiveOpsCampaignConfig(currentCampaign || {});
+  const next = buildDefaultLiveOpsCampaignConfig({
+    ...current,
+    ...(nextCampaignInput || {}),
+    schedule: {
+      ...(current.schedule || {}),
+      ...(((nextCampaignInput || {}).schedule && typeof (nextCampaignInput || {}).schedule === "object" && !Array.isArray((nextCampaignInput || {}).schedule))
+        ? (nextCampaignInput || {}).schedule
+        : {})
+    },
+    approval: {
+      ...(current.approval || {}),
+      ...(((nextCampaignInput || {}).approval && typeof (nextCampaignInput || {}).approval === "object" && !Array.isArray((nextCampaignInput || {}).approval))
+        ? (nextCampaignInput || {}).approval
+        : {})
+    }
+  });
+  return next;
 }
 
 async function queryInactiveReturningCandidates(client, campaign) {
@@ -582,6 +633,10 @@ function buildApprovalSummary(campaign, meta = {}) {
   const surfaceCount = surfaces.length;
   const titleReady = hasLocalizedCopy(campaign?.copy?.title);
   const bodyReady = hasLocalizedCopy(campaign?.copy?.body);
+  const approval = campaign?.approval && typeof campaign.approval === "object" ? campaign.approval : {};
+  const approvalRequired = approval.required !== false;
+  const approvalState = String(approval.state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED);
+  const scheduleWindow = resolveScheduleWindowState(campaign?.schedule, meta.now instanceof Date ? meta.now : new Date());
 
   if (!enabled) {
     warnings.push("campaign_disabled");
@@ -598,6 +653,21 @@ function buildApprovalSummary(campaign, meta = {}) {
   if (!bodyReady) {
     warnings.push("body_missing");
   }
+  if (approvalRequired && approvalState !== LIVE_OPS_APPROVAL_STATE.APPROVED) {
+    warnings.push(approvalState === LIVE_OPS_APPROVAL_STATE.PENDING ? "approval_pending" : "approval_missing");
+  }
+  if (scheduleWindow.state === "missing") {
+    warnings.push("schedule_missing");
+  }
+  if (scheduleWindow.state === "invalid") {
+    warnings.push("schedule_invalid");
+  }
+  if (scheduleWindow.state === "scheduled") {
+    warnings.push("schedule_not_open");
+  }
+  if (scheduleWindow.state === "expired") {
+    warnings.push("schedule_expired");
+  }
 
   return {
     live_dispatch_ready: warnings.length === 0,
@@ -609,6 +679,16 @@ function buildApprovalSummary(campaign, meta = {}) {
     surface_count: surfaceCount,
     last_saved_at: meta.updated_at || null,
     last_dispatch_at: meta.last_dispatch_at || null,
+    approval_required: approvalRequired,
+    approval_state: approvalState,
+    approval_requested_at: approval.requested_at || null,
+    approval_requested_by: Number(approval.requested_by || 0),
+    approval_approved_at: approval.approved_at || null,
+    approval_approved_by: Number(approval.approved_by || 0),
+    schedule_timezone: String(campaign?.schedule?.timezone || "UTC"),
+    schedule_start_at: scheduleWindow.start_at,
+    schedule_end_at: scheduleWindow.end_at,
+    schedule_state: scheduleWindow.state,
     warnings
   };
 }
@@ -714,7 +794,7 @@ async function buildCampaignSnapshot(client, current) {
       const nextVersion = current.version + 1;
       const adminId = Number(input.adminId || 0);
       const reason = String(input.reason || "live_ops_campaign_update").trim().slice(0, 240);
-      const campaign = buildDefaultLiveOpsCampaignConfig(input.campaign || {});
+      const campaign = buildPersistedCampaign(current.campaign, input.campaign || {});
       await client.query(
         `INSERT INTO config_versions (config_key, version, config_json, created_by)
          VALUES ($1, $2, $3::jsonb, $4);`,
@@ -738,6 +818,90 @@ async function buildCampaignSnapshot(client, current) {
         version: nextVersion,
         campaign_key: campaign.campaign_key,
         reason
+      });
+      return snapshot;
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => null);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function updateCampaignApproval(input = {}) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await loadLatestConfig(client);
+      const nextVersion = current.version + 1;
+      const adminId = Number(input.adminId || 0);
+      const reason = String(input.reason || "live_ops_campaign_approval_update").trim().slice(0, 240);
+      const approvalAction = String(input.approvalAction || "").trim().toLowerCase();
+      const nowIso = nowFactory().toISOString();
+      const baseCampaign = buildPersistedCampaign(current.campaign, input.campaign || {});
+      const nextApproval = {
+        ...(baseCampaign.approval || {}),
+        required: baseCampaign.approval?.required !== false,
+        last_action_by: adminId,
+        last_action_at: nowIso,
+        note: reason
+      };
+
+      if (approvalAction === "request") {
+        nextApproval.state = LIVE_OPS_APPROVAL_STATE.PENDING;
+        nextApproval.requested_by = adminId;
+        nextApproval.requested_at = nowIso;
+      } else if (approvalAction === "approve") {
+        nextApproval.state = LIVE_OPS_APPROVAL_STATE.APPROVED;
+        nextApproval.approved_by = adminId;
+        nextApproval.approved_at = nowIso;
+        if (!nextApproval.requested_at) {
+          nextApproval.requested_at = nowIso;
+          nextApproval.requested_by = adminId;
+        }
+      } else if (approvalAction === "revoke") {
+        nextApproval.state = LIVE_OPS_APPROVAL_STATE.REVOKED;
+      } else {
+        throw new Error("invalid_approval_action");
+      }
+
+      const campaign = buildPersistedCampaign(baseCampaign, {
+        approval: nextApproval
+      });
+
+      await client.query(
+        `INSERT INTO config_versions (config_key, version, config_json, created_by)
+         VALUES ($1, $2, $3::jsonb, $4);`,
+        [LIVE_OPS_CAMPAIGN_CONFIG_KEY, nextVersion, JSON.stringify(campaign), adminId]
+      );
+      await client.query(
+        `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+         VALUES ($1, $2, $3, $4::jsonb);`,
+        [
+          adminId,
+          `live_ops_campaign_${approvalAction}`,
+          `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`,
+          JSON.stringify({
+            reason,
+            version: nextVersion,
+            campaign_key: campaign.campaign_key,
+            approval_state: campaign.approval?.state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED
+          })
+        ]
+      );
+      const snapshot = await buildCampaignSnapshot(client, {
+        version: nextVersion,
+        created_at: nowIso,
+        created_by: adminId,
+        campaign
+      });
+      await client.query("COMMIT");
+      logger("info", {
+        event: "live_ops_campaign_approval_updated",
+        admin_id: adminId,
+        version: nextVersion,
+        campaign_key: campaign.campaign_key,
+        approval_action: approvalAction
       });
       return snapshot;
     } catch (err) {
@@ -774,8 +938,21 @@ async function buildCampaignSnapshot(client, current) {
         Math.min(500, Number(input.maxRecipients || campaign.targeting.max_recipients || 50))
       );
 
-      if (!dryRun && (!campaign.enabled || campaign.status !== "ready")) {
-        return { ok: false, reason: "campaign_not_ready", campaign, version };
+      if (!dryRun) {
+        const approvalSummary = buildApprovalSummary(campaign, { now: nowFactory() });
+        if (!approvalSummary.live_dispatch_ready) {
+          const reasonCode =
+            approvalSummary.warnings.includes("approval_missing") || approvalSummary.warnings.includes("approval_pending")
+              ? "campaign_approval_required"
+              : approvalSummary.warnings.includes("schedule_not_open") || approvalSummary.warnings.includes("schedule_missing")
+                ? "campaign_schedule_closed"
+                : approvalSummary.warnings.includes("schedule_expired")
+                  ? "campaign_schedule_expired"
+                  : approvalSummary.warnings.includes("schedule_invalid")
+                    ? "campaign_schedule_invalid"
+                    : "campaign_not_ready";
+          return { ok: false, reason: reasonCode, campaign, version };
+        }
       }
 
       const candidateLoader = loadCandidates || selectCandidateLoader(campaign);
@@ -905,6 +1082,7 @@ async function buildCampaignSnapshot(client, current) {
   return {
     getCampaignSnapshot,
     saveCampaignConfig,
+    updateCampaignApproval,
     dispatchCampaign
   };
 }

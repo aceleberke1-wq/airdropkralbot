@@ -270,6 +270,21 @@ export const webappApi = createApi({
       }),
       invalidatesTags: ["Admin"]
     }),
+    adminLiveOpsCampaignApprovalV2: builder.mutation<
+      AdminApiResponse,
+      { auth: WebAppAuth; approval_action: "request" | "approve" | "revoke"; reason?: string; campaign?: Record<string, unknown> }
+    >({
+      query: ({ auth, approval_action, reason, campaign }) => ({
+        url: "/webapp/api/v2/admin/live-ops/campaign/approval",
+        method: "POST",
+        body: withAuthBody(auth, {
+          approval_action,
+          reason: reason ? String(reason) : undefined,
+          campaign: campaign && typeof campaign === "object" ? campaign : undefined
+        })
+      }),
+      invalidatesTags: ["Admin"]
+    }),
     adminLiveOpsCampaignDispatchV2: builder.mutation<
       AdminApiResponse,
       { auth: WebAppAuth; dry_run?: boolean; max_recipients?: number; reason?: string; campaign?: Record<string, unknown> }
@@ -796,6 +811,7 @@ export const {
   useAdminBootstrapV2Query,
   useAdminDeployStatusV2Query,
   useAdminLiveOpsCampaignV2Query,
+  useAdminLiveOpsCampaignApprovalV2Mutation,
   useAdminLiveOpsCampaignUpsertV2Mutation,
   useAdminLiveOpsCampaignDispatchV2Mutation,
   useAdminMetricsV2Query,

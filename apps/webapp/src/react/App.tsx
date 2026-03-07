@@ -49,6 +49,7 @@ import {
   useAdminDeployStatusV2Query,
   useAdminDynamicAutoPolicyUpsertV2Mutation,
   useAdminDynamicAutoPolicyV2Query,
+  useAdminLiveOpsCampaignApprovalV2Mutation,
   useAdminLiveOpsCampaignDispatchV2Mutation,
   useAdminLiveOpsCampaignUpsertV2Mutation,
   useAdminLiveOpsCampaignV2Query,
@@ -161,6 +162,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const [dynamicPolicyError, setDynamicPolicyError] = useState("");
   const [liveOpsCampaignDraft, setLiveOpsCampaignDraft] = useState("{}");
   const [liveOpsCampaignError, setLiveOpsCampaignError] = useState("");
+  const [liveOpsCampaignApprovalError, setLiveOpsCampaignApprovalError] = useState("");
   const [liveOpsCampaignDispatchError, setLiveOpsCampaignDispatchError] = useState("");
   const [runtimeFlagsDraft, setRuntimeFlagsDraft] = useState("{}");
   const [runtimeFlagsError, setRuntimeFlagsError] = useState("");
@@ -220,6 +222,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const [patchUiPreferences] = usePatchUiPreferencesV2Mutation();
   const [adminQueueAction] = useAdminQueueActionV2Mutation();
   const [adminLiveOpsCampaignUpsert, { isLoading: liveOpsCampaignSaving }] = useAdminLiveOpsCampaignUpsertV2Mutation();
+  const [adminLiveOpsCampaignApproval, { isLoading: liveOpsCampaignApprovaling }] =
+    useAdminLiveOpsCampaignApprovalV2Mutation();
   const [adminLiveOpsCampaignDispatch, { isLoading: liveOpsCampaignDispatching }] =
     useAdminLiveOpsCampaignDispatchV2Mutation();
   const [adminRuntimeFlagsUpdate, { isLoading: runtimeFlagsSaving }] = useAdminRuntimeFlagsUpdateV2Mutation();
@@ -287,6 +291,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     saveDynamicPolicy,
     refreshLiveOpsCampaign,
     saveLiveOpsCampaign,
+    updateLiveOpsCampaignApproval,
     runLiveOpsCampaignDispatch,
     refreshRuntimeFlags,
     saveRuntimeFlags,
@@ -308,6 +313,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     setDynamicPolicyError,
     setLiveOpsCampaignDraft,
     setLiveOpsCampaignError,
+    setLiveOpsCampaignApprovalError,
     setLiveOpsCampaignDispatchError,
     setRuntimeFlagsDraft,
     setRuntimeFlagsError,
@@ -334,6 +340,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     adminAuditIntegrityQuery,
     adminDynamicPolicyQuery,
     adminLiveOpsCampaignUpsert,
+    adminLiveOpsCampaignApproval,
     adminLiveOpsCampaignDispatch,
     adminDynamicPolicyUpsert,
     adminRuntimeFlagsUpdate,
@@ -683,8 +690,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           liveOpsCampaignDispatchData={(adminPanels?.live_ops_campaign_dispatch as Record<string, unknown> | null) || null}
           liveOpsCampaignDraft={liveOpsCampaignDraft}
           liveOpsCampaignError={liveOpsCampaignError}
+          liveOpsCampaignApprovalError={liveOpsCampaignApprovalError}
           liveOpsCampaignDispatchError={liveOpsCampaignDispatchError}
           liveOpsCampaignSaving={liveOpsCampaignSaving}
+          liveOpsCampaignApprovaling={liveOpsCampaignApprovaling}
           liveOpsCampaignDispatching={liveOpsCampaignDispatching}
           runtimeFlagsData={(adminPanels?.runtime_flags as Record<string, unknown> | null) || null}
           runtimeFlagsDraft={runtimeFlagsDraft}
@@ -714,6 +723,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           onLiveOpsCampaignDraftChange={setLiveOpsCampaignDraft}
           onRefreshLiveOpsCampaign={() => void refreshLiveOpsCampaign()}
           onSaveLiveOpsCampaign={() => void saveLiveOpsCampaign()}
+          onRequestLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("request")}
+          onApproveLiveOpsCampaign={() => void updateLiveOpsCampaignApproval("approve")}
+          onRevokeLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("revoke")}
           onDryRunLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(true)}
           onDispatchLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(false)}
           onRuntimeFlagsDraftChange={setRuntimeFlagsDraft}

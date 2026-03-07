@@ -41,8 +41,10 @@ type AdminWorkspaceProps = {
   liveOpsCampaignDispatchData: Record<string, unknown> | null;
   liveOpsCampaignDraft: string;
   liveOpsCampaignError: string;
+  liveOpsCampaignApprovalError: string;
   liveOpsCampaignDispatchError: string;
   liveOpsCampaignSaving: boolean;
+  liveOpsCampaignApprovaling: boolean;
   liveOpsCampaignDispatching: boolean;
   runtimeFlagsData: Record<string, unknown> | null;
   runtimeFlagsDraft: string;
@@ -72,6 +74,9 @@ type AdminWorkspaceProps = {
   onLiveOpsCampaignDraftChange: (value: string) => void;
   onRefreshLiveOpsCampaign: () => void;
   onSaveLiveOpsCampaign: () => void;
+  onRequestLiveOpsCampaignApproval: () => void;
+  onApproveLiveOpsCampaign: () => void;
+  onRevokeLiveOpsCampaignApproval: () => void;
   onDryRunLiveOpsCampaign: () => void;
   onDispatchLiveOpsCampaign: () => void;
   onRuntimeFlagsDraftChange: (value: string) => void;
@@ -130,12 +135,17 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
       liveOpsCampaignDispatchData={props.liveOpsCampaignDispatchData}
       liveOpsCampaignDraft={props.liveOpsCampaignDraft}
       liveOpsCampaignError={props.liveOpsCampaignError}
+      liveOpsCampaignApprovalError={props.liveOpsCampaignApprovalError}
       liveOpsCampaignDispatchError={props.liveOpsCampaignDispatchError}
       liveOpsCampaignSaving={props.liveOpsCampaignSaving}
+      liveOpsCampaignApprovaling={props.liveOpsCampaignApprovaling}
       liveOpsCampaignDispatching={props.liveOpsCampaignDispatching}
       onLiveOpsCampaignDraftChange={props.onLiveOpsCampaignDraftChange}
       onRefreshLiveOpsCampaign={props.onRefreshLiveOpsCampaign}
       onSaveLiveOpsCampaign={props.onSaveLiveOpsCampaign}
+      onRequestLiveOpsCampaignApproval={props.onRequestLiveOpsCampaignApproval}
+      onApproveLiveOpsCampaign={props.onApproveLiveOpsCampaign}
+      onRevokeLiveOpsCampaignApproval={props.onRevokeLiveOpsCampaignApproval}
       onDryRunLiveOpsCampaign={props.onDryRunLiveOpsCampaign}
       onDispatchLiveOpsCampaign={props.onDispatchLiveOpsCampaign}
       runtimeFlagsData={props.runtimeFlagsData}

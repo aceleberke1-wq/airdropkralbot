@@ -51,6 +51,7 @@ function registerWebappV2AdminLiveOpsRoutes(fastify, deps = {}) {
       }
     });
   const upsertSchema = contracts.LiveOpsCampaignUpsertRequestSchema;
+  const approvalSchema = contracts.LiveOpsCampaignApprovalRequestSchema;
   const dispatchSchema = contracts.LiveOpsCampaignDispatchRequestSchema;
   const snapshotSchema = contracts.LiveOpsCampaignSnapshotSchema;
   const dispatchResponseSchema = contracts.LiveOpsCampaignDispatchResponseSchema;
@@ -156,6 +157,60 @@ function registerWebappV2AdminLiveOpsRoutes(fastify, deps = {}) {
   );
 
   fastify.post(
+    "/webapp/api/v2/admin/live-ops/campaign/approval",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["uid", "ts", "sig", "approval_action"],
+          properties: {
+            uid: { type: "string" },
+            ts: { type: "string" },
+            sig: { type: "string" },
+            approval_action: { type: "string", enum: ["request", "approve", "revoke"] },
+            reason: { type: "string", maxLength: 240 },
+            campaign: { type: "object" }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const authState = await requireAdminProfile(request.body, reply);
+      if (!authState) {
+        return;
+      }
+      if (approvalSchema) {
+        const parsed = approvalSchema.safeParse(request.body);
+        if (!parsed.success) {
+          reply.code(400).send({
+            success: false,
+            error: "invalid_live_ops_campaign_approval_payload",
+            details: formatZodIssues(parsed.error)
+          });
+          return;
+        }
+      }
+      try {
+        const snapshot = await service.updateCampaignApproval({
+          adminId: Number(authState.auth.uid || 0),
+          reason: request.body.reason,
+          approvalAction: request.body.approval_action,
+          campaign: request.body.campaign
+        });
+        reply.send({
+          success: true,
+          session: issueWebAppSession(authState.auth.uid),
+          data: snapshot
+        });
+      } catch (err) {
+        const reason = String(err?.message || "live_ops_campaign_approval_failed");
+        const statusCode = reason === "invalid_approval_action" ? 400 : 502;
+        reply.code(statusCode).send({ success: false, error: reason });
+      }
+    }
+  );
+
+  fastify.post(
     "/webapp/api/v2/admin/live-ops/campaign/dispatch",
     {
       schema: {
@@ -199,7 +254,16 @@ function registerWebappV2AdminLiveOpsRoutes(fastify, deps = {}) {
       });
       if (!result?.ok) {
         const reason = String(result?.reason || "live_ops_campaign_dispatch_failed");
-        const statusCode = reason === "campaign_not_ready" ? 409 : reason === "service_disabled" ? 503 : 502;
+        const statusCode =
+          reason === "campaign_not_ready" ||
+          reason === "campaign_approval_required" ||
+          reason === "campaign_schedule_closed" ||
+          reason === "campaign_schedule_expired" ||
+          reason === "campaign_schedule_invalid"
+            ? 409
+            : reason === "service_disabled"
+              ? 503
+              : 502;
         reply.code(statusCode).send({ success: false, error: reason, data: result?.campaign ? { campaign: result.campaign } : undefined });
         return;
       }

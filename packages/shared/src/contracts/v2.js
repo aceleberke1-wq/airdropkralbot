@@ -6,7 +6,8 @@ const { isSafeNavigationKey, normalizeTabKey } = require("../navigationContract"
 const { isSafeAnalyticsKey } = require("../telemetryContract");
 const {
   LIVE_OPS_SEGMENT_KEY,
-  LIVE_OPS_CAMPAIGN_STATUS
+  LIVE_OPS_CAMPAIGN_STATUS,
+  LIVE_OPS_APPROVAL_STATE
 } = require("../liveOpsCampaignContract");
 
 const LocalizedStringMapSchema = z
@@ -551,6 +552,24 @@ const LiveOpsCampaignTargetingSchema = z.object({
   dedupe_hours: z.number().int().min(1).max(720).default(72)
 });
 
+const LiveOpsCampaignScheduleSchema = z.object({
+  timezone: z.string().min(1).max(64).default("UTC"),
+  start_at: z.string().datetime().nullable().default(null),
+  end_at: z.string().datetime().nullable().default(null)
+});
+
+const LiveOpsCampaignApprovalSchema = z.object({
+  required: z.boolean().default(true),
+  state: z.enum(Object.values(LIVE_OPS_APPROVAL_STATE)).default(LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+  requested_by: z.number().int().nonnegative().default(0),
+  requested_at: z.string().datetime().nullable().default(null),
+  approved_by: z.number().int().nonnegative().default(0),
+  approved_at: z.string().datetime().nullable().default(null),
+  last_action_by: z.number().int().nonnegative().default(0),
+  last_action_at: z.string().datetime().nullable().default(null),
+  note: z.string().max(240).default("")
+});
+
 const LiveOpsCampaignConfigSchema = z.object({
   api_version: z.literal("v2").default("v2"),
   campaign_key: z.string().min(3).max(64),
@@ -564,6 +583,8 @@ const LiveOpsCampaignConfigSchema = z.object({
       note: LocalizedStringMapSchema.default({})
     })
     .default({}),
+  schedule: LiveOpsCampaignScheduleSchema.default({}),
+  approval: LiveOpsCampaignApprovalSchema.default({}),
   surfaces: z.array(LiveOpsCampaignSurfaceSchema).min(1).max(3).default([])
 });
 
@@ -577,6 +598,16 @@ const LiveOpsCampaignApprovalSummarySchema = z.object({
   surface_count: z.number().int().nonnegative().default(0),
   last_saved_at: z.string().nullable().default(null),
   last_dispatch_at: z.string().nullable().default(null),
+  approval_required: z.boolean().default(true),
+  approval_state: z.enum(Object.values(LIVE_OPS_APPROVAL_STATE)).default(LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+  approval_requested_at: z.string().nullable().default(null),
+  approval_requested_by: z.number().int().nonnegative().default(0),
+  approval_approved_at: z.string().nullable().default(null),
+  approval_approved_by: z.number().int().nonnegative().default(0),
+  schedule_timezone: z.string().default("UTC"),
+  schedule_start_at: z.string().nullable().default(null),
+  schedule_end_at: z.string().nullable().default(null),
+  schedule_state: z.enum(["missing", "invalid", "scheduled", "open", "expired"]).default("missing"),
   warnings: z.array(z.string()).default([])
 });
 
@@ -672,6 +703,14 @@ const LiveOpsCampaignDispatchResponseSchema = z.object({
   generated_at: z.string()
 });
 
+const LiveOpsCampaignApprovalActionSchema = z.enum(["request", "approve", "revoke"]);
+
+const LiveOpsCampaignApprovalRequestSchema = WebAppAuthEnvelopeSchema.extend({
+  approval_action: LiveOpsCampaignApprovalActionSchema,
+  reason: z.string().max(240).optional(),
+  campaign: LiveOpsCampaignConfigSchema.optional()
+});
+
 module.exports = {
   AdminQueueActionPayloadV2Schema,
   BootstrapV2DataSchema,
@@ -694,12 +733,16 @@ module.exports = {
   DynamicAutoPolicySchema,
   DynamicAutoPolicySegmentSchema,
   LiveOpsCampaignAnalyticsBucketSchema,
+  LiveOpsCampaignApprovalActionSchema,
+  LiveOpsCampaignApprovalRequestSchema,
+  LiveOpsCampaignApprovalSchema,
   LiveOpsCampaignApprovalSummarySchema,
   LiveOpsCampaignConfigSchema,
   LiveOpsCampaignDeliverySummarySchema,
   LiveOpsCampaignDispatchRequestSchema,
   LiveOpsCampaignDispatchResponseSchema,
   LiveOpsCampaignDispatchHistoryRowSchema,
+  LiveOpsCampaignScheduleSchema,
   LiveOpsCampaignSnapshotSchema,
   LiveOpsCampaignSurfaceSchema,
   LiveOpsCampaignTargetingSchema,

@@ -44,12 +44,17 @@ type AdminPanelProps = {
   liveOpsCampaignDispatchData: Record<string, unknown> | null;
   liveOpsCampaignDraft: string;
   liveOpsCampaignError: string;
+  liveOpsCampaignApprovalError: string;
   liveOpsCampaignDispatchError: string;
   liveOpsCampaignSaving: boolean;
+  liveOpsCampaignApprovaling: boolean;
   liveOpsCampaignDispatching: boolean;
   onLiveOpsCampaignDraftChange: (value: string) => void;
   onRefreshLiveOpsCampaign: () => void;
   onSaveLiveOpsCampaign: () => void;
+  onRequestLiveOpsCampaignApproval: () => void;
+  onApproveLiveOpsCampaign: () => void;
+  onRevokeLiveOpsCampaignApproval: () => void;
   onDryRunLiveOpsCampaign: () => void;
   onDispatchLiveOpsCampaign: () => void;
   runtimeFlagsData: Record<string, unknown> | null;
@@ -220,12 +225,17 @@ export function AdminPanel(props: AdminPanelProps) {
               liveOpsCampaignDispatchData={props.liveOpsCampaignDispatchData}
               liveOpsCampaignDraft={props.liveOpsCampaignDraft}
               liveOpsCampaignError={props.liveOpsCampaignError}
+              liveOpsCampaignApprovalError={props.liveOpsCampaignApprovalError}
               liveOpsCampaignDispatchError={props.liveOpsCampaignDispatchError}
               liveOpsCampaignSaving={props.liveOpsCampaignSaving}
+              liveOpsCampaignApprovaling={props.liveOpsCampaignApprovaling}
               liveOpsCampaignDispatching={props.liveOpsCampaignDispatching}
               onLiveOpsCampaignDraftChange={props.onLiveOpsCampaignDraftChange}
               onRefreshLiveOpsCampaign={props.onRefreshLiveOpsCampaign}
               onSaveLiveOpsCampaign={props.onSaveLiveOpsCampaign}
+              onRequestLiveOpsCampaignApproval={props.onRequestLiveOpsCampaignApproval}
+              onApproveLiveOpsCampaign={props.onApproveLiveOpsCampaign}
+              onRevokeLiveOpsCampaignApproval={props.onRevokeLiveOpsCampaignApproval}
               onDryRunLiveOpsCampaign={props.onDryRunLiveOpsCampaign}
               onDispatchLiveOpsCampaign={props.onDispatchLiveOpsCampaign}
               onSurfaceAction={runSurfaceAction}

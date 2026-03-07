@@ -26,6 +26,7 @@ type AdminRuntimeControllerOptions = {
   setDynamicPolicyError: (next: string) => void;
   setLiveOpsCampaignDraft: (next: string | ((prev: string) => string)) => void;
   setLiveOpsCampaignError: (next: string) => void;
+  setLiveOpsCampaignApprovalError: (next: string) => void;
   setLiveOpsCampaignDispatchError: (next: string) => void;
   setRuntimeFlagsDraft: (next: string | ((prev: string) => string)) => void;
   setRuntimeFlagsError: (next: string) => void;
@@ -52,6 +53,7 @@ type AdminRuntimeControllerOptions = {
   adminAuditIntegrityQuery: RefetchableQuery;
   adminDynamicPolicyQuery: RefetchableQuery;
   adminLiveOpsCampaignUpsert: MutationRunner;
+  adminLiveOpsCampaignApproval: MutationRunner;
   adminLiveOpsCampaignDispatch: MutationRunner;
   adminDynamicPolicyUpsert: MutationRunner;
   adminRuntimeFlagsUpdate: MutationRunner;
@@ -155,6 +157,7 @@ export function useAdminRuntimeController(options: AdminRuntimeControllerOptions
         {};
       options.setLiveOpsCampaignDraft(JSON.stringify(campaignPayload, null, 2));
       options.setLiveOpsCampaignError("");
+      options.setLiveOpsCampaignApprovalError("");
       options.setLiveOpsCampaignDispatchError("");
     }
   }, [options]);
@@ -237,6 +240,7 @@ export function useAdminRuntimeController(options: AdminRuntimeControllerOptions
     if (!options.adminQueryEnabled) return;
     if (!options.ensureAdminPanelEnabled("liveOps")) return;
     options.setLiveOpsCampaignError("");
+    options.setLiveOpsCampaignApprovalError("");
     const refetch = await options.adminLiveOpsCampaignQuery.refetch().catch(() => null);
     const payload = (refetch?.data || null) as WebAppApiResponse | null;
     if (!payload?.success) {
@@ -258,6 +262,7 @@ export function useAdminRuntimeController(options: AdminRuntimeControllerOptions
     if (!options.adminQueryEnabled) return;
     if (!options.ensureAdminPanelEnabled("liveOps")) return;
     options.setLiveOpsCampaignError("");
+    options.setLiveOpsCampaignApprovalError("");
     const parsedDraft = parseLiveOpsCampaignDraft(options.liveOpsCampaignDraft || "{}");
     if (!parsedDraft.ok || !parsedDraft.campaign) {
       options.setLiveOpsCampaignError(parsedDraft.error || "live_ops_campaign_invalid_json");
@@ -314,6 +319,72 @@ export function useAdminRuntimeController(options: AdminRuntimeControllerOptions
       }
     });
   }, [options]);
+
+  const updateLiveOpsCampaignApproval = useCallback(
+    async (approvalAction: "request" | "approve" | "revoke") => {
+      if (!options.adminQueryEnabled) return;
+      if (!options.ensureAdminPanelEnabled("liveOps")) return;
+      options.setLiveOpsCampaignApprovalError("");
+      const parsedDraft = parseLiveOpsCampaignDraft(options.liveOpsCampaignDraft || "{}");
+      if (!parsedDraft.ok || !parsedDraft.campaign) {
+        options.setLiveOpsCampaignApprovalError(parsedDraft.error || "live_ops_campaign_invalid_json");
+        return;
+      }
+      const actionKey = `admin_live_ops_campaign_${approvalAction}`;
+      options.trackUiEvent({
+        event_key: UI_EVENT_KEY.ACTION_REQUEST,
+        panel_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+        funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
+        surface_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+        payload_json: {
+          action_key: actionKey
+        }
+      });
+      const payload = await options.adminLiveOpsCampaignApproval({
+        auth: options.activeAuth,
+        approval_action: approvalAction,
+        reason: `webapp_admin_live_ops_campaign_${approvalAction}`,
+        campaign: parsedDraft.campaign as Record<string, unknown>
+      })
+        .unwrap()
+        .catch(() => null);
+      options.applySession(payload);
+      if (!payload?.success) {
+        const nextError = options.asError(payload, "live_ops_campaign_approval_failed");
+        options.setLiveOpsCampaignApprovalError(nextError);
+        options.trackUiEvent({
+          event_key: UI_EVENT_KEY.ACTION_FAILED,
+          panel_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+          funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
+          surface_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+          payload_json: {
+            action_key: actionKey,
+            error: nextError
+          }
+        });
+        return;
+      }
+      const campaignPayload =
+        (payload.data as { campaign?: Record<string, unknown> } | undefined)?.campaign ||
+        (payload.data as Record<string, unknown> | undefined) ||
+        {};
+      options.setLiveOpsCampaignDraft(JSON.stringify(campaignPayload, null, 2));
+      options.setAdminPanels((prev: any) => ({
+        ...(prev || {}),
+        live_ops_campaign: payload.data || null
+      }));
+      options.trackUiEvent({
+        event_key: UI_EVENT_KEY.ACTION_SUCCESS,
+        panel_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+        funnel_key: UI_FUNNEL_KEY.ADMIN_OPS,
+        surface_key: UI_SURFACE_KEY.PANEL_ADMIN_LIVE_OPS,
+        payload_json: {
+          action_key: actionKey
+        }
+      });
+    },
+    [options]
+  );
 
   const runLiveOpsCampaignDispatch = useCallback(
     async (dryRun = true) => {
@@ -565,6 +636,7 @@ export function useAdminRuntimeController(options: AdminRuntimeControllerOptions
     saveDynamicPolicy,
     refreshLiveOpsCampaign,
     saveLiveOpsCampaign,
+    updateLiveOpsCampaignApproval,
     runLiveOpsCampaignDispatch,
     refreshRuntimeFlags,
     saveRuntimeFlags,

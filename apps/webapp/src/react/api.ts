@@ -57,6 +57,7 @@ export {
   fetchAdminRuntimeFlagsV2,
   fetchAdminUnifiedQueueV2,
   postAdminAssetsReloadV2,
+  postAdminLiveOpsCampaignApprovalV2,
   postAdminLiveOpsCampaignDispatchV2,
   postAdminLiveOpsCampaignV2,
   postAdminQueueActionV2,

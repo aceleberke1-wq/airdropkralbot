@@ -6,7 +6,110 @@ const Fastify = require("fastify");
 const contracts = require("../../../packages/shared/src/contracts");
 const { registerWebappV2AdminLiveOpsRoutes } = require("../src/routes/webapp/v2/adminLiveOpsRoutes");
 
-test("v2 admin live ops campaign routes read, save and dispatch canonical payloads", async () => {
+function buildCampaign(approvalState = "approved") {
+  return {
+    api_version: "v2",
+    campaign_key: "wallet_reconnect",
+    enabled: true,
+    status: "ready",
+    targeting: {
+      segment_key: "wallet_unlinked",
+      inactive_hours: 72,
+      max_age_days: 30,
+      active_within_days: 14,
+      locale_filter: "",
+      max_recipients: 40,
+      dedupe_hours: 72
+    },
+    copy: {
+      title: { tr: "Wallet hazir", en: "Wallet ready" },
+      body: { tr: "Wallet bagla.", en: "Link wallet." },
+      note: { tr: "Simdi ac.", en: "Open now." }
+    },
+    schedule: {
+      timezone: "UTC",
+      start_at: "2026-03-08T09:00:00.000Z",
+      end_at: "2026-03-08T18:00:00.000Z"
+    },
+    approval: {
+      required: true,
+      state: approvalState,
+      requested_by: approvalState === "not_requested" ? 0 : 7001,
+      requested_at: approvalState === "not_requested" ? null : "2026-03-08T10:05:00.000Z",
+      approved_by: approvalState === "approved" ? 7001 : 0,
+      approved_at: approvalState === "approved" ? "2026-03-08T10:10:00.000Z" : null,
+      last_action_by: approvalState === "not_requested" ? 0 : 7001,
+      last_action_at: approvalState === "not_requested" ? null : "2026-03-08T10:10:00.000Z",
+      note: approvalState
+    },
+    surfaces: [{ slot_key: "wallet_lane", surface_key: "wallet_panel" }]
+  };
+}
+
+function buildSnapshot(version, approvalState) {
+  return {
+    api_version: "v2",
+    config_key: "live_ops_chat_campaign_v1",
+    version,
+    updated_at: "2026-03-08T10:10:00.000Z",
+    updated_by: 7001,
+    campaign: buildCampaign(approvalState),
+    approval_summary: {
+      live_dispatch_ready: approvalState === "approved",
+      enabled: true,
+      status: "ready",
+      segment_key: "wallet_unlinked",
+      max_recipients: 40,
+      dedupe_hours: 72,
+      surface_count: 1,
+      approval_required: true,
+      approval_state: approvalState,
+      approval_requested_at: approvalState === "not_requested" ? null : "2026-03-08T10:05:00.000Z",
+      approval_requested_by: approvalState === "not_requested" ? 0 : 7001,
+      approval_approved_at: approvalState === "approved" ? "2026-03-08T10:10:00.000Z" : null,
+      approval_approved_by: approvalState === "approved" ? 7001 : 0,
+      schedule_timezone: "UTC",
+      schedule_start_at: "2026-03-08T09:00:00.000Z",
+      schedule_end_at: "2026-03-08T18:00:00.000Z",
+      schedule_state: "open",
+      last_saved_at: "2026-03-08T10:10:00.000Z",
+      last_dispatch_at: null,
+      warnings: approvalState === "approved" ? [] : ["approval_missing"]
+    },
+    version_history: [
+      {
+        version,
+        updated_at: "2026-03-08T10:10:00.000Z",
+        updated_by: 7001,
+        campaign_key: "wallet_reconnect",
+        enabled: true,
+        status: "ready",
+        segment_key: "wallet_unlinked",
+        max_recipients: 40,
+        dedupe_hours: 72
+      }
+    ],
+    dispatch_history: [],
+    delivery_summary: {
+      sent_24h: 0,
+      sent_7d: 0,
+      unique_users_7d: 0,
+      locale_breakdown: [],
+      segment_breakdown: [],
+      surface_breakdown: []
+    },
+    latest_dispatch: {
+      event_type: "live_ops_campaign_sent",
+      sent_total: 0,
+      sent_72h: 0,
+      last_sent_at: null,
+      last_segment_key: "",
+      last_dispatch_ref: ""
+    }
+  };
+}
+
+test("v2 admin live ops campaign routes read, save approve and dispatch canonical payloads", async () => {
   const app = Fastify();
   const serviceCalls = [];
   registerWebappV2AdminLiveOpsRoutes(app, {
@@ -26,129 +129,15 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
     service: {
       async getCampaignSnapshot() {
         serviceCalls.push("get");
-        return {
-          api_version: "v2",
-          config_key: "live_ops_chat_campaign_v1",
-          version: 3,
-          updated_at: "2026-03-08T10:00:00.000Z",
-          updated_by: 7001,
-          campaign: {
-            api_version: "v2",
-            campaign_key: "wallet_reconnect",
-            enabled: false,
-            status: "draft",
-            targeting: {
-              segment_key: "wallet_unlinked",
-              inactive_hours: 72,
-              max_age_days: 30,
-              active_within_days: 14,
-              locale_filter: "",
-              max_recipients: 40,
-              dedupe_hours: 72
-            },
-            copy: {
-              title: { tr: "Wallet hazir", en: "Wallet ready" },
-              body: { tr: "Wallet bagla.", en: "Link wallet." },
-              note: { tr: "Simdi ac.", en: "Open now." }
-            },
-            surfaces: [{ slot_key: "wallet_lane", surface_key: "wallet_panel" }]
-          },
-          approval_summary: {
-            live_dispatch_ready: false,
-            enabled: false,
-            status: "draft",
-            segment_key: "wallet_unlinked",
-            max_recipients: 40,
-            dedupe_hours: 72,
-            surface_count: 1,
-            last_saved_at: "2026-03-08T10:00:00.000Z",
-            last_dispatch_at: null,
-            warnings: ["campaign_disabled", "campaign_not_ready"]
-          },
-          version_history: [
-            {
-              version: 3,
-              updated_at: "2026-03-08T10:00:00.000Z",
-              updated_by: 7001,
-              campaign_key: "wallet_reconnect",
-              enabled: false,
-              status: "draft",
-              segment_key: "wallet_unlinked",
-              max_recipients: 40,
-              dedupe_hours: 72
-            }
-          ],
-          dispatch_history: [],
-          delivery_summary: {
-            sent_24h: 0,
-            sent_7d: 0,
-            unique_users_7d: 0,
-            locale_breakdown: [],
-            segment_breakdown: [],
-            surface_breakdown: []
-          },
-          latest_dispatch: {
-            event_type: "live_ops_campaign_sent",
-            sent_total: 0,
-            sent_72h: 0,
-            last_sent_at: null,
-            last_segment_key: "",
-            last_dispatch_ref: ""
-          }
-        };
+        return buildSnapshot(3, "not_requested");
       },
       async saveCampaignConfig(input) {
         serviceCalls.push({ save: input });
-        return {
-          api_version: "v2",
-          config_key: "live_ops_chat_campaign_v1",
-          version: 4,
-          updated_at: "2026-03-08T10:10:00.000Z",
-          updated_by: 7001,
-          campaign: input.campaign,
-          approval_summary: {
-            live_dispatch_ready: true,
-            enabled: true,
-            status: "ready",
-            segment_key: "wallet_unlinked",
-            max_recipients: 40,
-            dedupe_hours: 72,
-            surface_count: 1,
-            last_saved_at: "2026-03-08T10:10:00.000Z",
-            last_dispatch_at: null,
-            warnings: []
-          },
-          version_history: [
-            {
-              version: 4,
-              updated_at: "2026-03-08T10:10:00.000Z",
-              updated_by: 7001,
-              campaign_key: "wallet_reconnect",
-              enabled: true,
-              status: "ready",
-              segment_key: "wallet_unlinked",
-              max_recipients: 40,
-              dedupe_hours: 72
-            }
-          ],
-          dispatch_history: [],
-          delivery_summary: {
-            sent_24h: 0,
-            sent_7d: 0,
-            unique_users_7d: 0,
-            locale_breakdown: [],
-            segment_breakdown: [],
-            surface_breakdown: []
-          },
-          latest_dispatch: {
-            event_type: "live_ops_campaign_sent",
-            sent_total: 0,
-            sent_72h: 0,
-            last_sent_at: null,
-            last_segment_key: "",
-            last_dispatch_ref: ""
-          }
-        };
+        return buildSnapshot(4, "not_requested");
+      },
+      async updateCampaignApproval(input) {
+        serviceCalls.push({ approve: input });
+        return buildSnapshot(5, "approved");
       },
       async dispatchCampaign(input) {
         serviceCalls.push({ dispatch: input });
@@ -157,7 +146,7 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
           data: {
             api_version: "v2",
             campaign_key: "wallet_reconnect",
-            version: 4,
+            version: 5,
             dry_run: true,
             segment_key: "wallet_unlinked",
             attempted: 2,
@@ -179,7 +168,7 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
   });
   assert.equal(getRes.statusCode, 200);
   assert.equal(getRes.json().data.campaign.campaign_key, "wallet_reconnect");
-  assert.equal(getRes.json().data.approval_summary.live_dispatch_ready, false);
+  assert.equal(getRes.json().data.approval_summary.approval_state, "not_requested");
 
   const saveRes = await app.inject({
     method: "POST",
@@ -189,32 +178,26 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
       ts: "1",
       sig: "sig",
       reason: "test_save",
-      campaign: {
-        api_version: "v2",
-        campaign_key: "wallet_reconnect",
-        enabled: true,
-        status: "ready",
-        targeting: {
-          segment_key: "wallet_unlinked",
-          inactive_hours: 72,
-          max_age_days: 30,
-          active_within_days: 14,
-          locale_filter: "",
-          max_recipients: 40,
-          dedupe_hours: 72
-        },
-        copy: {
-          title: { tr: "Wallet hazir", en: "Wallet ready" },
-          body: { tr: "Wallet bagla.", en: "Link wallet." },
-          note: { tr: "Simdi ac.", en: "Open now." }
-        },
-        surfaces: [{ slot_key: "wallet_lane", surface_key: "wallet_panel" }]
-      }
+      campaign: buildCampaign("not_requested")
     }
   });
   assert.equal(saveRes.statusCode, 200);
   assert.equal(saveRes.json().data.version, 4);
-  assert.equal(saveRes.json().data.version_history[0].version, 4);
+
+  const approveRes = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/admin/live-ops/campaign/approval",
+    payload: {
+      uid: "7001",
+      ts: "1",
+      sig: "sig",
+      approval_action: "approve",
+      reason: "approve_now",
+      campaign: buildCampaign("pending")
+    }
+  });
+  assert.equal(approveRes.statusCode, 200);
+  assert.equal(approveRes.json().data.approval_summary.approval_state, "approved");
 
   const dispatchRes = await app.inject({
     method: "POST",
@@ -224,36 +207,16 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
       ts: "1",
       sig: "sig",
       dry_run: true,
-      campaign: {
-        api_version: "v2",
-        campaign_key: "wallet_reconnect",
-        enabled: true,
-        status: "ready",
-        targeting: {
-          segment_key: "wallet_unlinked",
-          inactive_hours: 72,
-          max_age_days: 30,
-          active_within_days: 14,
-          locale_filter: "",
-          max_recipients: 40,
-          dedupe_hours: 72
-        },
-        copy: {
-          title: { tr: "Wallet hazir", en: "Wallet ready" },
-          body: { tr: "Wallet bagla.", en: "Link wallet." },
-          note: { tr: "Simdi ac.", en: "Open now." }
-        },
-        surfaces: [{ slot_key: "wallet_lane", surface_key: "wallet_panel" }]
-      }
+      campaign: buildCampaign("approved")
     }
   });
   assert.equal(dispatchRes.statusCode, 200);
   assert.equal(dispatchRes.json().data.sent, 2);
-  assert.equal(serviceCalls.length, 3);
+  assert.equal(serviceCalls.length, 4);
   await app.close();
 });
 
-test("v2 admin live ops campaign dispatch returns conflict when service marks campaign not ready", async () => {
+test("v2 admin live ops campaign dispatch returns conflict when service marks schedule blocked", async () => {
   const app = Fastify();
   registerWebappV2AdminLiveOpsRoutes(app, {
     pool: {
@@ -269,12 +232,15 @@ test("v2 admin live ops campaign dispatch returns conflict when service marks ca
     contracts,
     service: {
       async dispatchCampaign() {
-        return { ok: false, reason: "campaign_not_ready", campaign: { campaign_key: "wallet_reconnect" } };
+        return { ok: false, reason: "campaign_schedule_closed", campaign: { campaign_key: "wallet_reconnect" } };
       },
       async getCampaignSnapshot() {
         throw new Error("not_used");
       },
       async saveCampaignConfig() {
+        throw new Error("not_used");
+      },
+      async updateCampaignApproval() {
         throw new Error("not_used");
       }
     }
@@ -291,6 +257,65 @@ test("v2 admin live ops campaign dispatch returns conflict when service marks ca
     }
   });
   assert.equal(res.statusCode, 409);
-  assert.equal(res.json().error, "campaign_not_ready");
+  assert.equal(res.json().error, "campaign_schedule_closed");
+  await app.close();
+});
+
+test("v2 admin live ops campaign approval route validates payload", async () => {
+  const app = Fastify();
+  registerWebappV2AdminLiveOpsRoutes(app, {
+    pool: {
+      async connect() {
+        return {
+          release() {}
+        };
+      }
+    },
+    verifyWebAppAuth: () => ({ ok: true, uid: "7001" }),
+    requireWebAppAdmin: async () => ({ user_id: 7001 }),
+    issueWebAppSession: (uid) => ({ uid: String(uid), ts: "2", sig: "next" }),
+    contracts,
+    service: {
+      async updateCampaignApproval() {
+        throw new Error("invalid_approval_action");
+      },
+      async dispatchCampaign() {
+        throw new Error("not_used");
+      },
+      async getCampaignSnapshot() {
+        throw new Error("not_used");
+      },
+      async saveCampaignConfig() {
+        throw new Error("not_used");
+      }
+    }
+  });
+
+  const invalidSchemaRes = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/admin/live-ops/campaign/approval",
+    payload: {
+      uid: "7001",
+      ts: "1",
+      sig: "sig",
+      approval_action: "request",
+      campaign: { campaign_key: "x" }
+    }
+  });
+  assert.equal(invalidSchemaRes.statusCode, 400);
+  assert.equal(invalidSchemaRes.json().error, "invalid_live_ops_campaign_approval_payload");
+
+  const invalidActionRes = await app.inject({
+    method: "POST",
+    url: "/webapp/api/v2/admin/live-ops/campaign/approval",
+    payload: {
+      uid: "7001",
+      ts: "1",
+      sig: "sig",
+      approval_action: "request"
+    }
+  });
+  assert.equal(invalidActionRes.statusCode, 400);
+  assert.equal(invalidActionRes.json().error, "invalid_approval_action");
   await app.close();
 });

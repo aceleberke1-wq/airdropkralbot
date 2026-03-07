@@ -47,6 +47,18 @@ export async function postAdminLiveOpsCampaignV2(
   });
 }
 
+export async function postAdminLiveOpsCampaignApprovalV2(
+  auth: WebAppAuth,
+  payload: Record<string, unknown>
+): Promise<AdminApiResponse> {
+  return postJson<AdminApiResponse>("/webapp/api/v2/admin/live-ops/campaign/approval", {
+    uid: auth.uid,
+    ts: auth.ts,
+    sig: auth.sig,
+    ...payload
+  });
+}
+
 export async function postAdminLiveOpsCampaignDispatchV2(
   auth: WebAppAuth,
   payload: Record<string, unknown>
