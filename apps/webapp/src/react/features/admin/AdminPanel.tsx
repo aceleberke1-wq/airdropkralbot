@@ -18,6 +18,7 @@ type AdminPanelProps = {
   lang: Lang;
   isAdmin: boolean;
   advanced: boolean;
+  onRouteTarget: (input: { routeKey?: string; panelKey?: string; focusKey?: string; sourcePanelKey?: string }) => void;
   adminRuntime: {
     summary: Record<string, unknown> | null;
     queue: Array<Record<string, unknown>>;
@@ -85,9 +86,88 @@ function DisabledPanel(props: { lang: Lang; title: string }) {
 export function AdminPanel(props: AdminPanelProps) {
   return (
     <main className="akrPanelGrid">
-      <section className="akrCard akrCardWide">
+      <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin" data-akr-focus-key="admin_summary">
         <h2>{t(props.lang, "admin_title")}</h2>
         {!props.isAdmin && <p className="akrErrorLine">{t(props.lang, "admin_access_denied")}</p>}
+        {props.isAdmin ? (
+          <div className="akrActionRow">
+            {props.panelVisibility.queue ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() =>
+                  props.onRouteTarget({
+                    routeKey: "admin",
+                    panelKey: "panel_admin_queue",
+                    focusKey: "queue_action",
+                    sourcePanelKey: "panel_admin"
+                  })
+                }
+              >
+                {t(props.lang, "admin_nav_queue")}
+              </button>
+            ) : null}
+            {props.panelVisibility.dynamicPolicy ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() =>
+                  props.onRouteTarget({
+                    routeKey: "admin",
+                    panelKey: "panel_admin_policy",
+                    focusKey: "dynamic_policy",
+                    sourcePanelKey: "panel_admin"
+                  })
+                }
+              >
+                {t(props.lang, "admin_nav_policy")}
+              </button>
+            ) : null}
+            {props.panelVisibility.runtimeFlags ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() =>
+                  props.onRouteTarget({
+                    routeKey: "admin",
+                    panelKey: "panel_admin_runtime",
+                    focusKey: "runtime_flags",
+                    sourcePanelKey: "panel_admin"
+                  })
+                }
+              >
+                {t(props.lang, "admin_nav_flags")}
+              </button>
+            ) : null}
+            {props.panelVisibility.runtimeBot ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() =>
+                  props.onRouteTarget({
+                    routeKey: "admin",
+                    panelKey: "panel_admin_runtime",
+                    focusKey: "runtime_bot",
+                    sourcePanelKey: "panel_admin"
+                  })
+                }
+              >
+                {t(props.lang, "admin_nav_bot")}
+              </button>
+            ) : null}
+            {props.panelVisibility.runtimeMeta ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() =>
+                  props.onRouteTarget({
+                    routeKey: "admin",
+                    panelKey: "panel_admin_runtime",
+                    focusKey: "runtime_meta",
+                    sourcePanelKey: "panel_admin"
+                  })
+                }
+              >
+                {t(props.lang, "admin_nav_runtime")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {props.isAdmin && (

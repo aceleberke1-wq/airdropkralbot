@@ -429,7 +429,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     workspace,
     tab,
     reducedMotion,
-    enableFocus: workspace === "admin"
+    enableFocus: false
   });
   const {
     onRefresh,
@@ -645,6 +645,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           lang={lang}
           isAdmin={isAdmin}
           advanced={advanced}
+          launchContext={launchContext}
+          reducedMotion={reducedMotion}
+          trackUiEvent={trackUiEvent}
           adminRuntime={adminRuntime}
           adminPanels={adminPanels}
           queueAction={queueAction}
