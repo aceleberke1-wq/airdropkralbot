@@ -1,6 +1,10 @@
 "use strict";
 
 const crypto = require("crypto");
+const {
+  normalizeUiEvent: normalizeUiEventContract,
+  normalizeUiEventBatch: normalizeUiEventBatchContract
+} = require("../../../../../packages/shared/src/telemetryContract");
 
 const DEFAULT_EXPERIMENT_KEY = "webapp_react_v1";
 const DEFAULT_VARIANT_CONTROL = "control";
@@ -226,95 +230,35 @@ async function resolveExperimentAssignment(db, options = {}) {
   }
 }
 
-function isSafeEventKey(value) {
-  const clean = String(value || "")
-    .trim()
-    .toLowerCase();
-  return /^[a-z0-9:_-]{2,80}$/.test(clean);
-}
-
-function normalizeEventDimension(value, maxLen = 80) {
-  const clean = toSafeText(value, maxLen, "").toLowerCase();
-  if (!clean) {
-    return "";
-  }
-  return /^[a-z0-9:_-]{2,80}$/.test(clean) ? clean : "";
-}
-
-function normalizeTxState(value) {
-  const clean = toSafeText(value, 32, "").toLowerCase();
-  if (!clean) {
-    return "";
-  }
-  return /^[a-z0-9:_-]{2,32}$/.test(clean) ? clean : "";
-}
-
 function normalizeUiEvent(rawEvent, defaults = {}) {
-  const raw = rawEvent && typeof rawEvent === "object" ? rawEvent : null;
-  if (!raw) {
+  const normalized = normalizeUiEventContract(rawEvent, {
+    variant_key: DEFAULT_VARIANT_CONTROL,
+    experiment_key: DEFAULT_EXPERIMENT_KEY,
+    ...defaults
+  });
+  if (!normalized) {
     return null;
   }
-  const eventKey = toSafeText(raw.event_key, 80, "").toLowerCase();
-  if (!isSafeEventKey(eventKey)) {
-    return null;
-  }
-  const tabKey = toSafeText(raw.tab_key || defaults.tab_key || "home", 40, "home").toLowerCase();
-  const panelKey = toSafeText(raw.panel_key || defaults.panel_key || "unknown", 64, "unknown").toLowerCase();
-  const routeKey = toSafeText(raw.route_key || defaults.route_key || "", 80, "").toLowerCase();
-  const variantKey = toSafeText(raw.variant_key || defaults.variant_key || DEFAULT_VARIANT_CONTROL, 24, DEFAULT_VARIANT_CONTROL).toLowerCase();
-  const experimentKey = toSafeText(
-    raw.experiment_key || defaults.experiment_key || DEFAULT_EXPERIMENT_KEY,
-    80,
-    DEFAULT_EXPERIMENT_KEY
-  ).toLowerCase();
-  const funnelKey = normalizeEventDimension(raw.funnel_key || defaults.funnel_key || "", 64);
-  const surfaceKey = normalizeEventDimension(raw.surface_key || defaults.surface_key || "", 64);
-  const economyEventKey = normalizeEventDimension(raw.economy_event_key || defaults.economy_event_key || "", 80);
-  const txState = normalizeTxState(raw.tx_state || defaults.tx_state || "");
-  const payloadJson = raw.payload_json && typeof raw.payload_json === "object" ? raw.payload_json : {};
-  const payloadText = JSON.stringify(payloadJson);
-  if (Buffer.byteLength(payloadText, "utf8") > 4096) {
-    return null;
-  }
-  const cohortBucket = clampInt(raw.cohort_bucket ?? defaults.cohort_bucket, 0, 99, 0);
-  const eventValue = toEventValue(raw.event_value);
-  const valueUsd = Math.max(0, toEventValue(raw.value_usd));
-  const clientTsIso = toIsoOrNull(raw.client_ts) || toIsoOrNull(raw.client_at) || new Date().toISOString();
-
   return {
-    event_key: eventKey,
-    tab_key: tabKey,
-    panel_key: panelKey,
-    route_key: routeKey,
-    funnel_key: funnelKey,
-    surface_key: surfaceKey,
-    economy_event_key: economyEventKey,
-    value_usd: valueUsd,
-    tx_state: txState,
-    variant_key: variantKey,
-    experiment_key: experimentKey,
-    cohort_bucket: cohortBucket,
-    event_value: eventValue,
-    payload_json: payloadJson,
-    client_ts: clientTsIso
+    ...normalized,
+    variant_key: toSafeText(normalized.variant_key, 24, DEFAULT_VARIANT_CONTROL).toLowerCase() || DEFAULT_VARIANT_CONTROL,
+    experiment_key: toSafeText(normalized.experiment_key, 80, DEFAULT_EXPERIMENT_KEY).toLowerCase() || DEFAULT_EXPERIMENT_KEY,
+    cohort_bucket: clampInt(normalized.cohort_bucket, 0, 99, 0),
+    event_value: toEventValue(normalized.event_value),
+    value_usd: Math.max(0, toEventValue(normalized.value_usd)),
+    client_ts: toIsoOrNull(normalized.client_ts) || new Date().toISOString()
   };
 }
 
 function normalizeUiEventBatch(rawEvents, defaults = {}) {
-  const list = Array.isArray(rawEvents) ? rawEvents : [];
-  const accepted = [];
-  let rejected = 0;
-  for (const item of list) {
-    const normalized = normalizeUiEvent(item, defaults);
-    if (!normalized) {
-      rejected += 1;
-      continue;
-    }
-    accepted.push(normalized);
-  }
+  const batch = normalizeUiEventBatchContract(rawEvents, {
+    variant_key: DEFAULT_VARIANT_CONTROL,
+    experiment_key: DEFAULT_EXPERIMENT_KEY,
+    ...defaults
+  });
   return {
-    accepted,
-    rejected
+    accepted: batch.accepted.map((item) => normalizeUiEvent(item, defaults)).filter(Boolean),
+    rejected: Number(batch.rejected || 0)
   };
 }
 

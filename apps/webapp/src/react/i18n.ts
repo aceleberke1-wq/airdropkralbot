@@ -1,6 +1,8 @@
 import type { TabKey } from "./types";
+import * as localeContract from "../../../../packages/shared/src/localeContract.js";
 
 export type Lang = "tr" | "en";
+const { normalizeLanguage } = localeContract;
 
 const DICT = {
   tr: {
@@ -244,11 +246,7 @@ const DICT = {
 } as const;
 
 export function normalizeLang(input: unknown): Lang {
-  return String(input || "")
-    .toLowerCase()
-    .startsWith("en")
-    ? "en"
-    : "tr";
+  return normalizeLanguage(input, "tr") as Lang;
 }
 
 export function t(lang: Lang, key: keyof (typeof DICT)["tr"]): string {

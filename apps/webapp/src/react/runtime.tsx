@@ -5,6 +5,44 @@ import { fetchBootstrapV2, readWebAppAuth } from "./api";
 import { normalizeLang } from "./i18n";
 import { ReactWebAppV1 } from "./App";
 import { appStore } from "./redux/store";
+import * as navigationContract from "../../../../packages/shared/src/navigationContract.js";
+
+const { CANONICAL_ROUTE_KEY, decodeStartAppPayload, resolveRouteKey } = navigationContract;
+
+function mapRouteToTab(routeKey: string): "home" | "pvp" | "tasks" | "vault" {
+  switch (routeKey) {
+    case CANONICAL_ROUTE_KEY.PVP:
+    case CANONICAL_ROUTE_KEY.SEASON:
+      return "pvp";
+    case CANONICAL_ROUTE_KEY.MISSIONS:
+    case CANONICAL_ROUTE_KEY.FORGE:
+      return "tasks";
+    case CANONICAL_ROUTE_KEY.VAULT:
+    case CANONICAL_ROUTE_KEY.EXCHANGE:
+      return "vault";
+    default:
+      return "home";
+  }
+}
+
+function resolveLaunchContext(search: string) {
+  const qs = new URLSearchParams(search);
+  const startapp = String(qs.get("startapp") || "").trim();
+  const decoded = startapp ? decodeStartAppPayload(startapp) : null;
+  const routeKey = resolveRouteKey({
+    routeKey: String(qs.get("route_key") || decoded?.route_key || "").trim()
+  });
+  const panelKey = String(qs.get("panel_key") || decoded?.panel_key || "").trim();
+  const focusKey = String(qs.get("focus_key") || decoded?.focus_key || "").trim();
+  const workspace = routeKey === CANONICAL_ROUTE_KEY.ADMIN ? "admin" : "player";
+  return {
+    route_key: routeKey,
+    panel_key: panelKey,
+    focus_key: focusKey,
+    workspace,
+    tab: mapRouteToTab(routeKey)
+  };
+}
 
 function ensureRootNode(): HTMLElement {
   const existing = document.getElementById("akr-react-root");
@@ -48,6 +86,21 @@ export async function mountReactWebAppV1(): Promise<void> {
     mountFatal(`Bootstrap failed: ${String(payload?.error || "bootstrap_failed")}`);
     return;
   }
+  const launchContext = resolveLaunchContext(window.location.search);
+  const prefs = payload.data.ui_prefs && typeof payload.data.ui_prefs === "object" ? payload.data.ui_prefs : {};
+  const prefsJson = prefs.prefs_json && typeof prefs.prefs_json === "object" ? prefs.prefs_json : {};
+  payload.data = {
+    ...payload.data,
+    launch_context: launchContext,
+    ui_prefs: {
+      ...prefs,
+      prefs_json: {
+        ...prefsJson,
+        last_tab: launchContext.tab || prefsJson.last_tab || "home",
+        workspace: launchContext.workspace || prefsJson.workspace || "player"
+      }
+    }
+  };
   const root = createRoot(ensureRootNode());
   root.render(
     <Provider store={appStore}>

@@ -34,6 +34,12 @@ const {
   evaluateAdminPolicy,
   buildAdminActionSignature: buildAdminPolicySignature
 } = require("../../../packages/shared/src/v5/adminPolicyEngine");
+const {
+  CANONICAL_ROUTE_KEY,
+  buildStartAppPayload,
+  encodeStartAppPayload
+} = require("../../../packages/shared/src/navigationContract");
+const { resolveLocalePreference } = require("../../../packages/shared/src/localeContract");
 const { getCommandRegistry, toTelegramCommands, buildAliasLookup } = require("./commands/registry");
 const { buildIntentIndex, resolveIntent, normalizeMode } = require("./commands/intentRouter");
 const { normalizeLanguage } = require("./i18n");
@@ -404,7 +410,7 @@ async function resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId) {
   return versioned || String(appConfig.webappPublicUrl || "").trim();
 }
 
-function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "") {
+function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "", navigation = {}) {
   const baseUrl = String(baseUrlOverride || appConfig.webappPublicUrl || "").trim();
   if (!baseUrl || !appConfig.webappHmacSecret) {
     return null;
@@ -418,6 +424,17 @@ function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "") {
     url.searchParams.set("ts", ts);
     url.searchParams.set("sig", sig);
     url.searchParams.set("bot", String(appConfig.botUsername || "airdropkral_2026_bot"));
+    const startAppPayload = buildStartAppPayload(navigation);
+    if (startAppPayload.route_key) {
+      url.searchParams.set("route_key", startAppPayload.route_key);
+      url.searchParams.set("startapp", encodeStartAppPayload(startAppPayload));
+    }
+    if (startAppPayload.panel_key) {
+      url.searchParams.set("panel_key", startAppPayload.panel_key);
+    }
+    if (startAppPayload.focus_key) {
+      url.searchParams.set("focus_key", startAppPayload.focus_key);
+    }
     return url.toString();
   } catch {
     return null;
@@ -459,9 +476,13 @@ function parseWords(text) {
 }
 
 function resolvePreferredLanguage(profile, ctx, fallback = "tr") {
-  const profileLocale = String(profile?.locale || "").trim();
-  const ctxLocale = String(ctx?.from?.language_code || "").trim();
-  return normalizeLanguage(profileLocale || ctxLocale, fallback);
+  const resolved = resolveLocalePreference({
+    override: "",
+    telegramLanguageCode: ctx?.from?.language_code,
+    profileLocale: profile?.locale,
+    fallback
+  });
+  return normalizeLanguage(resolved.language, fallback);
 }
 
 function parseLanguageChoice(input) {
@@ -4148,7 +4169,9 @@ async function sendPlay(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const lang = resolvePreferredLanguage(profile, ctx, "tr");
   const launchBaseUrl = await resolveWebAppLaunchBaseUrl(pool, appConfig, ctx.from?.id);
-  const url = buildSignedWebAppUrl(appConfig, ctx.from?.id, launchBaseUrl);
+  const url = buildSignedWebAppUrl(appConfig, ctx.from?.id, launchBaseUrl, {
+    routeKey: CANONICAL_ROUTE_KEY.HUB
+  });
   if (!url) {
     await ctx.replyWithMarkdown(
       lang === "en"

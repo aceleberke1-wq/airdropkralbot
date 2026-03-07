@@ -1,6 +1,8 @@
 "use strict";
 
-const DEFAULT_TOKEN_SYMBOL = "NXT";
+const { SETTLEMENT_TOKEN_SYMBOL } = require("../../../../../packages/shared/src/currencyGlossary");
+
+const DEFAULT_TOKEN_SYMBOL = SETTLEMENT_TOKEN_SYMBOL;
 
 const DEFAULT_DYNAMIC_AUTO_POLICY_SEGMENTS = Object.freeze([
   {

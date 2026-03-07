@@ -139,6 +139,7 @@ export type UiFunnelEvent = {
   funnel_key?: string;
   surface_key?: string;
   economy_event_key?: string;
+  focus_key?: string;
   value_usd?: number;
   tx_state?: string;
 };
@@ -148,6 +149,7 @@ export type UiEventRecord = {
   tab_key?: string;
   panel_key?: string;
   route_key?: string;
+  focus_key?: string;
   funnel_key?: string;
   surface_key?: string;
   economy_event_key?: string;
@@ -156,7 +158,7 @@ export type UiEventRecord = {
   event_value?: number;
   payload_json?: Record<string, unknown>;
   client_ts?: string | number;
-  variant_key?: ExperimentVariant;
+  variant_key?: ExperimentVariant | string;
   experiment_key?: string;
   cohort_bucket?: number;
 };
@@ -170,12 +172,13 @@ export type UiEventBatchRequest = {
   tab_key?: string;
   panel_key?: string;
   route_key?: string;
+  focus_key?: string;
   funnel_key?: string;
   surface_key?: string;
   economy_event_key?: string;
   value_usd?: number;
   tx_state?: string;
-  variant_key?: ExperimentVariant;
+  variant_key?: ExperimentVariant | string;
   experiment_key?: string;
   cohort_bucket?: number;
   idempotency_key?: string;

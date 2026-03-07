@@ -29,8 +29,13 @@ const txVerifier = require("../../bot/src/services/txVerifier");
 const nexusEventEngine = require("../../bot/src/services/nexusEventEngine");
 const nexusContractEngine = require("../../bot/src/services/nexusContractEngine");
 const { getCommandRegistry, getPrimaryCommands } = require("../../bot/src/commands/registry");
-const { normalizeLanguage } = require("../../bot/src/i18n");
 const contractsV2 = require("../../../packages/shared/src/contracts");
+const { normalizeLanguage } = require("../../../packages/shared/src/localeContract");
+const {
+  CANONICAL_CURRENCY_KEY,
+  isGameplayCurrency,
+  normalizeCurrencyKey
+} = require("../../../packages/shared/src/currencyGlossary");
 const { computePvpProgressionState } = require("../../../packages/shared/src/v5/progressionEngine");
 const { evaluateAdminPolicy, buildAdminActionSignature: buildAdminPolicySignature } = require("../../../packages/shared/src/v5/adminPolicyEngine");
 const walletAuthEngine = require("../../../packages/shared/src/v5/walletAuthEngine");
@@ -1807,15 +1812,11 @@ async function evaluatePayoutKycGuard(db, options = {}) {
 }
 
 function normalizeMonetizationCurrency(value, fallback = "SC") {
-  const key = String(value || fallback)
-    .trim()
-    .toUpperCase();
-  if (["SC", "HC", "RC"].includes(key)) {
-    return key;
+  const normalized = normalizeCurrencyKey(value, fallback || CANONICAL_CURRENCY_KEY.SC);
+  if (isGameplayCurrency(normalized)) {
+    return normalized;
   }
-  return String(fallback || "SC")
-    .trim()
-    .toUpperCase();
+  return normalizeCurrencyKey(fallback || CANONICAL_CURRENCY_KEY.SC, CANONICAL_CURRENCY_KEY.SC);
 }
 
 function toPositiveNumber(value, fallback = 0) {
@@ -4215,16 +4216,16 @@ async function buildAdminMetrics(db) {
            SELECT
              COALESCE(value_usd, 0)::numeric(24,8) AS value_usd,
              CASE
-               WHEN economy_event_key IN ('token_intent', 'buy_intent', 'token_buy_intent') THEN 'intent'
-               WHEN economy_event_key IN ('tx_submit', 'token_tx_submit') THEN 'tx_submit'
-               WHEN economy_event_key IN ('approved', 'token_approved') THEN 'approved'
-               WHEN economy_event_key IN ('pass_purchase') THEN 'pass_purchase'
-               WHEN economy_event_key IN ('cosmetic_purchase') THEN 'cosmetic_purchase'
-               WHEN event_key IN ('token_buy_intent', 'vault_buy_intent') THEN 'intent'
-               WHEN event_key IN ('token_submit_tx', 'vault_submit_tx') THEN 'tx_submit'
-               WHEN event_key IN ('token_auto_approved', 'token_purchase_approved') THEN 'approved'
-               WHEN event_key IN ('pass_purchase', 'monetization_pass_purchase') THEN 'pass_purchase'
-               WHEN event_key IN ('cosmetic_purchase', 'monetization_cosmetic_purchase') THEN 'cosmetic_purchase'
+               WHEN economy_event_key IN ('economy.token.intent', 'token_intent', 'buy_intent', 'token_buy_intent') THEN 'intent'
+               WHEN economy_event_key IN ('economy.token.submit', 'tx_submit', 'token_tx_submit') THEN 'tx_submit'
+               WHEN economy_event_key IN ('economy.token.approved', 'approved', 'token_approved') THEN 'approved'
+               WHEN economy_event_key IN ('economy.pass.purchase', 'pass_purchase') THEN 'pass_purchase'
+               WHEN economy_event_key IN ('economy.cosmetic.purchase', 'cosmetic_purchase') THEN 'cosmetic_purchase'
+               WHEN event_key IN ('economy.token.intent', 'token_buy_intent', 'vault_buy_intent') THEN 'intent'
+               WHEN event_key IN ('economy.token.submit', 'token_submit_tx', 'vault_submit_tx') THEN 'tx_submit'
+               WHEN event_key IN ('economy.token.approved', 'token_auto_approved', 'token_purchase_approved') THEN 'approved'
+               WHEN event_key IN ('economy.pass.purchase', 'pass_purchase', 'monetization_pass_purchase') THEN 'pass_purchase'
+               WHEN event_key IN ('economy.cosmetic.purchase', 'cosmetic_purchase', 'monetization_cosmetic_purchase') THEN 'cosmetic_purchase'
                ELSE NULL
              END AS stage_key
            FROM v5_webapp_ui_events

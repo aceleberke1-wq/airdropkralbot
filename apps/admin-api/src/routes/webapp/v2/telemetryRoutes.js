@@ -1,5 +1,6 @@
 "use strict";
 
+const { normalizeLanguage } = require("../../../../../../packages/shared/src/localeContract");
 const {
   DEFAULT_EXPERIMENT_KEY,
   DEFAULT_VARIANT_CONTROL,
@@ -52,13 +53,6 @@ function enforceUiEventsRateLimit(uid, incomingCount, now = Date.now()) {
   };
 }
 
-function sanitizeLanguage(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase();
-  return normalized.startsWith("en") ? "en" : "tr";
-}
-
 function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -94,6 +88,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
             tab_key: { type: "string", maxLength: 40 },
             panel_key: { type: "string", maxLength: 64 },
             route_key: { type: "string", maxLength: 80 },
+            focus_key: { type: "string", maxLength: 80 },
             funnel_key: { type: "string", maxLength: 64 },
             surface_key: { type: "string", maxLength: 64 },
             economy_event_key: { type: "string", maxLength: 80 },
@@ -114,6 +109,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
                   tab_key: { type: "string", maxLength: 40 },
                   panel_key: { type: "string", maxLength: 64 },
                   route_key: { type: "string", maxLength: 80 },
+                  focus_key: { type: "string", maxLength: 80 },
                   funnel_key: { type: "string", maxLength: 64 },
                   surface_key: { type: "string", maxLength: 64 },
                   economy_event_key: { type: "string", maxLength: 80 },
@@ -166,6 +162,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
         tab_key: String(request.body.tab_key || "home"),
         panel_key: String(request.body.panel_key || "default"),
         route_key: String(request.body.route_key || ""),
+        focus_key: String(request.body.focus_key || ""),
         funnel_key: String(request.body.funnel_key || ""),
         surface_key: String(request.body.surface_key || ""),
         economy_event_key: String(request.body.economy_event_key || ""),
@@ -195,7 +192,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
       const sessionRef = String(request.body.session_ref || "")
         .trim()
         .slice(0, 120);
-      const language = sanitizeLanguage(request.body.language);
+      const language = normalizeLanguage(request.body.language, "tr");
       const ingestId = buildUiEventIngestId(auth.uid, sessionRef, validEvents.length);
       const batchIdempotencyKey = buildUiEventIdempotencyKey(
         auth.uid,
@@ -217,6 +214,10 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
         for (let i = 0; i < validEvents.length; i += 1) {
           const event = validEvents[i];
           const eventIdempotencyKey = `${batchIdempotencyKey}:${i}`;
+          const payloadJson = event.payload_json && typeof event.payload_json === "object" ? { ...event.payload_json } : {};
+          if (event.focus_key) {
+            payloadJson.focus_key = String(event.focus_key);
+          }
           await client.query(
             `INSERT INTO v5_webapp_ui_events (
                uid,
@@ -252,7 +253,7 @@ function registerWebappV2TelemetryRoutes(fastify, deps = {}) {
               String(event.event_key || ""),
               Number(event.event_value || 0),
               language,
-              JSON.stringify(event.payload_json || {}),
+              JSON.stringify(payloadJson),
               String(event.route_key || ""),
               String(event.funnel_key || ""),
               String(event.surface_key || ""),

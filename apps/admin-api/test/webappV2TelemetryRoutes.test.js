@@ -60,7 +60,7 @@ test("webapp v2 telemetry route rejects unauthorized requests", async () => {
       ts: "1",
       sig: "x",
       session_ref: "sess_1",
-      events: [{ event_key: "tab_open" }]
+      events: [{ event_key: "ui.tab.open" }]
     }
   });
   assert.equal(res.statusCode, 401);
@@ -81,12 +81,12 @@ test("webapp v2 telemetry route accepts valid events and reports rejected count"
       experiment_key: "webapp_react_v1",
       funnel_key: "vault_intent",
       surface_key: "vault_panel",
-      economy_event_key: "token_intent",
+      economy_event_key: "economy.token.intent",
       value_usd: 12.5,
       tx_state: "intent",
       events: [
-        { event_key: "tab_open", tab_key: "home", panel_key: "hero", event_value: 1, value_usd: 12.5 },
-        { event_key: "invalid key with spaces" }
+        { event_key: "ui.tab.open", tab_key: "home", panel_key: "hero", event_value: 1, value_usd: 12.5 },
+        { event_key: "!!!" }
       ]
     }
   });
@@ -98,7 +98,7 @@ test("webapp v2 telemetry route accepts valid events and reports rejected count"
   assert.equal(inserts.length, 1);
   assert.equal(String(inserts[0][9] || ""), "vault_intent");
   assert.equal(String(inserts[0][10] || ""), "vault_panel");
-  assert.equal(String(inserts[0][11] || ""), "token_intent");
+  assert.equal(String(inserts[0][11] || ""), "economy.token.intent");
   assert.equal(Number(inserts[0][12] || 0), 12.5);
   assert.equal(String(inserts[0][13] || ""), "intent");
   await app.close();
@@ -115,7 +115,7 @@ test("webapp v2 telemetry route returns idempotency conflict on duplicate key", 
       sig: "ok",
       session_ref: "sess_abc",
       idempotency_key: "fixed_batch_key_1",
-      events: [{ event_key: "tab_open", tab_key: "home", panel_key: "hero" }]
+      events: [{ event_key: "ui.tab.open", tab_key: "home", panel_key: "hero" }]
     }
   });
   assert.equal(res.statusCode, 409);
@@ -129,7 +129,7 @@ test("webapp v2 telemetry route enforces per-user batch rate limit", async () =>
   const uid = "55555";
   const { app } = await createHarness({ auth: { ok: true, uid: Number(uid) } });
   const eightyEvents = Array.from({ length: 80 }, (_, idx) => ({
-    event_key: "tab_open",
+    event_key: "ui.tab.open",
     panel_key: "hero",
     tab_key: "home",
     client_ts: `2026-03-05T00:00:${String(idx).padStart(2, "0")}.000Z`

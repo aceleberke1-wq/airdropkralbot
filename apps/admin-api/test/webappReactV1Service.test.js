@@ -31,28 +31,28 @@ test("buildExperimentAssignment respects enable and treatment percent", () => {
 
 test("normalizeUiEvent rejects invalid event key and accepts bounded payload", () => {
   const invalid = service.normalizeUiEvent({
-    event_key: "bad key with space"
+    event_key: "!!!"
   });
   assert.equal(invalid, null);
 
   const valid = service.normalizeUiEvent({
-    event_key: "tab_open",
+    event_key: "ui.tab.open",
     tab_key: "home",
     panel_key: "hero",
     event_value: 1,
     funnel_key: "vault_intent",
     surface_key: "vault_panel",
-    economy_event_key: "token_intent",
+    economy_event_key: "economy.token.intent",
     value_usd: 11.25,
     tx_state: "intent",
     payload_json: { foo: "bar" }
   });
   assert.ok(valid);
-  assert.equal(valid.event_key, "tab_open");
+  assert.equal(valid.event_key, "ui.tab.open");
   assert.equal(valid.tab_key, "home");
   assert.equal(valid.funnel_key, "vault_intent");
   assert.equal(valid.surface_key, "vault_panel");
-  assert.equal(valid.economy_event_key, "token_intent");
+  assert.equal(valid.economy_event_key, "economy.token.intent");
   assert.equal(valid.value_usd, 11.25);
   assert.equal(valid.tx_state, "intent");
 });
@@ -60,9 +60,9 @@ test("normalizeUiEvent rejects invalid event key and accepts bounded payload", (
 test("normalizeUiEventBatch returns accepted and rejected counts", () => {
   const batch = service.normalizeUiEventBatch(
     [
-      { event_key: "tab_open", tab_key: "home" },
-      { event_key: "bad key" },
-      { event_key: "action_click", tab_key: "pvp" }
+      { event_key: "ui.tab.open", tab_key: "home" },
+      { event_key: "!!!" },
+      { event_key: "action.mutation.click", tab_key: "pvp" }
     ],
     { panel_key: "default" }
   );
@@ -72,8 +72,8 @@ test("normalizeUiEventBatch returns accepted and rejected counts", () => {
 
 test("buildUiEventIdempotencyKey stays stable for same payload", () => {
   const events = [
-    { event_key: "tab_open", client_ts: "2026-03-04T00:00:00.000Z" },
-    { event_key: "action_click", client_ts: "2026-03-04T00:00:01.000Z" }
+    { event_key: "ui.tab.open", client_ts: "2026-03-04T00:00:00.000Z" },
+    { event_key: "action.mutation.click", client_ts: "2026-03-04T00:00:01.000Z" }
   ];
   const k1 = service.buildUiEventIdempotencyKey(1, "sess_1", events);
   const k2 = service.buildUiEventIdempotencyKey(1, "sess_1", events);

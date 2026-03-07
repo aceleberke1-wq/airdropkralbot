@@ -1,5 +1,6 @@
 "use strict";
 
+const { SETTLEMENT_TOKEN_SYMBOL } = require("../../../../../../packages/shared/src/currencyGlossary");
 const {
   listDynamicAutoPolicies,
   computeDynamicAutoPolicyAnomaly,
@@ -113,7 +114,7 @@ function registerWebappV2AdminTokenDynamicPolicyRoutes(fastify, deps = {}) {
         }
         const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
         const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
-        const tokenSymbol = tokenSymbolInput || String(tokenConfig.symbol || "NXT").toUpperCase();
+        const tokenSymbol = tokenSymbolInput || String(tokenConfig.symbol || SETTLEMENT_TOKEN_SYMBOL).toUpperCase();
         const marketState = await tokenStore.getTokenMarketState(client, tokenSymbol).catch((err) => {
           if (err.code === "42P01") return null;
           throw err;
@@ -223,7 +224,7 @@ function registerWebappV2AdminTokenDynamicPolicyRoutes(fastify, deps = {}) {
         }
         const runtimeConfig = await configService.getEconomyConfig(client, { forceRefresh: true });
         const tokenConfig = tokenEngine.normalizeTokenConfig(runtimeConfig);
-        const tokenSymbol = tokenSymbolInput || String(tokenConfig.symbol || "NXT").toUpperCase();
+        const tokenSymbol = tokenSymbolInput || String(tokenConfig.symbol || SETTLEMENT_TOKEN_SYMBOL).toUpperCase();
 
         await upsertDynamicAutoPolicies(client, {
           token_symbol: tokenSymbol,
@@ -299,4 +300,3 @@ function registerWebappV2AdminTokenDynamicPolicyRoutes(fastify, deps = {}) {
 module.exports = {
   registerWebappV2AdminTokenDynamicPolicyRoutes
 };
-

@@ -1,6 +1,9 @@
 "use strict";
 
 const { z } = require("zod");
+const { SETTLEMENT_TOKEN_SYMBOL } = require("../currencyGlossary");
+const { isSafeNavigationKey, normalizeTabKey } = require("../navigationContract");
+const { isSafeAnalyticsKey } = require("../telemetryContract");
 
 const LocalizedStringMapSchema = z
   .object({
@@ -396,13 +399,32 @@ const UiPreferencesResponseV2Schema = z.object({
 });
 
 const UiEventSchema = z.object({
-  event_key: z.string().min(2).max(80),
-  tab_key: z.string().min(1).max(40).default("home"),
-  panel_key: z.string().min(1).max(64).default("default"),
-  route_key: z.string().max(80).default(""),
+  event_key: z.string().min(2).max(80).refine((value) => isSafeAnalyticsKey(value), "invalid_event_key"),
+  tab_key: z
+    .string()
+    .min(1)
+    .max(40)
+    .transform((value) => normalizeTabKey(value, "home"))
+    .default("home"),
+  panel_key: z
+    .string()
+    .min(1)
+    .max(64)
+    .refine((value) => isSafeNavigationKey(value, 64), "invalid_panel_key")
+    .default("default"),
+  route_key: z
+    .string()
+    .max(80)
+    .refine((value) => !value || isSafeNavigationKey(value, 80), "invalid_route_key")
+    .default(""),
+  focus_key: z
+    .string()
+    .max(80)
+    .refine((value) => !value || isSafeNavigationKey(value, 80), "invalid_focus_key")
+    .default(""),
   funnel_key: z.string().max(64).default(""),
   surface_key: z.string().max(64).default(""),
-  economy_event_key: z.string().max(80).default(""),
+  economy_event_key: z.string().max(80).refine((value) => !value || isSafeAnalyticsKey(value), "invalid_economy_event_key").default(""),
   tx_state: z.string().max(32).default(""),
   event_value: z.number().default(0),
   value_usd: z.number().min(0).default(0),
@@ -483,7 +505,7 @@ const AdminMonetizationFeeEventResponseV2Schema = z
   .passthrough();
 
 const DynamicAutoPolicySegmentSchema = z.object({
-  token_symbol: z.string().default("NXT"),
+  token_symbol: z.string().default(SETTLEMENT_TOKEN_SYMBOL),
   segment_key: z.string().min(3).max(64),
   priority: z.number().int().min(1).max(999).default(100),
   max_auto_usd: z.number().min(0.5).default(10),
@@ -500,7 +522,7 @@ const DynamicAutoPolicySegmentSchema = z.object({
 
 const DynamicAutoPolicySchema = z.object({
   api_version: z.literal("v2"),
-  token_symbol: z.string().default("NXT"),
+  token_symbol: z.string().default(SETTLEMENT_TOKEN_SYMBOL),
   base_policy: z.record(z.any()).default({}),
   anomaly_state: z.record(z.any()).default({}),
   segments: z.array(DynamicAutoPolicySegmentSchema).default([]),

@@ -1,21 +1,6 @@
-﻿const DEFAULT_LANGUAGE = "tr";
-const SUPPORTED_LANGUAGES = Object.freeze(["tr", "en"]);
+const localeContract = require("../../../packages/shared/src/localeContract");
 
-function normalizeLanguage(rawValue, fallback = DEFAULT_LANGUAGE) {
-  const raw = String(rawValue || "")
-    .trim()
-    .toLowerCase();
-  if (!raw) {
-    return fallback;
-  }
-  if (raw.startsWith("tr")) {
-    return "tr";
-  }
-  if (raw.startsWith("en")) {
-    return "en";
-  }
-  return fallback;
-}
+const { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, normalizeLanguage, pickLocalizedText } = localeContract;
 
 function pickLanguageFromCtx(ctx, fallback = DEFAULT_LANGUAGE) {
   const from = String(ctx?.from?.language_code || "").trim();
@@ -23,14 +8,7 @@ function pickLanguageFromCtx(ctx, fallback = DEFAULT_LANGUAGE) {
 }
 
 function localizeText(input, lang = DEFAULT_LANGUAGE) {
-  if (!input || typeof input !== "object") {
-    return "";
-  }
-  const normalized = normalizeLanguage(lang, DEFAULT_LANGUAGE);
-  if (normalized === "en") {
-    return String(input.en || input.tr || "");
-  }
-  return String(input.tr || input.en || "");
+  return pickLocalizedText(input, lang);
 }
 
 module.exports = {
@@ -40,4 +18,3 @@ module.exports = {
   pickLanguageFromCtx,
   localizeText
 };
-
