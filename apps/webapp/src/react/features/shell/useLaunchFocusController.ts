@@ -7,6 +7,7 @@ type LaunchFocusOptions = {
   tab: TabKey;
   reducedMotion: boolean;
   requestKey?: string | number;
+  enableFocus?: boolean;
 };
 
 function sanitizeKey(value: unknown): string {
@@ -61,6 +62,9 @@ export function useLaunchFocusController(options: LaunchFocusOptions) {
   }, [options.launchContext, options.workspace, options.tab]);
 
   useEffect(() => {
+    if (options.enableFocus === false) {
+      return;
+    }
     if (!launchSummary) {
       return;
     }
@@ -109,7 +113,7 @@ export function useLaunchFocusController(options: LaunchFocusOptions) {
       window.clearTimeout(timeoutId);
       target.classList.remove("isLaunchFocus");
     };
-  }, [launchSummary, options.workspace, options.tab, options.reducedMotion, options.requestKey]);
+  }, [launchSummary, options.workspace, options.tab, options.reducedMotion, options.requestKey, options.enableFocus]);
 
   return {
     launchSummary

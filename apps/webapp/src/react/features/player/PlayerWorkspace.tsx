@@ -3,10 +3,8 @@ import type { BootstrapV2Payload, LaunchContext, TabKey } from "../../types";
 import { HomePanel } from "../home/HomePanel";
 import { PvpPanel } from "../pvp/PvpPanel";
 import { PlayerShellPanel } from "./PlayerShellPanel";
-import { usePlayerRouteHandoffController } from "./usePlayerRouteHandoffController";
-import { usePlayerShellPanelController } from "./usePlayerShellPanelController";
+import { usePlayerNavigationController } from "./usePlayerNavigationController";
 import { PlayerTabs } from "../shell/PlayerTabs";
-import { useLaunchFocusController } from "../shell/useLaunchFocusController";
 import { TasksPanel } from "../tasks/TasksPanel";
 import { VaultPanel } from "../vault/VaultPanel";
 
@@ -87,22 +85,12 @@ type PlayerWorkspaceProps = {
 };
 
 export function PlayerWorkspace(props: PlayerWorkspaceProps) {
-  const { activePanelKey, activeFocusKey, openPanel, closePanel } = usePlayerShellPanelController({
+  const { activePanelKey, activeFocusKey, openPanel, closePanel, routeToTarget } = usePlayerNavigationController({
     launchContext: props.launchContext,
     tab: props.tab,
-    trackUiEvent: props.trackUiEvent
-  });
-  const { handoffContext, handoffRequestKey, routeToTarget } = usePlayerRouteHandoffController({
-    currentTab: props.tab,
+    reducedMotion: Boolean(props.data?.ui_prefs?.reduced_motion),
     onTabChange: props.onTabChange,
     trackUiEvent: props.trackUiEvent
-  });
-  useLaunchFocusController({
-    launchContext: handoffContext,
-    workspace: "player",
-    tab: props.tab,
-    reducedMotion: Boolean(props.data?.ui_prefs?.reduced_motion),
-    requestKey: handoffRequestKey
   });
 
   return (

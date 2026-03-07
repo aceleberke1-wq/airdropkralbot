@@ -428,7 +428,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     launchContext,
     workspace,
     tab,
-    reducedMotion
+    reducedMotion,
+    enableFocus: workspace === "admin"
   });
   const {
     onRefresh,
