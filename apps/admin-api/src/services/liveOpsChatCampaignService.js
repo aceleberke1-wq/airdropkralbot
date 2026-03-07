@@ -503,6 +503,77 @@ async function loadLatestDispatchSummary(client, campaignKey) {
   };
 }
 
+async function loadDeliverySummary(client, campaignKey) {
+  const params = [LIVE_OPS_CAMPAIGN_EVENT_TYPE, String(campaignKey || "")];
+  const [totalsRes, localeRes, segmentRes, surfaceRes] = await Promise.all([
+    client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_at >= now() - interval '24 hours')::int AS sent_24h,
+         COUNT(*) FILTER (WHERE event_at >= now() - interval '7 days')::int AS sent_7d,
+         COUNT(DISTINCT user_id) FILTER (WHERE event_at >= now() - interval '7 days')::int AS unique_users_7d
+       FROM behavior_events
+       WHERE event_type = $1
+         AND COALESCE(meta_json->>'campaign_key', '') = $2;`,
+      params
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(meta_json->>'locale', ''), 'unknown') AS bucket_key,
+         COUNT(*)::int AS item_count
+       FROM behavior_events
+       WHERE event_type = $1
+         AND COALESCE(meta_json->>'campaign_key', '') = $2
+         AND event_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 6;`,
+      params
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(meta_json->>'segment_key', ''), 'unknown') AS bucket_key,
+         COUNT(*)::int AS item_count
+       FROM behavior_events
+       WHERE event_type = $1
+         AND COALESCE(meta_json->>'campaign_key', '') = $2
+         AND event_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 6;`,
+      params
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(meta_json->>'primary_surface_key', ''), 'unknown') AS bucket_key,
+         COUNT(*)::int AS item_count
+       FROM behavior_events
+       WHERE event_type = $1
+         AND COALESCE(meta_json->>'campaign_key', '') = $2
+         AND event_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 6;`,
+      params
+    )
+  ]);
+
+  const totals = totalsRes.rows[0] || {};
+  const normalizeBuckets = (rows = []) =>
+    rows.map((row) => ({
+      bucket_key: String(row.bucket_key || "unknown"),
+      item_count: Number(row.item_count || 0)
+    }));
+
+  return {
+    sent_24h: Number(totals.sent_24h || 0),
+    sent_7d: Number(totals.sent_7d || 0),
+    unique_users_7d: Number(totals.unique_users_7d || 0),
+    locale_breakdown: normalizeBuckets(localeRes.rows),
+    segment_breakdown: normalizeBuckets(segmentRes.rows),
+    surface_breakdown: normalizeBuckets(surfaceRes.rows)
+  };
+}
+
 function buildApprovalSummary(campaign, meta = {}) {
   const warnings = [];
   const enabled = campaign?.enabled === true;
@@ -606,9 +677,10 @@ async function buildCampaignSnapshot(client, current) {
     updated_at: snapshotState.created_at || null,
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
-  const [versionHistory, dispatchHistory] = await Promise.all([
+  const [versionHistory, dispatchHistory, deliverySummary] = await Promise.all([
     loadVersionHistory(client),
-    loadDispatchHistory(client, snapshotState.campaign.campaign_key)
+    loadDispatchHistory(client, snapshotState.campaign.campaign_key),
+    loadDeliverySummary(client, snapshotState.campaign.campaign_key)
   ]);
   return {
     api_version: "v2",
@@ -620,6 +692,7 @@ async function buildCampaignSnapshot(client, current) {
     approval_summary: approvalSummary,
     version_history: versionHistory,
     dispatch_history: dispatchHistory,
+    delivery_summary: deliverySummary,
     latest_dispatch: latestDispatch
   };
 }
@@ -747,11 +820,15 @@ async function buildCampaignSnapshot(client, current) {
         try {
           await postTelegramMessage(candidate.telegram_id, text, replyMarkup);
           sent += 1;
+          const primarySurfaceKey = String(surfaceEntries[0]?.surface_key || "");
           await recordDispatchEvent(client, candidate.user_id, {
             campaign_key: campaign.campaign_key,
             campaign_version: version,
             dispatch_ref: dispatchRef,
             segment_key: campaign.targeting.segment_key,
+            locale: lang,
+            primary_surface_key: primarySurfaceKey,
+            surface_count: surfaceEntries.length,
             reason,
             sent_at: now.toISOString()
           });
@@ -784,7 +861,8 @@ async function buildCampaignSnapshot(client, current) {
             attempted,
             recorded,
             skipped_disabled: skippedDisabled,
-            segment_key: campaign.targeting.segment_key
+            segment_key: campaign.targeting.segment_key,
+            surface_keys: (Array.isArray(campaign.surfaces) ? campaign.surfaces : []).map((row) => String(row?.surface_key || "")).filter(Boolean)
           })
         ]
       );

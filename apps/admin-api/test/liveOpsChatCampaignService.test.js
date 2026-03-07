@@ -14,10 +14,13 @@ function createPoolStub(recordedQueries) {
           if (text.includes("FROM config_versions")) {
             return { rows: [] };
           }
-          if (text.includes("FROM behavior_events")) {
+          if (text.includes("COUNT(*) FILTER") && text.includes("FROM behavior_events")) {
             return {
               rows: [
                 {
+                  sent_24h: 0,
+                  sent_7d: 0,
+                  unique_users_7d: 0,
                   sent_total: 0,
                   sent_72h: 0,
                   last_sent_at: null,
@@ -26,6 +29,9 @@ function createPoolStub(recordedQueries) {
                 }
               ]
             };
+          }
+          if (text.includes("GROUP BY 1") && text.includes("FROM behavior_events")) {
+            return { rows: [] };
           }
           return { rows: [] };
         },
@@ -96,6 +102,9 @@ test("live ops chat campaign service dispatches canonical wallet reconnect campa
   assert.ok(firstButton.web_app.url.includes("launch_event_key=launch.alert.wallet_reconnect_wallet_lane.open"));
   assert.equal(recordedQueries.some((entry) => entry.sql.includes("INSERT INTO behavior_events")), true);
   assert.equal(recordedQueries.some((entry) => entry.sql.includes("INSERT INTO admin_audit")), true);
+  const eventInsert = recordedQueries.find((entry) => entry.sql.includes("INSERT INTO behavior_events"));
+  assert.equal(eventInsert.params[2].includes("\"locale\":\"en\""), true);
+  assert.equal(eventInsert.params[2].includes("\"primary_surface_key\":\"wallet_panel\""), true);
 });
 
 test("live ops chat campaign service snapshot includes approval summary and histories", async () => {
@@ -137,10 +146,13 @@ test("live ops chat campaign service snapshot includes approval summary and hist
                 ]
               };
             }
-            if (text.includes("FROM behavior_events")) {
+            if (text.includes("COUNT(*) FILTER") && text.includes("FROM behavior_events")) {
               return {
                 rows: [
                   {
+                    sent_24h: 2,
+                    sent_7d: 3,
+                    unique_users_7d: 3,
                     sent_total: 8,
                     sent_72h: 3,
                     last_sent_at: "2026-03-08T12:10:00.000Z",
@@ -149,6 +161,15 @@ test("live ops chat campaign service snapshot includes approval summary and hist
                   }
                 ]
               };
+            }
+            if (text.includes("meta_json->>'locale'")) {
+              return { rows: [{ bucket_key: "en", item_count: 2 }, { bucket_key: "tr", item_count: 1 }] };
+            }
+            if (text.includes("meta_json->>'segment_key'")) {
+              return { rows: [{ bucket_key: "wallet_unlinked", item_count: 3 }] };
+            }
+            if (text.includes("meta_json->>'primary_surface_key'")) {
+              return { rows: [{ bucket_key: "wallet_panel", item_count: 3 }] };
             }
             if (text.includes("FROM config_versions") && text.includes("LIMIT 8")) {
               return {
@@ -215,4 +236,7 @@ test("live ops chat campaign service snapshot includes approval summary and hist
   assert.equal(snapshot.version_history.length, 1);
   assert.equal(snapshot.dispatch_history.length, 1);
   assert.equal(snapshot.dispatch_history[0].dispatch_ref, "wallet_reconnect_k9");
+  assert.equal(snapshot.delivery_summary.sent_24h, 2);
+  assert.equal(snapshot.delivery_summary.locale_breakdown[0].bucket_key, "en");
+  assert.equal(snapshot.delivery_summary.surface_breakdown[0].bucket_key, "wallet_panel");
 });

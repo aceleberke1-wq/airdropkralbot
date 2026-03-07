@@ -608,6 +608,20 @@ const LiveOpsCampaignDispatchHistoryRowSchema = z.object({
   skipped_disabled: z.number().int().nonnegative().default(0)
 });
 
+const LiveOpsCampaignAnalyticsBucketSchema = z.object({
+  bucket_key: z.string().default("unknown"),
+  item_count: z.number().int().nonnegative().default(0)
+});
+
+const LiveOpsCampaignDeliverySummarySchema = z.object({
+  sent_24h: z.number().int().nonnegative().default(0),
+  sent_7d: z.number().int().nonnegative().default(0),
+  unique_users_7d: z.number().int().nonnegative().default(0),
+  locale_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([]),
+  segment_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([]),
+  surface_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([])
+});
+
 const LiveOpsCampaignSnapshotSchema = z.object({
   api_version: z.literal("v2"),
   config_key: z.string().default("live_ops_chat_campaign_v1"),
@@ -618,6 +632,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   approval_summary: LiveOpsCampaignApprovalSummarySchema.default({}),
   version_history: z.array(LiveOpsCampaignVersionHistoryRowSchema).default([]),
   dispatch_history: z.array(LiveOpsCampaignDispatchHistoryRowSchema).default([]),
+  delivery_summary: LiveOpsCampaignDeliverySummarySchema.default({}),
   latest_dispatch: z
     .object({
       event_type: z.string().default("live_ops_campaign_sent"),
@@ -678,8 +693,10 @@ module.exports = {
   PlayerActionResponseV2Schema,
   DynamicAutoPolicySchema,
   DynamicAutoPolicySegmentSchema,
+  LiveOpsCampaignAnalyticsBucketSchema,
   LiveOpsCampaignApprovalSummarySchema,
   LiveOpsCampaignConfigSchema,
+  LiveOpsCampaignDeliverySummarySchema,
   LiveOpsCampaignDispatchRequestSchema,
   LiveOpsCampaignDispatchResponseSchema,
   LiveOpsCampaignDispatchHistoryRowSchema,

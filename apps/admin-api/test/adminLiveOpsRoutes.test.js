@@ -79,6 +79,14 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
             }
           ],
           dispatch_history: [],
+          delivery_summary: {
+            sent_24h: 0,
+            sent_7d: 0,
+            unique_users_7d: 0,
+            locale_breakdown: [],
+            segment_breakdown: [],
+            surface_breakdown: []
+          },
           latest_dispatch: {
             event_type: "live_ops_campaign_sent",
             sent_total: 0,
@@ -124,6 +132,14 @@ test("v2 admin live ops campaign routes read, save and dispatch canonical payloa
             }
           ],
           dispatch_history: [],
+          delivery_summary: {
+            sent_24h: 0,
+            sent_7d: 0,
+            unique_users_7d: 0,
+            locale_breakdown: [],
+            segment_breakdown: [],
+            surface_breakdown: []
+          },
           latest_dispatch: {
             event_type: "live_ops_campaign_sent",
             sent_total: 0,

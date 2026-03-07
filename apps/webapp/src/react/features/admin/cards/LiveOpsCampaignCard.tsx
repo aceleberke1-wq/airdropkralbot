@@ -40,12 +40,20 @@ function formatWarningCode(value: string) {
   return asText(value, "-").replace(/_/g, " ");
 }
 
+function formatBucketCode(value: string) {
+  return asText(value, "unknown").replace(/_/g, " ");
+}
+
 export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const snapshot = asRecord(props.liveOpsCampaignData);
   const approvalSummary = asRecord(snapshot.approval_summary);
   const versionHistory = asArray(snapshot.version_history);
   const dispatchHistory = asArray(snapshot.dispatch_history);
+  const deliverySummary = asRecord(snapshot.delivery_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
+  const localeBreakdown = asArray(deliverySummary.locale_breakdown);
+  const segmentBreakdown = asArray(deliverySummary.segment_breakdown);
+  const surfaceBreakdown = asArray(deliverySummary.surface_breakdown);
   const liveReady = approvalSummary.live_dispatch_ready === true;
 
   return (
@@ -151,6 +159,70 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           )}
         </section>
       </div>
+      <section className="akrMiniPanel" data-akr-focus-key="delivery_summary">
+        <h4>{t(props.lang, "admin_live_ops_delivery_title")}</h4>
+        <ul className="akrList">
+          <li>
+            <span>{t(props.lang, "admin_live_ops_delivery_24h")}</span>
+            <strong>{asCount(deliverySummary.sent_24h)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_delivery_7d")}</span>
+            <strong>{asCount(deliverySummary.sent_7d)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_delivery_unique")}</span>
+            <strong>{asCount(deliverySummary.unique_users_7d)}</strong>
+          </li>
+        </ul>
+        <div className="akrSplit">
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_live_ops_locale_breakdown_title")}</h4>
+            {localeBreakdown.length ? (
+              <ul className="akrList">
+                {localeBreakdown.map((row, index) => (
+                  <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                    <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                    <strong>{asCount(row.item_count)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_live_ops_segment_breakdown_title")}</h4>
+            {segmentBreakdown.length ? (
+              <ul className="akrList">
+                {segmentBreakdown.map((row, index) => (
+                  <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                    <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                    <strong>{asCount(row.item_count)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+        </div>
+        <section className="akrMiniPanel">
+          <h4>{t(props.lang, "admin_live_ops_surface_breakdown_title")}</h4>
+          {surfaceBreakdown.length ? (
+            <ul className="akrList">
+              {surfaceBreakdown.map((row, index) => (
+                <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                  <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                  <strong>{asCount(row.item_count)}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+          )}
+        </section>
+      </section>
       <section className="akrMiniPanel" data-akr-focus-key="version_history">
         <h4>{t(props.lang, "admin_live_ops_versions_title")}</h4>
         {versionHistory.length ? (
