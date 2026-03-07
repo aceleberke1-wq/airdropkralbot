@@ -45,6 +45,7 @@ const { resolveAdminCommandNavigation } = require("../../../packages/shared/src/
 const { resolveLocalePreference } = require("../../../packages/shared/src/localeContract");
 const { getCommandRegistry, toTelegramCommands, buildAliasLookup } = require("./commands/registry");
 const { buildIntentIndex, resolveIntent, normalizeMode } = require("./commands/intentRouter");
+const { buildSimpleCallbackActionMap, buildSimpleWebAppActionMap } = require("./commands/callbackActionCatalog");
 const { normalizeLanguage } = require("./i18n");
 const {
   buildTaskKeyboard,
@@ -4703,7 +4704,7 @@ function reserveWebAppActionIdempotency(ctx, action, payload = {}) {
   return { ok: true, requestId };
 }
 
-async function handleWebAppAction(ctx, pool, appConfig) {
+async function handleWebAppAction(ctx, pool, appConfig, simpleWebAppActionHandlers = {}) {
   const raw = ctx.message?.web_app_data?.data;
   if (!raw) {
     return;
@@ -4733,56 +4734,9 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     return;
   }
 
-  if (action === "open_tasks") {
-    await sendTasks(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_daily") {
-    await sendDaily(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_kingdom") {
-    await sendKingdom(ctx, pool);
-    return;
-  }
-  if (action === "open_wallet") {
-    await sendWallet(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_token") {
-    await sendToken(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_war") {
-    await sendWar(ctx, pool);
-    return;
-  }
-  if (action === "open_nexus") {
-    await sendNexus(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_contract") {
-    await sendNexus(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_missions") {
-    await sendMissions(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_status") {
-    await sendStatus(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_leaderboard") {
-    await sendLeaderboard(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_play") {
-    await sendPlay(ctx, pool, appConfig);
-    return;
-  }
-  if (action === "open_payout") {
-    await sendPayout(ctx, pool, appConfig);
+  const simpleActionHandler = simpleWebAppActionHandlers[action];
+  if (typeof simpleActionHandler === "function") {
+    await simpleActionHandler(ctx);
     return;
   }
   if (action === "accept_offer") {
@@ -4846,6 +4800,46 @@ async function handleWebAppAction(ctx, pool, appConfig) {
   }
 
   await ctx.replyWithMarkdown(`*WebApp Aksiyon Bilinmiyor*\n${escapeMarkdownText(action)}`);
+}
+
+function buildSimpleBotActionHandlers({ pool, appConfig }) {
+  return {
+    tasks: async (ctx) => sendTasks(ctx, pool, appConfig),
+    wallet: async (ctx) => sendWallet(ctx, pool, appConfig),
+    token: async (ctx) => sendToken(ctx, pool, appConfig),
+    season: async (ctx) => sendSeason(ctx, pool, appConfig),
+    leaderboard: async (ctx) => sendLeaderboard(ctx, pool, appConfig),
+    shop: async (ctx) => sendShop(ctx, pool, appConfig),
+    missions: async (ctx) => sendMissions(ctx, pool, appConfig),
+    daily: async (ctx) => sendDaily(ctx, pool, appConfig),
+    kingdom: async (ctx) => sendKingdom(ctx, pool),
+    war: async (ctx) => sendWar(ctx, pool),
+    payout: async (ctx) => sendPayout(ctx, pool, appConfig),
+    status: async (ctx) => sendStatus(ctx, pool, appConfig),
+    nexus: async (ctx) => sendNexus(ctx, pool, appConfig),
+    guide: async (ctx) => sendGuide(ctx, pool),
+    onboard: async (ctx) => sendOnboard(ctx, pool, appConfig),
+    more_menu: async (ctx) => {
+      const profile = await ensureProfile(pool, ctx).catch(() => null);
+      const lang = resolvePreferredLanguage(profile, ctx, "tr");
+      const text =
+        lang === "en"
+          ? "*Extra Command Hub*\nAdvanced panels, economy actions and meta controls:"
+          : "*Ek Komut Merkezi*\nIleri paneller, ekonomi aksiyonlari ve meta kontroller:";
+      return ctx.replyWithMarkdown(text, buildMoreMenuKeyboard(lang));
+    },
+    home_menu: async (ctx) => sendLauncherMenu(ctx, pool),
+    guide_finish_balanced: async (ctx) => completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced"),
+    guide_reveal: async (ctx) => revealLatestFromCommand(ctx, pool, appConfig),
+    play: async (ctx) => sendPlay(ctx, pool, appConfig),
+    arena_rank: async (ctx) => sendArenaRank(ctx, pool),
+    token_mint: async (ctx) => mintToken(ctx, pool, appConfig),
+    token_buy_quick: async (ctx) => sendQuickTokenBuyIntent(ctx, pool, appConfig),
+    admin_panel_refresh: async (ctx) => sendAdminPanel(ctx, pool, appConfig),
+    admin_open_payouts: async (ctx) => sendAdminPayoutQueue(ctx, pool, appConfig),
+    admin_open_queue: async (ctx) => sendAdminQueue(ctx, pool, appConfig),
+    admin_open_tokens: async (ctx) => sendAdminTokenQueue(ctx, pool, appConfig)
+  };
 }
 
 function normalizeModeFromText(input) {
@@ -5566,6 +5560,8 @@ async function start() {
   });
 
   const commandHandlerMap = buildCommandHandlerMap({ pool, appConfig });
+  const simpleBotActionHandlers = buildSimpleBotActionHandlers({ pool, appConfig });
+  const simpleWebAppActionHandlers = buildSimpleWebAppActionMap(simpleBotActionHandlers);
   const registration = registerRegistryCommandHandlers(bot, COMMAND_REGISTRY, commandHandlerMap);
   if (registration.missing.length > 0) {
     console.warn("command handler missing for registry keys:", registration.missing.join(","));
@@ -5573,7 +5569,7 @@ async function start() {
 
   bot.on("message", async (ctx, next) => {
     if (ctx.message?.web_app_data?.data) {
-      await handleWebAppAction(ctx, pool, appConfig);
+      await handleWebAppAction(ctx, pool, appConfig, simpleWebAppActionHandlers);
       return;
     }
     if (typeof ctx.message?.text === "string") {
@@ -5595,43 +5591,7 @@ async function start() {
     }
   });
 
-  registerSimpleActionHandlers(bot, {
-    OPEN_TASKS: async (ctx) => sendTasks(ctx, pool, appConfig),
-    OPEN_WALLET: async (ctx) => sendWallet(ctx, pool, appConfig),
-    OPEN_TOKEN: async (ctx) => sendToken(ctx, pool, appConfig),
-    OPEN_SEASON: async (ctx) => sendSeason(ctx, pool, appConfig),
-    OPEN_LEADERBOARD: async (ctx) => sendLeaderboard(ctx, pool, appConfig),
-    OPEN_SHOP: async (ctx) => sendShop(ctx, pool, appConfig),
-    OPEN_MISSIONS: async (ctx) => sendMissions(ctx, pool, appConfig),
-    OPEN_DAILY: async (ctx) => sendDaily(ctx, pool, appConfig),
-    OPEN_KINGDOM: async (ctx) => sendKingdom(ctx, pool),
-    OPEN_WAR: async (ctx) => sendWar(ctx, pool),
-    OPEN_PAYOUT: async (ctx) => sendPayout(ctx, pool, appConfig),
-    OPEN_STATUS: async (ctx) => sendStatus(ctx, pool, appConfig),
-    OPEN_NEXUS: async (ctx) => sendNexus(ctx, pool, appConfig),
-    OPEN_GUIDE: async (ctx) => sendGuide(ctx, pool),
-    OPEN_ONBOARD: async (ctx) => sendOnboard(ctx, pool, appConfig),
-    OPEN_MORE_MENU: async (ctx) => {
-      const profile = await ensureProfile(pool, ctx).catch(() => null);
-      const lang = resolvePreferredLanguage(profile, ctx, "tr");
-      const text =
-        lang === "en"
-          ? "*Extra Command Hub*\nAdvanced panels, economy actions and meta controls:"
-          : "*Ek Komut Merkezi*\nIleri paneller, ekonomi aksiyonlari ve meta kontroller:";
-      return ctx.replyWithMarkdown(text, buildMoreMenuKeyboard(lang));
-    },
-    OPEN_HOME_MENU: async (ctx) => sendLauncherMenu(ctx, pool),
-    GUIDE_FINISH_BALANCED: async (ctx) => completeLatestAttemptFromCommand(ctx, pool, appConfig, "balanced"),
-    GUIDE_REVEAL: async (ctx) => revealLatestFromCommand(ctx, pool, appConfig),
-    OPEN_PLAY: async (ctx) => sendPlay(ctx, pool, appConfig),
-    OPEN_ARENA_RANK: async (ctx) => sendArenaRank(ctx, pool),
-    TOKEN_MINT: async (ctx) => mintToken(ctx, pool, appConfig),
-    TOKEN_BUY_QUICK: async (ctx) => sendQuickTokenBuyIntent(ctx, pool, appConfig),
-    ADMIN_PANEL_REFRESH: async (ctx) => sendAdminPanel(ctx, pool, appConfig),
-    ADMIN_OPEN_PAYOUTS: async (ctx) => sendAdminPayoutQueue(ctx, pool, appConfig),
-    ADMIN_OPEN_QUEUE: async (ctx) => sendAdminQueue(ctx, pool, appConfig),
-    ADMIN_OPEN_TOKENS: async (ctx) => sendAdminTokenQueue(ctx, pool, appConfig)
-  });
+  registerSimpleActionHandlers(bot, buildSimpleCallbackActionMap(simpleBotActionHandlers));
 
   registerPlayerActionHandlers(bot, [
     {
