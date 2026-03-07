@@ -88,6 +88,7 @@ const {
 } = require("./commands/helpCards");
 const { createSafeMarkdownReplyMiddleware } = require("./utils/safeMarkdownReply");
 const { createSlashCommandTelemetryMiddleware } = require("./telemetry/slashTelemetry");
+const { resolveLaunchUrlBundle } = require("./utils/miniAppLaunchResolver");
 
 const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
@@ -432,42 +433,51 @@ async function resolveMiniAppRouteUrl(pool, appConfig, telegramId, navigation = 
 }
 
 async function resolveAdminWorkspaceUrls(pool, appConfig, telegramId) {
-  const [adminUrl, queueUrl, policyUrl, runtimeUrl] = await Promise.all([
-    resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, "admin"),
-    resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, "admin_queue"),
-    resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, "admin_gate"),
-    resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, "admin_metrics")
-  ]);
+  const { adminUrl = "", queueUrl = "", policyUrl = "", runtimeUrl = "" } = await resolveMiniAppAdminCommandUrlBundle(
+    pool,
+    appConfig,
+    telegramId,
+    [
+      { key: "adminUrl", commandKey: "admin" },
+      { key: "queueUrl", commandKey: "admin_queue" },
+      { key: "policyUrl", commandKey: "admin_gate" },
+      { key: "runtimeUrl", commandKey: "admin_metrics" }
+    ]
+  );
   return {
-    adminUrl: adminUrl || "",
-    queueUrl: queueUrl || "",
-    policyUrl: policyUrl || "",
-    runtimeUrl: runtimeUrl || ""
+    adminUrl,
+    queueUrl,
+    policyUrl,
+    runtimeUrl
   };
 }
 
+async function resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, entries = []) {
+  return resolveLaunchUrlBundle({
+    entries,
+    resolveNavigation: resolvePlayerCommandNavigation,
+    resolveBaseUrl: () => resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId),
+    buildSignedUrl: (baseUrl, navigation) => buildSignedWebAppUrl(appConfig, telegramId, baseUrl, navigation)
+  });
+}
+
 async function resolveMiniAppCommandUrl(pool, appConfig, telegramId, commandKey, overrides = {}) {
-  const navigation = resolvePlayerCommandNavigation(commandKey);
-  if (!navigation) {
-    return null;
-  }
-  return resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
-    routeKey: overrides.routeKey || navigation.route_key,
-    panelKey: overrides.panelKey || navigation.panel_key || "",
-    focusKey: overrides.focusKey || navigation.focus_key || ""
+  const bundle = await resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, [{ key: "url", commandKey, overrides }]);
+  return bundle.url || null;
+}
+
+async function resolveMiniAppAdminCommandUrlBundle(pool, appConfig, telegramId, entries = []) {
+  return resolveLaunchUrlBundle({
+    entries,
+    resolveNavigation: resolveAdminCommandNavigation,
+    resolveBaseUrl: () => resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId),
+    buildSignedUrl: (baseUrl, navigation) => buildSignedWebAppUrl(appConfig, telegramId, baseUrl, navigation)
   });
 }
 
 async function resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, commandKey, overrides = {}) {
-  const navigation = resolveAdminCommandNavigation(commandKey);
-  if (!navigation) {
-    return null;
-  }
-  return resolveMiniAppRouteUrl(pool, appConfig, telegramId, {
-    routeKey: overrides.routeKey || navigation.route_key,
-    panelKey: overrides.panelKey || navigation.panel_key || "",
-    focusKey: overrides.focusKey || navigation.focus_key || ""
-  });
+  const bundle = await resolveMiniAppAdminCommandUrlBundle(pool, appConfig, telegramId, [{ key: "url", commandKey, overrides }]);
+  return bundle.url || null;
 }
 
 function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "", navigation = {}) {
@@ -2130,21 +2140,13 @@ async function sendNexus(ctx, pool, appConfig) {
   });
 
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const [statusUrl, discoverUrl] = await Promise.all([
-    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-      routeKey: CANONICAL_ROUTE_KEY.HUB,
-      panelKey: CANONICAL_PANEL_KEY.STATUS,
-      focusKey: "system_status"
-    }),
-    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
-      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
-      focusKey: "command_center"
-    })
+  const { statusUrl = "", discoverUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "statusUrl", commandKey: "status" },
+    { key: "discoverUrl", commandKey: "discover" }
   ]);
   await ctx.replyWithMarkdown(
     messages.formatNexusPulse(payload),
-    buildStatusKeyboard(statusUrl || "", discoverUrl || "", lang) || buildGuideKeyboard(lang)
+    buildStatusKeyboard(statusUrl, discoverUrl, lang) || buildGuideKeyboard(lang)
   );
 }
 
@@ -2548,13 +2550,13 @@ async function handleReveal(ctx, pool, appConfig) {
 async function sendProfile(ctx, pool, appConfig) {
   const snapshot = await getSnapshot(pool, ctx);
   const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
-  const [profileUrl, walletUrl] = await Promise.all([
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "profile"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "wallet")
+  const { profileUrl = "", walletUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "profileUrl", commandKey: "profile" },
+    { key: "walletUrl", commandKey: "wallet" }
   ]);
   await ctx.replyWithMarkdown(
     messages.formatProfile(snapshot.profile, snapshot.balances),
-    buildProfileKeyboard(profileUrl || "", walletUrl || "", lang)
+    buildProfileKeyboard(profileUrl, walletUrl, lang)
   );
 }
 
@@ -2567,8 +2569,10 @@ async function sendRewards(ctx, pool, appConfig) {
     return { profile, balances, payout };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const rewardsUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "rewards");
-  const leaderboardUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "leaderboard");
+  const { rewardsUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "rewardsUrl", commandKey: "rewards" },
+    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  ]);
   const entitled = Number(payload.payout.entitledBtc || 0).toFixed(8);
   const requestable = Number(payload.payout.requestableBtc || 0).toFixed(8);
   const latestRef = escapeMarkdownText(
@@ -2586,7 +2590,7 @@ async function sendRewards(ctx, pool, appConfig) {
           `Hak Edilen: *${entitled} BTC* | Talep Edilebilir: *${requestable} BTC*\n` +
           `Payout: *${payload.payout.canRequest ? "acik" : "kilitli"}* | Cooldown: *${payload.payout.cooldownUntil ? "aktif" : "temiz"}*\n` +
           `Son Ref: *${latestRef}*`,
-    buildRewardsKeyboard(rewardsUrl || "", leaderboardUrl || "", lang)
+    buildRewardsKeyboard(rewardsUrl, leaderboardUrl, lang)
   );
 }
 
@@ -2609,11 +2613,13 @@ async function sendSeason(ctx, pool, appConfig) {
     const rank = await seasonStore.getUserRank(db, { userId: profile.user_id, seasonId: season.seasonId });
     return { profile, season, stat, rank };
   });
-  const seasonUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "season");
-  const leaderboardUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "leaderboard");
+  const { seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "seasonUrl", commandKey: "season" },
+    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  ]);
   await ctx.replyWithMarkdown(
     messages.formatSeason(payload.season, payload.stat, payload.rank),
-    buildSeasonKeyboard(seasonUrl || "", leaderboardUrl || "", resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    buildSeasonKeyboard(seasonUrl, leaderboardUrl, resolvePreferredLanguage(payload.profile, ctx, "tr"))
   );
 }
 
@@ -2633,11 +2639,16 @@ async function sendEvents(ctx, pool, appConfig) {
     return { profile, season, anomaly, contract, war, rows };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const [eventsUrl, seasonUrl, leaderboardUrl] = await Promise.all([
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "events"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "season"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "leaderboard")
-  ]);
+  const { eventsUrl = "", seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(
+    pool,
+    appConfig,
+    ctx.from?.id,
+    [
+      { key: "eventsUrl", commandKey: "events" },
+      { key: "seasonUrl", commandKey: "season" },
+      { key: "leaderboardUrl", commandKey: "leaderboard" }
+    ]
+  );
   const lead = (payload.rows || [])
     .slice(0, 3)
     .map((row, idx) => `${idx + 1}. ${escapeMarkdownText(row.public_name || "player")} (${Math.floor(Number(row.points || 0))})`)
@@ -2656,7 +2667,7 @@ async function sendEvents(ctx, pool, appConfig) {
           `Kontrat: *${escapeMarkdownText(payload.contract.title || "-")}* [${escapeMarkdownText(payload.contract.required_mode || "balanced")}]\n` +
           `War Tier: *${escapeMarkdownText(payload.war.tier || "seed")}* | Havuz *${Math.floor(Number(payload.war.value || 0))}*\n\n` +
           `Top Ladder\n${lead || "-"}`,
-    buildEventKeyboard(eventsUrl || "", seasonUrl || "", leaderboardUrl || "", lang)
+    buildEventKeyboard(eventsUrl, seasonUrl, leaderboardUrl, lang)
   );
 }
 
@@ -2669,11 +2680,13 @@ async function sendLeaderboard(ctx, pool, appConfig) {
     return { profile, season, rows };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const seasonUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "season");
-  const leaderboardUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "leaderboard");
+  const { seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "seasonUrl", commandKey: "season" },
+    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  ]);
   await ctx.replyWithMarkdown(
     messages.formatLeaderboard(payload.season, payload.rows),
-    buildSeasonKeyboard(seasonUrl || "", leaderboardUrl || "", lang)
+    buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang)
   );
 }
 
@@ -2711,10 +2724,10 @@ async function sendDiscover(ctx, pool, appConfig) {
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
   const readyMissions = payload.missions.filter((row) => row.completed && !row.claimed).length;
   const openOffers = payload.offers.length;
-  const [discoverUrl, missionsUrl, playUrl] = await Promise.all([
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "discover"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "missions"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "play")
+  const { discoverUrl = "", missionsUrl = "", playUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "discoverUrl", commandKey: "discover" },
+    { key: "missionsUrl", commandKey: "missions" },
+    { key: "playUrl", commandKey: "play" }
   ]);
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -2726,7 +2739,7 @@ async function sendDiscover(ctx, pool, appConfig) {
           `Aktif Offer: *${openOffers}* | Hazir Misyon: *${readyMissions}*\n` +
           `Guncel Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}*\n` +
           `En iyi sonraki hamle: *${readyMissions > 0 ? "misyon claim" : openOffers > 0 ? "mission quarter ac" : "arenaya gir"}*`,
-    buildDiscoverKeyboard(discoverUrl || "", missionsUrl || "", playUrl || "", lang)
+    buildDiscoverKeyboard(discoverUrl, missionsUrl, playUrl, lang)
   );
 }
 
@@ -2781,8 +2794,10 @@ async function sendSettings(ctx, pool, appConfig) {
     return { profile, prefs, perf };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const settingsUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "settings");
-  const supportUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "support");
+  const { settingsUrl = "", supportUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "settingsUrl", commandKey: "settings" },
+    { key: "supportUrl", commandKey: "support" }
+  ]);
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*Settings*\n` +
@@ -2795,7 +2810,7 @@ async function sendSettings(ctx, pool, appConfig) {
           `UI Mod: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}* | Kalite: *${escapeMarkdownText(payload.prefs?.quality_mode || "auto")}*\n` +
           `Reduced Motion: *${payload.prefs?.reduced_motion ? "acik" : "kapali"}* | Buyuk Metin: *${payload.prefs?.large_text ? "acik" : "kapali"}*\n` +
           `Ses: *${payload.prefs?.sound_enabled === false ? "kapali" : "acik"}* | FPS(avg): *${payload.perf?.fps_avg ? Number(payload.perf.fps_avg).toFixed(1) : "-"}*`,
-    buildSettingsKeyboard(settingsUrl || "", supportUrl || "", lang)
+    buildSettingsKeyboard(settingsUrl, supportUrl, lang)
   );
 }
 
@@ -2811,12 +2826,17 @@ async function sendSupport(ctx, pool, appConfig) {
     return { profile, payout, prefs };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const [statusUrl, payoutUrl, settingsUrl, faqUrl] = await Promise.all([
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "status"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "payout"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "settings"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "faq")
-  ]);
+  const { statusUrl = "", payoutUrl = "", settingsUrl = "", faqUrl = "" } = await resolveMiniAppCommandUrlBundle(
+    pool,
+    appConfig,
+    ctx.from?.id,
+    [
+      { key: "statusUrl", commandKey: "status" },
+      { key: "payoutUrl", commandKey: "payout" },
+      { key: "settingsUrl", commandKey: "settings" },
+      { key: "faqUrl", commandKey: "faq" }
+    ]
+  );
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*Support Triage*\n` +
@@ -2833,19 +2853,24 @@ async function sendSupport(ctx, pool, appConfig) {
           `2. Payout veya wallet sorunu icin */vault*.\n` +
           `3. Dil/accessibility sorunu icin */settings*.\n` +
           `4. Sik sorular icin once */faq*.`,
-    buildSupportKeyboard(statusUrl || "", payoutUrl || "", settingsUrl || "", faqUrl || "", lang)
+    buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang)
   );
 }
 
 async function sendFaq(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const lang = resolvePreferredLanguage(profile, ctx, "tr");
-  const [statusUrl, payoutUrl, settingsUrl, faqUrl] = await Promise.all([
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "status"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "payout"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "settings"),
-    resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "faq")
-  ]);
+  const { statusUrl = "", payoutUrl = "", settingsUrl = "", faqUrl = "" } = await resolveMiniAppCommandUrlBundle(
+    pool,
+    appConfig,
+    ctx.from?.id,
+    [
+      { key: "statusUrl", commandKey: "status" },
+      { key: "payoutUrl", commandKey: "payout" },
+      { key: "settingsUrl", commandKey: "settings" },
+      { key: "faqUrl", commandKey: "faq" }
+    ]
+  );
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*FAQ*\n` +
@@ -2858,7 +2883,7 @@ async function sendFaq(ctx, pool, appConfig) {
           `• *Wallet verify neden basarisiz?* Adres, challenge ref veya imza secili chain ile eslesmiyor olabilir.\n` +
           `• *UI neden yavas?* Settings icinden reduced motion veya dusuk kaliteyi dene.\n` +
           `• *Misyon neden claim olmadi?* Claim sadece tamamlanan ve daha once alinmayan misyonda acilir.`,
-    buildSupportKeyboard(statusUrl || "", payoutUrl || "", settingsUrl || "", faqUrl || "", lang)
+    buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang)
   );
 }
 
@@ -3216,11 +3241,7 @@ async function sendPayout(ctx, pool, appConfig) {
     const view = await buildPayoutView(db, profile, appConfig, runtimeConfig);
     return { profile, view };
   });
-  const payoutUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-    routeKey: CANONICAL_ROUTE_KEY.VAULT,
-    panelKey: CANONICAL_PANEL_KEY.PAYOUT,
-    focusKey: "request"
-  });
+  const payoutUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "payout");
   await ctx.replyWithMarkdown(
     messages.formatPayout(payload.view),
     buildPayoutKeyboard(payload.view.canRequest, resolvePreferredLanguage(payload.profile, ctx, "tr"), payoutUrl || "")
@@ -4230,11 +4251,7 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
   });
 
   await ctx.answerCbQuery();
-  const payoutUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-    routeKey: CANONICAL_ROUTE_KEY.VAULT,
-    panelKey: CANONICAL_PANEL_KEY.PAYOUT,
-    focusKey: "request"
-  });
+  const payoutUrl = await resolveMiniAppCommandUrl(pool, appConfig, ctx.from?.id, "payout");
   const payoutKeyboard = buildPayoutKeyboard(
     payload.view.canRequest,
     normalizeLanguage(ctx.from?.language_code, "tr"),
@@ -4307,17 +4324,9 @@ async function sendStatus(ctx, pool, appConfig) {
   const safeContractMode = escapeMarkdownText(payload.contract.required_mode || "balanced");
   const safeTokenSymbol = escapeMarkdownText(payload.tokenView.symbol || "NXT");
   const safeWarTier = escapeMarkdownText(payload.war.tier || "seed");
-  const [statusUrl, discoverUrl] = await Promise.all([
-    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-      routeKey: CANONICAL_ROUTE_KEY.HUB,
-      panelKey: CANONICAL_PANEL_KEY.STATUS,
-      focusKey: "system_status"
-    }),
-    resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
-      routeKey: CANONICAL_ROUTE_KEY.EVENTS,
-      panelKey: CANONICAL_PANEL_KEY.DISCOVER,
-      focusKey: "command_center"
-    })
+  const { statusUrl = "", discoverUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
+    { key: "statusUrl", commandKey: "status" },
+    { key: "discoverUrl", commandKey: "discover" }
   ]);
 
   await ctx.replyWithMarkdown(
@@ -4346,7 +4355,7 @@ async function sendStatus(ctx, pool, appConfig) {
         `Risk: *${Math.round(payload.risk * 100)}%*\n` +
         `Payout Uygunluk: *${payoutText}*\n` +
         `${safeTokenSymbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`,
-    buildStatusKeyboard(statusUrl || "", discoverUrl || "", lang)
+    buildStatusKeyboard(statusUrl, discoverUrl, lang)
   );
 }
 
