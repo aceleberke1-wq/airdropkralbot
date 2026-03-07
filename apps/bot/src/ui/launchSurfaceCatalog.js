@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveSurfaceLaunchEventKey } = require("../../../../packages/shared/src/launchEventContract");
+
 const PLAYER_LAUNCH_SURFACE_CATALOG = Object.freeze({
   play_world: Object.freeze({ commandKey: "play", labelKey: "open_play" }),
   mission_quarter: Object.freeze({ commandKey: "missions", labelKey: "open_mission_quarter" }),
@@ -40,7 +42,10 @@ function buildLaunchSurfaceEntries(surfaceKeys = [], catalog = COMBINED_LAUNCH_S
       return {
         key,
         commandKey: config.commandKey,
-        overrides: config.overrides || {}
+        overrides: {
+          ...(config.overrides || {}),
+          launchEventKey: resolveSurfaceLaunchEventKey(key)
+        }
       };
     })
     .filter(Boolean);
@@ -59,7 +64,10 @@ function resolveLaunchSurface(surfaceKey, catalog = COMBINED_LAUNCH_SURFACE_CATA
     key,
     commandKey: config.commandKey,
     labelKey: config.labelKey,
-    overrides: config.overrides || {}
+    overrides: {
+      ...(config.overrides || {}),
+      launchEventKey: resolveSurfaceLaunchEventKey(key)
+    }
   });
 }
 

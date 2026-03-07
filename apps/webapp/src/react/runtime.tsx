@@ -13,11 +13,16 @@ function resolveLaunchContext(search: string) {
   const qs = new URLSearchParams(search);
   const startapp = String(qs.get("startapp") || "").trim();
   const decoded = startapp ? decodeStartAppPayload(startapp) : null;
-  return resolveLaunchTarget({
+  const launchEventKey = String(qs.get("launch_event_key") || "").trim();
+  const target = resolveLaunchTarget({
     routeKey: String(qs.get("route_key") || decoded?.route_key || "").trim(),
     panelKey: String(qs.get("panel_key") || decoded?.panel_key || "").trim(),
     focusKey: String(qs.get("focus_key") || decoded?.focus_key || "").trim()
   });
+  return {
+    ...target,
+    launch_event_key: launchEventKey
+  };
 }
 
 function ensureRootNode(): HTMLElement {

@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  resolveCallbackLaunchEventKey,
+  resolveWebAppActionLaunchEventKey
+} = require("../../../../packages/shared/src/launchEventContract");
+
 const SIMPLE_BOT_ACTION_CATALOG = Object.freeze([
   Object.freeze({ handlerKey: "tasks", callbackAction: "OPEN_TASKS", webAppAction: "open_tasks" }),
   Object.freeze({ handlerKey: "wallet", callbackAction: "OPEN_WALLET", webAppAction: "open_wallet" }),
@@ -30,6 +35,16 @@ const SIMPLE_BOT_ACTION_CATALOG = Object.freeze([
   Object.freeze({ handlerKey: "admin_open_tokens", callbackAction: "ADMIN_OPEN_TOKENS" })
 ]);
 
+const ENRICHED_SIMPLE_BOT_ACTION_CATALOG = Object.freeze(
+  SIMPLE_BOT_ACTION_CATALOG.map((entry) =>
+    Object.freeze({
+      ...entry,
+      callbackLaunchEventKey: resolveCallbackLaunchEventKey(entry.callbackAction),
+      webAppLaunchEventKey: entry.webAppAction ? resolveWebAppActionLaunchEventKey(entry.webAppAction) : ""
+    })
+  )
+);
+
 function normalizeCallbackAction(value) {
   return String(value || "").trim().toUpperCase();
 }
@@ -40,7 +55,7 @@ function normalizeWebAppAction(value) {
 
 function buildSimpleCallbackActionMap(handlerMap = {}) {
   return Object.fromEntries(
-    SIMPLE_BOT_ACTION_CATALOG
+    ENRICHED_SIMPLE_BOT_ACTION_CATALOG
       .map((entry) => {
         const handler = handlerMap[entry.handlerKey];
         if (!entry.callbackAction || typeof handler !== "function") {
@@ -54,7 +69,7 @@ function buildSimpleCallbackActionMap(handlerMap = {}) {
 
 function buildSimpleWebAppActionMap(handlerMap = {}) {
   const actions = [];
-  for (const entry of SIMPLE_BOT_ACTION_CATALOG) {
+  for (const entry of ENRICHED_SIMPLE_BOT_ACTION_CATALOG) {
     const handler = handlerMap[entry.handlerKey];
     if (typeof handler !== "function") {
       continue;
@@ -74,7 +89,7 @@ function buildSimpleWebAppActionMap(handlerMap = {}) {
 }
 
 module.exports = {
-  SIMPLE_BOT_ACTION_CATALOG,
+  SIMPLE_BOT_ACTION_CATALOG: ENRICHED_SIMPLE_BOT_ACTION_CATALOG,
   normalizeCallbackAction,
   normalizeWebAppAction,
   buildSimpleCallbackActionMap,

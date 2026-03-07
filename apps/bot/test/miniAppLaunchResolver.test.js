@@ -19,7 +19,8 @@ test("buildNavigationFromCommand applies overrides on top of resolved command na
   assert.deepEqual(navigation, {
     routeKey: "exchange",
     panelKey: "wallet",
-    focusKey: "submit_tx"
+    focusKey: "submit_tx",
+    launchEventKey: "launch.command.wallet.open"
   });
 });
 
@@ -45,13 +46,13 @@ test("resolveLaunchUrlBundle resolves keyed launch urls with one base url lookup
       return "https://example.com/app";
     },
     buildSignedUrl: (baseUrl, navigation) =>
-      `${baseUrl}?route_key=${navigation.routeKey}&panel_key=${navigation.panelKey}&focus_key=${navigation.focusKey}`
+      `${baseUrl}?route_key=${navigation.routeKey}&panel_key=${navigation.panelKey}&focus_key=${navigation.focusKey}&launch_event_key=${navigation.launchEventKey}`
   });
 
   assert.equal(baseResolveCount, 1);
   assert.deepEqual(bundle, {
-    profileUrl: "https://example.com/app?route_key=hub&panel_key=profile&focus_key=identity",
-    walletUrl: "https://example.com/app?route_key=exchange&panel_key=wallet&focus_key=submit_tx",
+    profileUrl: "https://example.com/app?route_key=hub&panel_key=profile&focus_key=identity&launch_event_key=launch.command.profile.open",
+    walletUrl: "https://example.com/app?route_key=exchange&panel_key=wallet&focus_key=submit_tx&launch_event_key=launch.command.wallet.open",
     unknownUrl: ""
   });
 });

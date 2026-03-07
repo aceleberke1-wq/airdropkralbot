@@ -21,6 +21,9 @@ test("callback action catalog keeps core open surfaces covered", () => {
   assert.equal(handlerKeys.has("payout"), true);
   assert.equal(handlerKeys.has("status"), true);
   assert.equal(handlerKeys.has("nexus"), true);
+  const walletEntry = SIMPLE_BOT_ACTION_CATALOG.find((entry) => entry.handlerKey === "wallet");
+  assert.equal(walletEntry?.callbackLaunchEventKey, "launch.callback.open_wallet.open");
+  assert.equal(walletEntry?.webAppLaunchEventKey, "launch.webapp_action.open_wallet.open");
 });
 
 test("callback action catalog builds shared callback and webapp handler maps", () => {

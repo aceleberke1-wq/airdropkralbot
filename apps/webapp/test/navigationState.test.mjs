@@ -7,6 +7,7 @@ test("normalizeLaunchContext resolves canonical player and admin targets", () =>
     route_key: "settings",
     panel_key: "language",
     focus_key: "locale_override",
+    launch_event_key: "",
     workspace: "player",
     tab: "home"
   });
@@ -15,6 +16,7 @@ test("normalizeLaunchContext resolves canonical player and admin targets", () =>
     route_key: "admin",
     panel_key: "panel_admin_queue",
     focus_key: "",
+    launch_event_key: "",
     workspace: "admin",
     tab: "home"
   });
@@ -25,6 +27,7 @@ test("buildLaunchContextToken stays stable for equivalent launch contexts", () =
     route_key: "vault",
     panel_key: "payout",
     focus_key: "request",
+    launch_event_key: "launch.command.payout.open",
     workspace: "player",
     tab: "vault"
   });
@@ -32,11 +35,12 @@ test("buildLaunchContextToken stays stable for equivalent launch contexts", () =
     routeKey: "vault",
     panelKey: "payout",
     focusKey: "request",
+    launchEventKey: "launch.command.payout.open",
     workspace: "player",
     tab: "vault"
   });
 
-  assert.equal(fromSnake, "vault:payout:request:player:vault");
+  assert.equal(fromSnake, "vault:payout:request:launch.command.payout.open:player:vault");
   assert.equal(fromSnake, fromCamel);
 });
 

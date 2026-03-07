@@ -6,6 +6,7 @@ const localeContract = require(path.join(process.cwd(), "packages", "shared", "s
 const currencyGlossary = require(path.join(process.cwd(), "packages", "shared", "src", "currencyGlossary.js"));
 const navigationContract = require(path.join(process.cwd(), "packages", "shared", "src", "navigationContract.js"));
 const telemetryContract = require(path.join(process.cwd(), "packages", "shared", "src", "telemetryContract.js"));
+const launchEventContract = require(path.join(process.cwd(), "packages", "shared", "src", "launchEventContract.js"));
 
 test("resolveLocalePreference honors canonical precedence", () => {
   const override = localeContract.resolveLocalePreference({
@@ -97,4 +98,11 @@ test("telemetry contract builds canonical analytics keys and UI event records", 
   assert.equal(event.panel_key, "panel_tasks");
   assert.equal(event.focus_key, "claim_cta");
   assert.equal(event.economy_event_key, "token.quote");
+});
+
+test("launch event contract keeps command, surface and callback launch reasons canonical", () => {
+  assert.equal(launchEventContract.resolveCommandLaunchEventKey("wallet"), "launch.command.wallet.open");
+  assert.equal(launchEventContract.resolveSurfaceLaunchEventKey("profile_hub"), "launch.surface.profile_hub.open");
+  assert.equal(launchEventContract.resolveCallbackLaunchEventKey("OPEN_WALLET"), "launch.callback.open_wallet.open");
+  assert.equal(launchEventContract.resolveWebAppActionLaunchEventKey("open_wallet"), "launch.webapp_action.open_wallet.open");
 });

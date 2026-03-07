@@ -140,6 +140,7 @@ export type LaunchContext = {
   route_key: LaunchRouteKey | string;
   panel_key?: string;
   focus_key?: string;
+  launch_event_key?: string;
   workspace?: WorkspaceKey | string;
   tab?: TabKey | string;
 };

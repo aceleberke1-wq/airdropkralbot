@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { buildRouteKey, buildUiEventRecord, UI_EVENT_KEY, UI_FUNNEL_KEY, UI_SURFACE_KEY } from "../../../core/telemetry/uiEventTaxonomy";
 import { createUiAnalyticsClient, type UiAnalyticsClient } from "../../analytics";
 import { normalizeLang, type Lang } from "../../i18n";
-import type { AnalyticsConfig, TabKey, WebAppAuth } from "../../types";
+import type { AnalyticsConfig, LaunchContext, TabKey, WebAppAuth } from "../../types";
 
 type ShellTelemetryControllerOptions = {
   activeAuth: WebAppAuth;
@@ -10,6 +10,7 @@ type ShellTelemetryControllerOptions = {
   tab: TabKey;
   workspace: "player" | "admin";
   data: Record<string, any> | null | undefined;
+  launchContext?: LaunchContext | null;
 };
 
 function resolveAnalyticsConfig(raw: unknown): AnalyticsConfig | null {
@@ -35,15 +36,23 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
   const trackUiEvent = useCallback(
     (row: Record<string, unknown>) => {
       if (!analyticsRef.current) return;
+      const rawPayload = row.payload_json && typeof row.payload_json === "object" ? (row.payload_json as Record<string, unknown>) : {};
+      const launchEventKey = String(options.launchContext?.launch_event_key || "").trim();
       analyticsRef.current.track(
         buildUiEventRecord({
           tab_key: telemetryTabKey,
           route_key: telemetryRouteKey,
-          ...row
+          ...row,
+          payload_json: launchEventKey
+            ? {
+                ...rawPayload,
+                launch_event_key: launchEventKey
+              }
+            : rawPayload,
         })
       );
     },
-    [telemetryTabKey, telemetryRouteKey]
+    [options.launchContext?.launch_event_key, telemetryTabKey, telemetryRouteKey]
   );
 
   useEffect(() => {
@@ -70,13 +79,14 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
         payload_json: {
           workspace: options.workspace,
           tab: options.tab,
-          ui_version: String(options.data?.ui_shell?.ui_version || "react_v1")
+          ui_version: String(options.data?.ui_shell?.ui_version || "react_v1"),
+          launch_event_key: String(options.launchContext?.launch_event_key || "")
         },
         event_value: 1
       })
     );
     return () => client.dispose();
-  }, [options.activeAuth.uid, options.activeAuth.ts, options.activeAuth.sig, options.data]);
+  }, [options.activeAuth.uid, options.activeAuth.ts, options.activeAuth.sig, options.data, options.launchContext?.launch_event_key]);
 
   useEffect(() => {
     if (!analyticsRef.current) return;

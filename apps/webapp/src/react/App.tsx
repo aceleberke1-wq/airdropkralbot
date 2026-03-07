@@ -256,7 +256,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     lang,
     tab,
     workspace,
-    data: (data as Record<string, any> | null | undefined) || null
+    data: (data as Record<string, any> | null | undefined) || null,
+    launchContext: navigationContext
   });
 
   const { refreshBootstrap } = useBootstrapRefreshController({

@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveCommandLaunchEventKey } = require("../../../../packages/shared/src/launchEventContract");
+
 function buildNavigationFromCommand(commandKey, resolveNavigation, overrides = {}) {
   if (typeof resolveNavigation !== "function") {
     return null;
@@ -11,7 +13,8 @@ function buildNavigationFromCommand(commandKey, resolveNavigation, overrides = {
   return {
     routeKey: overrides.routeKey || navigation.route_key,
     panelKey: overrides.panelKey || navigation.panel_key || "",
-    focusKey: overrides.focusKey || navigation.focus_key || ""
+    focusKey: overrides.focusKey || navigation.focus_key || "",
+    launchEventKey: overrides.launchEventKey || resolveCommandLaunchEventKey(commandKey) || ""
   };
 }
 

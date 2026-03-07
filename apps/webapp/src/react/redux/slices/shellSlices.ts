@@ -366,7 +366,10 @@ const navigationSlice = createSlice({
   } as NavigationState,
   reducers: {
     hydrateLaunchContext(state, action: PayloadAction<LaunchContext | null | undefined>) {
-      const next = normalizeLaunchContext(action.payload || null);
+      const next = normalizeLaunchContext(
+        action.payload || null,
+        state.bootstrapContext || state.launchContext || undefined
+      );
       if (!next) {
         return;
       }
@@ -389,7 +392,9 @@ const navigationSlice = createSlice({
       state.source = "bootstrap";
     },
     routeLaunchContext(state, action: PayloadAction<LaunchContext | null | undefined>) {
-      const next = normalizeLaunchContext(action.payload || null);
+      const next = normalizeLaunchContext(action.payload || null, {
+        launch_event_key: state.launchContext?.launch_event_key || state.bootstrapContext?.launch_event_key || ""
+      });
       if (!next) {
         return;
       }

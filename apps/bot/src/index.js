@@ -514,6 +514,9 @@ function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "", navig
     if (startAppPayload.focus_key) {
       url.searchParams.set("focus_key", startAppPayload.focus_key);
     }
+    if (navigation.launchEventKey) {
+      url.searchParams.set("launch_event_key", String(navigation.launchEventKey));
+    }
     return url.toString();
   } catch {
     return null;
