@@ -1,4 +1,5 @@
 import { t, type Lang } from "../../../i18n";
+import { SHELL_ACTION_KEY } from "../../../../core/navigation/shellActions.js";
 
 type QueueActionState = {
   action_key: string;
@@ -20,15 +21,30 @@ type AdminQueueCardProps = {
   onQueueActionChange: (patch: Partial<QueueActionState>) => void;
   onRefresh: () => void;
   onRunQueueAction: () => void;
+  onSurfaceAction: (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
 };
 
 export function AdminQueueCard(props: AdminQueueCardProps) {
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_queue" data-akr-focus-key="queue_action">
       <h3>{t(props.lang, "admin_queue_title")}</h3>
-      <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
-        {t(props.lang, "admin_refresh")}
-      </button>
+      <div className="akrActionRow">
+        <button className="akrBtn akrBtnGhost" onClick={props.onRefresh}>
+          {t(props.lang, "admin_refresh")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_queue", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin_queue")}
+        >
+          {t(props.lang, "admin_nav_policy")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_queue", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META, "panel_admin_queue")}
+        >
+          {t(props.lang, "admin_nav_runtime")}
+        </button>
+      </div>
       <pre className="akrJsonBlock">{JSON.stringify(props.adminRuntime.summary || {}, null, 2)}</pre>
       <div className="akrInputRow">
         <input

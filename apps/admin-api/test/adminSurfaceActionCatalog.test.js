@@ -13,4 +13,8 @@ test("buildAdminSurfaceActions returns canonical admin header targets", () => {
   assert.equal(actions.admin_header[1].slot_key, "policy");
   assert.equal(actions.admin_header[2].focus_key, "runtime_flags");
   assert.equal(actions.admin_header[4].action_key, "admin.route.runtime_meta");
+  assert.equal(actions.admin_queue[0].slot_key, "policy");
+  assert.equal(actions.admin_policy[0].slot_key, "queue");
+  assert.equal(actions.admin_runtime_bot[1].slot_key, "flags");
+  assert.equal(actions.admin_runtime_meta[2].slot_key, "bot");
 });

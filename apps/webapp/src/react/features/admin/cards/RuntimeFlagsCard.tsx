@@ -1,4 +1,5 @@
 import { t, type Lang } from "../../../i18n";
+import { SHELL_ACTION_KEY } from "../../../../core/navigation/shellActions.js";
 
 type RuntimeFlagsCardProps = {
   lang: Lang;
@@ -9,6 +10,7 @@ type RuntimeFlagsCardProps = {
   onRuntimeFlagsDraftChange: (value: string) => void;
   onRefreshRuntimeFlags: () => void;
   onSaveRuntimeFlags: () => void;
+  onSurfaceAction: (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
 };
 
 export function RuntimeFlagsCard(props: RuntimeFlagsCardProps) {
@@ -18,6 +20,24 @@ export function RuntimeFlagsCard(props: RuntimeFlagsCardProps) {
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshRuntimeFlags}>
           {t(props.lang, "admin_runtime_flags_refresh")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_flags", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_policy")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_flags", "bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_bot")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_flags", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_runtime")}
         </button>
         <button className="akrBtn akrBtnAccent" onClick={props.onSaveRuntimeFlags} disabled={props.runtimeFlagsSaving}>
           {props.runtimeFlagsSaving ? t(props.lang, "admin_runtime_flags_saving") : t(props.lang, "admin_runtime_flags_save")}

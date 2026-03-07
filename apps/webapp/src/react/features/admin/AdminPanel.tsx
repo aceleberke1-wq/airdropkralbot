@@ -76,6 +76,8 @@ type AdminPanelProps = {
   };
 };
 
+type SurfaceActionRunner = (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
+
 function DisabledPanel(props: { lang: Lang; title: string }) {
   return (
     <section className="akrCard akrCardWide">
@@ -97,12 +99,12 @@ export function AdminPanel(props: AdminPanelProps) {
     const match = rows.find((row) => String(row.slot_key || "").trim().toLowerCase() === String(slotKey || "").trim().toLowerCase());
     return String(match?.action_key || fallbackActionKey || "");
   };
-  const runSurfaceAction = (sectionKey: string, slotKey: string, fallbackActionKey: string) => {
+  const runSurfaceAction: SurfaceActionRunner = (sectionKey, slotKey, fallbackActionKey, sourcePanelKey = "panel_admin") => {
     const actionKey = resolveSurfaceActionKey(sectionKey, slotKey, fallbackActionKey);
     if (!actionKey) {
       return;
     }
-    props.onShellAction(actionKey, "panel_admin");
+    props.onShellAction(actionKey, sourcePanelKey);
   };
 
   return (
@@ -115,7 +117,7 @@ export function AdminPanel(props: AdminPanelProps) {
             {props.panelVisibility.queue ? (
               <button
                 className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL)}
+                onClick={() => runSurfaceAction("admin_header", "queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_queue")}
               </button>
@@ -123,7 +125,7 @@ export function AdminPanel(props: AdminPanelProps) {
             {props.panelVisibility.dynamicPolicy ? (
               <button
                 className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL)}
+                onClick={() => runSurfaceAction("admin_header", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_policy")}
               </button>
@@ -131,7 +133,7 @@ export function AdminPanel(props: AdminPanelProps) {
             {props.panelVisibility.runtimeFlags ? (
               <button
                 className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS)}
+                onClick={() => runSurfaceAction("admin_header", "flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_flags")}
               </button>
@@ -139,7 +141,7 @@ export function AdminPanel(props: AdminPanelProps) {
             {props.panelVisibility.runtimeBot ? (
               <button
                 className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT)}
+                onClick={() => runSurfaceAction("admin_header", "bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_bot")}
               </button>
@@ -147,7 +149,7 @@ export function AdminPanel(props: AdminPanelProps) {
             {props.panelVisibility.runtimeMeta ? (
               <button
                 className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)}
+                onClick={() => runSurfaceAction("admin_header", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_runtime")}
               </button>
@@ -167,6 +169,7 @@ export function AdminPanel(props: AdminPanelProps) {
               onQueueActionChange={props.onQueueActionChange}
               onRefresh={props.onRefresh}
               onRunQueueAction={props.onRunQueueAction}
+              onSurfaceAction={runSurfaceAction}
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_queue_title")} />
@@ -183,6 +186,7 @@ export function AdminPanel(props: AdminPanelProps) {
               onDynamicPolicyDraftChange={props.onDynamicPolicyDraftChange}
               onRefreshDynamicPolicy={props.onRefreshDynamicPolicy}
               onSaveDynamicPolicy={props.onSaveDynamicPolicy}
+              onSurfaceAction={runSurfaceAction}
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />
@@ -197,6 +201,7 @@ export function AdminPanel(props: AdminPanelProps) {
               onRuntimeFlagsDraftChange={props.onRuntimeFlagsDraftChange}
               onRefreshRuntimeFlags={props.onRefreshRuntimeFlags}
               onSaveRuntimeFlags={props.onSaveRuntimeFlags}
+              onSurfaceAction={runSurfaceAction}
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_flags_title")} />
@@ -211,6 +216,7 @@ export function AdminPanel(props: AdminPanelProps) {
               onBotReconcileDraftChange={props.onBotReconcileDraftChange}
               onRefreshBotRuntime={props.onRefreshBotRuntime}
               onRunBotReconcile={props.onRunBotReconcile}
+              onSurfaceAction={runSurfaceAction}
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_bot_title")} />
@@ -232,6 +238,7 @@ export function AdminPanel(props: AdminPanelProps) {
               onRefreshOpsKpi={props.onRefreshOpsKpi}
               onRunOpsKpi={props.onRunOpsKpi}
               onReloadAssets={props.onReloadAssets}
+              onSurfaceAction={runSurfaceAction}
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_meta_title")} />

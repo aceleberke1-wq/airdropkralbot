@@ -1,4 +1,5 @@
 import { t, type Lang } from "../../../i18n";
+import { SHELL_ACTION_KEY } from "../../../../core/navigation/shellActions.js";
 
 type RuntimeMetaCardProps = {
   lang: Lang;
@@ -16,6 +17,7 @@ type RuntimeMetaCardProps = {
   onRefreshOpsKpi: () => void;
   onRunOpsKpi: () => void;
   onReloadAssets: () => void;
+  onSurfaceAction: (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
 };
 
 function readNum(source: Record<string, unknown> | null, key: string): number {
@@ -44,6 +46,24 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshRuntimeMeta}>
           {t(props.lang, "admin_runtime_meta_refresh")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_meta", "queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_queue")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_meta", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_policy")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_meta", "bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_bot")}
         </button>
         <button className="akrBtn akrBtnAccent" onClick={props.onReloadAssets} disabled={props.assetsReloading}>
           {props.assetsReloading ? t(props.lang, "admin_runtime_assets_reloading") : t(props.lang, "admin_runtime_assets_reload")}

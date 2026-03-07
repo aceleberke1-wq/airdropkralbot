@@ -1,4 +1,5 @@
 import { t, type Lang } from "../../../i18n";
+import { SHELL_ACTION_KEY } from "../../../../core/navigation/shellActions.js";
 
 type DynamicPolicyCardProps = {
   lang: Lang;
@@ -11,6 +12,7 @@ type DynamicPolicyCardProps = {
   onDynamicPolicyDraftChange: (value: string) => void;
   onRefreshDynamicPolicy: () => void;
   onSaveDynamicPolicy: () => void;
+  onSurfaceAction: (sectionKey: string, slotKey: string, fallbackActionKey: string, sourcePanelKey?: string) => void;
 };
 
 export function DynamicPolicyCard(props: DynamicPolicyCardProps) {
@@ -27,6 +29,24 @@ export function DynamicPolicyCard(props: DynamicPolicyCardProps) {
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshDynamicPolicy}>
           {t(props.lang, "admin_dynamic_policy_refresh")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_policy", "queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL, "panel_admin_policy")}
+        >
+          {t(props.lang, "admin_nav_queue")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_policy", "flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS, "panel_admin_policy")}
+        >
+          {t(props.lang, "admin_nav_flags")}
+        </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_policy", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META, "panel_admin_policy")}
+        >
+          {t(props.lang, "admin_nav_runtime")}
         </button>
         <button className="akrBtn akrBtnAccent" onClick={props.onSaveDynamicPolicy} disabled={props.dynamicPolicySaving}>
           {props.dynamicPolicySaving ? t(props.lang, "admin_dynamic_policy_saving") : t(props.lang, "admin_dynamic_policy_save")}

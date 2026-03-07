@@ -26,24 +26,28 @@ function buildAdminSurfaceActions() {
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
     admin_queue: [
-      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
     admin_policy: [
-      toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
-      toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS)
-    ],
-    admin_runtime_flags: [
+      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
       toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
-    admin_runtime_bot: [
+    admin_runtime_flags: [
+      toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
       toSurfaceAction("bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
+    admin_runtime_bot: [
+      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS),
+      toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
+    ],
     admin_runtime_meta: [
-      toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META),
-      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL)
+      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
+      toSurfaceAction("bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT)
     ]
   };
 }
