@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { resolveAdminPanelVisibility } from "../../../core/admin/adminPanelSwitches";
 import type { WebAppAuth, WebAppApiResponse } from "../../types";
 
-type PanelKey = "queue" | "dynamicPolicy" | "runtimeFlags" | "runtimeBot" | "runtimeMeta";
+type PanelKey = "queue" | "dynamicPolicy" | "liveOps" | "runtimeFlags" | "runtimeBot" | "runtimeMeta";
 
 type PatchUiPreferencesMutation = (payload: Record<string, unknown>) => { unwrap: () => Promise<any> };
 

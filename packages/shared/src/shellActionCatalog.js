@@ -26,6 +26,7 @@ const SHELL_ACTION_KEY = Object.freeze({
   ADMIN_WORKSPACE: "admin.route.workspace",
   ADMIN_QUEUE_PANEL: "admin.route.queue_panel",
   ADMIN_POLICY_PANEL: "admin.route.policy_panel",
+  ADMIN_LIVE_OPS_PANEL: "admin.route.live_ops_panel",
   ADMIN_RUNTIME_FLAGS: "admin.route.runtime_flags",
   ADMIN_RUNTIME_BOT: "admin.route.runtime_bot",
   ADMIN_RUNTIME_META: "admin.route.runtime_meta"
@@ -193,6 +194,13 @@ const SHELL_ACTION_CATALOG = Object.freeze({
     focusKey: "dynamic_policy",
     tab: "home"
   }),
+  [SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL]: Object.freeze({
+    workspace: CANONICAL_WORKSPACE_KEY.ADMIN,
+    routeKey: "admin",
+    panelKey: "panel_admin_live_ops",
+    focusKey: "campaign_editor",
+    tab: "home"
+  }),
   [SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS]: Object.freeze({
     workspace: CANONICAL_WORKSPACE_KEY.ADMIN,
     routeKey: "admin",
@@ -234,7 +242,8 @@ const LAUNCH_SURFACE_SHELL_ACTION_KEY = Object.freeze({
   admin_workspace: SHELL_ACTION_KEY.ADMIN_WORKSPACE,
   admin_queue: SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,
   admin_policy: SHELL_ACTION_KEY.ADMIN_POLICY_PANEL,
-  admin_runtime: SHELL_ACTION_KEY.ADMIN_RUNTIME_META
+  admin_runtime: SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
+  admin_live_ops: SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL
 });
 
 const BOT_HANDLER_SHELL_ACTION_KEY = Object.freeze({
@@ -261,6 +270,7 @@ const BOT_HANDLER_SHELL_ACTION_KEY = Object.freeze({
   admin: SHELL_ACTION_KEY.ADMIN_WORKSPACE,
   admin_live: SHELL_ACTION_KEY.ADMIN_WORKSPACE,
   admin_queue: SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,
+  admin_live_ops: SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL,
   admin_metrics: SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
   admin_gate: SHELL_ACTION_KEY.ADMIN_POLICY_PANEL,
   admin_open_payouts: SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,

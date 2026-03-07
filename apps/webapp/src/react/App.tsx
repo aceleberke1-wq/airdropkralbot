@@ -49,6 +49,9 @@ import {
   useAdminDeployStatusV2Query,
   useAdminDynamicAutoPolicyUpsertV2Mutation,
   useAdminDynamicAutoPolicyV2Query,
+  useAdminLiveOpsCampaignDispatchV2Mutation,
+  useAdminLiveOpsCampaignUpsertV2Mutation,
+  useAdminLiveOpsCampaignV2Query,
   useAdminMetricsV2Query,
   useAdminOpsKpiLatestV2Query,
   useAdminOpsKpiRunV2Mutation,
@@ -156,6 +159,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const [dynamicPolicyTokenSymbol, setDynamicPolicyTokenSymbol] = useState("NXT");
   const [dynamicPolicyDraft, setDynamicPolicyDraft] = useState("[]");
   const [dynamicPolicyError, setDynamicPolicyError] = useState("");
+  const [liveOpsCampaignDraft, setLiveOpsCampaignDraft] = useState("{}");
+  const [liveOpsCampaignError, setLiveOpsCampaignError] = useState("");
+  const [liveOpsCampaignDispatchError, setLiveOpsCampaignDispatchError] = useState("");
   const [runtimeFlagsDraft, setRuntimeFlagsDraft] = useState("{}");
   const [runtimeFlagsError, setRuntimeFlagsError] = useState("");
   const [botReconcileDraft, setBotReconcileDraft] = useState('{"state_key":"","reason":"","force_stop":false}');
@@ -196,6 +202,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const adminBootstrapQuery = useAdminBootstrapV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
   const adminQueueQuery = useAdminUnifiedQueueV2Query({ auth: activeAuth, limit: 80 }, { skip: !adminQueryEnabled });
   const adminMetricsQuery = useAdminMetricsV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
+  const adminLiveOpsCampaignQuery = useAdminLiveOpsCampaignV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
   const adminOpsKpiLatestQuery = useAdminOpsKpiLatestV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
   const adminAssetsQuery = useAdminAssetsStatusV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
   const adminRuntimeFlagsQuery = useAdminRuntimeFlagsV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
@@ -212,6 +219,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   );
   const [patchUiPreferences] = usePatchUiPreferencesV2Mutation();
   const [adminQueueAction] = useAdminQueueActionV2Mutation();
+  const [adminLiveOpsCampaignUpsert, { isLoading: liveOpsCampaignSaving }] = useAdminLiveOpsCampaignUpsertV2Mutation();
+  const [adminLiveOpsCampaignDispatch, { isLoading: liveOpsCampaignDispatching }] =
+    useAdminLiveOpsCampaignDispatchV2Mutation();
   const [adminRuntimeFlagsUpdate, { isLoading: runtimeFlagsSaving }] = useAdminRuntimeFlagsUpdateV2Mutation();
   const [adminRuntimeBotReconcile, { isLoading: botReconcileSaving }] = useAdminRuntimeBotReconcileV2Mutation();
   const [adminAssetsReload, { isLoading: assetsReloading }] = useAdminAssetsReloadV2Mutation();
@@ -275,6 +285,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     refreshAdmin,
     refreshDynamicPolicy,
     saveDynamicPolicy,
+    refreshLiveOpsCampaign,
+    saveLiveOpsCampaign,
+    runLiveOpsCampaignDispatch,
     refreshRuntimeFlags,
     saveRuntimeFlags,
     refreshBotRuntime,
@@ -288,10 +301,14 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     activeAuth,
     dynamicPolicyTokenSymbol,
     dynamicPolicyDraft,
+    liveOpsCampaignDraft,
     runtimeFlagsDraft,
     botReconcileDraft,
     setDynamicPolicyDraft,
     setDynamicPolicyError,
+    setLiveOpsCampaignDraft,
+    setLiveOpsCampaignError,
+    setLiveOpsCampaignDispatchError,
     setRuntimeFlagsDraft,
     setRuntimeFlagsError,
     setBotReconcileDraft,
@@ -307,6 +324,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     adminBootstrapQuery,
     adminQueueQuery,
     adminMetricsQuery,
+    adminLiveOpsCampaignQuery,
     adminOpsKpiLatestQuery,
     adminAssetsQuery,
     adminRuntimeFlagsQuery,
@@ -315,6 +333,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     adminAuditPhaseStatusQuery,
     adminAuditIntegrityQuery,
     adminDynamicPolicyQuery,
+    adminLiveOpsCampaignUpsert,
+    adminLiveOpsCampaignDispatch,
     adminDynamicPolicyUpsert,
     adminRuntimeFlagsUpdate,
     adminRuntimeBotReconcile,
@@ -381,6 +401,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     adminBootstrapQueryData: adminBootstrapQuery.data,
     adminQueueQueryData: adminQueueQuery.data,
     adminMetricsQueryData: adminMetricsQuery.data,
+    adminLiveOpsCampaignQueryData: adminLiveOpsCampaignQuery.data,
     adminOpsKpiLatestQueryData: adminOpsKpiLatestQuery.data,
     adminAssetsQueryData: adminAssetsQuery.data,
     adminRuntimeFlagsQueryData: adminRuntimeFlagsQuery.data,
@@ -400,6 +421,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     setAdminPanels,
     setDynamicPolicyTokenSymbol,
     setDynamicPolicyDraft,
+    setLiveOpsCampaignDraft,
     setRuntimeFlagsDraft,
     setBotReconcileDraft,
     refreshHome,
@@ -657,6 +679,13 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           dynamicPolicyDraft={dynamicPolicyDraft}
           dynamicPolicyError={dynamicPolicyError}
           dynamicPolicySaving={dynamicPolicySaving}
+          liveOpsCampaignData={(adminPanels?.live_ops_campaign as Record<string, unknown> | null) || null}
+          liveOpsCampaignDispatchData={(adminPanels?.live_ops_campaign_dispatch as Record<string, unknown> | null) || null}
+          liveOpsCampaignDraft={liveOpsCampaignDraft}
+          liveOpsCampaignError={liveOpsCampaignError}
+          liveOpsCampaignDispatchError={liveOpsCampaignDispatchError}
+          liveOpsCampaignSaving={liveOpsCampaignSaving}
+          liveOpsCampaignDispatching={liveOpsCampaignDispatching}
           runtimeFlagsData={(adminPanels?.runtime_flags as Record<string, unknown> | null) || null}
           runtimeFlagsDraft={runtimeFlagsDraft}
           runtimeFlagsError={runtimeFlagsError}
@@ -682,6 +711,11 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           onDynamicPolicyDraftChange={setDynamicPolicyDraft}
           onRefreshDynamicPolicy={() => void refreshDynamicPolicy()}
           onSaveDynamicPolicy={() => void saveDynamicPolicy()}
+          onLiveOpsCampaignDraftChange={setLiveOpsCampaignDraft}
+          onRefreshLiveOpsCampaign={() => void refreshLiveOpsCampaign()}
+          onSaveLiveOpsCampaign={() => void saveLiveOpsCampaign()}
+          onDryRunLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(true)}
+          onDispatchLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(false)}
           onRuntimeFlagsDraftChange={setRuntimeFlagsDraft}
           onRefreshRuntimeFlags={() => void refreshRuntimeFlags()}
           onSaveRuntimeFlags={() => void saveRuntimeFlags()}

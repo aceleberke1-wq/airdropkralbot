@@ -43,6 +43,10 @@ function resolveAdminCommandNavigation(commandKey) {
     return buildAdminCommandTarget("admin", "panel_admin_runtime", "runtime_meta");
   }
 
+  if (key === "admin_live_ops") {
+    return buildAdminCommandTarget("admin", "panel_admin_live_ops", "campaign_editor");
+  }
+
   if (key === "admin_gate" || key === "admin_token_price") {
     return buildAdminCommandTarget("admin", "panel_admin_policy", "dynamic_policy");
   }

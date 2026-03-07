@@ -137,6 +137,15 @@ test("shell action catalog resolves canonical player and admin targets", () => {
     tab: "home"
   });
 
+  assert.deepEqual(shellActionCatalog.resolveShellActionTarget(shellActionCatalog.SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL), {
+    action_key: "admin.route.live_ops_panel",
+    workspace: "admin",
+    route_key: "admin",
+    panel_key: "panel_admin_live_ops",
+    focus_key: "campaign_editor",
+    tab: "home"
+  });
+
   assert.equal(shellActionCatalog.resolveShellActionKeyForBotHandler("wallet"), shellActionCatalog.SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT);
   assert.equal(shellActionCatalog.resolveShellActionKeyForLaunchSurface("play_world"), shellActionCatalog.SHELL_ACTION_KEY.PLAYER_WORLD_HUB);
   assert.equal(shellActionCatalog.resolveShellActionKeyForLaunchSurface("admin_workspace"), shellActionCatalog.SHELL_ACTION_KEY.ADMIN_WORKSPACE);

@@ -1,6 +1,7 @@
 const PANEL_FLAG_KEYS = {
   queue: "WEBAPP_ADMIN_PANEL_QUEUE_ENABLED",
   dynamicPolicy: "WEBAPP_ADMIN_PANEL_DYNAMIC_POLICY_ENABLED",
+  liveOps: "WEBAPP_ADMIN_PANEL_LIVE_OPS_ENABLED",
   runtimeFlags: "WEBAPP_ADMIN_PANEL_RUNTIME_FLAGS_ENABLED",
   runtimeBot: "WEBAPP_ADMIN_PANEL_RUNTIME_BOT_ENABLED",
   runtimeMeta: "WEBAPP_ADMIN_PANEL_RUNTIME_META_ENABLED"
@@ -41,6 +42,7 @@ export function resolveAdminPanelVisibility(options = {}) {
   return {
     queue: readFlag(merged, PANEL_FLAG_KEYS.queue, true),
     dynamicPolicy: readFlag(merged, PANEL_FLAG_KEYS.dynamicPolicy, true),
+    liveOps: readFlag(merged, PANEL_FLAG_KEYS.liveOps, true),
     runtimeFlags: readFlag(merged, PANEL_FLAG_KEYS.runtimeFlags, true),
     runtimeBot: readFlag(merged, PANEL_FLAG_KEYS.runtimeBot, true),
     runtimeMeta: readFlag(merged, PANEL_FLAG_KEYS.runtimeMeta, true)

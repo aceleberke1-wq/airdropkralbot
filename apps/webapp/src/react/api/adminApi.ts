@@ -30,6 +30,35 @@ export async function fetchAdminMetricsV2(auth: WebAppAuth): Promise<AdminApiRes
   return getJson<AdminApiResponse>(`/webapp/api/v2/admin/metrics?${query}`);
 }
 
+export async function fetchAdminLiveOpsCampaignV2(auth: WebAppAuth): Promise<AdminApiResponse> {
+  const query = withAuthQuery(auth);
+  return getJson<AdminApiResponse>(`/webapp/api/v2/admin/live-ops/campaign?${query}`);
+}
+
+export async function postAdminLiveOpsCampaignV2(
+  auth: WebAppAuth,
+  payload: Record<string, unknown>
+): Promise<AdminApiResponse> {
+  return postJson<AdminApiResponse>("/webapp/api/v2/admin/live-ops/campaign", {
+    uid: auth.uid,
+    ts: auth.ts,
+    sig: auth.sig,
+    ...payload
+  });
+}
+
+export async function postAdminLiveOpsCampaignDispatchV2(
+  auth: WebAppAuth,
+  payload: Record<string, unknown>
+): Promise<AdminApiResponse> {
+  return postJson<AdminApiResponse>("/webapp/api/v2/admin/live-ops/campaign/dispatch", {
+    uid: auth.uid,
+    ts: auth.ts,
+    sig: auth.sig,
+    ...payload
+  });
+}
+
 export async function fetchAdminRuntimeFlagsV2(auth: WebAppAuth): Promise<AdminApiResponse> {
   const query = withAuthQuery(auth);
   return getJson<AdminApiResponse>(`/webapp/api/v2/admin/runtime/flags?${query}`);

@@ -1,6 +1,7 @@
 import { t, type Lang } from "../../i18n";
 import { AdminQueueCard } from "./cards/AdminQueueCard";
 import { DynamicPolicyCard } from "./cards/DynamicPolicyCard";
+import { LiveOpsCampaignCard } from "./cards/LiveOpsCampaignCard";
 import { RuntimeBotCard } from "./cards/RuntimeBotCard";
 import { RuntimeFlagsCard } from "./cards/RuntimeFlagsCard";
 import { RuntimeMetaCard } from "./cards/RuntimeMetaCard";
@@ -39,6 +40,18 @@ type AdminPanelProps = {
   onDynamicPolicyDraftChange: (value: string) => void;
   onRefreshDynamicPolicy: () => void;
   onSaveDynamicPolicy: () => void;
+  liveOpsCampaignData: Record<string, unknown> | null;
+  liveOpsCampaignDispatchData: Record<string, unknown> | null;
+  liveOpsCampaignDraft: string;
+  liveOpsCampaignError: string;
+  liveOpsCampaignDispatchError: string;
+  liveOpsCampaignSaving: boolean;
+  liveOpsCampaignDispatching: boolean;
+  onLiveOpsCampaignDraftChange: (value: string) => void;
+  onRefreshLiveOpsCampaign: () => void;
+  onSaveLiveOpsCampaign: () => void;
+  onDryRunLiveOpsCampaign: () => void;
+  onDispatchLiveOpsCampaign: () => void;
   runtimeFlagsData: Record<string, unknown> | null;
   runtimeFlagsDraft: string;
   runtimeFlagsError: string;
@@ -70,6 +83,7 @@ type AdminPanelProps = {
   panelVisibility: {
     queue: boolean;
     dynamicPolicy: boolean;
+    liveOps: boolean;
     runtimeFlags: boolean;
     runtimeBot: boolean;
     runtimeMeta: boolean;
@@ -128,6 +142,14 @@ export function AdminPanel(props: AdminPanelProps) {
                 onClick={() => runSurfaceAction("admin_header", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin")}
               >
                 {t(props.lang, "admin_nav_policy")}
+              </button>
+            ) : null}
+            {props.panelVisibility.liveOps ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() => runSurfaceAction("admin_header", "live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL, "panel_admin")}
+              >
+                {t(props.lang, "admin_nav_live_ops")}
               </button>
             ) : null}
             {props.panelVisibility.runtimeFlags ? (
@@ -190,6 +212,26 @@ export function AdminPanel(props: AdminPanelProps) {
             />
           ) : (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />
+          )}
+          {props.panelVisibility.liveOps ? (
+            <LiveOpsCampaignCard
+              lang={props.lang}
+              liveOpsCampaignData={props.liveOpsCampaignData}
+              liveOpsCampaignDispatchData={props.liveOpsCampaignDispatchData}
+              liveOpsCampaignDraft={props.liveOpsCampaignDraft}
+              liveOpsCampaignError={props.liveOpsCampaignError}
+              liveOpsCampaignDispatchError={props.liveOpsCampaignDispatchError}
+              liveOpsCampaignSaving={props.liveOpsCampaignSaving}
+              liveOpsCampaignDispatching={props.liveOpsCampaignDispatching}
+              onLiveOpsCampaignDraftChange={props.onLiveOpsCampaignDraftChange}
+              onRefreshLiveOpsCampaign={props.onRefreshLiveOpsCampaign}
+              onSaveLiveOpsCampaign={props.onSaveLiveOpsCampaign}
+              onDryRunLiveOpsCampaign={props.onDryRunLiveOpsCampaign}
+              onDispatchLiveOpsCampaign={props.onDispatchLiveOpsCampaign}
+              onSurfaceAction={runSurfaceAction}
+            />
+          ) : (
+            <DisabledPanel lang={props.lang} title={t(props.lang, "admin_live_ops_title")} />
           )}
           {props.panelVisibility.runtimeFlags ? (
             <RuntimeFlagsCard

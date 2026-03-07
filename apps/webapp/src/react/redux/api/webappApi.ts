@@ -250,6 +250,42 @@ export const webappApi = createApi({
       }),
       providesTags: ["Admin"]
     }),
+    adminLiveOpsCampaignV2: builder.query<AdminApiResponse, { auth: WebAppAuth }>({
+      query: ({ auth }) => ({
+        url: `/webapp/api/v2/admin/live-ops/campaign?${withAuthQuery(auth)}`
+      }),
+      providesTags: ["Admin"]
+    }),
+    adminLiveOpsCampaignUpsertV2: builder.mutation<
+      AdminApiResponse,
+      { auth: WebAppAuth; reason?: string; campaign: Record<string, unknown> }
+    >({
+      query: ({ auth, reason, campaign }) => ({
+        url: "/webapp/api/v2/admin/live-ops/campaign",
+        method: "POST",
+        body: withAuthBody(auth, {
+          reason: reason ? String(reason) : undefined,
+          campaign: campaign && typeof campaign === "object" ? campaign : {}
+        })
+      }),
+      invalidatesTags: ["Admin"]
+    }),
+    adminLiveOpsCampaignDispatchV2: builder.mutation<
+      AdminApiResponse,
+      { auth: WebAppAuth; dry_run?: boolean; max_recipients?: number; reason?: string; campaign?: Record<string, unknown> }
+    >({
+      query: ({ auth, dry_run, max_recipients, reason, campaign }) => ({
+        url: "/webapp/api/v2/admin/live-ops/campaign/dispatch",
+        method: "POST",
+        body: withAuthBody(auth, {
+          dry_run: dry_run !== false,
+          max_recipients: Number.isFinite(Number(max_recipients)) ? Number(max_recipients) : undefined,
+          reason: reason ? String(reason) : undefined,
+          campaign: campaign && typeof campaign === "object" ? campaign : undefined
+        })
+      }),
+      invalidatesTags: ["Admin"]
+    }),
     adminOpsKpiLatestV2: builder.query<AdminApiResponse, { auth: WebAppAuth }>({
       query: ({ auth }) => ({
         url: `/webapp/api/v2/admin/ops/kpi/latest?${withAuthQuery(auth)}`
@@ -759,6 +795,9 @@ export const {
   useAdminAuditPhaseStatusV2Query,
   useAdminBootstrapV2Query,
   useAdminDeployStatusV2Query,
+  useAdminLiveOpsCampaignV2Query,
+  useAdminLiveOpsCampaignUpsertV2Mutation,
+  useAdminLiveOpsCampaignDispatchV2Mutation,
   useAdminMetricsV2Query,
   useAdminOpsKpiLatestV2Query,
   useAdminOpsKpiRunV2Mutation,

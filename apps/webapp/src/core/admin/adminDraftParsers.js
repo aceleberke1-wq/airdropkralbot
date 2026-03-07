@@ -131,3 +131,27 @@ export function parseBotReconcileDraft(draftText) {
     force_stop: typeof parsed.value.force_stop === "boolean" ? parsed.value.force_stop : undefined
   };
 }
+
+export function parseLiveOpsCampaignDraft(draftText) {
+  const parsed = parseJson(draftText, "{}");
+  if (!parsed.ok || !parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    return {
+      ok: false,
+      error: "live_ops_campaign_invalid_json",
+      campaign: null
+    };
+  }
+  const campaignKey = String(parsed.value.campaign_key || "").trim();
+  if (campaignKey.length < 3) {
+    return {
+      ok: false,
+      error: "live_ops_campaign_key_required",
+      campaign: null
+    };
+  }
+  return {
+    ok: true,
+    error: "",
+    campaign: parsed.value
+  };
+}

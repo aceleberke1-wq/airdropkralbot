@@ -21,6 +21,14 @@ test("launch surface catalog resolves core player and admin surfaces", () => {
     shellActionKey: "admin.route.runtime_meta",
     overrides: { shellActionKey: "admin.route.runtime_meta", launchEventKey: "launch.surface.admin_runtime.open" }
   });
+
+  assert.deepEqual(resolveLaunchSurface("admin_live_ops"), {
+    key: "admin_live_ops",
+    commandKey: "admin_live_ops",
+    labelKey: "admin_live_ops_panel",
+    shellActionKey: "admin.route.live_ops_panel",
+    overrides: { shellActionKey: "admin.route.live_ops_panel", launchEventKey: "launch.surface.admin_live_ops.open" }
+  });
 });
 
 test("buildLaunchSurfaceEntries converts surface keys into command bundle entries", () => {

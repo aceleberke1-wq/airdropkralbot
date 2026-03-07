@@ -21,6 +21,7 @@ function buildAdminSurfaceActions() {
     admin_header: [
       toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
       toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
+      toSurfaceAction("live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL),
       toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS),
       toSurfaceAction("bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
@@ -31,22 +32,31 @@ function buildAdminSurfaceActions() {
     ],
     admin_policy: [
       toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL),
       toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS),
+      toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
+    ],
+    admin_live_ops: [
+      toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
     admin_runtime_flags: [
       toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
+      toSurfaceAction("live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL),
       toSurfaceAction("bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
     admin_runtime_bot: [
       toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
+      toSurfaceAction("live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL),
       toSurfaceAction("flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS),
       toSurfaceAction("runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META)
     ],
     admin_runtime_meta: [
       toSurfaceAction("queue", SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL),
       toSurfaceAction("policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL),
+      toSurfaceAction("live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL),
       toSurfaceAction("bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT)
     ]
   };

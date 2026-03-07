@@ -30,6 +30,8 @@ test("buildAdminSurfaceActionsView falls back to canonical catalog", async () =>
 
   assert.equal(view.admin_header[0].slot_key, "queue");
   assert.equal(view.admin_header[0].action_key, "admin.route.queue_panel");
-  assert.equal(view.admin_header[4].slot_key, "runtime");
-  assert.equal(view.admin_header[4].focus_key, "runtime_meta");
+  assert.equal(view.admin_header[2].slot_key, "live_ops");
+  assert.equal(view.admin_header[2].focus_key, "campaign_editor");
+  assert.equal(view.admin_header[5].slot_key, "runtime");
+  assert.equal(view.admin_header[5].focus_key, "runtime_meta");
 });

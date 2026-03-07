@@ -24,6 +24,7 @@ const ADMIN_LAUNCH_SURFACE_CATALOG = Object.freeze({
   admin_workspace: Object.freeze({ commandKey: "admin", labelKey: "open_admin_workspace" }),
   admin_queue: Object.freeze({ commandKey: "admin_queue", labelKey: "admin_unified_queue" }),
   admin_policy: Object.freeze({ commandKey: "admin_gate", labelKey: "admin_policy_panel" }),
+  admin_live_ops: Object.freeze({ commandKey: "admin_live_ops", labelKey: "admin_live_ops_panel" }),
   admin_runtime: Object.freeze({ commandKey: "admin_metrics", labelKey: "admin_runtime_panel" })
 });
 

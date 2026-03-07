@@ -4,6 +4,10 @@ const { z } = require("zod");
 const { SETTLEMENT_TOKEN_SYMBOL } = require("../currencyGlossary");
 const { isSafeNavigationKey, normalizeTabKey } = require("../navigationContract");
 const { isSafeAnalyticsKey } = require("../telemetryContract");
+const {
+  LIVE_OPS_SEGMENT_KEY,
+  LIVE_OPS_CAMPAIGN_STATUS
+} = require("../liveOpsCampaignContract");
 
 const LocalizedStringMapSchema = z
   .object({
@@ -532,6 +536,83 @@ const DynamicAutoPolicySchema = z.object({
   updated_at: z.string().optional()
 });
 
+const LiveOpsCampaignSurfaceSchema = z.object({
+  slot_key: z.string().min(1).max(32),
+  surface_key: z.string().min(1).max(64)
+});
+
+const LiveOpsCampaignTargetingSchema = z.object({
+  segment_key: z.enum(Object.values(LIVE_OPS_SEGMENT_KEY)).default(LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING),
+  inactive_hours: z.number().int().min(24).max(720).default(72),
+  max_age_days: z.number().int().min(3).max(120).default(30),
+  active_within_days: z.number().int().min(1).max(60).default(14),
+  locale_filter: z.string().max(8).default(""),
+  max_recipients: z.number().int().min(1).max(500).default(50),
+  dedupe_hours: z.number().int().min(1).max(720).default(72)
+});
+
+const LiveOpsCampaignConfigSchema = z.object({
+  api_version: z.literal("v2").default("v2"),
+  campaign_key: z.string().min(3).max(64),
+  enabled: z.boolean().default(false),
+  status: z.enum(Object.values(LIVE_OPS_CAMPAIGN_STATUS)).default(LIVE_OPS_CAMPAIGN_STATUS.DRAFT),
+  targeting: LiveOpsCampaignTargetingSchema.default({}),
+  copy: z
+    .object({
+      title: LocalizedStringMapSchema.default({}),
+      body: LocalizedStringMapSchema.default({}),
+      note: LocalizedStringMapSchema.default({})
+    })
+    .default({}),
+  surfaces: z.array(LiveOpsCampaignSurfaceSchema).min(1).max(3).default([])
+});
+
+const LiveOpsCampaignSnapshotSchema = z.object({
+  api_version: z.literal("v2"),
+  config_key: z.string().default("live_ops_chat_campaign_v1"),
+  version: z.number().int().nonnegative().default(0),
+  updated_at: z.string().nullable().default(null),
+  updated_by: z.number().int().nonnegative().default(0),
+  campaign: LiveOpsCampaignConfigSchema,
+  latest_dispatch: z
+    .object({
+      event_type: z.string().default("live_ops_campaign_sent"),
+      sent_total: z.number().int().nonnegative().default(0),
+      sent_72h: z.number().int().nonnegative().default(0),
+      last_sent_at: z.string().nullable().default(null),
+      last_segment_key: z.string().default(""),
+      last_dispatch_ref: z.string().default("")
+    })
+    .default({})
+});
+
+const LiveOpsCampaignUpsertRequestSchema = WebAppAuthEnvelopeSchema.extend({
+  reason: z.string().max(240).optional(),
+  campaign: LiveOpsCampaignConfigSchema
+});
+
+const LiveOpsCampaignDispatchRequestSchema = WebAppAuthEnvelopeSchema.extend({
+  dry_run: z.boolean().default(true),
+  max_recipients: z.number().int().min(1).max(500).optional(),
+  reason: z.string().max(240).optional(),
+  campaign: LiveOpsCampaignConfigSchema.optional()
+});
+
+const LiveOpsCampaignDispatchResponseSchema = z.object({
+  api_version: z.literal("v2"),
+  campaign_key: z.string().min(3).max(64),
+  version: z.number().int().nonnegative().default(0),
+  dry_run: z.boolean().default(true),
+  segment_key: z.string().default(""),
+  attempted: z.number().int().nonnegative().default(0),
+  sent: z.number().int().nonnegative().default(0),
+  recorded: z.number().int().nonnegative().default(0),
+  skipped_disabled: z.number().int().nonnegative().default(0),
+  dispatch_ref: z.string().default(""),
+  sample_users: z.array(z.record(z.any())).default([]),
+  generated_at: z.string()
+});
+
 module.exports = {
   AdminQueueActionPayloadV2Schema,
   BootstrapV2DataSchema,
@@ -553,6 +634,13 @@ module.exports = {
   PlayerActionResponseV2Schema,
   DynamicAutoPolicySchema,
   DynamicAutoPolicySegmentSchema,
+  LiveOpsCampaignConfigSchema,
+  LiveOpsCampaignDispatchRequestSchema,
+  LiveOpsCampaignDispatchResponseSchema,
+  LiveOpsCampaignSnapshotSchema,
+  LiveOpsCampaignSurfaceSchema,
+  LiveOpsCampaignTargetingSchema,
+  LiveOpsCampaignUpsertRequestSchema,
   HomeFeedV2Schema,
   AdminMonetizationFeeEventResponseV2Schema,
   MonetizationOverviewV2Schema,

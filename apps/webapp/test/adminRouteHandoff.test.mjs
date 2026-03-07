@@ -44,6 +44,22 @@ test("resolveAdminRouteHandoff maps queue and runtime panel targets into admin w
       tab: "home"
     }
   );
+
+  assert.deepEqual(
+    mod.resolveAdminRouteHandoff({
+      panelKey: "panel_admin_live_ops",
+      focusKey: "campaign_editor"
+    }),
+    {
+      route_key: "admin",
+      panel_key: "panel_admin_live_ops",
+      focus_key: "campaign_editor",
+      launch_event_key: "launch.internal.admin_route_panel_admin_live_ops.open",
+      shell_action_key: "",
+      workspace: "admin",
+      tab: "home"
+    }
+  );
 });
 
 test("resolveAdminRouteHandoff preserves explicit shell action keys", async () => {

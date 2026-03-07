@@ -216,6 +216,7 @@ const RAW_COMMAND_REGISTRY = Object.freeze([
   { key: "whoami", aliases: [], description_tr: "Telegram ID ve admin eslesme kontrolu", description_en: "Telegram ID and admin matching check", intents: ["whoami"] },
   { key: "admin", aliases: [], description_tr: "Admin paneli ve canli kuyruk gorunumu", description_en: "Admin panel and live queue view", intents: ["admin"], adminOnly: true },
   { key: "admin_live", aliases: [], description_tr: "Admin canli panel + telemetry", description_en: "Admin live panel with telemetry", intents: ["admin live"], adminOnly: true },
+  { key: "admin_live_ops", aliases: [], description_tr: "Live ops campaign push paneli", description_en: "Live ops campaign push panel", intents: ["admin live ops"], adminOnly: true },
   { key: "admin_queue", aliases: [], description_tr: "Birlesik payout+token admin kuyrugu", description_en: "Unified payout+token admin queue", intents: ["admin queue"], adminOnly: true },
   { key: "admin_payouts", aliases: [], description_tr: "Payout kuyrugu ve aksiyonlari", description_en: "Payout queue and actions", intents: ["admin payouts"], adminOnly: true },
   { key: "admin_tokens", aliases: [], description_tr: "Token kuyrugu onay/red paneli", description_en: "Token queue approve/reject panel", intents: ["admin tokens"], adminOnly: true },

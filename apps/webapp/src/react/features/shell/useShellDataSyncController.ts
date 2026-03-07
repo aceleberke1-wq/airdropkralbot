@@ -22,6 +22,7 @@ type ShellDataSyncControllerOptions = {
   adminBootstrapQueryData: QueryPayload;
   adminQueueQueryData: QueryPayload;
   adminMetricsQueryData: QueryPayload;
+  adminLiveOpsCampaignQueryData: QueryPayload;
   adminOpsKpiLatestQueryData: QueryPayload;
   adminAssetsQueryData: QueryPayload;
   adminRuntimeFlagsQueryData: QueryPayload;
@@ -41,6 +42,7 @@ type ShellDataSyncControllerOptions = {
   setAdminPanels: SetState<any>;
   setDynamicPolicyTokenSymbol: SetState<string>;
   setDynamicPolicyDraft: SetState<string>;
+  setLiveOpsCampaignDraft: SetState<string>;
   setRuntimeFlagsDraft: SetState<string>;
   setBotReconcileDraft: SetState<string>;
   refreshHome: () => Promise<any>;
@@ -138,16 +140,25 @@ export function useShellDataSyncController(options: ShellDataSyncControllerOptio
 
   useEffect(() => {
     if (!options.adminQueryEnabled) return;
-    if (!options.adminMetricsQueryData && !options.adminAssetsQueryData && !options.adminOpsKpiLatestQueryData) return;
+    if (
+      !options.adminMetricsQueryData &&
+      !options.adminLiveOpsCampaignQueryData &&
+      !options.adminAssetsQueryData &&
+      !options.adminOpsKpiLatestQueryData
+    ) {
+      return;
+    }
     options.setAdminPanels((prev: any) => ({
       ...(prev || {}),
       ...(options.adminMetricsQueryData?.success ? { metrics: options.adminMetricsQueryData.data || null } : {}),
+      ...(options.adminLiveOpsCampaignQueryData?.success ? { live_ops_campaign: options.adminLiveOpsCampaignQueryData.data || null } : {}),
       ...(options.adminOpsKpiLatestQueryData?.success ? { ops_kpi: options.adminOpsKpiLatestQueryData.data || null } : {}),
       ...(options.adminAssetsQueryData?.success ? { assets: options.adminAssetsQueryData.data || null } : {})
     }));
   }, [
     options.adminQueryEnabled,
     options.adminMetricsQueryData,
+    options.adminLiveOpsCampaignQueryData,
     options.adminOpsKpiLatestQueryData,
     options.adminAssetsQueryData,
     options.setAdminPanels
@@ -178,6 +189,27 @@ export function useShellDataSyncController(options: ShellDataSyncControllerOptio
     options.setDynamicPolicyDraft,
     options.setAdminPanels
   ]);
+
+  useEffect(() => {
+    if (!options.adminQueryEnabled) return;
+    const payload = options.adminLiveOpsCampaignQueryData;
+    if (!payload?.success) return;
+    const campaignPayload =
+      (payload.data as { campaign?: Record<string, unknown> } | undefined)?.campaign ||
+      (payload.data as Record<string, unknown> | undefined) ||
+      {};
+    options.setLiveOpsCampaignDraft((prev) => {
+      const current = String(prev || "").trim();
+      if (current && current !== "{}") {
+        return prev;
+      }
+      return JSON.stringify(campaignPayload, null, 2);
+    });
+    options.setAdminPanels((prev: any) => ({
+      ...(prev || {}),
+      live_ops_campaign: payload.data || null
+    }));
+  }, [options.adminQueryEnabled, options.adminLiveOpsCampaignQueryData, options.setAdminPanels, options.setLiveOpsCampaignDraft]);
 
   useEffect(() => {
     if (!options.adminQueryEnabled) return;

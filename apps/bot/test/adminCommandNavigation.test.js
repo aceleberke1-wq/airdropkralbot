@@ -34,6 +34,14 @@ test("shared admin command navigation resolves admin workspace surfaces", () => 
     workspace: "admin",
     tab: "home"
   });
+
+  assert.deepEqual(resolveAdminCommandNavigation("admin_live_ops"), {
+    route_key: "admin",
+    panel_key: "panel_admin_live_ops",
+    focus_key: "campaign_editor",
+    workspace: "admin",
+    tab: "home"
+  });
 });
 
 test("shared admin command navigation rejects player and empty commands", () => {

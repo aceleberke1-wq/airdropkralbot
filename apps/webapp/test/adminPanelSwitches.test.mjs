@@ -28,6 +28,7 @@ test("resolveAdminPanelVisibility defaults to all enabled", async () => {
   assert.deepEqual(vis, {
     queue: true,
     dynamicPolicy: true,
+    liveOps: true,
     runtimeFlags: true,
     runtimeBot: true,
     runtimeMeta: true
@@ -41,6 +42,7 @@ test("resolveAdminPanelVisibility honors runtime kill switches", async () => {
       flags: {
         [mod.PANEL_FLAG_KEYS.queue]: false,
         [mod.PANEL_FLAG_KEYS.dynamicPolicy]: false,
+        [mod.PANEL_FLAG_KEYS.liveOps]: false,
         [mod.PANEL_FLAG_KEYS.runtimeFlags]: true,
         [mod.PANEL_FLAG_KEYS.runtimeBot]: false,
         [mod.PANEL_FLAG_KEYS.runtimeMeta]: true
@@ -50,6 +52,7 @@ test("resolveAdminPanelVisibility honors runtime kill switches", async () => {
   assert.deepEqual(vis, {
     queue: false,
     dynamicPolicy: false,
+    liveOps: false,
     runtimeFlags: true,
     runtimeBot: false,
     runtimeMeta: true
@@ -61,12 +64,14 @@ test("resolveAdminPanelVisibility applies fallback flags when runtime missing", 
   const vis = mod.resolveAdminPanelVisibility({
     fallbackFlags: {
       [mod.PANEL_FLAG_KEYS.queue]: false,
+      [mod.PANEL_FLAG_KEYS.liveOps]: false,
       [mod.PANEL_FLAG_KEYS.runtimeMeta]: false
     }
   });
   assert.deepEqual(vis, {
     queue: false,
     dynamicPolicy: true,
+    liveOps: false,
     runtimeFlags: true,
     runtimeBot: true,
     runtimeMeta: false

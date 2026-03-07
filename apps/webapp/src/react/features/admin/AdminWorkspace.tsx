@@ -27,6 +27,7 @@ type AdminWorkspaceProps = {
   panelVisibility: {
     queue: boolean;
     dynamicPolicy: boolean;
+    liveOps: boolean;
     runtimeFlags: boolean;
     runtimeBot: boolean;
     runtimeMeta: boolean;
@@ -36,6 +37,13 @@ type AdminWorkspaceProps = {
   dynamicPolicyDraft: string;
   dynamicPolicyError: string;
   dynamicPolicySaving: boolean;
+  liveOpsCampaignData: Record<string, unknown> | null;
+  liveOpsCampaignDispatchData: Record<string, unknown> | null;
+  liveOpsCampaignDraft: string;
+  liveOpsCampaignError: string;
+  liveOpsCampaignDispatchError: string;
+  liveOpsCampaignSaving: boolean;
+  liveOpsCampaignDispatching: boolean;
   runtimeFlagsData: Record<string, unknown> | null;
   runtimeFlagsDraft: string;
   runtimeFlagsError: string;
@@ -61,6 +69,11 @@ type AdminWorkspaceProps = {
   onDynamicPolicyDraftChange: (value: string) => void;
   onRefreshDynamicPolicy: () => void;
   onSaveDynamicPolicy: () => void;
+  onLiveOpsCampaignDraftChange: (value: string) => void;
+  onRefreshLiveOpsCampaign: () => void;
+  onSaveLiveOpsCampaign: () => void;
+  onDryRunLiveOpsCampaign: () => void;
+  onDispatchLiveOpsCampaign: () => void;
   onRuntimeFlagsDraftChange: (value: string) => void;
   onRefreshRuntimeFlags: () => void;
   onSaveRuntimeFlags: () => void;
@@ -113,6 +126,18 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
       onDynamicPolicyDraftChange={props.onDynamicPolicyDraftChange}
       onRefreshDynamicPolicy={props.onRefreshDynamicPolicy}
       onSaveDynamicPolicy={props.onSaveDynamicPolicy}
+      liveOpsCampaignData={props.liveOpsCampaignData}
+      liveOpsCampaignDispatchData={props.liveOpsCampaignDispatchData}
+      liveOpsCampaignDraft={props.liveOpsCampaignDraft}
+      liveOpsCampaignError={props.liveOpsCampaignError}
+      liveOpsCampaignDispatchError={props.liveOpsCampaignDispatchError}
+      liveOpsCampaignSaving={props.liveOpsCampaignSaving}
+      liveOpsCampaignDispatching={props.liveOpsCampaignDispatching}
+      onLiveOpsCampaignDraftChange={props.onLiveOpsCampaignDraftChange}
+      onRefreshLiveOpsCampaign={props.onRefreshLiveOpsCampaign}
+      onSaveLiveOpsCampaign={props.onSaveLiveOpsCampaign}
+      onDryRunLiveOpsCampaign={props.onDryRunLiveOpsCampaign}
+      onDispatchLiveOpsCampaign={props.onDispatchLiveOpsCampaign}
       runtimeFlagsData={props.runtimeFlagsData}
       runtimeFlagsDraft={props.runtimeFlagsDraft}
       runtimeFlagsError={props.runtimeFlagsError}

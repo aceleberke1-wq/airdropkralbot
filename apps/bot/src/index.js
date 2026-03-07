@@ -445,16 +445,23 @@ async function resolveMiniAppRouteUrl(pool, appConfig, telegramId, navigation = 
 }
 
 async function resolveAdminWorkspaceUrls(pool, appConfig, telegramId) {
-  const { admin_workspace = "", admin_queue = "", admin_policy = "", admin_runtime = "" } = await resolveMiniAppAdminLaunchSurfaceBundle(
+  const {
+    admin_workspace = "",
+    admin_queue = "",
+    admin_policy = "",
+    admin_live_ops = "",
+    admin_runtime = ""
+  } = await resolveMiniAppAdminLaunchSurfaceBundle(
     pool,
     appConfig,
     telegramId,
-    ["admin_workspace", "admin_queue", "admin_policy", "admin_runtime"]
+    ["admin_workspace", "admin_queue", "admin_policy", "admin_live_ops", "admin_runtime"]
   );
   return {
     adminUrl: admin_workspace,
     queueUrl: admin_queue,
     policyUrl: admin_policy,
+    liveOpsUrl: admin_live_ops,
     runtimeUrl: admin_runtime
   };
 }
@@ -3453,7 +3460,7 @@ async function sendAdminPayoutQueue(ctx, pool, appConfig) {
   const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
   await ctx.replyWithMarkdown(
     `*Payout Queue*\n${lines}`,
-    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -3486,7 +3493,7 @@ async function sendAdminTokenQueue(ctx, pool, appConfig) {
   const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
   await ctx.replyWithMarkdown(
     `*Token Queue*\n${lines}`,
-    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -3511,7 +3518,7 @@ async function sendAdminQueue(ctx, pool, appConfig) {
   const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
   await ctx.replyWithMarkdown(
     messages.formatAdminQueue(payload),
-    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -3531,7 +3538,7 @@ async function sendAdminMetrics(ctx, pool, appConfig) {
       `Payout: *${Number(metrics.payouts_requested_24h || 0)}* req / *${Number(metrics.payouts_paid_24h || 0)}* paid / *${Number(metrics.payouts_paid_btc_24h || 0).toFixed(8)} BTC*\n` +
       `Token: *${Number(metrics.token_intents_24h || 0)}* intents / *${Number(metrics.token_approved_24h || 0)}* approved / *$${Number(metrics.token_usd_volume_24h || 0).toFixed(2)}*\n` +
       `Today emission: *${Number(metrics.sc_today || 0).toFixed(2)} SC* | *${Number(metrics.hc_today || 0).toFixed(2)} HC* | *${Number(metrics.rc_today || 0).toFixed(2)} RC*`,
-    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -3564,8 +3571,23 @@ async function sendAdminLive(ctx, pool, appConfig) {
       { label: "Admin Workspace", url: launch.adminUrl },
       { label: "Unified Queue", url: launch.queueUrl },
       { label: "Policy Panel", url: launch.policyUrl },
+      { label: "Live Ops", url: launch.liveOpsUrl },
       { label: "Runtime Panel", url: launch.runtimeUrl }
     ])
+  );
+}
+
+async function sendAdminLiveOps(ctx, pool, appConfig) {
+  if (!(await ensureAdminCtx(ctx, appConfig))) {
+    return;
+  }
+  const lang = normalizeLanguage(ctx.from?.language_code, "tr");
+  const launch = await resolveAdminWorkspaceUrls(pool, appConfig, ctx.from?.id);
+  await ctx.replyWithMarkdown(
+    `*Live Ops Campaign Push*\n` +
+      `Campaign snapshot, dry-run ve canli dispatch akisi tek panelde acilir.\n` +
+      `Kullanim: *targeting + localize copy + canonical CTA*`,
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -3598,7 +3620,7 @@ async function sendAdminConfig(ctx, pool, appConfig) {
       `Release: *${release.enabled ? "ON" : "OFF"}* (${String(release.mode || "tiered_drip")})\n` +
       `Release Global Cap: *$${Math.floor(Number(release.global_cap_min_usd || 0))}*\n` +
       `Release Daily Drip Max: *${(Number(release.daily_drip_pct_max || 0) * 100).toFixed(2)}%*`,
-    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang)
+    buildAdminWorkspaceKeyboard(launch.adminUrl, launch.queueUrl, launch.policyUrl, launch.runtimeUrl, lang, launch.liveOpsUrl)
   );
 }
 
@@ -5578,6 +5600,7 @@ function buildCommandHandlerMap({ pool, appConfig }) {
 
   map.set("admin", async (ctx) => sendAdminPanel(ctx, pool, appConfig));
   map.set("admin_live", async (ctx) => sendAdminLive(ctx, pool, appConfig));
+  map.set("admin_live_ops", async (ctx) => sendAdminLiveOps(ctx, pool, appConfig));
   map.set("admin_queue", async (ctx) => sendAdminQueue(ctx, pool, appConfig));
   map.set("admin_payouts", async (ctx) => sendAdminPayoutQueue(ctx, pool, appConfig));
   map.set("admin_tokens", async (ctx) => sendAdminTokenQueue(ctx, pool, appConfig));

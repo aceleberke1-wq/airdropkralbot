@@ -97,6 +97,7 @@ const HELP_CATEGORY_BY_COMMAND = Object.freeze({
   whoami: "system",
   admin: "admin",
   admin_live: "admin",
+  admin_live_ops: "admin",
   admin_queue: "admin",
   admin_payouts: "admin",
   admin_tokens: "admin",
@@ -153,6 +154,7 @@ const HELP_RELATIONS = Object.freeze({
   whoami: Object.freeze(["status", "help", "admin"]),
   admin: Object.freeze(["admin_live", "admin_queue", "admin_metrics"]),
   admin_live: Object.freeze(["admin", "admin_metrics", "admin_config"]),
+  admin_live_ops: Object.freeze(["admin_live", "admin_metrics", "admin_config"]),
   admin_queue: Object.freeze(["admin_payouts", "admin_tokens", "pay"]),
   admin_payouts: Object.freeze(["admin_queue", "pay", "reject_payout"]),
   admin_tokens: Object.freeze(["admin_queue", "approve_token", "reject_token"]),
@@ -209,6 +211,12 @@ const HELP_COPY_OVERRIDES = Object.freeze({
     purpose_en: "Unifies payout and token queues for admin actions.",
     when_to_use_tr: "Canary veya yogun saatlerde kuyruk sikisikligini tek panelden yonetmek icin kullan.",
     when_to_use_en: "Use during queue pressure to control actions from one panel."
+  }),
+  admin_live_ops: Object.freeze({
+    purpose_tr: "Canli campaign push konfigunu kaydeder, segment secimini dogrular ve dry-run/canli gonderim akislarini yonetir.",
+    purpose_en: "Controls live campaign push config, segment targeting and dry-run/live dispatch flows.",
+    when_to_use_tr: "Re-engagement veya segment bazli chat campaign'i engineering'e dokunmadan yonetmek istediginde kullan.",
+    when_to_use_en: "Use when operating re-engagement or segment-based chat campaigns without engineering changes."
   }),
   admin_gate: Object.freeze({
     purpose_tr: "Payout gate esigini/targetini gunceller; acilim kararini market cap ve drip ile hizalar.",

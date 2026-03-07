@@ -63,6 +63,7 @@ const BOT_UI_TEXT = Object.freeze({
     open_leaderboard_panel: "Leaderboard",
     open_admin_workspace: "Admin Workspace",
     admin_policy_panel: "Policy Panel",
+    admin_live_ops_panel: "Live Ops",
     admin_runtime_panel: "Runtime Panel",
     back_to_panel: "Bot Paneline Don",
     open_browser: "Tarayici ile Ac",
@@ -148,6 +149,7 @@ const BOT_UI_TEXT = Object.freeze({
     open_leaderboard_panel: "Leaderboard",
     open_admin_workspace: "Admin Workspace",
     admin_policy_panel: "Policy Panel",
+    admin_live_ops_panel: "Live Ops",
     admin_runtime_panel: "Runtime Panel",
     back_to_panel: "Back to Bot Panel",
     open_browser: "Open in Browser",
@@ -654,12 +656,13 @@ function buildAdminKeyboard(snapshot = {}, lang = "tr", launchEntries = []) {
   return Markup.inlineKeyboard(rows, { columns: 1 });
 }
 
-function buildAdminWorkspaceKeyboard(adminUrl, queueUrl, policyUrl, runtimeUrl, lang = "tr") {
+function buildAdminWorkspaceKeyboard(adminUrl, queueUrl, policyUrl, runtimeUrl, lang = "tr", liveOpsUrl = "") {
   return buildLaunchSurfaceGridKeyboard(
     [
       { surfaceKey: "admin_workspace", url: adminUrl },
       { surfaceKey: "admin_queue", url: queueUrl },
       { surfaceKey: "admin_policy", url: policyUrl },
+      { surfaceKey: "admin_live_ops", url: liveOpsUrl },
       { surfaceKey: "admin_runtime", url: runtimeUrl }
     ],
     lang,

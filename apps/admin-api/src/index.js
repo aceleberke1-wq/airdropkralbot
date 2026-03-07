@@ -49,6 +49,7 @@ const { registerWebappV2PlayerRoutes } = require("./routes/webapp/v2/playerRoute
 const { registerWebappV2PvpRoutes } = require("./routes/webapp/v2/pvpRoutes");
 const { registerWebappV2TokenRoutes } = require("./routes/webapp/v2/tokenRoutes");
 const { registerWebappV2AdminRuntimeRoutes } = require("./routes/webapp/v2/adminRuntimeRoutes");
+const { registerWebappV2AdminLiveOpsRoutes } = require("./routes/webapp/v2/adminLiveOpsRoutes");
 const { registerWebappV2UiPrefsRoutes } = require("./routes/webapp/v2/uiPrefsRoutes");
 const { registerWebappV2GrowthRoutes } = require("./routes/webapp/v2/growthRoutes");
 const { registerWebappV2MonetizationRoutes } = require("./routes/webapp/v2/monetizationRoutes");
@@ -10515,6 +10516,21 @@ registerWebappV2MonetizationRoutes(fastify, {
 
 registerWebappV2AdminRuntimeRoutes(fastify, {
   proxyWebAppApiV1
+});
+
+registerWebappV2AdminLiveOpsRoutes(fastify, {
+  pool,
+  verifyWebAppAuth,
+  requireWebAppAdmin,
+  issueWebAppSession,
+  contracts: contractsV2,
+  fetchImpl: typeof fetch === "function" ? fetch.bind(globalThis) : null,
+  botToken: BOT_TOKEN,
+  botUsername: BOT_USERNAME,
+  webappPublicUrl: WEBAPP_PUBLIC_URL,
+  webappHmacSecret: WEBAPP_HMAC_SECRET,
+  resolveWebappVersion: async () => resolveWebAppVersion(pool),
+  logger: fastify.log
 });
 
 registerWebappV2AdminTokenDynamicPolicyRoutes(fastify, {
