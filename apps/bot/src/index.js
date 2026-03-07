@@ -472,25 +472,44 @@ async function resolveMiniAppLaunchSurfaceBundle(pool, appConfig, telegramId, su
   return resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, buildLaunchSurfaceEntries(surfaceKeys, PLAYER_LAUNCH_SURFACE_CATALOG));
 }
 
-async function resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, telegramId, alertKey) {
+async function resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, telegramId, alertKey, options = {}) {
   const alertConfig = resolveChatAlertConfig(alertKey);
   if (!alertConfig) {
     return [];
   }
+  const overrideBySlot = new Map(
+    (Array.isArray(options.surfaces) ? options.surfaces : [])
+      .map((slot) => {
+        const slotKey = String(slot?.slotKey || slot?.slot_key || "").trim();
+        const surfaceKey = String(slot?.surfaceKey || slot?.surface_key || "").trim();
+        if (!slotKey || !surfaceKey) {
+          return null;
+        }
+        return [slotKey, { slotKey, surfaceKey }];
+      })
+      .filter(Boolean)
+  );
+  const overrideSurfaces = Array.isArray(options.surfaces) ? options.surfaces : [];
+  const fallbackSurfaceKeys = Array.isArray(options.surfaceKeys) ? options.surfaceKeys : [];
   const entries = alertConfig.surfaces
-    .map((slot) => {
-      const surface = resolveLaunchSurface(slot.surface_key, PLAYER_LAUNCH_SURFACE_CATALOG);
+    .map((slot, index) => {
+      const baseSlotKey = String(slot.slot_key || "").trim();
+      const indexedOverride = overrideSurfaces[index];
+      const override = overrideBySlot.get(baseSlotKey) || indexedOverride || null;
+      const slotKey = String(override?.slotKey || baseSlotKey || `slot_${index + 1}`).trim();
+      const targetSurfaceKey = String(override?.surfaceKey || fallbackSurfaceKeys[index] || slot.surface_key || "").trim();
+      const surface = resolveLaunchSurface(targetSurfaceKey, PLAYER_LAUNCH_SURFACE_CATALOG);
       if (!surface?.commandKey) {
         return null;
       }
       return {
-        key: String(slot.slot_key || surface.key || "").trim(),
+        key: slotKey,
         commandKey: surface.commandKey,
         surfaceKey: surface.key,
         overrides: {
           ...(surface.overrides || {}),
           shellActionKey: surface.shellActionKey || surface.overrides?.shellActionKey || "",
-          launchEventKey: resolveAlertLaunchEventKey(alertConfig.key, slot.slot_key || surface.key || "")
+          launchEventKey: resolveAlertLaunchEventKey(alertConfig.key, slotKey || surface.key || "")
         }
       };
     })
@@ -624,6 +643,73 @@ function resolvePreferredLanguage(profile, ctx, fallback = "tr") {
     fallback
   });
   return normalizeLanguage(resolved.language, fallback);
+}
+
+const TRUST_ALERT_SURFACE_OVERRIDES = Object.freeze({
+  token_update: Object.freeze([
+    Object.freeze({ slotKey: "wallet_lane", surfaceKey: "wallet_panel" }),
+    Object.freeze({ slotKey: "support", surfaceKey: "support_panel" })
+  ])
+});
+
+async function sendUserTrustNotification(ctx, pool, appConfig, options = {}) {
+  const userId = Number(options.userId || 0);
+  if (!userId || !ctx?.telegram) {
+    return { ok: false, reason: "invalid_user" };
+  }
+
+  const profile = await withTransaction(pool, async (db) => userStore.getProfileByUserId(db, userId));
+  if (!profile?.telegram_id) {
+    logEvent("user_trust_notification_skipped", {
+      user_id: userId,
+      notification_key: String(options.notificationKey || options.alertKey || "trust_update"),
+      reason: "profile_not_found"
+    });
+    return { ok: false, reason: "profile_not_found" };
+  }
+
+  const lang = normalizeLanguage(options.lang || profile.locale, "tr");
+  const text = String(
+    typeof options.buildText === "function" ? options.buildText({ profile, lang }) : options.text || ""
+  ).trim();
+  if (!text) {
+    return { ok: false, reason: "text_missing" };
+  }
+
+  const alertEntries = options.alertKey
+    ? await resolveMiniAppChatAlertSurfaceBundle(pool, appConfig, profile.telegram_id, options.alertKey, {
+        surfaces: options.surfaces
+      })
+    : [];
+  const keyboard = buildAlertSurfaceKeyboard(alertEntries, lang);
+
+  try {
+    await ctx.telegram.sendMessage(profile.telegram_id, text, {
+      parse_mode: "Markdown",
+      ...(keyboard || {})
+    });
+    logEvent("user_trust_notification_sent", {
+      user_id: userId,
+      telegram_id: Number(profile.telegram_id || 0),
+      notification_key: String(options.notificationKey || options.alertKey || "trust_update"),
+      alert_key: String(options.alertKey || ""),
+      decision: String(options.decision || ""),
+      request_id: Number(options.requestId || 0),
+      surface_count: alertEntries.length
+    });
+    return { ok: true, lang };
+  } catch (err) {
+    logEvent("user_trust_notification_failed", {
+      user_id: userId,
+      telegram_id: Number(profile.telegram_id || 0),
+      notification_key: String(options.notificationKey || options.alertKey || "trust_update"),
+      alert_key: String(options.alertKey || ""),
+      decision: String(options.decision || ""),
+      request_id: Number(options.requestId || 0),
+      error: String(err?.message || err).slice(0, 240)
+    });
+    return { ok: false, reason: "send_failed" };
+  }
 }
 
 function parseLanguageChoice(input) {
@@ -3972,12 +4058,29 @@ async function adminMarkPayoutPaid(ctx, pool, appConfig, requestIdRaw, txHashRaw
     await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout", "Talep reddedilmis, paid yapilamaz."));
     return;
   }
+  if (result.status === "already_paid") {
+    await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout Paid", `Talep #${requestId} zaten paid.`));
+    return;
+  }
   await ctx.replyWithMarkdown(
     messages.formatAdminActionResult(
       "Payout Paid",
       `Talep #${requestId} paid olarak kaydedildi. TX: ${txHash.slice(0, 28)}`
     )
   );
+  await sendUserTrustNotification(ctx, pool, appConfig, {
+    userId: Number(result.request?.user_id || 0),
+    requestId,
+    alertKey: "payout_update",
+    notificationKey: "payout_decision",
+    decision: "paid",
+    buildText: ({ lang }) =>
+      messages.formatPayoutDecisionUpdate(result.request, {
+        lang,
+        decision: "paid",
+        txHash
+      })
+  });
 }
 
 async function adminRejectPayout(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
@@ -4006,6 +4109,21 @@ async function adminRejectPayout(ctx, pool, appConfig, requestIdRaw, reasonRaw) 
         ? "Talep bulunamadi veya zaten paid."
         : "Islem tamamlanamadi.";
   await ctx.replyWithMarkdown(messages.formatAdminActionResult("Payout Reject", text));
+  if (result.status === "rejected") {
+    await sendUserTrustNotification(ctx, pool, appConfig, {
+      userId: Number(result.request?.user_id || 0),
+      requestId,
+      alertKey: "payout_update",
+      notificationKey: "payout_decision",
+      decision: "rejected",
+      buildText: ({ lang }) =>
+        messages.formatPayoutDecisionUpdate(result.request, {
+          lang,
+          decision: "rejected",
+          reason
+        })
+    });
+  }
 }
 
 async function approveTokenRequestTx(
@@ -4150,6 +4268,19 @@ async function adminApproveToken(ctx, pool, appConfig, requestIdRaw, noteRaw) {
   await ctx.replyWithMarkdown(
     messages.formatAdminActionResult("Token Approve", `Talep #${requestId} onaylandi.`)
   );
+  await sendUserTrustNotification(ctx, pool, appConfig, {
+    userId: Number(result.updated?.user_id || 0),
+    requestId,
+    alertKey: "payout_update",
+    notificationKey: "token_decision",
+    decision: "approved",
+    surfaces: TRUST_ALERT_SURFACE_OVERRIDES.token_update,
+    buildText: ({ lang }) =>
+      messages.formatTokenDecisionUpdate(result.updated, {
+        lang,
+        decision: "approved"
+      })
+  });
 }
 
 async function adminRejectToken(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
@@ -4174,7 +4305,7 @@ async function adminRejectToken(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
       if (String(locked.status) === "approved") {
         return { ok: false, reason: "already_approved" };
       }
-      await tokenStore.markPurchaseRejected(db, {
+      const updated = await tokenStore.markPurchaseRejected(db, {
         requestId,
         adminId: Number(appConfig.adminTelegramId || 0),
         reason
@@ -4188,7 +4319,7 @@ async function adminRejectToken(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
           JSON.stringify({ reason })
         ]
       );
-      return { ok: true };
+      return { ok: true, request: updated };
     });
   } catch (err) {
     if (err.code === "42P01") {
@@ -4200,6 +4331,22 @@ async function adminRejectToken(ctx, pool, appConfig, requestIdRaw, reasonRaw) {
 
   const msg = result.ok ? `Talep #${requestId} reddedildi.` : `Basarisiz: ${result.reason}`;
   await ctx.replyWithMarkdown(messages.formatAdminActionResult("Token Reject", msg));
+  if (result.ok) {
+    await sendUserTrustNotification(ctx, pool, appConfig, {
+      userId: Number(result.request?.user_id || 0),
+      requestId,
+      alertKey: "payout_update",
+      notificationKey: "token_decision",
+      decision: "rejected",
+      surfaces: TRUST_ALERT_SURFACE_OVERRIDES.token_update,
+      buildText: ({ lang }) =>
+        messages.formatTokenDecisionUpdate(result.request, {
+          lang,
+          decision: "rejected",
+          reason
+        })
+    });
+  }
 }
 
 async function adminSetFreeze(ctx, pool, appConfig, freeze, reasonRaw) {

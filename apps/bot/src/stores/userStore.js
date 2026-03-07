@@ -81,6 +81,29 @@ async function getProfileByTelegramId(db, telegramId) {
   return result.rows[0] || null;
 }
 
+async function getProfileByUserId(db, userId) {
+  const result = await db.query(
+    `SELECT
+       u.id AS user_id,
+       u.telegram_id,
+       u.locale,
+       i.public_name,
+       i.kingdom_tier,
+       i.reputation_score,
+       i.prestige_level,
+       i.season_rank,
+       COALESCE(s.current_streak, 0) AS current_streak,
+       COALESCE(s.best_streak, 0) AS best_streak,
+       s.grace_until
+     FROM users u
+     JOIN identities i ON i.user_id = u.id
+     LEFT JOIN streaks s ON s.user_id = u.id
+     WHERE u.id = $1;`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
 async function setLocaleByTelegramId(db, { telegramId, locale }) {
   const result = await db.query(
     `UPDATE users
@@ -208,6 +231,7 @@ module.exports = {
   ensureStreak,
   computeNextStreak,
   getProfileByTelegramId,
+  getProfileByUserId,
   setLocaleByTelegramId,
   touchStreakOnAction,
   addReputation,
