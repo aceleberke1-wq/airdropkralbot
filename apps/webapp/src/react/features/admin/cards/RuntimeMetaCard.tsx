@@ -26,8 +26,51 @@ function readNum(source: Record<string, unknown> | null, key: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+function readText(source: Record<string, unknown> | null, key: string): string {
+  if (!source) return "";
+  return String(source[key] || "");
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function asRows(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
+    : [];
+}
+
 function toPct(value: number): string {
   return `${Math.round(Math.max(0, value) * 100)}%`;
+}
+
+function formatStamp(value: unknown): string {
+  const raw = String(value || "").trim();
+  return raw || "-";
+}
+
+function BreakdownList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrChipRow">
+        {props.rows.slice(0, 6).map((row, index) => (
+          <span className="akrChip" key={`${props.title}_${String(row.bucket_key || index)}`}>
+            {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
@@ -39,6 +82,13 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const submitToApproved = readNum(props.metricsData, "funnel_submit_to_approved_rate_24h");
   const qualityBand = String(props.metricsData?.ui_event_quality_band_24h || "unknown");
   const funnelBand = String(props.metricsData?.funnel_conversion_band_24h || "unknown");
+  const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
+    asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
+  const localeBreakdown = asRows(liveOpsKpi?.locale_breakdown);
+  const segmentBreakdown = asRows(liveOpsKpi?.segment_breakdown);
+  const surfaceBreakdown = asRows(liveOpsKpi?.surface_breakdown);
+  const variantBreakdown = asRows(liveOpsKpi?.variant_breakdown);
+  const cohortBreakdown = asRows(liveOpsKpi?.cohort_breakdown);
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_meta">
@@ -65,6 +115,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         >
           {t(props.lang, "admin_nav_bot")}
         </button>
+        <button
+          className="akrBtn akrBtnGhost"
+          onClick={() => props.onSurfaceAction("admin_runtime_meta", "live_ops", SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL, "panel_admin_runtime")}
+        >
+          {t(props.lang, "admin_nav_live_ops")}
+        </button>
         <button className="akrBtn akrBtnAccent" onClick={props.onReloadAssets} disabled={props.assetsReloading}>
           {props.assetsReloading ? t(props.lang, "admin_runtime_assets_reloading") : t(props.lang, "admin_runtime_assets_reload")}
         </button>
@@ -88,6 +144,52 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <span className="akrChip">S-&gt;A: {toPct(submitToApproved)}</span>
         <span className="akrChip">Funnel Band: {funnelBand}</span>
       </div>
+      <section className="akrMiniPanel" data-akr-focus-key="live_ops_kpi">
+        <h3>{t(props.lang, "admin_runtime_live_ops_kpi_title")}</h3>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_campaign_label")}: {readText(liveOpsKpi, "campaign_key") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_sent_24h")}: {Math.floor(readNum(liveOpsKpi, "sent_24h"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_sent_7d")}: {Math.floor(readNum(liveOpsKpi, "sent_7d"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_unique_7d")}: {Math.floor(readNum(liveOpsKpi, "unique_users_7d"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ready_label")}:{" "}
+            {liveOpsKpi?.ready_for_auto_dispatch ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_schedule_label")}: {readText(liveOpsKpi, "schedule_state") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_approval_label")}: {readText(liveOpsKpi, "approval_state") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_experiment_label")}: {readText(liveOpsKpi, "experiment_key") || "-"}
+          </span>
+        </div>
+        <div className="akrStack">
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_latest_dispatch_label")}: {formatStamp(liveOpsKpi?.latest_dispatch_at)} /{" "}
+            {readText(liveOpsKpi, "latest_dispatch_ref") || "-"}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_latest_auto_label")}: {formatStamp(liveOpsKpi?.latest_auto_dispatch_at)} /{" "}
+            {readText(liveOpsKpi, "latest_auto_dispatch_ref") || "-"}
+          </p>
+          {readText(liveOpsKpi, "error_code") ? <p className="akrErrorLine">{readText(liveOpsKpi, "error_code")}</p> : null}
+        </div>
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_locale_title")} rows={localeBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_segment_title")} rows={segmentBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_surface_title")} rows={surfaceBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_variant_title")} rows={variantBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_cohort_title")} rows={cohortBreakdown} />
+      </section>
       {props.opsKpiRunError ? <p className="akrErrorLine">{props.opsKpiRunError}</p> : null}
       <pre className="akrJsonBlock">{JSON.stringify(props.metricsData || {}, null, 2)}</pre>
       <pre className="akrJsonBlock">{JSON.stringify(props.opsKpiData || {}, null, 2)}</pre>

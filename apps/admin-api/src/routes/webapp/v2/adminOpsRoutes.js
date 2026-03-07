@@ -1,6 +1,7 @@
 "use strict";
 
 const { createKpiOpsService } = require("../../../services/kpi/kpiOpsService");
+const { createLiveOpsChatCampaignService } = require("../../../services/liveOpsChatCampaignService");
 
 function parseNumericInput(value) {
   if (value == null || value === "") {
@@ -27,6 +28,89 @@ function parseBooleanInput(value) {
   return undefined;
 }
 
+function normalizeBreakdownRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((row) => ({
+      bucket_key: String(row?.bucket_key || "unknown"),
+      item_count: Math.max(0, Number(row?.item_count || 0))
+    }))
+    .filter((row) => row.bucket_key)
+    .slice(0, 8);
+}
+
+function buildLiveOpsCampaignKpiSummary(snapshot) {
+  const safeSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const campaign = safeSnapshot.campaign && typeof safeSnapshot.campaign === "object" ? safeSnapshot.campaign : {};
+  const approval = safeSnapshot.approval_summary && typeof safeSnapshot.approval_summary === "object" ? safeSnapshot.approval_summary : {};
+  const scheduler = safeSnapshot.scheduler_summary && typeof safeSnapshot.scheduler_summary === "object" ? safeSnapshot.scheduler_summary : {};
+  const delivery = safeSnapshot.delivery_summary && typeof safeSnapshot.delivery_summary === "object" ? safeSnapshot.delivery_summary : {};
+  const latestDispatch = safeSnapshot.latest_dispatch && typeof safeSnapshot.latest_dispatch === "object" ? safeSnapshot.latest_dispatch : {};
+  return {
+    available: true,
+    error_code: "",
+    campaign_key: String(campaign.campaign_key || ""),
+    version: Math.max(0, Number(safeSnapshot.version || 0)),
+    enabled: campaign.enabled === true,
+    status: String(campaign.status || ""),
+    approval_state: String(approval.approval_state || "not_requested"),
+    schedule_state: String(scheduler.schedule_state || approval.schedule_state || "missing"),
+    ready_for_auto_dispatch: scheduler.ready_for_auto_dispatch === true,
+    latest_dispatch_ref: String(latestDispatch.last_dispatch_ref || ""),
+    latest_dispatch_at: latestDispatch.last_sent_at || null,
+    latest_auto_dispatch_ref: String(scheduler.latest_auto_dispatch_ref || ""),
+    latest_auto_dispatch_at: scheduler.latest_auto_dispatch_at || null,
+    sent_24h: Math.max(0, Number(delivery.sent_24h || 0)),
+    sent_7d: Math.max(0, Number(delivery.sent_7d || 0)),
+    unique_users_7d: Math.max(0, Number(delivery.unique_users_7d || 0)),
+    experiment_key: String(delivery.experiment_key || "webapp_react_v1"),
+    experiment_assignment_available: delivery.experiment_assignment_available === true,
+    locale_breakdown: normalizeBreakdownRows(delivery.locale_breakdown),
+    segment_breakdown: normalizeBreakdownRows(delivery.segment_breakdown),
+    surface_breakdown: normalizeBreakdownRows(delivery.surface_breakdown),
+    variant_breakdown: normalizeBreakdownRows(delivery.variant_breakdown),
+    cohort_breakdown: normalizeBreakdownRows(delivery.cohort_breakdown)
+  };
+}
+
+async function getLiveOpsCampaignKpiSummary(service, logger) {
+  try {
+    const snapshot = await service.getCampaignSnapshot();
+    return buildLiveOpsCampaignKpiSummary(snapshot);
+  } catch (err) {
+    if (logger && typeof logger.warn === "function") {
+      logger.warn({ err }, "live_ops_campaign_kpi_summary_failed");
+    }
+    return {
+      available: false,
+      error_code: String(err?.code || err?.message || "live_ops_campaign_kpi_summary_failed"),
+      campaign_key: "",
+      version: 0,
+      enabled: false,
+      status: "",
+      approval_state: "not_requested",
+      schedule_state: "missing",
+      ready_for_auto_dispatch: false,
+      latest_dispatch_ref: "",
+      latest_dispatch_at: null,
+      latest_auto_dispatch_ref: "",
+      latest_auto_dispatch_at: null,
+      sent_24h: 0,
+      sent_7d: 0,
+      unique_users_7d: 0,
+      experiment_key: "webapp_react_v1",
+      experiment_assignment_available: false,
+      locale_breakdown: [],
+      segment_breakdown: [],
+      surface_breakdown: [],
+      variant_breakdown: [],
+      cohort_breakdown: []
+    };
+  }
+}
+
 function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
   const pool = deps.pool;
   const verifyWebAppAuth = deps.verifyWebAppAuth;
@@ -49,7 +133,27 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
     throw new Error("registerWebappV2AdminOpsRoutes requires issueWebAppSession");
   }
 
-  const service = createKpiOpsService({ repoRootDir, pool, logger });
+  const service = deps.service || createKpiOpsService({ repoRootDir, pool, logger });
+  const liveOpsService =
+    deps.liveOpsService ||
+    createLiveOpsChatCampaignService({
+      pool,
+      fetchImpl: deps.fetchImpl,
+      botToken: deps.botToken,
+      botUsername: deps.botUsername,
+      webappPublicUrl: deps.webappPublicUrl,
+      webappHmacSecret: deps.webappHmacSecret,
+      resolveWebappVersion: deps.resolveWebappVersion,
+      logger(level, payload) {
+        if (typeof deps.logger?.[level] === "function") {
+          deps.logger[level](payload);
+          return;
+        }
+        if (typeof deps.logger === "function") {
+          deps.logger(level, payload);
+        }
+      }
+    });
   const latestResponseSchema = contracts.KpiBundleSnapshotResponseSchema;
   const runRequestSchema = contracts.KpiBundleRunRequestSchema;
   const snapshotSchema = contracts.KpiBundleSnapshotSchema;
@@ -91,6 +195,7 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
         const webappExperiment = await service.getWebappExperimentSummary({
           experiment_key: "webapp_react_v1"
         });
+        const liveOpsCampaign = await getLiveOpsCampaignKpiSummary(liveOpsService, logger);
         const parsedSnapshot = snapshotSchema ? snapshotSchema.safeParse(latest.bundle) : { success: true, data: latest.bundle };
         if (!parsedSnapshot.success) {
           logger.warn({ issues: parsedSnapshot.error?.issues || [] }, "kpi_latest_schema_validation_failed");
@@ -102,7 +207,8 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
           api_version: "v2",
           snapshot: parsedSnapshot.data,
           source: "docs_latest",
-          webapp_experiment: webappExperiment
+          webapp_experiment: webappExperiment,
+          live_ops_campaign: liveOpsCampaign
         };
         if (latestResponseSchema) {
           const parsedPayload = latestResponseSchema.safeParse(payload);
@@ -198,6 +304,7 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
       const webappExperiment = await service.getWebappExperimentSummary({
         experiment_key: "webapp_react_v1"
       });
+      const liveOpsCampaign = await getLiveOpsCampaignKpiSummary(liveOpsService, logger);
 
       if (!run.snapshot) {
         reply.code(502).send({
@@ -225,6 +332,7 @@ function registerWebappV2AdminOpsRoutes(fastify, deps = {}) {
         source: "kpi_bundle_runner",
         snapshot: parsedSnapshot.data,
         webapp_experiment: webappExperiment,
+        live_ops_campaign: liveOpsCampaign,
         run: {
           run_ref: run.run_ref,
           status: run.status,

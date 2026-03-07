@@ -179,6 +179,37 @@ const KpiBundleRunRequestSchema = z.object({
   emit_slo: z.boolean().optional()
 });
 
+const KpiLiveOpsCampaignBreakdownSchema = z.object({
+  bucket_key: z.string().default("unknown"),
+  item_count: z.number().int().nonnegative().default(0)
+});
+
+const KpiLiveOpsCampaignSummarySchema = z.object({
+  available: z.boolean().default(false),
+  error_code: z.string().default(""),
+  campaign_key: z.string().default(""),
+  version: z.number().int().nonnegative().default(0),
+  enabled: z.boolean().default(false),
+  status: z.string().default(""),
+  approval_state: z.string().default("not_requested"),
+  schedule_state: z.string().default("missing"),
+  ready_for_auto_dispatch: z.boolean().default(false),
+  latest_dispatch_ref: z.string().default(""),
+  latest_dispatch_at: z.string().nullable().default(null),
+  latest_auto_dispatch_ref: z.string().default(""),
+  latest_auto_dispatch_at: z.string().nullable().default(null),
+  sent_24h: z.number().int().nonnegative().default(0),
+  sent_7d: z.number().int().nonnegative().default(0),
+  unique_users_7d: z.number().int().nonnegative().default(0),
+  experiment_key: z.string().default("webapp_react_v1"),
+  experiment_assignment_available: z.boolean().default(false),
+  locale_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  segment_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  surface_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  variant_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
+});
+
 const KpiBundleSnapshotResponseSchema = z.object({
   api_version: z.literal("v2"),
   snapshot: KpiBundleSnapshotSchema,
@@ -200,6 +231,7 @@ const KpiBundleSnapshotResponseSchema = z.object({
       )
     })
     .optional(),
+  live_ops_campaign: KpiLiveOpsCampaignSummarySchema.optional(),
   run: z
     .object({
       run_ref: z.string().min(4),
@@ -766,6 +798,7 @@ module.exports = {
   CommandContractV2Schema,
   ExperimentAssignmentSchema,
   KpiBundleRunRequestSchema,
+  KpiLiveOpsCampaignSummarySchema,
   KpiBundleSnapshotResponseSchema,
   KpiBundleSnapshotSchema,
   LocalizedStringMapSchema,
