@@ -24,7 +24,17 @@ function resolveKpiBundleArtifactPaths(repoRootDir) {
   };
 }
 
+function resolveChatAlertArtifactPaths(repoRootDir) {
+  const rootDir = resolveRuntimeArtifactsDir(repoRootDir);
+  const outDir = path.join(rootDir, "alerts");
+  return {
+    outDir,
+    latestJsonPath: path.join(outDir, "V5_CHAT_ALERT_DISPATCH_latest.json")
+  };
+}
+
 module.exports = {
   resolveRuntimeArtifactsDir,
-  resolveKpiBundleArtifactPaths
+  resolveKpiBundleArtifactPaths,
+  resolveChatAlertArtifactPaths
 };

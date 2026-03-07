@@ -114,6 +114,34 @@
 16. Canary guard (snapshot tabanli alarm esikleri):
 `npm run canary:v5:guard`
 
+## Chat alert automation
+1. Tek dispatch smoke:
+`npm run alerts:v5:dispatch -- --dry_run true --chest_limit 1 --mission_limit 1 --rare_limit 1 --season_limit 1 --event_limit 1 --comeback_limit 1 --streak_limit 1`
+2. Normal dispatch:
+`npm run alerts:v5:dispatch`
+3. Windows Task Scheduler kaydi (saatlik):
+`powershell -ExecutionPolicy Bypass -File scripts/register_v5_chat_alert_tasks.ps1 -TaskName "AirdropKralBot-V5-ChatAlerts-1H" -EveryHours 1`
+4. Scheduler kaldirma:
+`powershell -ExecutionPolicy Bypass -File scripts/register_v5_chat_alert_tasks.ps1 -TaskName "AirdropKralBot-V5-ChatAlerts-1H" -UnregisterOnly`
+5. Scheduler health kontrolu:
+`npm run alerts:v5:task:check`
+6. Uretilen artifact:
+- `.runtime-artifacts/alerts/V5_CHAT_ALERT_DISPATCH_latest.json`
+7. Canli alert kapsamı:
+- `chest_ready`
+- `mission_refresh`
+- `rare_drop`
+- `streak_risk`
+- `event_countdown`
+- `season_deadline`
+- `comeback_offer`
+8. Dedupe ve anti-spam kaynagi:
+- `behavior_events.event_type = chat_alert_sent`
+9. Opt-out kaynagi:
+- `user_ui_prefs.prefs_json`
+10. Bilerek disarida birakilan alert:
+- `kingdom_war` authoritative war-state kaynagi tamamlanmadan acilmaz.
+
 ## V5.3 staging + canary checklist
 1. Staging preflight:
 `npm run test:bot`

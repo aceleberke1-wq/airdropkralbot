@@ -2,7 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const { resolveRuntimeArtifactsDir, resolveKpiBundleArtifactPaths } = require("../../../packages/shared/src/runtimeArtifactPaths.js");
+const {
+  resolveRuntimeArtifactsDir,
+  resolveKpiBundleArtifactPaths,
+  resolveChatAlertArtifactPaths
+} = require("../../../packages/shared/src/runtimeArtifactPaths.js");
 
 test("runtime artifact paths default under repo-local ignored directory", () => {
   const repoRoot = process.cwd();
@@ -13,6 +17,9 @@ test("runtime artifact paths default under repo-local ignored directory", () => 
   assert.equal(kpi.outDir, path.join(repoRoot, ".runtime-artifacts", "kpi"));
   assert.equal(kpi.latestJsonPath, path.join(repoRoot, ".runtime-artifacts", "kpi", "V5_KPI_BUNDLE_latest.json"));
   assert.equal(kpi.latestMdPath, path.join(repoRoot, ".runtime-artifacts", "kpi", "V5_KPI_BUNDLE_latest.md"));
+  const alerts = resolveChatAlertArtifactPaths(repoRoot);
+  assert.equal(alerts.outDir, path.join(repoRoot, ".runtime-artifacts", "alerts"));
+  assert.equal(alerts.latestJsonPath, path.join(repoRoot, ".runtime-artifacts", "alerts", "V5_CHAT_ALERT_DISPATCH_latest.json"));
 });
 
 test("runtime artifact paths honor explicit relative override", () => {

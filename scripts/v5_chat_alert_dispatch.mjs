@@ -7,6 +7,7 @@ import pg from "pg";
 
 const require = createRequire(import.meta.url);
 const { buildPgPoolConfig } = require("../packages/shared/src/v5/dbConnection");
+const { resolveChatAlertArtifactPaths } = require("../packages/shared/src/runtimeArtifactPaths");
 const configService = require("../apps/bot/src/services/configService");
 const seasonStore = require("../apps/bot/src/stores/seasonStore");
 const { createChatAlertDispatchService } = require("../apps/admin-api/src/services/chatAlertDispatchService");
@@ -131,7 +132,27 @@ async function main() {
         .map((value) => Number(String(value || "").trim()))
         .filter((value) => Number.isFinite(value) && value > 0)
     });
+    const emitReport = parseBool(args.emit_report ?? args.emitReport ?? process.env.V5_CHAT_ALERT_DISPATCH_EMIT_REPORT, true);
+    let reportPath = "";
+    if (emitReport) {
+      const artifactPaths = resolveChatAlertArtifactPaths(repoRoot);
+      if (!fs.existsSync(artifactPaths.outDir)) {
+        fs.mkdirSync(artifactPaths.outDir, { recursive: true });
+      }
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z").replace("T", "_");
+      const stampedPath = path.join(artifactPaths.outDir, `V5_CHAT_ALERT_DISPATCH_${stamp}.json`);
+      const payload = {
+        generated_at: new Date().toISOString(),
+        ...result
+      };
+      fs.writeFileSync(stampedPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+      fs.writeFileSync(artifactPaths.latestJsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+      reportPath = stampedPath;
+    }
     console.log(JSON.stringify(result, null, 2));
+    if (reportPath) {
+      console.log(`[alerts] report=${reportPath}`);
+    }
     if (result.ok !== true) {
       process.exitCode = 1;
     }
