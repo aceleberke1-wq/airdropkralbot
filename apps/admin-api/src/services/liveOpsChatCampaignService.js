@@ -693,6 +693,35 @@ function buildApprovalSummary(campaign, meta = {}) {
   };
 }
 
+function buildCampaignAuditPayload(campaign, meta = {}) {
+  const safeCampaign = buildDefaultLiveOpsCampaignConfig(campaign || {});
+  const now = meta.now instanceof Date ? meta.now : new Date();
+  const scheduleWindow = resolveScheduleWindowState(safeCampaign.schedule, now);
+  return {
+    reason: String(meta.reason || "").trim().slice(0, 240),
+    version: Number(meta.version || 0),
+    campaign_key: String(safeCampaign.campaign_key || ""),
+    enabled: safeCampaign.enabled === true,
+    status: String(safeCampaign.status || "draft"),
+    segment_key: String(safeCampaign.targeting?.segment_key || LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING),
+    max_recipients: Number(safeCampaign.targeting?.max_recipients || 0),
+    dedupe_hours: Number(safeCampaign.targeting?.dedupe_hours || 0),
+    approval_state: String(safeCampaign.approval?.state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+    schedule_state: scheduleWindow.state,
+    schedule_start_at: scheduleWindow.start_at,
+    schedule_end_at: scheduleWindow.end_at,
+    dispatch_ref: String(meta.dispatchRef || ""),
+    dry_run: meta.dryRun === true,
+    attempted: Number(meta.attempted || 0),
+    sent: Number(meta.sent || 0),
+    recorded: Number(meta.recorded || 0),
+    skipped_disabled: Number(meta.skippedDisabled || 0),
+    surface_keys: (Array.isArray(safeCampaign.surfaces) ? safeCampaign.surfaces : [])
+      .map((row) => String(row?.surface_key || ""))
+      .filter(Boolean)
+  };
+}
+
 async function loadVersionHistory(client) {
   const result = await client.query(
     `SELECT version, created_at, created_by, config_json
@@ -750,6 +779,44 @@ async function loadDispatchHistory(client, campaignKey) {
   });
 }
 
+async function loadOperatorTimeline(client, campaignKey) {
+  const result = await client.query(
+    `SELECT admin_id, action, payload_json, created_at
+     FROM admin_audit
+     WHERE target = $1
+       AND action IN (
+         'live_ops_campaign_save',
+         'live_ops_campaign_request',
+         'live_ops_campaign_approve',
+         'live_ops_campaign_revoke',
+         'live_ops_campaign_dry_run',
+         'live_ops_campaign_dispatch'
+       )
+       AND COALESCE(payload_json->>'campaign_key', '') = $2
+     ORDER BY created_at DESC
+     LIMIT 12;`,
+    [`config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`, String(campaignKey || "")]
+  );
+  return result.rows.map((row) => {
+    const payload = row.payload_json && typeof row.payload_json === "object" && !Array.isArray(row.payload_json) ? row.payload_json : {};
+    const action = String(row.action || "live_ops_campaign_save");
+    return {
+      action,
+      created_at: row.created_at || null,
+      admin_id: Number(row.admin_id || 0),
+      campaign_key: String(payload.campaign_key || campaignKey || ""),
+      campaign_version: Number(payload.version || payload.campaign_version || 0),
+      reason: String(payload.reason || ""),
+      enabled: payload.enabled === true,
+      status: String(payload.status || "draft"),
+      approval_state: String(payload.approval_state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+      schedule_state: String(payload.schedule_state || "missing"),
+      dispatch_ref: String(payload.dispatch_ref || ""),
+      dry_run: action === "live_ops_campaign_dry_run" || payload.dry_run === true
+    };
+  });
+}
+
 async function buildCampaignSnapshot(client, current) {
   const snapshotState = current || (await loadLatestConfig(client));
   const latestDispatch = await loadLatestDispatchSummary(client, snapshotState.campaign.campaign_key);
@@ -757,9 +824,10 @@ async function buildCampaignSnapshot(client, current) {
     updated_at: snapshotState.created_at || null,
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
-  const [versionHistory, dispatchHistory, deliverySummary] = await Promise.all([
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
+    loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
     loadDeliverySummary(client, snapshotState.campaign.campaign_key)
   ]);
   return {
@@ -772,6 +840,7 @@ async function buildCampaignSnapshot(client, current) {
     approval_summary: approvalSummary,
     version_history: versionHistory,
     dispatch_history: dispatchHistory,
+    operator_timeline: operatorTimeline,
     delivery_summary: deliverySummary,
     latest_dispatch: latestDispatch
   };
@@ -795,6 +864,7 @@ async function buildCampaignSnapshot(client, current) {
       const adminId = Number(input.adminId || 0);
       const reason = String(input.reason || "live_ops_campaign_update").trim().slice(0, 240);
       const campaign = buildPersistedCampaign(current.campaign, input.campaign || {});
+      const nowIso = nowFactory().toISOString();
       await client.query(
         `INSERT INTO config_versions (config_key, version, config_json, created_by)
          VALUES ($1, $2, $3::jsonb, $4);`,
@@ -803,11 +873,15 @@ async function buildCampaignSnapshot(client, current) {
       await client.query(
         `INSERT INTO admin_audit (admin_id, action, target, payload_json)
          VALUES ($1, 'live_ops_campaign_save', $2, $3::jsonb);`,
-        [adminId, `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`, JSON.stringify({ reason, version: nextVersion, campaign_key: campaign.campaign_key })]
+        [
+          adminId,
+          `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`,
+          JSON.stringify(buildCampaignAuditPayload(campaign, { now: new Date(nowIso), reason, version: nextVersion }))
+        ]
       );
       const snapshot = await buildCampaignSnapshot(client, {
         version: nextVersion,
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
         created_by: adminId,
         campaign
       });
@@ -881,12 +955,7 @@ async function buildCampaignSnapshot(client, current) {
           adminId,
           `live_ops_campaign_${approvalAction}`,
           `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`,
-          JSON.stringify({
-            reason,
-            version: nextVersion,
-            campaign_key: campaign.campaign_key,
-            approval_state: campaign.approval?.state || LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED
-          })
+          JSON.stringify(buildCampaignAuditPayload(campaign, { now: new Date(nowIso), reason, version: nextVersion }))
         ]
       );
       const snapshot = await buildCampaignSnapshot(client, {
@@ -1029,18 +1098,19 @@ async function buildCampaignSnapshot(client, current) {
           adminId,
           auditAction,
           `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`,
-          JSON.stringify({
-            reason,
-            campaign_key: campaign.campaign_key,
-            campaign_version: version,
-            dispatch_ref: dispatchRef,
-            sent,
-            attempted,
-            recorded,
-            skipped_disabled: skippedDisabled,
-            segment_key: campaign.targeting.segment_key,
-            surface_keys: (Array.isArray(campaign.surfaces) ? campaign.surfaces : []).map((row) => String(row?.surface_key || "")).filter(Boolean)
-          })
+          JSON.stringify(
+            buildCampaignAuditPayload(campaign, {
+              now,
+              reason,
+              version,
+              dispatchRef,
+              dryRun,
+              sent,
+              attempted,
+              recorded,
+              skippedDisabled
+            })
+          )
         ]
       );
 

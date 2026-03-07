@@ -224,6 +224,44 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
+            if (text.includes("FROM admin_audit") && text.includes("'live_ops_campaign_save'")) {
+              return {
+                rows: [
+                  {
+                    admin_id: 7001,
+                    action: "live_ops_campaign_dispatch",
+                    created_at: "2026-03-08T12:10:00.000Z",
+                    payload_json: {
+                      campaign_key: "wallet_reconnect",
+                      campaign_version: 5,
+                      reason: "manual_live_push",
+                      enabled: true,
+                      status: "ready",
+                      approval_state: "approved",
+                      schedule_state: "open",
+                      dispatch_ref: "wallet_reconnect_k9",
+                      dry_run: false
+                    }
+                  },
+                  {
+                    admin_id: 7001,
+                    action: "live_ops_campaign_approve",
+                    created_at: "2026-03-08T12:05:00.000Z",
+                    payload_json: {
+                      campaign_key: "wallet_reconnect",
+                      version: 5,
+                      reason: "approve_live",
+                      enabled: true,
+                      status: "ready",
+                      approval_state: "approved",
+                      schedule_state: "open",
+                      dispatch_ref: "",
+                      dry_run: false
+                    }
+                  }
+                ]
+              };
+            }
             if (text.includes("FROM admin_audit")) {
               return {
                 rows: [
@@ -271,6 +309,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.version_history.length, 1);
   assert.equal(snapshot.dispatch_history.length, 1);
   assert.equal(snapshot.dispatch_history[0].dispatch_ref, "wallet_reconnect_k9");
+  assert.equal(snapshot.operator_timeline.length, 2);
+  assert.equal(snapshot.operator_timeline[0].action, "live_ops_campaign_dispatch");
   assert.equal(snapshot.delivery_summary.sent_24h, 2);
   assert.equal(snapshot.delivery_summary.locale_breakdown[0].bucket_key, "en");
   assert.equal(snapshot.delivery_summary.surface_breakdown[0].bucket_key, "wallet_panel");
@@ -357,6 +397,28 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
         ]
       };
     }
+    if (text.includes("FROM admin_audit") && text.includes("'live_ops_campaign_save'")) {
+      return {
+        rows: [
+          {
+            admin_id: 7002,
+            action: "live_ops_campaign_approve",
+            created_at: "2026-03-08T12:00:00.000Z",
+            payload_json: approvalAudit?.payload || {
+              campaign_key: "wallet_reconnect",
+              version: 7,
+              reason: "approve_live",
+              enabled: true,
+              status: "ready",
+              approval_state: "approved",
+              schedule_state: "open",
+              dispatch_ref: "",
+              dry_run: false
+            }
+          }
+        ]
+      };
+    }
     if (text.includes("FROM admin_audit")) {
       return { rows: [] };
     }
@@ -404,5 +466,7 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
   assert.ok(approvalAudit);
   assert.equal(approvalAudit.action, "live_ops_campaign_approve");
   assert.equal(approvalAudit.payload.approval_state, "approved");
+  assert.equal(snapshot.operator_timeline.length, 1);
+  assert.equal(snapshot.operator_timeline[0].action, "live_ops_campaign_approve");
   assert.equal(recordedQueries.some((entry) => entry.sql === "COMMIT"), true);
 });

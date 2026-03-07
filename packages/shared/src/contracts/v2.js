@@ -639,6 +639,30 @@ const LiveOpsCampaignDispatchHistoryRowSchema = z.object({
   skipped_disabled: z.number().int().nonnegative().default(0)
 });
 
+const LiveOpsCampaignOperatorTimelineRowSchema = z.object({
+  action: z
+    .enum([
+      "live_ops_campaign_save",
+      "live_ops_campaign_request",
+      "live_ops_campaign_approve",
+      "live_ops_campaign_revoke",
+      "live_ops_campaign_dry_run",
+      "live_ops_campaign_dispatch"
+    ])
+    .default("live_ops_campaign_save"),
+  created_at: z.string().nullable().default(null),
+  admin_id: z.number().int().nonnegative().default(0),
+  campaign_key: z.string().default(""),
+  campaign_version: z.number().int().nonnegative().default(0),
+  reason: z.string().default(""),
+  enabled: z.boolean().default(false),
+  status: z.enum(Object.values(LIVE_OPS_CAMPAIGN_STATUS)).default(LIVE_OPS_CAMPAIGN_STATUS.DRAFT),
+  approval_state: z.enum(Object.values(LIVE_OPS_APPROVAL_STATE)).default(LIVE_OPS_APPROVAL_STATE.NOT_REQUESTED),
+  schedule_state: z.enum(["missing", "invalid", "scheduled", "open", "expired"]).default("missing"),
+  dispatch_ref: z.string().default(""),
+  dry_run: z.boolean().default(false)
+});
+
 const LiveOpsCampaignAnalyticsBucketSchema = z.object({
   bucket_key: z.string().default("unknown"),
   item_count: z.number().int().nonnegative().default(0)
@@ -663,6 +687,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   approval_summary: LiveOpsCampaignApprovalSummarySchema.default({}),
   version_history: z.array(LiveOpsCampaignVersionHistoryRowSchema).default([]),
   dispatch_history: z.array(LiveOpsCampaignDispatchHistoryRowSchema).default([]),
+  operator_timeline: z.array(LiveOpsCampaignOperatorTimelineRowSchema).default([]),
   delivery_summary: LiveOpsCampaignDeliverySummarySchema.default({}),
   latest_dispatch: z
     .object({
@@ -742,6 +767,7 @@ module.exports = {
   LiveOpsCampaignDispatchRequestSchema,
   LiveOpsCampaignDispatchResponseSchema,
   LiveOpsCampaignDispatchHistoryRowSchema,
+  LiveOpsCampaignOperatorTimelineRowSchema,
   LiveOpsCampaignScheduleSchema,
   LiveOpsCampaignSnapshotSchema,
   LiveOpsCampaignSurfaceSchema,

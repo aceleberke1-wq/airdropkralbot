@@ -49,11 +49,27 @@ function formatBucketCode(value: string) {
   return asText(value, "unknown").replace(/_/g, " ");
 }
 
+function formatTimelineActionLabel(lang: Lang, value: string) {
+  const actionKey = asText(value, "")
+    .replace(/^live_ops_campaign_/, "")
+    .trim();
+  const dictionary: Record<string, Parameters<typeof t>[1]> = {
+    save: "admin_live_ops_action_save",
+    request: "admin_live_ops_action_request",
+    approve: "admin_live_ops_action_approve",
+    revoke: "admin_live_ops_action_revoke",
+    dry_run: "admin_live_ops_action_dry_run",
+    dispatch: "admin_live_ops_action_dispatch"
+  };
+  return dictionary[actionKey] ? t(lang, dictionary[actionKey]) : formatWarningCode(actionKey || "unknown");
+}
+
 export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const snapshot = asRecord(props.liveOpsCampaignData);
   const approvalSummary = asRecord(snapshot.approval_summary);
   const versionHistory = asArray(snapshot.version_history);
   const dispatchHistory = asArray(snapshot.dispatch_history);
+  const operatorTimeline = asArray(snapshot.operator_timeline);
   const deliverySummary = asRecord(snapshot.delivery_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
   const localeBreakdown = asArray(deliverySummary.locale_breakdown);
@@ -196,6 +212,26 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           )}
         </section>
       </div>
+      <section className="akrMiniPanel" data-akr-focus-key="operator_timeline">
+        <h4>{t(props.lang, "admin_live_ops_timeline_title")}</h4>
+        {operatorTimeline.length ? (
+          <ul className="akrList">
+            {operatorTimeline.map((row, index) => (
+              <li key={`${asText(row.action, "timeline")}_${asText(row.created_at, index.toString())}_${index}`}>
+                <span>
+                  #{asCount(row.admin_id)} {formatTimelineActionLabel(props.lang, asText(row.action, ""))} | {asText(row.status)} |{" "}
+                  {asText(row.approval_state)} | {asText(row.schedule_state)}
+                </span>
+                <strong>
+                  v{asCount(row.campaign_version)} @ {asText(row.created_at)}
+                </strong>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+        )}
+      </section>
       <section className="akrMiniPanel" data-akr-focus-key="delivery_summary">
         <h4>{t(props.lang, "admin_live_ops_delivery_title")}</h4>
         <ul className="akrList">

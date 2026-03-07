@@ -90,6 +90,22 @@ function buildSnapshot(version, approvalState) {
       }
     ],
     dispatch_history: [],
+    operator_timeline: [
+      {
+        action: approvalState === "approved" ? "live_ops_campaign_approve" : "live_ops_campaign_request",
+        created_at: "2026-03-08T10:10:00.000Z",
+        admin_id: 7001,
+        campaign_key: "wallet_reconnect",
+        campaign_version: version,
+        reason: approvalState,
+        enabled: true,
+        status: "ready",
+        approval_state: approvalState,
+        schedule_state: "open",
+        dispatch_ref: "",
+        dry_run: false
+      }
+    ],
     delivery_summary: {
       sent_24h: 0,
       sent_7d: 0,
