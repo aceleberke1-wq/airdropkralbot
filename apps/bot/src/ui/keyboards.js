@@ -1,5 +1,6 @@
 const { Markup } = require("telegraf");
 const { normalizeLanguage } = require("../i18n");
+const { resolveLaunchSurface } = require("./launchSurfaceCatalog");
 
 const BOT_UI_TEXT = Object.freeze({
   tr: Object.freeze({
@@ -214,6 +215,25 @@ function buildLaunchGridKeyboard(entries = [], columns = 2) {
     return undefined;
   }
   return Markup.inlineKeyboard(rows);
+}
+
+function buildLaunchSurfaceGridKeyboard(entries = [], lang = "tr", columns = 2) {
+  const launchEntries = (Array.isArray(entries) ? entries : [])
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+      const surface = resolveLaunchSurface(entry.surfaceKey);
+      if (!surface?.labelKey) {
+        return null;
+      }
+      return {
+        label: uiText(lang, surface.labelKey),
+        url: entry.url
+      };
+    })
+    .filter(Boolean);
+  return buildLaunchGridKeyboard(launchEntries, columns);
 }
 
 function buildTaskKeyboard(offers, lang = "tr", miniAppUrl = "") {
@@ -454,83 +474,92 @@ function buildWalletKeyboard(url, lang = "tr") {
 }
 
 function buildProfileKeyboard(profileUrl, walletUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_profile_hub"), url: profileUrl },
-      { label: uiText(lang, "open_wallet_panel"), url: walletUrl }
+      { surfaceKey: "profile_hub", url: profileUrl },
+      { surfaceKey: "wallet_panel", url: walletUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildStatusKeyboard(statusUrl, discoverUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_status_hub"), url: statusUrl },
-      { label: uiText(lang, "open_discover_panel"), url: discoverUrl }
+      { surfaceKey: "status_hub", url: statusUrl },
+      { surfaceKey: "discover_panel", url: discoverUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildRewardsKeyboard(rewardsUrl, leaderboardUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_rewards_vault"), url: rewardsUrl },
-      { label: uiText(lang, "open_leaderboard_panel"), url: leaderboardUrl }
+      { surfaceKey: "rewards_vault", url: rewardsUrl },
+      { surfaceKey: "leaderboard_panel", url: leaderboardUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildEventKeyboard(eventsUrl, seasonUrl, leaderboardUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_events_hall"), url: eventsUrl },
-      { label: uiText(lang, "open_season_hall"), url: seasonUrl },
-      { label: uiText(lang, "open_leaderboard_panel"), url: leaderboardUrl }
+      { surfaceKey: "events_hall", url: eventsUrl },
+      { surfaceKey: "season_hall", url: seasonUrl },
+      { surfaceKey: "leaderboard_panel", url: leaderboardUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildDiscoverKeyboard(discoverUrl, missionsUrl, playUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_discover_panel"), url: discoverUrl },
-      { label: uiText(lang, "open_mission_quarter"), url: missionsUrl },
-      { label: uiText(lang, "open_play"), url: playUrl }
+      { surfaceKey: "discover_panel", url: discoverUrl },
+      { surfaceKey: "mission_quarter", url: missionsUrl },
+      { surfaceKey: "play_world", url: playUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildSettingsKeyboard(settingsUrl, supportUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_settings_panel"), url: settingsUrl },
-      { label: uiText(lang, "open_support_panel"), url: supportUrl }
+      { surfaceKey: "settings_panel", url: settingsUrl },
+      { surfaceKey: "support_panel", url: supportUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_status_hub"), url: statusUrl },
-      { label: uiText(lang, "open_payout_screen"), url: payoutUrl },
-      { label: uiText(lang, "open_settings_panel"), url: settingsUrl },
-      { label: uiText(lang, "open_faq_panel"), url: faqUrl }
+      { surfaceKey: "status_hub", url: statusUrl },
+      { surfaceKey: "payout_screen", url: payoutUrl },
+      { surfaceKey: "settings_panel", url: settingsUrl },
+      { surfaceKey: "faq_panel", url: faqUrl }
     ],
+    lang,
     2
   );
 }
 
 function buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang = "tr") {
   const rows = [];
-  const seasonButton = buildLaunchButton(uiText(lang, "open_season_hall"), seasonUrl);
-  const leaderboardButton = buildLaunchButton(uiText(lang, "open_leaderboard_panel"), leaderboardUrl);
+  const seasonSurface = resolveLaunchSurface("season_hall");
+  const leaderboardSurface = resolveLaunchSurface("leaderboard_panel");
+  const seasonButton = buildLaunchButton(uiText(lang, seasonSurface?.labelKey || "open_season_hall"), seasonUrl);
+  const leaderboardButton = buildLaunchButton(uiText(lang, leaderboardSurface?.labelKey || "open_leaderboard_panel"), leaderboardUrl);
   if (seasonButton && leaderboardButton) {
     rows.push([seasonButton, leaderboardButton]);
   } else if (seasonButton) {
@@ -587,13 +616,14 @@ function buildAdminKeyboard(snapshot = {}, lang = "tr", launchEntries = []) {
 }
 
 function buildAdminWorkspaceKeyboard(adminUrl, queueUrl, policyUrl, runtimeUrl, lang = "tr") {
-  return buildLaunchGridKeyboard(
+  return buildLaunchSurfaceGridKeyboard(
     [
-      { label: uiText(lang, "open_admin_workspace"), url: adminUrl },
-      { label: uiText(lang, "admin_unified_queue"), url: queueUrl },
-      { label: uiText(lang, "admin_policy_panel"), url: policyUrl },
-      { label: uiText(lang, "admin_runtime_panel"), url: runtimeUrl }
+      { surfaceKey: "admin_workspace", url: adminUrl },
+      { surfaceKey: "admin_queue", url: queueUrl },
+      { surfaceKey: "admin_policy", url: policyUrl },
+      { surfaceKey: "admin_runtime", url: runtimeUrl }
     ],
+    lang,
     2
   );
 }

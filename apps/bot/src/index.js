@@ -78,6 +78,11 @@ const {
   buildAdminTokenActionKeyboard
 } = require("./ui/keyboards");
 const {
+  buildLaunchSurfaceEntries,
+  PLAYER_LAUNCH_SURFACE_CATALOG,
+  ADMIN_LAUNCH_SURFACE_CATALOG
+} = require("./ui/launchSurfaceCatalog");
+const {
   buildHelpCards,
   buildHelpCardMap,
   validateHelpCardsCoverage,
@@ -433,22 +438,17 @@ async function resolveMiniAppRouteUrl(pool, appConfig, telegramId, navigation = 
 }
 
 async function resolveAdminWorkspaceUrls(pool, appConfig, telegramId) {
-  const { adminUrl = "", queueUrl = "", policyUrl = "", runtimeUrl = "" } = await resolveMiniAppAdminCommandUrlBundle(
+  const { admin_workspace = "", admin_queue = "", admin_policy = "", admin_runtime = "" } = await resolveMiniAppAdminLaunchSurfaceBundle(
     pool,
     appConfig,
     telegramId,
-    [
-      { key: "adminUrl", commandKey: "admin" },
-      { key: "queueUrl", commandKey: "admin_queue" },
-      { key: "policyUrl", commandKey: "admin_gate" },
-      { key: "runtimeUrl", commandKey: "admin_metrics" }
-    ]
+    ["admin_workspace", "admin_queue", "admin_policy", "admin_runtime"]
   );
   return {
-    adminUrl,
-    queueUrl,
-    policyUrl,
-    runtimeUrl
+    adminUrl: admin_workspace,
+    queueUrl: admin_queue,
+    policyUrl: admin_policy,
+    runtimeUrl: admin_runtime
   };
 }
 
@@ -459,6 +459,10 @@ async function resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, entri
     resolveBaseUrl: () => resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId),
     buildSignedUrl: (baseUrl, navigation) => buildSignedWebAppUrl(appConfig, telegramId, baseUrl, navigation)
   });
+}
+
+async function resolveMiniAppLaunchSurfaceBundle(pool, appConfig, telegramId, surfaceKeys = []) {
+  return resolveMiniAppCommandUrlBundle(pool, appConfig, telegramId, buildLaunchSurfaceEntries(surfaceKeys, PLAYER_LAUNCH_SURFACE_CATALOG));
 }
 
 async function resolveMiniAppCommandUrl(pool, appConfig, telegramId, commandKey, overrides = {}) {
@@ -473,6 +477,10 @@ async function resolveMiniAppAdminCommandUrlBundle(pool, appConfig, telegramId, 
     resolveBaseUrl: () => resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId),
     buildSignedUrl: (baseUrl, navigation) => buildSignedWebAppUrl(appConfig, telegramId, baseUrl, navigation)
   });
+}
+
+async function resolveMiniAppAdminLaunchSurfaceBundle(pool, appConfig, telegramId, surfaceKeys = []) {
+  return resolveMiniAppAdminCommandUrlBundle(pool, appConfig, telegramId, buildLaunchSurfaceEntries(surfaceKeys, ADMIN_LAUNCH_SURFACE_CATALOG));
 }
 
 async function resolveMiniAppAdminCommandUrl(pool, appConfig, telegramId, commandKey, overrides = {}) {
@@ -2140,13 +2148,13 @@ async function sendNexus(ctx, pool, appConfig) {
   });
 
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { statusUrl = "", discoverUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "statusUrl", commandKey: "status" },
-    { key: "discoverUrl", commandKey: "discover" }
+  const { status_hub = "", discover_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "status_hub",
+    "discover_panel"
   ]);
   await ctx.replyWithMarkdown(
     messages.formatNexusPulse(payload),
-    buildStatusKeyboard(statusUrl, discoverUrl, lang) || buildGuideKeyboard(lang)
+    buildStatusKeyboard(status_hub, discover_panel, lang) || buildGuideKeyboard(lang)
   );
 }
 
@@ -2550,13 +2558,13 @@ async function handleReveal(ctx, pool, appConfig) {
 async function sendProfile(ctx, pool, appConfig) {
   const snapshot = await getSnapshot(pool, ctx);
   const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
-  const { profileUrl = "", walletUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "profileUrl", commandKey: "profile" },
-    { key: "walletUrl", commandKey: "wallet" }
+  const { profile_hub = "", wallet_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "profile_hub",
+    "wallet_panel"
   ]);
   await ctx.replyWithMarkdown(
     messages.formatProfile(snapshot.profile, snapshot.balances),
-    buildProfileKeyboard(profileUrl, walletUrl, lang)
+    buildProfileKeyboard(profile_hub, wallet_panel, lang)
   );
 }
 
@@ -2569,9 +2577,9 @@ async function sendRewards(ctx, pool, appConfig) {
     return { profile, balances, payout };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { rewardsUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "rewardsUrl", commandKey: "rewards" },
-    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  const { rewards_vault = "", leaderboard_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "rewards_vault",
+    "leaderboard_panel"
   ]);
   const entitled = Number(payload.payout.entitledBtc || 0).toFixed(8);
   const requestable = Number(payload.payout.requestableBtc || 0).toFixed(8);
@@ -2590,7 +2598,7 @@ async function sendRewards(ctx, pool, appConfig) {
           `Hak Edilen: *${entitled} BTC* | Talep Edilebilir: *${requestable} BTC*\n` +
           `Payout: *${payload.payout.canRequest ? "acik" : "kilitli"}* | Cooldown: *${payload.payout.cooldownUntil ? "aktif" : "temiz"}*\n` +
           `Son Ref: *${latestRef}*`,
-    buildRewardsKeyboard(rewardsUrl, leaderboardUrl, lang)
+    buildRewardsKeyboard(rewards_vault, leaderboard_panel, lang)
   );
 }
 
@@ -2613,13 +2621,13 @@ async function sendSeason(ctx, pool, appConfig) {
     const rank = await seasonStore.getUserRank(db, { userId: profile.user_id, seasonId: season.seasonId });
     return { profile, season, stat, rank };
   });
-  const { seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "seasonUrl", commandKey: "season" },
-    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  const { season_hall = "", leaderboard_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "season_hall",
+    "leaderboard_panel"
   ]);
   await ctx.replyWithMarkdown(
     messages.formatSeason(payload.season, payload.stat, payload.rank),
-    buildSeasonKeyboard(seasonUrl, leaderboardUrl, resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    buildSeasonKeyboard(season_hall, leaderboard_panel, resolvePreferredLanguage(payload.profile, ctx, "tr"))
   );
 }
 
@@ -2639,15 +2647,11 @@ async function sendEvents(ctx, pool, appConfig) {
     return { profile, season, anomaly, contract, war, rows };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { eventsUrl = "", seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(
+  const { events_hall = "", season_hall = "", leaderboard_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(
     pool,
     appConfig,
     ctx.from?.id,
-    [
-      { key: "eventsUrl", commandKey: "events" },
-      { key: "seasonUrl", commandKey: "season" },
-      { key: "leaderboardUrl", commandKey: "leaderboard" }
-    ]
+    ["events_hall", "season_hall", "leaderboard_panel"]
   );
   const lead = (payload.rows || [])
     .slice(0, 3)
@@ -2667,7 +2671,7 @@ async function sendEvents(ctx, pool, appConfig) {
           `Kontrat: *${escapeMarkdownText(payload.contract.title || "-")}* [${escapeMarkdownText(payload.contract.required_mode || "balanced")}]\n` +
           `War Tier: *${escapeMarkdownText(payload.war.tier || "seed")}* | Havuz *${Math.floor(Number(payload.war.value || 0))}*\n\n` +
           `Top Ladder\n${lead || "-"}`,
-    buildEventKeyboard(eventsUrl, seasonUrl, leaderboardUrl, lang)
+    buildEventKeyboard(events_hall, season_hall, leaderboard_panel, lang)
   );
 }
 
@@ -2680,13 +2684,13 @@ async function sendLeaderboard(ctx, pool, appConfig) {
     return { profile, season, rows };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { seasonUrl = "", leaderboardUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "seasonUrl", commandKey: "season" },
-    { key: "leaderboardUrl", commandKey: "leaderboard" }
+  const { season_hall = "", leaderboard_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "season_hall",
+    "leaderboard_panel"
   ]);
   await ctx.replyWithMarkdown(
     messages.formatLeaderboard(payload.season, payload.rows),
-    buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang)
+    buildSeasonKeyboard(season_hall, leaderboard_panel, lang)
   );
 }
 
@@ -2724,11 +2728,12 @@ async function sendDiscover(ctx, pool, appConfig) {
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
   const readyMissions = payload.missions.filter((row) => row.completed && !row.claimed).length;
   const openOffers = payload.offers.length;
-  const { discoverUrl = "", missionsUrl = "", playUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "discoverUrl", commandKey: "discover" },
-    { key: "missionsUrl", commandKey: "missions" },
-    { key: "playUrl", commandKey: "play" }
-  ]);
+  const { discover_panel = "", mission_quarter = "", play_world = "" } = await resolveMiniAppLaunchSurfaceBundle(
+    pool,
+    appConfig,
+    ctx.from?.id,
+    ["discover_panel", "mission_quarter", "play_world"]
+  );
   await ctx.replyWithMarkdown(
     lang === "en"
       ? `*Discover*\n` +
@@ -2739,7 +2744,7 @@ async function sendDiscover(ctx, pool, appConfig) {
           `Aktif Offer: *${openOffers}* | Hazir Misyon: *${readyMissions}*\n` +
           `Guncel Nexus: *${escapeMarkdownText(payload.anomaly.title || "-")}*\n` +
           `En iyi sonraki hamle: *${readyMissions > 0 ? "misyon claim" : openOffers > 0 ? "mission quarter ac" : "arenaya gir"}*`,
-    buildDiscoverKeyboard(discoverUrl, missionsUrl, playUrl, lang)
+    buildDiscoverKeyboard(discover_panel, mission_quarter, play_world, lang)
   );
 }
 
@@ -2794,9 +2799,9 @@ async function sendSettings(ctx, pool, appConfig) {
     return { profile, prefs, perf };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { settingsUrl = "", supportUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "settingsUrl", commandKey: "settings" },
-    { key: "supportUrl", commandKey: "support" }
+  const { settings_panel = "", support_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "settings_panel",
+    "support_panel"
   ]);
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -2810,7 +2815,7 @@ async function sendSettings(ctx, pool, appConfig) {
           `UI Mod: *${escapeMarkdownText(payload.prefs?.ui_mode || "hardcore")}* | Kalite: *${escapeMarkdownText(payload.prefs?.quality_mode || "auto")}*\n` +
           `Reduced Motion: *${payload.prefs?.reduced_motion ? "acik" : "kapali"}* | Buyuk Metin: *${payload.prefs?.large_text ? "acik" : "kapali"}*\n` +
           `Ses: *${payload.prefs?.sound_enabled === false ? "kapali" : "acik"}* | FPS(avg): *${payload.perf?.fps_avg ? Number(payload.perf.fps_avg).toFixed(1) : "-"}*`,
-    buildSettingsKeyboard(settingsUrl, supportUrl, lang)
+    buildSettingsKeyboard(settings_panel, support_panel, lang)
   );
 }
 
@@ -2826,16 +2831,11 @@ async function sendSupport(ctx, pool, appConfig) {
     return { profile, payout, prefs };
   });
   const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
-  const { statusUrl = "", payoutUrl = "", settingsUrl = "", faqUrl = "" } = await resolveMiniAppCommandUrlBundle(
+  const { status_hub = "", payout_screen = "", settings_panel = "", faq_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(
     pool,
     appConfig,
     ctx.from?.id,
-    [
-      { key: "statusUrl", commandKey: "status" },
-      { key: "payoutUrl", commandKey: "payout" },
-      { key: "settingsUrl", commandKey: "settings" },
-      { key: "faqUrl", commandKey: "faq" }
-    ]
+    ["status_hub", "payout_screen", "settings_panel", "faq_panel"]
   );
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -2853,23 +2853,18 @@ async function sendSupport(ctx, pool, appConfig) {
           `2. Payout veya wallet sorunu icin */vault*.\n` +
           `3. Dil/accessibility sorunu icin */settings*.\n` +
           `4. Sik sorular icin once */faq*.`,
-    buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang)
+    buildSupportKeyboard(status_hub, payout_screen, settings_panel, faq_panel, lang)
   );
 }
 
 async function sendFaq(ctx, pool, appConfig) {
   const profile = await ensureProfile(pool, ctx);
   const lang = resolvePreferredLanguage(profile, ctx, "tr");
-  const { statusUrl = "", payoutUrl = "", settingsUrl = "", faqUrl = "" } = await resolveMiniAppCommandUrlBundle(
+  const { status_hub = "", payout_screen = "", settings_panel = "", faq_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(
     pool,
     appConfig,
     ctx.from?.id,
-    [
-      { key: "statusUrl", commandKey: "status" },
-      { key: "payoutUrl", commandKey: "payout" },
-      { key: "settingsUrl", commandKey: "settings" },
-      { key: "faqUrl", commandKey: "faq" }
-    ]
+    ["status_hub", "payout_screen", "settings_panel", "faq_panel"]
   );
   await ctx.replyWithMarkdown(
     lang === "en"
@@ -2883,7 +2878,7 @@ async function sendFaq(ctx, pool, appConfig) {
           `• *Wallet verify neden basarisiz?* Adres, challenge ref veya imza secili chain ile eslesmiyor olabilir.\n` +
           `• *UI neden yavas?* Settings icinden reduced motion veya dusuk kaliteyi dene.\n` +
           `• *Misyon neden claim olmadi?* Claim sadece tamamlanan ve daha once alinmayan misyonda acilir.`,
-    buildSupportKeyboard(statusUrl, payoutUrl, settingsUrl, faqUrl, lang)
+    buildSupportKeyboard(status_hub, payout_screen, settings_panel, faq_panel, lang)
   );
 }
 
@@ -4324,9 +4319,9 @@ async function sendStatus(ctx, pool, appConfig) {
   const safeContractMode = escapeMarkdownText(payload.contract.required_mode || "balanced");
   const safeTokenSymbol = escapeMarkdownText(payload.tokenView.symbol || "NXT");
   const safeWarTier = escapeMarkdownText(payload.war.tier || "seed");
-  const { statusUrl = "", discoverUrl = "" } = await resolveMiniAppCommandUrlBundle(pool, appConfig, ctx.from?.id, [
-    { key: "statusUrl", commandKey: "status" },
-    { key: "discoverUrl", commandKey: "discover" }
+  const { status_hub = "", discover_panel = "" } = await resolveMiniAppLaunchSurfaceBundle(pool, appConfig, ctx.from?.id, [
+    "status_hub",
+    "discover_panel"
   ]);
 
   await ctx.replyWithMarkdown(
@@ -4355,7 +4350,7 @@ async function sendStatus(ctx, pool, appConfig) {
         `Risk: *${Math.round(payload.risk * 100)}%*\n` +
         `Payout Uygunluk: *${payoutText}*\n` +
         `${safeTokenSymbol}: *${Number(payload.tokenView.balance || 0).toFixed(payload.tokenView.tokenConfig.decimals)}*`,
-    buildStatusKeyboard(statusUrl, discoverUrl, lang)
+    buildStatusKeyboard(status_hub, discover_panel, lang)
   );
 }
 
