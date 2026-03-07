@@ -53,7 +53,7 @@ export function TasksPanel(props: TasksPanelProps) {
       </div>
 
       <div className="akrSplit">
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="quests" data-akr-focus-key="board">
           <h4>{t(props.lang, "tasks_offers_title")}</h4>
           {view.offers.length ? (
             <ul className="akrList">
@@ -76,7 +76,7 @@ export function TasksPanel(props: TasksPanelProps) {
           )}
         </section>
 
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="claim" data-akr-focus-key="missions">
           <h4>{t(props.lang, "tasks_missions_title")}</h4>
           {view.missions.length ? (
             <ul className="akrList">
@@ -110,4 +110,3 @@ export function TasksPanel(props: TasksPanelProps) {
     </section>
   );
 }
-

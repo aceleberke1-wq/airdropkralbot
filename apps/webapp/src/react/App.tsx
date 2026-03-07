@@ -8,6 +8,7 @@ import {
 import { useReactShellStore } from "./store";
 import type {
   BootstrapV2Payload,
+  LaunchContext,
   TabKey,
   WebAppApiResponse,
   WebAppAuth
@@ -23,8 +24,10 @@ import { usePvpAutoRefresh } from "./features/pvp/usePvpAutoRefresh";
 import { usePvpController } from "./features/pvp/usePvpController";
 import { useRetriableAction } from "./features/shared/useRetriableAction";
 import { useBootstrapRefreshController } from "./features/shell/useBootstrapRefreshController";
+import { LaunchHandoffStrip } from "./features/shell/LaunchHandoffStrip";
 import { MetaStrip } from "./features/shell/MetaStrip";
 import { PlayerTabs } from "./features/shell/PlayerTabs";
+import { useLaunchFocusController } from "./features/shell/useLaunchFocusController";
 import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
 import { useShellDataSyncController } from "./features/shell/useShellDataSyncController";
 import { useShellSessionPrefsController } from "./features/shell/useShellSessionPrefsController";
@@ -424,6 +427,13 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const reducedMotion = Boolean(data?.ui_prefs?.reduced_motion);
   const largeText = Boolean(data?.ui_prefs?.large_text);
   const rootClassName = `akrReactRoot${reducedMotion ? " isReducedMotion" : ""}${largeText ? " isLargeText" : ""}`;
+  const launchContext: LaunchContext | null = data?.launch_context ?? null;
+  const { launchSummary } = useLaunchFocusController({
+    launchContext,
+    workspace,
+    tab,
+    reducedMotion
+  });
   const {
     onRefresh,
     onToggleAdvanced,
@@ -547,6 +557,14 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         onToggleWorkspace={onToggleWorkspace}
       />
       <MetaStrip lang={lang} variant={data?.experiment?.variant || ""} sessionRef={data?.analytics?.session_ref || ""} />
+      {launchSummary ? (
+        <LaunchHandoffStrip
+          lang={lang}
+          routeLabel={launchSummary.routeLabel}
+          panelLabel={launchSummary.panelLabel}
+          focusLabel={launchSummary.focusLabel}
+        />
+      ) : null}
 
       {workspace === "player" && (
         <>

@@ -2,6 +2,7 @@ export type TabKey = "home" | "pvp" | "tasks" | "vault";
 export type WorkspaceKey = "player" | "admin";
 export type ExperimentVariant = "control" | "treatment";
 export type LangPrefInput = "tr" | "en" | string | null | undefined;
+export type LaunchRouteKey = "hub" | "missions" | "pvp" | "forge" | "exchange" | "season" | "events" | "vault" | "settings" | "admin";
 
 export type WebAppAuth = {
   uid: string;
@@ -133,6 +134,14 @@ export type DynamicAutoPolicy = {
   preview?: Record<string, unknown> | null;
   generated_at?: string;
   updated_at?: string;
+};
+
+export type LaunchContext = {
+  route_key: LaunchRouteKey | string;
+  panel_key?: string;
+  focus_key?: string;
+  workspace?: WorkspaceKey | string;
+  tab?: TabKey | string;
 };
 
 export type UiFunnelEvent = {
@@ -325,6 +334,7 @@ export type BootstrapV2Data = {
     is_admin?: boolean;
     summary?: Record<string, unknown> | null;
   };
+  launch_context?: LaunchContext;
   ui_shell?: BootstrapV2UiShell;
   experiment?: ExperimentAssignment;
   analytics?: AnalyticsConfig;

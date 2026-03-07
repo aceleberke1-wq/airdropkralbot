@@ -86,7 +86,7 @@ export function VaultPanel(props: VaultPanelProps) {
       </div>
 
       <div className="akrSplit">
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="wallet" data-akr-focus-key="connect">
           <h4>{t(props.lang, "vault_wallet_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">{summary.wallet_active ? "active" : "inactive"}</span>
@@ -137,7 +137,7 @@ export function VaultPanel(props: VaultPanelProps) {
           </div>
         </section>
 
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="payout" data-akr-focus-key="request">
           <h4>{t(props.lang, "vault_payout_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">{summary.payout_can_request ? "can_request" : "locked"}</span>
@@ -174,7 +174,7 @@ export function VaultPanel(props: VaultPanelProps) {
         </section>
       </div>
       <div className="akrSplit">
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-focus-key="premium_pass">
           <h4>{t(props.lang, "vault_pass_catalog_title")}</h4>
           {catalog.passes.length ? (
             <ul className="akrList">
@@ -200,7 +200,7 @@ export function VaultPanel(props: VaultPanelProps) {
             <p className="akrMuted">{t(props.lang, "vault_catalog_empty")}</p>
           )}
         </section>
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-focus-key="cosmetics">
           <h4>{t(props.lang, "vault_cosmetic_catalog_title")}</h4>
           {catalog.cosmetics.length ? (
             <ul className="akrList">

@@ -35,6 +35,7 @@ const {
   buildAdminActionSignature: buildAdminPolicySignature
 } = require("../../../packages/shared/src/v5/adminPolicyEngine");
 const {
+  CANONICAL_PANEL_KEY,
   CANONICAL_ROUTE_KEY,
   buildStartAppPayload,
   encodeStartAppPayload
@@ -59,6 +60,8 @@ const {
   buildPayoutKeyboard,
   buildTokenKeyboard,
   buildPlayKeyboard,
+  buildWalletKeyboard,
+  buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
   buildAdminPayoutActionKeyboard,
@@ -408,6 +411,14 @@ async function resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId) {
   const versionState = await resolveLocalWebAppVersion(pool, appConfig);
   const versioned = buildVersionedWebAppUrl(appConfig.webappPublicUrl, versionState.version);
   return versioned || String(appConfig.webappPublicUrl || "").trim();
+}
+
+async function resolveMiniAppRouteUrl(pool, appConfig, telegramId, navigation = {}) {
+  if (!appConfig?.webappPublicUrl || !appConfig?.webappHmacSecret) {
+    return null;
+  }
+  const launchBaseUrl = await resolveWebAppLaunchBaseUrl(pool, appConfig, telegramId);
+  return buildSignedWebAppUrl(appConfig, telegramId, launchBaseUrl, navigation);
 }
 
 function buildSignedWebAppUrl(appConfig, telegramId, baseUrlOverride = "", navigation = {}) {
@@ -1678,12 +1689,18 @@ async function sendTasks(ctx, pool, appConfig) {
     return;
   }
   const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
+  const lang = resolvePreferredLanguage(payload.profile, ctx, "tr");
+  const tasksUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+    panelKey: CANONICAL_PANEL_KEY.QUESTS,
+    focusKey: "board"
+  });
   await ctx.replyWithMarkdown(
     messages.formatTasks(payload.offers, taskMap, {
       anomaly: payload.anomaly,
       contract: payload.contract
     }),
-    buildTaskKeyboard(payload.offers, resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    buildTaskKeyboard(payload.offers, lang, tasksUrl || "")
   );
 }
 
@@ -1744,12 +1761,17 @@ async function handleRerollTasks(ctx, pool, appConfig) {
     return;
   }
   const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
+  const tasksUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+    panelKey: CANONICAL_PANEL_KEY.QUESTS,
+    focusKey: "board"
+  });
   await ctx.replyWithMarkdown(
     messages.formatTasks(payload.offers, taskMap, {
       anomaly: payload.anomaly,
       contract: payload.contract
     }),
-    buildTaskKeyboard(payload.offers, resolvePreferredLanguage(payload.profile, ctx, "tr"))
+    buildTaskKeyboard(payload.offers, resolvePreferredLanguage(payload.profile, ctx, "tr"), tasksUrl || "")
   );
 }
 
@@ -2459,23 +2481,41 @@ async function handleReveal(ctx, pool, appConfig) {
   });
 }
 
-async function sendWallet(ctx, pool) {
+async function sendWallet(ctx, pool, appConfig) {
   const snapshot = await getSnapshot(pool, ctx);
+  const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
+  const walletUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.EXCHANGE,
+    panelKey: CANONICAL_PANEL_KEY.WALLET,
+    focusKey: "connect"
+  });
   await ctx.replyWithMarkdown(
-    messages.formatWallet(snapshot.profile, snapshot.balances, snapshot.daily, snapshot.anomaly, snapshot.contract)
+    messages.formatWallet(snapshot.profile, snapshot.balances, snapshot.daily, snapshot.anomaly, snapshot.contract),
+    buildWalletKeyboard(walletUrl || "", lang)
   );
 }
 
-async function sendSeason(ctx, pool) {
+async function sendSeason(ctx, pool, appConfig) {
   const payload = await withTransaction(pool, async (db) => {
     const profile = await ensureProfileTx(db, ctx);
     const runtimeConfig = await configService.getEconomyConfig(db);
     const season = seasonStore.getSeasonInfo(runtimeConfig);
     const stat = await seasonStore.getSeasonStat(db, { userId: profile.user_id, seasonId: season.seasonId });
     const rank = await seasonStore.getUserRank(db, { userId: profile.user_id, seasonId: season.seasonId });
-    return { season, stat, rank };
+    return { profile, season, stat, rank };
   });
-  await ctx.replyWithMarkdown(messages.formatSeason(payload.season, payload.stat, payload.rank));
+  const seasonUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SEASON
+  });
+  const leaderboardUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.SEASON,
+    panelKey: CANONICAL_PANEL_KEY.LEADERBOARD,
+    focusKey: "leaderboard"
+  });
+  await ctx.replyWithMarkdown(
+    messages.formatSeason(payload.season, payload.stat, payload.rank),
+    buildSeasonKeyboard(seasonUrl || "", leaderboardUrl || "", resolvePreferredLanguage(payload.profile, ctx, "tr"))
+  );
 }
 
 async function sendLeaderboard(ctx, pool) {
@@ -2888,9 +2928,17 @@ async function sendPayout(ctx, pool, appConfig) {
     const profile = await ensureProfileTx(db, ctx);
     const runtimeConfig = await configService.getEconomyConfig(db);
     const view = await buildPayoutView(db, profile, appConfig, runtimeConfig);
-    return { view };
+    return { profile, view };
   });
-  await ctx.replyWithMarkdown(messages.formatPayout(payload.view), buildPayoutKeyboard(payload.view.canRequest));
+  const payoutUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.VAULT,
+    panelKey: CANONICAL_PANEL_KEY.PAYOUT,
+    focusKey: "request"
+  });
+  await ctx.replyWithMarkdown(
+    messages.formatPayout(payload.view),
+    buildPayoutKeyboard(payload.view.canRequest, resolvePreferredLanguage(payload.profile, ctx, "tr"), payoutUrl || "")
+  );
 }
 
 async function sendAdminPanel(ctx, pool, appConfig) {
@@ -3855,20 +3903,30 @@ async function handlePayoutRequest(ctx, pool, appConfig) {
   });
 
   await ctx.answerCbQuery();
+  const payoutUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+    routeKey: CANONICAL_ROUTE_KEY.VAULT,
+    panelKey: CANONICAL_PANEL_KEY.PAYOUT,
+    focusKey: "request"
+  });
+  const payoutKeyboard = buildPayoutKeyboard(
+    payload.view.canRequest,
+    normalizeLanguage(ctx.from?.language_code, "tr"),
+    payoutUrl || ""
+  );
   if (!payload.ok) {
     if (payload.reason === "freeze_mode") {
       await ctx.replyWithMarkdown(messages.formatFreezeMessage("Bakim aktif, payout talebi kapali."));
     } else if (payload.reason === "daily_drip_exhausted") {
       await ctx.replyWithMarkdown("*Gunluk Damla Limiti Doldu*\nYeni payout icin ertesi gun dene.");
     }
-    await ctx.replyWithMarkdown(messages.formatPayout(payload.view), buildPayoutKeyboard(payload.view.canRequest));
+    await ctx.replyWithMarkdown(messages.formatPayout(payload.view), payoutKeyboard);
     return;
   }
 
   await ctx.replyWithMarkdown(
     `*Cekim Talebi Alindi*\nTalep #${payload.request.id}\nMiktar: *${Number(payload.request.amount).toFixed(8)} BTC*\nDurum: *requested*`
   );
-  await ctx.replyWithMarkdown(messages.formatPayout(payload.view), buildPayoutKeyboard(payload.view.canRequest));
+  await ctx.replyWithMarkdown(messages.formatPayout(payload.view), payoutKeyboard);
   logEvent("payout_request", {
     request_id: payload.request.id,
     currency: "BTC",
@@ -4344,7 +4402,7 @@ async function handleWebAppAction(ctx, pool, appConfig) {
     return;
   }
   if (action === "open_wallet") {
-    await sendWallet(ctx, pool);
+    await sendWallet(ctx, pool, appConfig);
     return;
   }
   if (action === "open_token") {
@@ -4428,12 +4486,17 @@ async function handleWebAppAction(ctx, pool, appConfig) {
       return;
     }
     const taskMap = new Map(taskCatalog.getCatalog().map((task) => [task.id, task]));
+    const tasksUrl = await resolveMiniAppRouteUrl(pool, appConfig, ctx.from?.id, {
+      routeKey: CANONICAL_ROUTE_KEY.MISSIONS,
+      panelKey: CANONICAL_PANEL_KEY.QUESTS,
+      focusKey: "board"
+    });
     await ctx.replyWithMarkdown(
       messages.formatTasks(result.offers, taskMap, {
         anomaly: result.anomaly,
         contract: result.contract
       }),
-      buildTaskKeyboard(result.offers, normalizeLanguage(ctx.from?.language_code, "tr"))
+      buildTaskKeyboard(result.offers, normalizeLanguage(ctx.from?.language_code, "tr"), tasksUrl || "")
     );
     return;
   }
@@ -4862,7 +4925,7 @@ function buildCommandHandlerMap({ pool, appConfig }) {
     await ctx.replyWithMarkdown(messages.formatProfile(snapshot.profile, snapshot.balances));
   });
   map.set("tasks", async (ctx) => sendTasks(ctx, pool, appConfig));
-  map.set("wallet", async (ctx) => sendWallet(ctx, pool));
+  map.set("wallet", async (ctx) => sendWallet(ctx, pool, appConfig));
   map.set("token", async (ctx) => sendToken(ctx, pool, appConfig));
   map.set("mint", async (ctx) => {
     const amount = extractCommandArgs(ctx);
@@ -4893,7 +4956,7 @@ function buildCommandHandlerMap({ pool, appConfig }) {
   });
   map.set("daily", async (ctx) => sendDaily(ctx, pool));
   map.set("kingdom", async (ctx) => sendKingdom(ctx, pool));
-  map.set("season", async (ctx) => sendSeason(ctx, pool));
+  map.set("season", async (ctx) => sendSeason(ctx, pool, appConfig));
   map.set("leaderboard", async (ctx) => sendLeaderboard(ctx, pool));
   map.set("shop", async (ctx) => sendShop(ctx, pool));
   map.set("missions", async (ctx) => sendMissions(ctx, pool));
@@ -5187,9 +5250,9 @@ async function start() {
 
   registerSimpleActionHandlers(bot, {
     OPEN_TASKS: async (ctx) => sendTasks(ctx, pool, appConfig),
-    OPEN_WALLET: async (ctx) => sendWallet(ctx, pool),
+    OPEN_WALLET: async (ctx) => sendWallet(ctx, pool, appConfig),
     OPEN_TOKEN: async (ctx) => sendToken(ctx, pool, appConfig),
-    OPEN_SEASON: async (ctx) => sendSeason(ctx, pool),
+    OPEN_SEASON: async (ctx) => sendSeason(ctx, pool, appConfig),
     OPEN_LEADERBOARD: async (ctx) => sendLeaderboard(ctx, pool),
     OPEN_SHOP: async (ctx) => sendShop(ctx, pool),
     OPEN_MISSIONS: async (ctx) => sendMissions(ctx, pool),

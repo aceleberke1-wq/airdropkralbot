@@ -47,6 +47,11 @@ const BOT_UI_TEXT = Object.freeze({
     token_status: "Token Durumu",
     token_mint_max: "Token Mint (Max)",
     token_buy_quick: "Hizli Satin Alma",
+    open_mission_quarter: "Mission Quarter",
+    open_wallet_panel: "Wallet Panel",
+    open_payout_screen: "Payout Ekrani",
+    open_season_hall: "Season Hall",
+    open_leaderboard_panel: "Leaderboard",
     back_to_panel: "Bot Paneline Don",
     open_browser: "Tarayici ile Ac",
     raid_safe: "Raid Temkinli",
@@ -116,6 +121,11 @@ const BOT_UI_TEXT = Object.freeze({
     token_status: "Token Status",
     token_mint_max: "Token Mint (Max)",
     token_buy_quick: "Quick Buy Intent",
+    open_mission_quarter: "Mission Quarter",
+    open_wallet_panel: "Wallet Panel",
+    open_payout_screen: "Payout Screen",
+    open_season_hall: "Season Hall",
+    open_leaderboard_panel: "Leaderboard",
     back_to_panel: "Back to Bot Panel",
     open_browser: "Open in Browser",
     raid_safe: "Raid Safe",
@@ -147,7 +157,19 @@ function uiText(lang, key) {
   return BOT_UI_TEXT[locale]?.[key] || BOT_UI_TEXT.tr[key] || key;
 }
 
-function buildTaskKeyboard(offers, lang = "tr") {
+function buildLaunchButton(label, url) {
+  const safeUrl = String(url || "").trim();
+  if (!safeUrl) {
+    return null;
+  }
+  const isHttps = /^https:\/\//i.test(safeUrl);
+  if (isHttps && typeof Markup.button.webApp === "function") {
+    return Markup.button.webApp(label, safeUrl);
+  }
+  return Markup.button.url(label, safeUrl);
+}
+
+function buildTaskKeyboard(offers, lang = "tr", miniAppUrl = "") {
   const buttons = offers.map((offer, index) =>
     Markup.button.callback(`${uiText(lang, "task_label")} ${index + 1}`, `TASK_ACCEPT:${offer.id}`)
   );
@@ -159,6 +181,10 @@ function buildTaskKeyboard(offers, lang = "tr") {
     Markup.button.callback(uiText(lang, "reroll_tasks"), "REROLL_TASKS"),
     Markup.button.callback(uiText(lang, "daily"), "OPEN_DAILY")
   ]);
+  const launchButton = buildLaunchButton(uiText(lang, "open_mission_quarter"), miniAppUrl);
+  if (launchButton) {
+    rows.push([launchButton]);
+  }
   return Markup.inlineKeyboard(rows);
 }
 
@@ -307,24 +333,39 @@ function buildShopKeyboard(offers, lang = "tr") {
   return Markup.inlineKeyboard(buttons, { columns: 2 });
 }
 
-function buildMissionKeyboard(board, lang = "tr") {
+function buildMissionKeyboard(board, lang = "tr", miniAppUrl = "") {
   const buttons = (board || [])
     .filter((mission) => mission.completed && !mission.claimed)
     .map((mission) => Markup.button.callback(`${uiText(lang, "mission_claim_prefix")}: ${mission.title}`, `CLAIM_MISSION:${mission.key}`));
 
-  if (buttons.length === 0) {
+  const rows = [];
+  if (buttons.length > 0) {
+    for (let i = 0; i < buttons.length; i += 1) {
+      rows.push([buttons[i]]);
+    }
+  }
+  const launchButton = buildLaunchButton(uiText(lang, "open_mission_quarter"), miniAppUrl);
+  if (launchButton) {
+    rows.push([launchButton]);
+  }
+  if (rows.length === 0) {
     return undefined;
   }
-  return Markup.inlineKeyboard(buttons, { columns: 1 });
+  return Markup.inlineKeyboard(rows, { columns: 1 });
 }
 
-function buildPayoutKeyboard(canRequest, lang = "tr") {
+function buildPayoutKeyboard(canRequest, lang = "tr", miniAppUrl = "") {
   const buttons = [];
   if (canRequest) {
     buttons.push(Markup.button.callback(uiText(lang, "payout_request_btc"), "REQ_PAYOUT:BTC"));
   }
   buttons.push(Markup.button.callback(uiText(lang, "refresh_status"), "OPEN_PAYOUT"));
-  return Markup.inlineKeyboard(buttons, { columns: 1 });
+  const rows = buttons.map((button) => [button]);
+  const launchButton = buildLaunchButton(uiText(lang, "open_payout_screen"), miniAppUrl);
+  if (launchButton) {
+    rows.push([launchButton]);
+  }
+  return Markup.inlineKeyboard(rows, { columns: 1 });
 }
 
 function buildTokenKeyboard(lang = "tr") {
@@ -342,15 +383,36 @@ function buildTokenKeyboard(lang = "tr") {
 }
 
 function buildPlayKeyboard(url, lang = "tr") {
-  const isHttps = /^https:\/\//i.test(String(url || ""));
-  const canUseWebAppButton = isHttps && typeof Markup.button.webApp === "function";
-  const openButton = canUseWebAppButton
-    ? Markup.button.webApp(uiText(lang, "open_play"), url)
-    : Markup.button.url(uiText(lang, "open_play"), url);
+  const openButton = buildLaunchButton(uiText(lang, "open_play"), url);
   return Markup.inlineKeyboard(
     [[openButton], [Markup.button.url(uiText(lang, "open_browser"), url)], [Markup.button.callback(uiText(lang, "back_to_panel"), "OPEN_TASKS")]],
     { columns: 1 }
   );
+}
+
+function buildWalletKeyboard(url, lang = "tr") {
+  const launchButton = buildLaunchButton(uiText(lang, "open_wallet_panel"), url);
+  if (!launchButton) {
+    return undefined;
+  }
+  return Markup.inlineKeyboard([[launchButton]], { columns: 1 });
+}
+
+function buildSeasonKeyboard(seasonUrl, leaderboardUrl, lang = "tr") {
+  const rows = [];
+  const seasonButton = buildLaunchButton(uiText(lang, "open_season_hall"), seasonUrl);
+  const leaderboardButton = buildLaunchButton(uiText(lang, "open_leaderboard_panel"), leaderboardUrl);
+  if (seasonButton && leaderboardButton) {
+    rows.push([seasonButton, leaderboardButton]);
+  } else if (seasonButton) {
+    rows.push([seasonButton]);
+  } else if (leaderboardButton) {
+    rows.push([leaderboardButton]);
+  }
+  if (rows.length === 0) {
+    return undefined;
+  }
+  return Markup.inlineKeyboard(rows, { columns: 2 });
 }
 
 function buildRaidKeyboard(lang = "tr") {
@@ -448,6 +510,8 @@ module.exports = {
   buildPayoutKeyboard,
   buildTokenKeyboard,
   buildPlayKeyboard,
+  buildWalletKeyboard,
+  buildSeasonKeyboard,
   buildRaidKeyboard,
   buildAdminKeyboard,
   buildAdminPayoutActionKeyboard,

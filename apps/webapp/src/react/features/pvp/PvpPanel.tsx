@@ -72,7 +72,7 @@ export function PvpPanel(props: PvpPanelProps) {
 
       <h3>{t(props.lang, "pvp_league_title")}</h3>
       <div className="akrSplit">
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-focus-key="daily_duel">
           <h4>{t(props.lang, "pvp_daily_duel_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">{league.daily_duel.status || "-"}</span>
@@ -83,7 +83,7 @@ export function PvpPanel(props: PvpPanelProps) {
             <span className="akrChip">Win {Math.floor(league.daily_duel.win_rate_pct)}%</span>
           </div>
         </section>
-        <section className="akrMiniPanel">
+        <section className="akrMiniPanel" data-akr-panel-key="rank" data-akr-focus-key="weekly_ladder">
           <h4>{t(props.lang, "pvp_weekly_ladder_title")}</h4>
           <div className="akrChipRow">
             <span className="akrChip">Tier {league.weekly_ladder.tier || "-"}</span>
@@ -93,7 +93,7 @@ export function PvpPanel(props: PvpPanelProps) {
           </div>
         </section>
       </div>
-      <section className="akrMiniPanel">
+      <section className="akrMiniPanel" data-akr-focus-key="arc_boss">
         <h4>{t(props.lang, "pvp_arc_boss_title")}</h4>
         <div className="akrChipRow">
           <span className="akrChip">{league.season_arc_boss.phase || "-"}</span>
@@ -124,7 +124,7 @@ export function PvpPanel(props: PvpPanelProps) {
         <p className="akrMuted">{t(props.lang, "pvp_trend_empty")}</p>
       )}
 
-      <h3>{t(props.lang, "pvp_leaderboard_title")}</h3>
+      <h3 data-akr-panel-key="leaderboard" data-akr-focus-key="leaderboard">{t(props.lang, "pvp_leaderboard_title")}</h3>
       {view.leaderboard.length ? (
         <ul className="akrList">
           {view.leaderboard.map((row) => (

@@ -138,6 +138,26 @@ body {
   color: #b9d4ea;
 }
 
+.akrLaunchStrip {
+  margin-top: 12px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.76rem;
+  color: #dff6ff;
+}
+
+.akrLaunchStrip strong {
+  color: var(--akr-accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+}
+
 .akrTabs {
   margin-top: 14px;
   display: grid;
@@ -222,6 +242,14 @@ body {
   border-radius: 12px;
   padding: 10px;
   background: rgba(7, 23, 46, 0.74);
+}
+
+.akrMiniPanel.isLaunchFocus,
+.akrCard.isLaunchFocus,
+[data-akr-panel-key].isLaunchFocus,
+[data-akr-focus-key].isLaunchFocus {
+  border-color: rgba(47, 255, 181, 0.72);
+  box-shadow: 0 0 0 1px rgba(47, 255, 181, 0.22), 0 0 0 6px rgba(47, 255, 181, 0.07);
 }
 
 .akrMiniPanel h4 {
