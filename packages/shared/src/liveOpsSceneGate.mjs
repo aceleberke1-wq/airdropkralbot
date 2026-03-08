@@ -30,6 +30,39 @@ function hasSurfaceMatch(campaign, surfaceBucket) {
   return surfaces.some((row) => String(row?.surface_key || "").trim() === safeSurface);
 }
 
+function normalizeBucketRows(rows, limit = 3) {
+  return asRows(rows)
+    .map((row) => ({
+      bucket_key: String(row.bucket_key || "").trim(),
+      item_count: Math.max(0, Number(row.item_count || 0))
+    }))
+    .filter((row) => row.bucket_key && row.item_count > 0)
+    .sort((left, right) => (right.item_count - left.item_count) || left.bucket_key.localeCompare(right.bucket_key))
+    .slice(0, Math.max(1, Number(limit || 3)));
+}
+
+function allocateSuggestedCap(rows, recommendedCap) {
+  const safeRows = normalizeBucketRows(rows, 3);
+  const cap = Math.max(0, Number(recommendedCap || 0));
+  if (!safeRows.length || cap <= 0) {
+    return [];
+  }
+  const total = safeRows.reduce((sum, row) => sum + row.item_count, 0);
+  if (!total) {
+    return safeRows.map((row) => ({ ...row, suggested_recipient_cap: 0 }));
+  }
+  const allocations = safeRows.map((row) => ({
+    ...row,
+    suggested_recipient_cap: Math.floor((cap * row.item_count) / total)
+  }));
+  let remainder = cap - allocations.reduce((sum, row) => sum + row.suggested_recipient_cap, 0);
+  for (let index = 0; remainder > 0 && allocations.length > 0; index = (index + 1) % allocations.length) {
+    allocations[index].suggested_recipient_cap += 1;
+    remainder -= 1;
+  }
+  return allocations;
+}
+
 export function resolveLiveOpsSceneGate(sceneRuntimeSummary, campaign) {
   const safeSummary = sceneRuntimeSummary && typeof sceneRuntimeSummary === "object" && !Array.isArray(sceneRuntimeSummary)
     ? sceneRuntimeSummary
@@ -167,7 +200,73 @@ export function resolveLiveOpsRecipientCapRecommendation(
   };
 }
 
+export function resolveLiveOpsPressureFocus(opsAlertTrendSummary, campaign, recommendation) {
+  const safeTrend = asRecord(opsAlertTrendSummary);
+  const safeCampaign = asRecord(campaign);
+  const safeTargeting = asRecord(safeCampaign.targeting);
+  const safeRecommendation = asRecord(recommendation);
+  const pressureBand = String(safeRecommendation.pressure_band || "clear").trim().toLowerCase();
+  const localeFilter = String(safeTargeting.locale_filter || "").trim().toLowerCase();
+  const segmentKey = String(safeTargeting.segment_key || "").trim();
+  const localeRows = normalizeBucketRows(safeTrend.locale_breakdown);
+  const segmentRows = normalizeBucketRows(safeTrend.segment_breakdown, 1);
+  const surfaceRows = normalizeBucketRows(safeTrend.surface_breakdown, 1);
+  const variantRows = normalizeBucketRows(safeTrend.variant_breakdown);
+  const cohortRows = normalizeBucketRows(safeTrend.cohort_breakdown);
+  const focusWarnings = [];
+
+  if (segmentRows[0]) {
+    focusWarnings.push({
+      dimension: "segment",
+      bucket_key: segmentRows[0].bucket_key,
+      item_count: segmentRows[0].item_count,
+      matches_target: Boolean(segmentKey && segmentRows[0].bucket_key === segmentKey)
+    });
+  }
+  if (surfaceRows[0]) {
+    focusWarnings.push({
+      dimension: "surface",
+      bucket_key: surfaceRows[0].bucket_key,
+      item_count: surfaceRows[0].item_count,
+      matches_target: hasSurfaceMatch(safeCampaign, surfaceRows[0].bucket_key)
+    });
+  }
+  if (localeRows[0]) {
+    focusWarnings.push({
+      dimension: "locale",
+      bucket_key: localeRows[0].bucket_key,
+      item_count: localeRows[0].item_count,
+      matches_target: Boolean(localeFilter && localeRows[0].bucket_key.toLowerCase() === localeFilter)
+    });
+  }
+  if (variantRows[0]) {
+    focusWarnings.push({
+      dimension: "variant",
+      bucket_key: variantRows[0].bucket_key,
+      item_count: variantRows[0].item_count,
+      matches_target: false
+    });
+  }
+  if (cohortRows[0]) {
+    focusWarnings.push({
+      dimension: "cohort",
+      bucket_key: cohortRows[0].bucket_key,
+      item_count: cohortRows[0].item_count,
+      matches_target: false
+    });
+  }
+
+  return {
+    pressure_band: ["clear", "watch", "alert"].includes(pressureBand) ? pressureBand : "clear",
+    warning_rows: focusWarnings,
+    locale_cap_split: allocateSuggestedCap(localeRows, safeRecommendation.recommended_recipient_cap),
+    variant_cap_split: allocateSuggestedCap(variantRows, safeRecommendation.recommended_recipient_cap),
+    cohort_cap_split: allocateSuggestedCap(cohortRows, safeRecommendation.recommended_recipient_cap)
+  };
+}
+
 export default {
   resolveLiveOpsSceneGate,
-  resolveLiveOpsRecipientCapRecommendation
+  resolveLiveOpsRecipientCapRecommendation,
+  resolveLiveOpsPressureFocus
 };

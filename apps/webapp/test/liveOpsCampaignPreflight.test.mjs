@@ -8,8 +8,10 @@ test("buildLiveOpsCampaignPreflight exposes capped watch gate for draft campaign
       campaign_key: "wallet_reconnect",
       targeting: {
         segment_key: "wallet_unlinked",
-        max_recipients: 40
-      }
+        max_recipients: 40,
+        locale_filter: "tr"
+      },
+      surfaces: [{ surface_key: "wallet_panel" }]
     }),
     {
       total_24h: 12,
@@ -27,8 +29,19 @@ test("buildLiveOpsCampaignPreflight exposes capped watch gate for draft campaign
       latest_alarm_state: "watch",
       experiment_key: "webapp_react_v1",
       segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 3 }],
-      locale_breakdown: [{ bucket_key: "tr", item_count: 3 }],
-      surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 2 }]
+      locale_breakdown: [
+        { bucket_key: "tr", item_count: 3 },
+        { bucket_key: "en", item_count: 1 }
+      ],
+      surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 2 }],
+      variant_breakdown: [
+        { bucket_key: "treatment", item_count: 3 },
+        { bucket_key: "control", item_count: 1 }
+      ],
+      cohort_breakdown: [
+        { bucket_key: "17", item_count: 2 },
+        { bucket_key: "42", item_count: 1 }
+      ]
     }
   );
 
@@ -46,6 +59,12 @@ test("buildLiveOpsCampaignPreflight exposes capped watch gate for draft campaign
   assert.equal(result.recipient_cap_recommendation.effective_cap_delta, 28);
   assert.equal(result.recipient_cap_recommendation.reason, "ops_alert_segment_pressure");
   assert.equal(result.recipient_cap_recommendation.experiment_key, "webapp_react_v1");
+  assert.equal(result.pressure_focus.warning_rows[0].dimension, "segment");
+  assert.equal(result.pressure_focus.warning_rows[0].matches_target, true);
+  assert.equal(result.pressure_focus.locale_cap_split[0].bucket_key, "tr");
+  assert.equal(result.pressure_focus.locale_cap_split[0].suggested_recipient_cap, 9);
+  assert.equal(result.pressure_focus.variant_cap_split[0].bucket_key, "treatment");
+  assert.equal(result.pressure_focus.variant_cap_split[0].suggested_recipient_cap, 9);
 });
 
 test("buildLiveOpsCampaignPreflight returns parse error for invalid draft", () => {

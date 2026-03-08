@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  resolveLiveOpsPressureFocus,
   resolveLiveOpsRecipientCapRecommendation,
   resolveLiveOpsSceneGate
 } = require("../../../packages/shared/src/liveOpsSceneGate.cjs");
@@ -85,4 +86,50 @@ test("resolveLiveOpsRecipientCapRecommendation tightens cap on matching segment 
   assert.equal(recommendation.reason, "ops_alert_segment_pressure");
   assert.equal(recommendation.segment_match, true);
   assert.equal(recommendation.surface_match, true);
+});
+
+test("resolveLiveOpsPressureFocus derives warning rows and suggested cap splits", () => {
+  const focus = resolveLiveOpsPressureFocus(
+    {
+      locale_breakdown: [
+        { bucket_key: "tr", item_count: 3 },
+        { bucket_key: "en", item_count: 1 }
+      ],
+      segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 3 }],
+      surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 2 }],
+      variant_breakdown: [
+        { bucket_key: "treatment", item_count: 3 },
+        { bucket_key: "control", item_count: 1 }
+      ],
+      cohort_breakdown: [
+        { bucket_key: "17", item_count: 2 },
+        { bucket_key: "42", item_count: 1 }
+      ]
+    },
+    {
+      targeting: {
+        segment_key: "wallet_unlinked",
+        locale_filter: "tr"
+      },
+      surfaces: [{ surface_key: "wallet_panel" }]
+    },
+    {
+      pressure_band: "watch",
+      recommended_recipient_cap: 12
+    }
+  );
+
+  assert.equal(focus.pressure_band, "watch");
+  assert.equal(focus.warning_rows[0].dimension, "segment");
+  assert.equal(focus.warning_rows[0].matches_target, true);
+  assert.equal(focus.warning_rows[2].dimension, "locale");
+  assert.equal(focus.warning_rows[2].matches_target, true);
+  assert.equal(focus.locale_cap_split[0].bucket_key, "tr");
+  assert.equal(focus.locale_cap_split[0].suggested_recipient_cap, 9);
+  assert.equal(focus.locale_cap_split[1].bucket_key, "en");
+  assert.equal(focus.locale_cap_split[1].suggested_recipient_cap, 3);
+  assert.equal(focus.variant_cap_split[0].bucket_key, "treatment");
+  assert.equal(focus.variant_cap_split[0].suggested_recipient_cap, 9);
+  assert.equal(focus.cohort_cap_split[0].bucket_key, "17");
+  assert.equal(focus.cohort_cap_split[0].suggested_recipient_cap, 8);
 });

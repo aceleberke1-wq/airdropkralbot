@@ -94,6 +94,51 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
   );
 }
 
+function PressureWarningList(props: { title: string; rows: Array<Record<string, unknown>>; lang: Lang }) {
+  if (!props.rows.length) {
+    return <p className="akrMuted">{props.title}: -</p>;
+  }
+  return (
+    <section className="akrMiniPanel">
+      <h4>{props.title}</h4>
+      <ul className="akrList">
+        {props.rows.map((row, index) => (
+          <li key={`${asText(row.dimension, "dimension")}_${asText(row.bucket_key, "unknown")}_${index}`}>
+            <span>
+              {formatBucketCode(asText(row.dimension, "dimension"))}: {formatBucketCode(asText(row.bucket_key, "unknown"))}
+            </span>
+            <strong>
+              {asCount(row.item_count)} | {t(props.lang, "admin_live_ops_pressure_match_label")}:{" "}
+              {row.matches_target === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function CapSplitList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return <p className="akrMuted">{props.title}: -</p>;
+  }
+  return (
+    <section className="akrMiniPanel">
+      <h4>{props.title}</h4>
+      <ul className="akrList">
+        {props.rows.map((row, index) => (
+          <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+            <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+            <strong>
+              {asCount(row.suggested_recipient_cap)} / {asCount(row.item_count)}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function SkipDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
   if (!props.rows.length) {
     return <p className="akrMuted">{props.title}: -</p>;
@@ -179,6 +224,11 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
     opsAlertTrendSummary
   );
   const preflightRecommendation = asRecord(preflight.recipient_cap_recommendation);
+  const preflightPressureFocus = asRecord(preflight.pressure_focus);
+  const preflightPressureWarnings = asArray(preflightPressureFocus.warning_rows);
+  const preflightLocaleCapSplit = asArray(preflightPressureFocus.locale_cap_split);
+  const preflightVariantCapSplit = asArray(preflightPressureFocus.variant_cap_split);
+  const preflightCohortCapSplit = asArray(preflightPressureFocus.cohort_cap_split);
   const liveReady = approvalSummary.live_dispatch_ready === true;
   const approvalState = asText(approvalSummary.approval_state);
   const scheduleState = asText(approvalSummary.schedule_state);
@@ -291,6 +341,18 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
               {t(props.lang, "admin_live_ops_recommend_focus_label")}: {asText(preflightRecommendation.segment_key, "-")} /{" "}
               {asText(preflightRecommendation.locale_bucket, "-")} / {asText(preflightRecommendation.surface_bucket, "-")}
             </p>
+            <div className="akrSplit">
+              <PressureWarningList
+                title={t(props.lang, "admin_live_ops_pressure_warning_title")}
+                rows={preflightPressureWarnings}
+                lang={props.lang}
+              />
+              <CapSplitList title={t(props.lang, "admin_live_ops_pressure_split_locale_title")} rows={preflightLocaleCapSplit} />
+            </div>
+            <div className="akrSplit">
+              <CapSplitList title={t(props.lang, "admin_live_ops_pressure_split_variant_title")} rows={preflightVariantCapSplit} />
+              <CapSplitList title={t(props.lang, "admin_live_ops_pressure_split_cohort_title")} rows={preflightCohortCapSplit} />
+            </div>
           </>
         ) : (
           <p className="akrErrorLine">{preflight.error}</p>
