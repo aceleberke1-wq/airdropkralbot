@@ -3,6 +3,13 @@ type ChainOption = {
   payCurrency: string;
 };
 
+type StatusChip = {
+  id: string;
+  text: string;
+  tone?: string;
+  level?: number;
+};
+
 export type TokenOverviewBridgePayload = {
   symbol: string;
   balanceText: string;
@@ -14,6 +21,7 @@ export type TokenOverviewBridgePayload = {
   chainOptions: ChainOption[];
   selectedChain: string;
   buyDisabled: boolean;
+  statusChips?: StatusChip[];
 };
 
 type TokenOverviewBridge = {
@@ -33,6 +41,11 @@ function byId<T extends HTMLElement>(id: string): T | null {
 function safeText(value: unknown, fallback = ""): string {
   const text = String(value ?? "").trim();
   return text || fallback;
+}
+
+function asNum(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function render(payload: TokenOverviewBridgePayload): boolean {
@@ -68,6 +81,18 @@ function render(payload: TokenOverviewBridgePayload): boolean {
     const hasSelected = selected && options.some((item) => safeText(item.chain) === selected);
     chainSelect.value = hasSelected ? selected : safeText(options[0].chain);
   }
+
+  (Array.isArray(payload.statusChips) ? payload.statusChips : []).forEach((chip) => {
+    const node = byId<HTMLElement>(safeText(chip.id));
+    if (!node) {
+      return;
+    }
+    const tone = safeText(chip.tone, "neutral").toLowerCase();
+    node.textContent = safeText(chip.text, "--");
+    node.className = "combatAlertChip";
+    node.classList.add(tone || "neutral");
+    node.style.setProperty("--chip-level", Math.max(0, Math.min(1, asNum(chip.level || 0))).toFixed(3));
+  });
 
   buyBtn.disabled = Boolean(payload.buyDisabled);
   return true;

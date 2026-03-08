@@ -316,9 +316,12 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.operations.offers.items[0].rewardPreview, "SC +18 | RC +4");
   assert.match(payloads.operations.attempts.activeText, /Fill 60%/);
   assert.equal(payloads.operations.events.items.at(-1).label, "wallet");
+  assert.match(payloads.operations.pulse.lineText, /Streak 6/);
+  assert.equal(payloads.operations.pulse.chips[2].text, "SC 18 | RC 4");
   assert.equal(payloads.tokenOverview.symbol, "NXT");
   assert.match(payloads.tokenOverview.summaryText, /TON LIVE/);
   assert.match(payloads.tokenOverview.unitsText, /PASS 1/);
+  assert.equal(payloads.tokenOverview.statusChips[1].text, "PAY OPEN");
   assert.equal(payloads.tokenTreasury.route.badgeText, "ROUTE 2/3");
   assert.equal(payloads.tokenTreasury.actionDirector.badgeText, "SUBMIT");
   assert.match(payloads.tokenTreasury.pulse.gateLineText, /0.001230 BTC/);

@@ -22,6 +22,13 @@ type EventItem = {
   hint: string;
 };
 
+type PulseChip = {
+  id: string;
+  text: string;
+  tone?: string;
+  level?: number;
+};
+
 export type OperationsDeckBridgePayload = {
   offers?: {
     badgeText: string;
@@ -40,6 +47,11 @@ export type OperationsDeckBridgePayload = {
   events?: {
     emptyText?: string;
     items: EventItem[];
+  };
+  pulse?: {
+    lineText: string;
+    hintText: string;
+    chips: PulseChip[];
   };
 };
 
@@ -247,6 +259,28 @@ function renderEvents(payload: NonNullable<OperationsDeckBridgePayload["events"]
   return true;
 }
 
+function renderPulse(payload: NonNullable<OperationsDeckBridgePayload["pulse"]>): boolean {
+  const line = byId<HTMLElement>("tasksPulseLine");
+  const hint = byId<HTMLElement>("tasksPulseHint");
+  if (!line || !hint) {
+    return false;
+  }
+  line.textContent = safeText(payload.lineText, "Progress pulse bekleniyor.");
+  hint.textContent = safeText(payload.hintText, "Economy signal bekleniyor.");
+  (Array.isArray(payload.chips) ? payload.chips : []).forEach((chip) => {
+    const node = byId<HTMLElement>(safeText(chip.id));
+    if (!node) {
+      return;
+    }
+    const tone = safeText(chip.tone, "neutral").toLowerCase();
+    node.textContent = safeText(chip.text, "--");
+    node.className = "combatAlertChip";
+    node.classList.add(tone || "neutral");
+    node.style.setProperty("--chip-level", Math.max(0, Math.min(1, asNum(chip.level || 0))).toFixed(3));
+  });
+  return true;
+}
+
 function render(payload: OperationsDeckBridgePayload): boolean {
   let handled = false;
   if (payload?.offers) {
@@ -260,6 +294,9 @@ function render(payload: OperationsDeckBridgePayload): boolean {
   }
   if (payload?.events) {
     handled = renderEvents(payload.events) || handled;
+  }
+  if (payload?.pulse) {
+    handled = renderPulse(payload.pulse) || handled;
   }
   return handled;
 }

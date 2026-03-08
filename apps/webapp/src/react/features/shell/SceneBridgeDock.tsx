@@ -615,6 +615,18 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p className="akrBridgeLine">
                 Reveal: <span id="revealAttempt">Yok</span>
               </p>
+              <p id="tasksPulseLine" className="akrBridgeHint">
+                Progress pulse bekleniyor.
+              </p>
+              <p id="tasksPulseHint" className="akrBridgeHint">
+                Economy signal bekleniyor.
+              </p>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksPulseStreakChip" />
+                <BridgeChip id="tasksPulseSeasonChip" />
+                <BridgeChip id="tasksPulseEconomyChip" />
+                <BridgeChip id="tasksPulseWalletChip" />
+              </div>
             </div>
             <div className="akrBridgeStrip">
               <ul id="eventFeed" className="akrList akrBridgeList" />
@@ -650,6 +662,12 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p className="akrBridgeHint" id="tokenHint">
                 -
               </p>
+              <div className="akrChipRow">
+                <BridgeChip id="tokenWalletChip" />
+                <BridgeChip id="tokenPayoutChip" />
+                <BridgeChip id="tokenPremiumChip" />
+                <BridgeChip id="tokenRouteSummaryChip" />
+              </div>
               <select id="tokenChainSelect" className="akrBridgeSelect" disabled aria-label="token-chain-readonly" />
               <button id="tokenBuyBtn" type="button" className="btn accent">
                 Buy Intent

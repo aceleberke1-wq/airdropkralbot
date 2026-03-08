@@ -1013,6 +1013,40 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed) {
     events: {
       emptyText: "Event akisi bos.",
       items: events
+    },
+    pulse: {
+      lineText: `Streak ${Math.round(toNum(homeView.summary?.streak))} | D-${Math.round(toNum(homeView.summary?.season_days_left))} | Tasks ${Math.round(
+        toNum(homeView.summary?.tasks_done)
+      )}/${Math.round(toNum(homeView.summary?.daily_cap))}`,
+      hintText: `SC ${Math.round(toNum(homeView.summary?.sc_earned))} | RC ${Math.round(toNum(homeView.summary?.rc_earned))} | Wallet ${
+        asRecord(homeView.summary).wallet_active ? "LIVE" : "OFF"
+      } | ${asRecord(homeView.summary).premium_active ? "PREMIUM" : "BASE"}`,
+      chips: [
+        {
+          id: "tasksPulseStreakChip",
+          text: `STR ${Math.round(toNum(homeView.summary?.streak))}`,
+          tone: toNum(homeView.summary?.streak) >= 5 ? "safe" : "neutral",
+          level: clamp(toNum(homeView.summary?.streak) / 10)
+        },
+        {
+          id: "tasksPulseSeasonChip",
+          text: `D-${Math.round(toNum(homeView.summary?.season_days_left))}`,
+          tone: toNum(homeView.summary?.season_days_left) <= 3 ? "pressure" : "balanced",
+          level: clamp(1 - toNum(homeView.summary?.season_days_left) / 14)
+        },
+        {
+          id: "tasksPulseEconomyChip",
+          text: `SC ${Math.round(toNum(homeView.summary?.sc_earned))} | RC ${Math.round(toNum(homeView.summary?.rc_earned))}`,
+          tone: toNum(homeView.summary?.rc_earned) > 0 ? "advantage" : "balanced",
+          level: clamp((toNum(homeView.summary?.sc_earned) + toNum(homeView.summary?.rc_earned) * 2) / 40)
+        },
+        {
+          id: "tasksPulseWalletChip",
+          text: asRecord(homeView.summary).wallet_active ? `WL ${toText(homeView.summary?.wallet_chain, "TON").toUpperCase()}` : "WL OFF",
+          tone: asRecord(homeView.summary).wallet_active ? "safe" : "pressure",
+          level: asRecord(homeView.summary).wallet_active ? 0.88 : 0.22
+        }
+      ]
     }
   };
 }
@@ -1059,6 +1093,32 @@ function buildTokenOverviewPayload(vaultRoot, vaultView) {
       payCurrency: toText(asRecord(row).pay_currency || asRecord(row).currency || "", "")
     })),
     selectedChain,
+    statusChips: [
+      {
+        id: "tokenWalletChip",
+        text: summary.wallet_active ? `WL ${toText(summary.wallet_kyc_status, "unknown").toUpperCase()}` : "WL OFF",
+        tone: summary.wallet_active ? (toText(summary.wallet_kyc_status, "unknown").toLowerCase() === "approved" ? "safe" : "balanced") : "neutral",
+        level: summary.wallet_active ? 0.88 : 0.2
+      },
+      {
+        id: "tokenPayoutChip",
+        text: summary.payout_can_request ? "PAY OPEN" : `PAY ${toText(summary.payout_unlock_tier, "LOCK").toUpperCase()}`,
+        tone: summary.payout_can_request ? "safe" : "pressure",
+        level: summary.payout_can_request ? 0.92 : clamp(toNum(summary.payout_unlock_progress) / 100)
+      },
+      {
+        id: "tokenPremiumChip",
+        text: summary.premium_active ? `PASS ${Math.round(toNum(summary.active_pass_count || 0))}` : "PASS OFF",
+        tone: summary.premium_active ? "advantage" : "neutral",
+        level: clamp(toNum(summary.active_pass_count || 0) / 4)
+      },
+      {
+        id: "tokenRouteSummaryChip",
+        text: `ROUTE ${Math.round(toNum(summary.route_ok))}/${Math.round(toNum(summary.route_total))}`,
+        tone: toNum(summary.route_ok) > 0 ? "balanced" : "critical",
+        level: clamp(toNum(summary.route_ok) / Math.max(1, toNum(summary.route_total)))
+      }
+    ],
     buyDisabled:
       !Boolean(summary.wallet_active) ||
       toNum(summary.route_ok) <= 0 ||
