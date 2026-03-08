@@ -8,6 +8,7 @@ type SceneBridgeFeedOptions = {
   scene: Record<string, unknown> | null;
   sceneRuntime: Record<string, unknown> | null;
   data: Record<string, unknown> | null;
+  homeFeed: Record<string, unknown> | null;
   taskResult: Record<string, unknown> | null;
   pvpRuntime: Record<string, unknown> | null;
   leagueOverview: Record<string, unknown> | null;
@@ -120,6 +121,12 @@ function renderPlayerBridges(payloads: ReturnType<typeof buildPlayerBridgePayloa
   if (payloads.pvpDuel && anyWindow.__AKR_PVP_DUEL__?.render) {
     anyWindow.__AKR_PVP_DUEL__.render(payloads.pvpDuel);
   }
+  if (payloads.combatHud && anyWindow.__AKR_COMBAT_HUD__?.render) {
+    anyWindow.__AKR_COMBAT_HUD__.render(payloads.combatHud);
+  }
+  if (payloads.cameraDirector && anyWindow.__AKR_CAMERA_DIRECTOR__?.render) {
+    anyWindow.__AKR_CAMERA_DIRECTOR__.render(payloads.cameraDirector);
+  }
   if (payloads.pvpRoundDirector && anyWindow.__AKR_ROUND_DIRECTOR__?.render) {
     anyWindow.__AKR_ROUND_DIRECTOR__.render(payloads.pvpRoundDirector);
   }
@@ -156,6 +163,7 @@ export function useSceneBridgeFeed(options: SceneBridgeFeedOptions) {
       const payloads = buildPlayerBridgePayloads({
         mutators,
         data: options.data || {},
+        homeFeed: options.homeFeed || {},
         taskResult: options.taskResult || {},
         pvpRuntime: options.pvpRuntime || {},
         leagueOverview: options.leagueOverview || {},
@@ -181,6 +189,7 @@ export function useSceneBridgeFeed(options: SceneBridgeFeedOptions) {
     options.scene,
     options.sceneRuntime,
     options.data,
+    options.homeFeed,
     options.taskResult,
     options.pvpRuntime,
     options.leagueOverview,

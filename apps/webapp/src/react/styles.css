@@ -701,6 +701,10 @@ body {
   gap: 16px;
 }
 
+.akrCameraDirectorBox {
+  margin-top: 12px;
+}
+
 .akrPvpMiniStats {
   align-items: stretch;
 }
@@ -728,6 +732,23 @@ body {
 
 .pvpTickLine.urgency-critical {
   color: #ffc0d1;
+}
+
+.cameraDirectorBox,
+.akrCameraDirectorBox {
+  border-color: rgba(123, 192, 227, 0.2);
+}
+
+#cameraModeLine[data-mode="broadcast"] {
+  color: #9cd9ff;
+}
+
+#cameraModeLine[data-mode="tactical"] {
+  color: #b9ffd8;
+}
+
+#cameraModeLine[data-mode="chase"] {
+  color: #ffc0cf;
 }
 
 .pvpMomentumStrip,
@@ -808,6 +829,128 @@ body {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
   background: rgba(7, 21, 42, 0.66);
+}
+
+.combatAlertChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(123, 192, 227, 0.22);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(7, 21, 42, 0.66);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+}
+
+.combatAlertChip.neutral {
+  border-color: rgba(123, 192, 227, 0.22);
+}
+
+.combatAlertChip.safe,
+.combatAlertChip.balanced {
+  border-color: rgba(47, 255, 181, 0.28);
+}
+
+.combatAlertChip.aggressive {
+  border-color: rgba(255, 178, 94, 0.32);
+}
+
+.combatAlertChip.critical {
+  border-color: rgba(255, 95, 127, 0.34);
+}
+
+.combatHudPanel {
+  border: 1px solid rgba(123, 192, 227, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(8, 14, 34, 0.86), rgba(5, 10, 26, 0.8));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.combatHudPanel.pressure-low {
+  border-color: rgba(47, 255, 181, 0.22);
+}
+
+.combatHudPanel.pressure-medium {
+  border-color: rgba(123, 192, 227, 0.26);
+}
+
+.combatHudPanel.pressure-high {
+  border-color: rgba(255, 178, 94, 0.32);
+}
+
+.combatHudPanel.pressure-critical {
+  border-color: rgba(255, 95, 127, 0.34);
+}
+
+.combatHudCell {
+  border: 1px solid rgba(123, 192, 227, 0.14);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(6, 21, 41, 0.42);
+  display: grid;
+  gap: 8px;
+}
+
+.combatTimelineCell,
+.combatFluxCell,
+.combatCadenceCell,
+.combatOverdriveCell,
+.combatReactorCell {
+  grid-column: 1 / -1;
+}
+
+.trailChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(123, 192, 227, 0.2);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  background: rgba(7, 21, 42, 0.66);
+}
+
+.trailChip.safe,
+.trailChip.guard {
+  border-color: rgba(47, 255, 181, 0.28);
+}
+
+.trailChip.aggressive,
+.trailChip.strike {
+  border-color: rgba(255, 178, 94, 0.28);
+}
+
+.trailChip.critical,
+.trailChip.reject {
+  border-color: rgba(255, 95, 127, 0.34);
+}
+
+.trailChip.balanced,
+.trailChip.charge {
+  border-color: rgba(123, 192, 227, 0.28);
+}
+
+.pulseStrategyLine {
+  margin: 0;
+}
+
+.matrixGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.matrixRow {
+  display: grid;
+  gap: 4px;
+}
+
+.pvpActionNodes {
+  margin-top: 4px;
 }
 
 .pvpLiveChip.neutral {
@@ -925,7 +1068,8 @@ body {
   .pvpTheaterStrip,
   .pvpObjectiveGrid,
   .pvpRadarStats,
-  .pvpRejectIntelMeterGrid {
+  .pvpRejectIntelMeterGrid,
+  .combatHudPanel {
     grid-template-columns: 1fr;
   }
 }

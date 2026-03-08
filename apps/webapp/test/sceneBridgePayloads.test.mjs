@@ -163,7 +163,13 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
         summary: { total_assets: 4, ready_assets: 3, missing_assets: 1, integrity_ratio: 0.75 }
       },
       offers: [
-        { id: 11, task_type: "raid", difficulty: 72, expires_at: "2099-03-10T12:00:00.000Z" }
+        {
+          id: 11,
+          task_type: "raid",
+          difficulty: 72,
+          expires_at: "2099-03-10T12:00:00.000Z",
+          reward_preview: "SC +18 | RC +4"
+        }
       ],
       missions: {
         list: [{ mission_key: "mission_alpha", title: "Mission Alpha", completed: true, can_claim: true }]
@@ -173,6 +179,30 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
         revealable: { task_type: "forge" }
       },
       events: [{ event_type: "event_countdown", event_at: "2099-03-10T13:00:00.000Z", meta: { status: "live" } }]
+    },
+    homeFeed: {
+      profile: { public_name: "Kral", kingdom_tier: 3, current_streak: 6 },
+      season: { season_id: 12, days_left: 4, points: 188 },
+      daily: { tasks_done: 3, daily_cap: 5, sc_earned: 18, rc_earned: 4, hc_earned: 1 },
+      risk: { status: "watch" },
+      mission: { total: 1, ready: 1, open: 1 },
+      contract: {
+        offers_total: 1,
+        active_attempt: { task_type: "raid" },
+        revealable_attempt: { task_type: "forge" }
+      },
+      wallet_quick: {
+        active: true,
+        chain: "TON",
+        address_masked: "UQ...999",
+        kyc_status: "approved"
+      },
+      monetization_quick: {
+        enabled: true,
+        premium_active: true,
+        active_pass_count: 2,
+        spend_summary: { SC: 84, RC: 12, HC: 3 }
+      }
     },
     taskResult: { accepted_offer_id: 11 },
     pvpRuntime: {
@@ -236,7 +266,23 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
           ]
         },
         payout_status: { can_request: true, requestable_btc: 0.00123, unlock_tier: "T2" },
-        wallet_session: { active: true, chain: "TON", address_masked: "UQ...999" }
+        wallet_session: { active: true, chain: "TON", address_masked: "UQ...999", kyc_status: "approved" },
+        monetization_status: {
+          enabled: true,
+          player_effects: { premium_active: true },
+          active_pass_count: 1,
+          spend_summary: { SC: 21, RC: 8, HC: 1 },
+          cosmetics: { owned_count: 4 }
+        }
+      },
+      monetization: {
+        status: {
+          enabled: true,
+          active_passes: [{ pass_key: "pass_alpha" }],
+          cosmetics: { owned_count: 4 },
+          spend_summary: { SC: 21, RC: 8, HC: 1 }
+        },
+        active_effects: { premium_active: true }
       },
       quote: { rate: 31.2, quote_quorum: { provider_count: 3, ok_provider_count: 2, agreement_ratio: 0.74 } },
       buy: { request_id: 77, status: "intent_created" },
@@ -260,12 +306,23 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.pvpRejectIntel.badge.text, "REJ TIMEOUT");
   assert.equal(payloads.pvpEvents.timelineRows.length, 6);
   assert.equal(payloads.pvpDuel.tick.live, true);
+  assert.equal(payloads.combatHud.timelineBadgeText, "ACTIVE");
+  assert.equal(payloads.combatHud.chainTrail.length, 3);
+  assert.equal(payloads.cameraDirector.mode.key, "broadcast");
+  assert.match(payloads.cameraDirector.focus.text, /ACTIVE/);
   assert.equal(payloads.pvpRoundDirector.heat.phase, "engage");
   assert.equal(payloads.pvpRadar.replay.length, 3);
   assert.equal(payloads.operations.offers.items.length, 1);
+  assert.equal(payloads.operations.offers.items[0].rewardPreview, "SC +18 | RC +4");
+  assert.match(payloads.operations.attempts.activeText, /Fill 60%/);
+  assert.equal(payloads.operations.events.items.at(-1).label, "wallet");
   assert.equal(payloads.tokenOverview.symbol, "NXT");
+  assert.match(payloads.tokenOverview.summaryText, /TON LIVE/);
+  assert.match(payloads.tokenOverview.unitsText, /PASS 1/);
   assert.equal(payloads.tokenTreasury.route.badgeText, "ROUTE 2/3");
   assert.equal(payloads.tokenTreasury.actionDirector.badgeText, "SUBMIT");
+  assert.match(payloads.tokenTreasury.pulse.gateLineText, /0.001230 BTC/);
+  assert.equal(payloads.tokenTreasury.txLifecycle.rows.at(-1).chip, "PASS");
 });
 
 test("buildAdminBridgePayloads produces runtime, asset and audit cards from admin state", async () => {

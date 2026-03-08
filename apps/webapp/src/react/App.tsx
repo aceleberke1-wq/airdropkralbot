@@ -544,6 +544,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     scene: (scene as Record<string, unknown>) || {},
     sceneRuntime: (sceneRuntime as Record<string, unknown>) || {},
     data: (data as Record<string, unknown> | null) || null,
+    homeFeed: (homeFeed as Record<string, unknown> | null) || null,
     taskResult: (taskResult as Record<string, unknown> | null) || null,
     pvpRuntime: (pvpRuntime.session as Record<string, unknown> | null) || null,
     leagueOverview: (leagueOverview as Record<string, unknown> | null) || null,

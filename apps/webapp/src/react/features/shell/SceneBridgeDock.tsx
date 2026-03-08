@@ -175,6 +175,16 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                   Cinematic Director
                 </p>
                 <MeterTrack id="pvpCineMeter" />
+                <div className="akrBridgeStrip akrCameraDirectorBox">
+                  <p className="akrBridgeHint">Cinematic Camera</p>
+                  <p id="cameraModeLine" className="akrBridgeLine" data-mode="broadcast">
+                    BROADCAST | Drift 0%
+                  </p>
+                  <MeterTrack id="cameraEnergyMeter" />
+                  <p id="cameraFocusLine" className="akrBridgeHint">
+                    Focus dengede, director hazir.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -370,6 +380,189 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div id="combatHudPanel" className="combatHudPanel pressure-low">
+              <div className="combatHudCell">
+                <p className="akrBridgeHint">Action Chain</p>
+                <p id="combatChainLine" className="akrBridgeLine">
+                  CHAIN IDLE
+                </p>
+                <div id="combatChainTrail" className="akrChipRow akrPvpChipWrap">
+                  <span className="replayChip muted">bekleniyor</span>
+                </div>
+              </div>
+
+              <div className="combatHudCell">
+                <p className="akrBridgeHint">Pulse Reactor</p>
+                <p id="pulseReactorLine" className="akrBridgeLine">
+                  NEXUS READY
+                </p>
+                <MeterTrack id="pulseReactorMeter" />
+                <p id="pulseReactorHint" className="akrBridgeHint">
+                  Reactor signal bekleniyor.
+                </p>
+                <p id="pulseStrategyLine" className="akrBridgeHint pulseStrategyLine">
+                  Strategy guidance bekleniyor.
+                </p>
+              </div>
+
+              <div className="combatHudCell combatTimelineCell">
+                <div className="akrBridgeHeader">
+                  <span id="combatTimelineBadge" className="badge info">
+                    IDLE
+                  </span>
+                  <span className="akrBridgeHint">Timeline Director</span>
+                </div>
+                <p id="combatTimelineLine" className="akrBridgeLine">
+                  Beklenen: AUTO | Son: CHAIN IDLE
+                </p>
+                <MeterTrack id="combatTimelineMeter" />
+                <p id="combatTimelineHint" className="akrBridgeHint">
+                  Timeline guidance bekleniyor.
+                </p>
+                <div className="akrChipRow akrPvpChipWrap pvpActionNodes">
+                  <span id="combatTimelineNodeStrike" className="pvpLiveChip neutral">
+                    STRIKE
+                  </span>
+                  <span id="combatTimelineNodeGuard" className="pvpLiveChip neutral">
+                    GUARD
+                  </span>
+                  <span id="combatTimelineNodeCharge" className="pvpLiveChip neutral">
+                    CHARGE
+                  </span>
+                </div>
+              </div>
+
+              <div className="combatHudCell combatFluxCell">
+                <p className="akrBridgeHint">Score Flux</p>
+                <p id="combatFluxLine" className="akrBridgeLine">
+                  Score 0-0 | Delta 0
+                </p>
+                <p id="combatFluxHint" className="akrBridgeHint">
+                  Flux telemetry bekleniyor.
+                </p>
+                <div className="matrixGrid">
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">SELF</span>
+                    <MeterTrack id="combatFluxSelfMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">OPP</span>
+                    <MeterTrack id="combatFluxOppMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">SYNC</span>
+                    <MeterTrack id="combatFluxSyncMeter" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="combatHudCell combatCadenceCell">
+                <p className="akrBridgeHint">Action Cadence</p>
+                <p id="combatCadenceLine" className="akrBridgeLine">
+                  STR 0 | GRD 0 | CHG 0
+                </p>
+                <p id="combatCadenceHint" className="akrBridgeHint">
+                  Cadence guidance bekleniyor.
+                </p>
+                <div className="matrixGrid">
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">STRIKE</span>
+                    <MeterTrack id="combatCadenceStrikeMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">GUARD</span>
+                    <MeterTrack id="combatCadenceGuardMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">CHARGE</span>
+                    <MeterTrack id="combatCadenceChargeMeter" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="combatHudCell">
+                <p className="akrBridgeHint">Boss Pressure</p>
+                <p id="bossPressureLine" className="akrBridgeLine" data-tone="stable">
+                  STABLE | HP -- | TTL --
+                </p>
+                <MeterTrack id="bossPressureMeter" />
+              </div>
+
+              <div className="combatHudCell combatOverdriveCell">
+                <p className="akrBridgeHint">Overdrive Core</p>
+                <p id="combatOverdriveLine" className="akrBridgeLine" data-tone="steady">
+                  HEAT 0% | THREAT 0% | PVP 0% | CAM 0%
+                </p>
+                <p id="combatOverdriveHint" className="akrBridgeHint" data-tone="steady">
+                  Overdrive guidance bekleniyor.
+                </p>
+                <div className="matrixGrid">
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">HEAT</span>
+                    <MeterTrack id="combatOverdriveHeatMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">THREAT</span>
+                    <MeterTrack id="combatOverdriveThreatMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">PVP</span>
+                    <MeterTrack id="combatOverdrivePvpMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">CAM</span>
+                    <MeterTrack id="combatOverdriveImpulseMeter" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="combatHudCell combatReactorCell">
+                <p className="akrBridgeHint">Matrix Reactor</p>
+                <p id="combatMatrixLine" className="akrBridgeLine" data-tone="steady">
+                  SYNC 0% | THERMAL 0% | SHIELD 0% | CLUTCH 0%
+                </p>
+                <p id="combatMatrixHint" className="akrBridgeHint" data-tone="steady">
+                  Matrix guidance bekleniyor.
+                </p>
+                <div className="matrixGrid">
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">SYNC</span>
+                    <MeterTrack id="combatMatrixSyncMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">THERMAL</span>
+                    <MeterTrack id="combatMatrixThermalMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">SHIELD</span>
+                    <MeterTrack id="combatMatrixShieldMeter" />
+                  </div>
+                  <div className="matrixRow">
+                    <span className="akrBridgeHint">CLUTCH</span>
+                    <MeterTrack id="combatMatrixClutchMeter" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="combatHudCell">
+                <p className="akrBridgeHint">Alert Rail</p>
+                <div className="akrChipRow akrPvpChipWrap">
+                  <span id="combatAlertPrimaryChip" className="combatAlertChip neutral">
+                    FLOW HOLD
+                  </span>
+                  <span id="combatAlertSecondaryChip" className="combatAlertChip neutral">
+                    SYNC
+                  </span>
+                  <span id="combatAlertTertiaryChip" className="combatAlertChip neutral">
+                    ROUTE
+                  </span>
+                </div>
+                <p id="combatAlertHint" className="akrBridgeHint">
+                  Alert guidance bekleniyor.
+                </p>
               </div>
             </div>
 

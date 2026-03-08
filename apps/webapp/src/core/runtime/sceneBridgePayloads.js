@@ -1,4 +1,5 @@
 import { buildPvpLiveViewModel } from "../player/pvpLiveViewModel.js";
+import { buildHomeFeedViewModel } from "../player/homeFeedViewModel.js";
 import { buildTasksViewModel } from "../player/tasksViewModel.js";
 import { buildVaultViewModel } from "../player/vaultViewModel.js";
 
@@ -403,6 +404,8 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
   const trendRows = asArray(league.trend);
   const latestReject = asRecord(asArray(pvpView.reject_mix)[0]);
   const reducedMotion = Boolean(asRecord(scene).reducedMotion);
+  const lowEndMode = Boolean(asRecord(scene).lowEndMode || asRecord(scene).capabilityProfile?.low_end_mode);
+  const effectiveQuality = toText(asRecord(scene).effectiveQuality || "medium", "medium").toLowerCase();
   const acceptRate = clamp(toNum(summary.accept_rate_pct) / 100);
   const freshnessRatio = clamp(1 - toNum(summary.p95_latency_ms) / 650);
   const selfScore = Math.max(0, toNum(summary.self_score));
@@ -529,6 +532,45 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
         }
       : null
   ].filter(Boolean);
+
+  const actionHistogram = radarReplay.reduce(
+    (acc, row) => {
+      const key = normalizePvpAction(row.input_action, "strike");
+      if (key === "guard") acc.guard += 1;
+      else if (key === "charge") acc.charge += 1;
+      else acc.strike += 1;
+      return acc;
+    },
+    { strike: 0, guard: 0, charge: 0 }
+  );
+  const latestReplay = asRecord(radarReplay[0]);
+  const latestAction = normalizePvpAction(latestReplay.input_action || expectedAction, expectedAction);
+  const latestAccepted = latestReplay.accepted !== false;
+  const scoreTotal = Math.max(1, selfScore + opponentScore);
+  const selfScoreRatio = clamp(selfScore / scoreTotal);
+  const oppScoreRatio = clamp(opponentScore / scoreTotal);
+  const cadenceTotal = Math.max(1, actionHistogram.strike + actionHistogram.guard + actionHistogram.charge);
+  const strikeRatio = clamp(actionHistogram.strike / cadenceTotal);
+  const guardRatio = clamp(actionHistogram.guard / cadenceTotal);
+  const chargeRatio = clamp(actionHistogram.charge / cadenceTotal);
+  const pressureClass =
+    pressureRatio >= 0.72 ? "pressure-critical" : pressureRatio >= 0.52 ? "pressure-high" : pressureRatio >= 0.28 ? "pressure-medium" : "pressure-low";
+  const urgency = pressureRatio >= 0.72 ? "critical" : pressureRatio >= 0.48 ? "spike" : freshnessRatio < 0.55 ? "watch" : "steady";
+  const recommendation =
+    pressureRatio >= 0.72
+      ? "safe"
+      : toNum(dailyDuel.progress_pct) >= 100 || dominanceRatio >= 0.6
+        ? "aggressive"
+        : "balanced";
+  const bossTone = toNum(seasonArcBoss.hp_pct) <= 25 ? "critical" : toNum(seasonArcBoss.hp_pct) <= 55 ? "pressure" : "stable";
+  const cameraMode =
+    lowEndMode || effectiveQuality === "low"
+      ? "tactical"
+      : runtimeTone === "critical"
+        ? "chase"
+        : pressureRatio >= 0.46
+          ? "tactical"
+          : "broadcast";
 
   return {
     radar: {
@@ -711,6 +753,127 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
         reducedMotion
       }
     },
+    combatHud: {
+      pressureClass,
+      urgency,
+      recommendation,
+      chainLineText: `CHAIN ${phaseText} | ${latestAction.toUpperCase()} ${latestAccepted ? "LOCK" : "MISS"}`,
+      chainTrail: radarReplay.map((row, idx) => ({
+        action: normalizePvpAction(row.input_action, "strike"),
+        accepted: row.accepted !== false,
+        tone:
+          row.accepted === false
+            ? "critical"
+            : normalizePvpAction(row.input_action, "strike") === "guard"
+              ? "safe"
+              : normalizePvpAction(row.input_action, "strike") === "charge"
+                ? "balanced"
+                : "aggressive",
+        isLatest: idx === 0
+      })),
+      energy: Math.round(clamp(syncRatio * 0.55 + dominanceRatio * 0.45) * 100),
+      reactorLineText: `NEXUS ${runtimeTone.toUpperCase()} | Sync ${Math.round(syncRatio * 100)}%`,
+      reactorHintText: `Accept ${Math.round(acceptRate * 100)}% | Fresh ${Math.round(freshnessRatio * 100)}% | Asset ${Math.round(
+        clamp(assetMetrics.readyRatio) * 100
+      )}%`,
+      reactorPalette: mapMeterPalette(syncRatio < 0.45 ? "critical" : syncRatio < 0.72 ? "pressure" : "safe"),
+      strategyLineText: `Mode ${recommendation.toUpperCase()} | Next ${expectedAction.toUpperCase()} | Rank #${Math.round(toNum(sessionSnapshot.rank))}`,
+      timelineLineText: `Beklenen ${expectedAction.toUpperCase()} | Son ${latestAction.toUpperCase()} | Tick ${Math.round(tickMs)}ms`,
+      timelineBadgeText: latestAccepted ? phaseText : `REJ ${rejectReason}`,
+      timelineBadgeWarn: !latestAccepted || latestReject.hit_count > 0,
+      timelineMeterPct: Math.round(clamp(syncRatio * 0.6 + clutchRatio * 0.4) * 100),
+      timelineHintText: `Queue ${Math.round(queueDelta)} | Window ${Math.round(actionWindowMs)}ms | Shadow ${shadowAction.toUpperCase()}`,
+      timelinePalette: mapMeterPalette(runtimeTone),
+      queuePressurePct: Math.round(clamp(queueRatio) * 100),
+      pressureRatioPct: Math.round(clamp(pressureRatio) * 100),
+      syncDelta: Math.round((syncRatio - 0.5) * 200),
+      expectedAction,
+      latestAction,
+      latestAccepted,
+      actionCounts: actionHistogram,
+      fluxLineText: `Score ${Math.round(selfScore)}-${Math.round(opponentScore)} | Delta ${Math.round(scoreDelta)}`,
+      fluxHintText: `Self ${Math.round(selfActions)} act | Opp ${Math.round(opponentActions)} act | Session ${toText(summary.session_ref || "-", "-")}`,
+      fluxTone: mapRuntimeTone(scoreDelta < -4 ? "critical" : scoreDelta < 0 ? "pressure" : scoreDelta > 6 ? "advantage" : "balanced"),
+      fluxSelfPct: Math.round(selfScoreRatio * 100),
+      fluxOppPct: Math.round(oppScoreRatio * 100),
+      fluxSyncPct: Math.round(syncRatio * 100),
+      fluxSelfPalette: mapMeterPalette(scoreDelta >= 0 ? "safe" : "pressure"),
+      fluxOppPalette: mapMeterPalette(scoreDelta >= 0 ? "pressure" : "critical"),
+      fluxSyncPalette: mapMeterPalette(syncRatio < 0.45 ? "critical" : "safe"),
+      cadenceLineText: `STR ${actionHistogram.strike} | GRD ${actionHistogram.guard} | CHG ${actionHistogram.charge}`,
+      cadenceHintText: `Cadence ${Math.round(strikeRatio * 100)} / ${Math.round(guardRatio * 100)} / ${Math.round(chargeRatio * 100)} | Shadow ${shadowAction.toUpperCase()}`,
+      cadenceTone: mapRuntimeTone(runtimeTone),
+      cadenceStrikePct: Math.round(strikeRatio * 100),
+      cadenceGuardPct: Math.round(guardRatio * 100),
+      cadenceChargePct: Math.round(chargeRatio * 100),
+      cadenceStrikePalette: mapMeterPalette(strikeRatio >= 0.5 ? "aggressive" : "balanced"),
+      cadenceGuardPalette: mapMeterPalette(guardRatio >= 0.34 ? "safe" : "balanced"),
+      cadenceChargePalette: mapMeterPalette(chargeRatio >= 0.34 ? "balanced" : "neutral"),
+      bossLineText: `${bossTone.toUpperCase()} | HP ${Math.round(toNum(seasonArcBoss.hp_pct))}% | Attempts ${Math.round(toNum(seasonArcBoss.attempts))}`,
+      bossTone,
+      bossMeterPct: Math.round(clamp(1 - toNum(seasonArcBoss.hp_pct) / 100) * 100),
+      bossPalette: mapMeterPalette(toNum(seasonArcBoss.hp_pct) <= 25 ? "critical" : toNum(seasonArcBoss.hp_pct) <= 55 ? "pressure" : "safe"),
+      overdriveLineText: `HEAT ${Math.round(heatRatio * 100)}% | THREAT ${Math.round(pressureRatio * 100)}% | PVP ${Math.round(
+        clamp(clutchRatio * 0.55 + dominanceRatio * 0.45) * 100
+      )}% | CAM ${cameraMode.toUpperCase()}`,
+      overdriveHintText: `Daily ${Math.round(toNum(dailyDuel.progress_pct))}% | Ladder ${Math.round(toNum(weeklyLadder.points))} pts | Boss ${Math.round(
+        toNum(seasonArcBoss.hp_pct)
+      )}%`,
+      overdriveTone: mapRuntimeTone(runtimeTone),
+      overdriveHeatPct: Math.round(heatRatio * 100),
+      overdriveThreatPct: Math.round(pressureRatio * 100),
+      overdrivePvpPct: Math.round(clamp(clutchRatio * 0.55 + dominanceRatio * 0.45) * 100),
+      overdriveImpulsePct: Math.round(clamp((cameraMode === "chase" ? 0.86 : cameraMode === "tactical" ? 0.62 : 0.44)) * 100),
+      overdriveHeatPalette: mapMeterPalette(heatRatio > 0.72 ? "critical" : heatRatio > 0.45 ? "pressure" : "balanced"),
+      overdriveThreatPalette: mapMeterPalette(runtimeTone),
+      overdrivePvpPalette: mapMeterPalette(dominanceRatio >= 0.55 ? "safe" : "balanced"),
+      overdriveImpulsePalette: mapMeterPalette(cameraMode === "chase" ? "critical" : cameraMode === "tactical" ? "pressure" : "safe"),
+      matrixLineText: `SYNC ${Math.round(syncRatio * 100)}% | THERMAL ${Math.round(heatRatio * 100)}% | SHIELD ${Math.round(
+        (1 - queueRatio) * 100
+      )}% | CLUTCH ${Math.round(clutchRatio * 100)}%`,
+      matrixHintText: `Asset ${Math.round(clamp(assetMetrics.readyRatio) * 100)}% | Integrity ${Math.round(
+        clamp(assetMetrics.integrityRatio) * 100
+      )}% | Fresh ${Math.round(freshnessRatio * 100)}%`,
+      matrixTone: mapRuntimeTone(syncRatio < 0.45 ? "critical" : queueRatio > 0.46 ? "pressure" : "advantage"),
+      matrixSyncPct: Math.round(syncRatio * 100),
+      matrixThermalPct: Math.round(heatRatio * 100),
+      matrixShieldPct: Math.round((1 - queueRatio) * 100),
+      matrixClutchPct: Math.round(clutchRatio * 100),
+      matrixSyncPalette: mapMeterPalette(syncRatio < 0.45 ? "critical" : "safe"),
+      matrixThermalPalette: mapMeterPalette(heatRatio > 0.72 ? "critical" : heatRatio > 0.45 ? "pressure" : "balanced"),
+      matrixShieldPalette: mapMeterPalette(queueRatio > 0.5 ? "critical" : "safe"),
+      matrixClutchPalette: mapMeterPalette(clutchRatio < 0.4 ? "pressure" : "safe"),
+      alertPrimaryLabel: `NEXT ${expectedAction.toUpperCase()}`,
+      alertPrimaryTone: runtimeTone === "critical" ? "aggressive" : "balanced",
+      alertSecondaryLabel: latestReject.hit_count > 0 ? `REJ ${rejectReason}` : `FLOW ${runtimeTone.toUpperCase()}`,
+      alertSecondaryTone: latestReject.hit_count > 0 ? "critical" : runtimeTone === "advantage" ? "safe" : "balanced",
+      alertTertiaryLabel: `${toText(summary.transport, "poll").toUpperCase()} ${Math.round(tickMs)}ms`,
+      alertTertiaryTone: freshnessRatio < 0.45 ? "aggressive" : "neutral",
+      alertHintText: `Snapshot #${Math.round(toNum(sessionSnapshot.rank))} | ${Math.round(toNum(sessionSnapshot.wins))}W/${Math.round(
+        toNum(sessionSnapshot.losses)
+      )}L | Last ${toText(sessionSnapshot.last_result, "trend").toUpperCase()}`,
+      rejectCategory: toText(latestReject.reason_code || "none", "none").toLowerCase(),
+      rejectTone: mapRuntimeTone(rejectTone),
+      ladderTone: mapRuntimeTone(Boolean(weeklyLadder.promotion_zone) ? "advantage" : runtimeTone),
+      ladderPressurePct: Math.round((1 - freshnessRatio) * 100),
+      ladderFreshnessPct: Math.round(freshnessRatio * 100),
+      assetTone: mapRuntimeTone(assetMetrics.tone || "balanced"),
+      assetRiskPct: Math.round(clamp(assetMetrics.missingRatio) * 100),
+      assetReadyPct: Math.round(clamp(assetMetrics.readyRatio) * 100),
+      assetSyncPct: Math.round(clamp(assetMetrics.integrityRatio) * 100)
+    },
+    camera: {
+      mode: {
+        key: cameraMode,
+        text: `${cameraMode.toUpperCase()} | Drift ${Math.round(clamp(Math.abs(scoreDelta) / 24) * 100)}%`
+      },
+      focus: {
+        text: `Focus ${expectedAction.toUpperCase()} | ${phaseText} | ${lowEndMode ? "LITE" : effectiveQuality.toUpperCase()}`
+      },
+      energy: {
+        pct: Math.round(clamp(syncRatio * 0.45 + freshnessRatio * 0.25 + dominanceRatio * 0.3) * 100)
+      }
+    },
     roundDirector: {
       heat: {
         phase:
@@ -742,16 +905,25 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
   };
 }
 
-function buildOperationsDeckPayload(data, taskResult) {
-  const root = asRecord(data);
-  const tasksView = buildTasksViewModel({
-    offers: root.offers,
-    missions: asRecord(root.missions).list || root.missions,
-    attempts: root.attempts,
-    daily: root.daily,
-    taskResult
-  });
-  const events = asArray(root.events).slice(0, 6).map((row) => {
+function formatRewardPreview(source) {
+  const item = asRecord(source);
+  const reward = asRecord(item.reward || asRecord(item.meta).reward);
+  const directPreview = toText(item.reward_preview || item.rewardPreview || "");
+  if (directPreview) {
+    return directPreview;
+  }
+  const sc = Math.max(0, toNum(item.reward_sc || reward.sc));
+  const rc = Math.max(0, toNum(item.reward_rc || reward.rc));
+  const hc = Math.max(0, toNum(item.reward_hc || reward.hc));
+  const parts = [];
+  if (sc > 0) parts.push(`SC +${Math.round(sc)}`);
+  if (rc > 0) parts.push(`RC +${Math.round(rc)}`);
+  if (hc > 0) parts.push(`HC +${Math.round(hc * 100) / 100}`);
+  return parts.length ? parts.join(" | ") : "Reward verisi yok";
+}
+
+function buildOperationsDeckEvents(root, homeView) {
+  const rows = asArray(root.events).slice(0, 4).map((row) => {
     const item = asRecord(row);
     return {
       label: toText(item.event_type || item.label || "event"),
@@ -759,22 +931,63 @@ function buildOperationsDeckPayload(data, taskResult) {
       hint: toText(asRecord(item.meta).reason || asRecord(item.meta).status || item.hint || "")
     };
   });
+  const summary = asRecord(homeView.summary);
+  if (toNum(summary.season_days_left) > 0) {
+    rows.push({
+      label: "season",
+      time: `D-${Math.round(toNum(summary.season_days_left))}`,
+      hint: `Points ${Math.round(toNum(summary.season_points))} | Ready ${Math.round(toNum(summary.mission_ready))}`
+    });
+  }
+  if (summary.wallet_active) {
+    rows.push({
+      label: "wallet",
+      time: toText(summary.wallet_chain || "TON", "TON"),
+      hint: `KYC ${toText(summary.wallet_kyc_status || "unknown", "unknown").toUpperCase()}`
+    });
+  }
+  return rows.slice(0, 6);
+}
+
+function buildOperationsDeckPayload(data, taskResult, homeFeed) {
+  const root = asRecord(data);
+  const homeView = buildHomeFeedViewModel({
+    homeFeed: asRecord(homeFeed),
+    bootstrap: root
+  });
+  const tasksView = buildTasksViewModel({
+    offers: root.offers,
+    missions: asRecord(root.missions).list || root.missions,
+    attempts: root.attempts,
+    daily: root.daily,
+    taskResult
+  });
+  const contract = asRecord(asRecord(homeFeed).contract);
+  const risk = asRecord(asRecord(homeFeed).risk);
+  const activeAttempt = asRecord(asRecord(root.attempts).active || contract.active_attempt);
+  const revealableAttempt = asRecord(asRecord(root.attempts).revealable || contract.revealable_attempt);
+  const events = buildOperationsDeckEvents(root, homeView);
   return {
     offers: {
-      badgeText: `${toNum(tasksView.summary.offers_total)} aktif`,
+      badgeText: `${toNum(tasksView.summary.offers_total || contract.offers_total)} aktif`,
       emptyText: "Acil gorev yok.",
-      items: asArray(tasksView.offers).slice(0, 4).map((row) => ({
-        id: toNum(row.id),
-        title: toText(row.task_type, "task").toUpperCase(),
-        family: toText(row.task_type, "task"),
-        durationMinutes: formatRelativeMinutes(row.expires_at),
-        difficultyPct: toNum(row.difficulty),
-        rewardPreview: "",
-        remainingMins: formatRelativeMinutes(row.expires_at)
-      }))
+      items: asArray(root.offers)
+        .slice(0, 4)
+        .map((row) => {
+          const item = asRecord(row);
+          return {
+            id: toNum(item.id),
+            title: toText(item.title || item.label || item.task_type, "task").toUpperCase(),
+            family: toText(item.task_type || item.family || "task", "task"),
+            durationMinutes: formatRelativeMinutes(item.expires_at),
+            difficultyPct: toNum(item.difficulty),
+            rewardPreview: formatRewardPreview(item),
+            remainingMins: formatRelativeMinutes(item.expires_at)
+          };
+        })
     },
     missions: {
-      badgeText: `${toNum(tasksView.summary.missions_ready)} hazir`,
+      badgeText: `${toNum(homeView.summary?.mission_ready || tasksView.summary.missions_ready)} hazir`,
       emptyText: "Misyon verisi yok.",
       items: asArray(tasksView.missions).slice(0, 5).map((row) => ({
         key: toText(row.mission_key),
@@ -785,8 +998,17 @@ function buildOperationsDeckPayload(data, taskResult) {
       }))
     },
     attempts: {
-      activeText: toText(asRecord(root.attempts).active?.task_type || asRecord(root.attempts).active?.id || "Yok"),
-      revealText: toText(asRecord(root.attempts).revealable?.task_type || asRecord(root.attempts).revealable?.id || "Yok")
+      activeText: Object.keys(activeAttempt).length
+        ? `${toText(activeAttempt.task_type || activeAttempt.id || "aktif", "aktif").toUpperCase()} | Fill ${Math.round(
+            toNum(homeView.summary?.task_fill_pct)
+          )}%`
+        : `Yok | Fill ${Math.round(toNum(homeView.summary?.task_fill_pct))}%`,
+      revealText: Object.keys(revealableAttempt).length
+        ? `${toText(revealableAttempt.task_type || revealableAttempt.id || "reveal", "reveal").toUpperCase()} | Risk ${toText(
+            risk.band || risk.status || "stable",
+            "stable"
+          ).toUpperCase()}`
+        : `Yok | Ready ${Math.round(toNum(homeView.summary?.mission_ready))}`
     },
     events: {
       emptyText: "Event akisi bos.",
@@ -803,25 +1025,44 @@ function buildTokenOverviewPayload(vaultRoot, vaultView) {
   const summary = asRecord(vaultView.summary);
   const latest = asRecord(vaultView.latest);
   const selectedChain = toText(summary.token_chain || summary.wallet_chain || (chains[0] && chains[0].chain) || "TON", "TON");
+  const quoteUsd = Number(toNum(latest.quote_usd)).toFixed(2);
+  const routeSummary = `Routes ${Math.floor(toNum(summary.route_ok))}/${Math.floor(toNum(summary.route_total))}`;
+  const walletState = summary.wallet_active
+    ? `${toText(summary.wallet_chain || selectedChain, selectedChain).toUpperCase()} LIVE`
+    : "WALLET OFF";
+  const premiumState = summary.premium_active
+    ? `PASS ${Math.round(toNum(summary.active_pass_count || 0))}`
+    : "PASS OFF";
+  const payoutState = summary.payout_can_request
+    ? `${Number(toNum(summary.payout_requestable_btc)).toFixed(6)} BTC READY`
+    : `UNLOCK ${toText(summary.payout_unlock_tier, "LOCK")}`;
+  const hintText = !summary.wallet_active
+    ? "Wallet bagla, sonra quote veya payout akisini ac."
+    : toText(summary.wallet_kyc_status, "unknown").toLowerCase() === "blocked"
+      ? "Wallet bagli ama KYC bloklu; payout ve submit akisi kilitli."
+      : toText(latest.submit_status || latest.payout_request_status || latest.intent_status, "")
+        ? `${toText(latest.submit_status || latest.payout_request_status || latest.intent_status, "idle").toUpperCase()} | ${payoutState}`
+        : `${walletState} | ${premiumState} | ${payoutState}`;
   return {
     symbol: toText(summary.token_symbol, "NXT"),
     balanceText: Number(toNum(summary.token_balance)).toFixed(4),
-    summaryText: `${Number(toNum(summary.token_balance)).toFixed(4)} ${toText(summary.token_symbol, "NXT")}`,
-    rateText: `$${Number(toNum(summary.token_price_usd)).toFixed(6)} / ${toText(summary.token_symbol, "NXT")}`,
+    summaryText: `${Number(toNum(summary.token_balance)).toFixed(4)} ${toText(summary.token_symbol, "NXT")} | ${walletState}`,
+    rateText: `$${Number(toNum(summary.token_price_usd)).toFixed(6)} / ${toText(summary.token_symbol, "NXT")} | Quote $${quoteUsd}`,
     mintableText:
       toNum(latest.quote_token_amount) > 0
-        ? `${Number(toNum(latest.quote_token_amount)).toFixed(4)} ${toText(summary.token_symbol, "NXT")}`
-        : "Quote bekleniyor",
-    unitsText: `Routes ${Math.floor(toNum(summary.route_ok))}/${Math.floor(toNum(summary.route_total))}`,
-    hintText:
-      toText(latest.submit_status || latest.payout_request_status || latest.intent_status, "") ||
-      (summary.wallet_active ? "Wallet aktif, quote veya payout akisini ilerlet." : "Wallet baglanmadi."),
+        ? `${Number(toNum(latest.quote_token_amount)).toFixed(4)} ${toText(summary.token_symbol, "NXT")} | $${quoteUsd}`
+        : payoutState,
+    unitsText: `${routeSummary} | ${premiumState} | RC ${Math.round(toNum(summary.spend_rc || 0))}`,
+    hintText,
     chainOptions: chains.map((row) => ({
       chain: toText(asRecord(row).chain || "TON", "TON"),
       payCurrency: toText(asRecord(row).pay_currency || asRecord(row).currency || "", "")
     })),
     selectedChain,
-    buyDisabled: !Boolean(summary.wallet_active)
+    buyDisabled:
+      !Boolean(summary.wallet_active) ||
+      toNum(summary.route_ok) <= 0 ||
+      toText(summary.wallet_kyc_status, "unknown").toLowerCase() === "blocked"
   };
 }
 function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
@@ -841,6 +1082,8 @@ function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
   const buy = asRecord(root.buy);
   const submit = asRecord(root.submit);
   const payout = asRecord(root.payout);
+  const summary = asRecord(vaultView.summary);
+  const latest = asRecord(vaultView.latest);
   const selectedChain = toText(tokenSummary.chain || quoteData.chain || "TON", "TON");
   const routeMetrics = mutators.computeTokenRouteRuntimeMetrics({
     chains: asArray(routeStatus.chains),
@@ -906,7 +1149,10 @@ function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
     const chain = toText(item.chain || "TON", "TON");
     return {
       title: chain,
-      meta: `${toText(item.pay_currency || item.currency || "-")} | ${enabled ? "enabled" : "disabled"}`,
+      meta: `${toText(item.pay_currency || item.currency || "-")} | ${enabled ? "enabled" : "disabled"} | KYC ${toText(
+        summary.wallet_kyc_status || "unknown",
+        "unknown"
+      ).toUpperCase()}`,
       tone: enabled ? (chain.toUpperCase() === selectedChain.toUpperCase() ? "ready" : "warn") : "missing",
       chip: enabled ? (chain.toUpperCase() === selectedChain.toUpperCase() ? "ACTIVE" : "LIVE") : "OFF",
       selected: chain.toUpperCase() === selectedChain.toUpperCase()
@@ -934,9 +1180,15 @@ function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
     },
     {
       title: `Payout ${toText(payout.status || "idle", "idle")}`,
-      meta: `Requestable ${Number(toNum(asRecord(vaultView.summary).payout_requestable_btc)).toFixed(6)} BTC`,
-      tone: asRecord(vaultView.summary).payout_can_request ? "ready" : "warn",
-      chip: asRecord(vaultView.summary).payout_can_request ? "OPEN" : "LOCK"
+      meta: `Requestable ${Number(toNum(summary.payout_requestable_btc)).toFixed(6)} BTC`,
+      tone: summary.payout_can_request ? "ready" : "warn",
+      chip: summary.payout_can_request ? "OPEN" : "LOCK"
+    },
+    {
+      title: `Premium ${summary.premium_active ? "active" : "idle"}`,
+      meta: `Pass ${Math.round(toNum(summary.active_pass_count))} | Cosmetics ${Math.round(toNum(summary.cosmetics_owned_count || 0))}`,
+      tone: summary.premium_active ? "ready" : "warn",
+      chip: summary.premium_active ? "PASS" : "OFF"
     }
   ];
 
@@ -952,6 +1204,23 @@ function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
       meta: `Auto ${Math.round(toNum(directorMetrics.autoDecisionCount || 0))} | Payout ${Math.round(toNum(directorMetrics.pendingPayoutCount || 0))}`,
       tone: toNum(directorMetrics.queuePressure) > 0.5 ? "warn" : "ready",
       chip: `RISK ${Math.round(clamp(directorMetrics.riskRatio) * 100)}%`
+    },
+    {
+      title: `Wallet ${summary.wallet_active ? "live" : "offline"}`,
+      meta: `${toText(summary.wallet_chain || selectedChain, selectedChain).toUpperCase()} | ${toText(summary.wallet_address_masked || "-", "-")} | KYC ${toText(
+        summary.wallet_kyc_status || "unknown",
+        "unknown"
+      ).toUpperCase()}`,
+      tone: summary.wallet_active ? "ready" : "missing",
+      chip: summary.wallet_active ? "LINK" : "OFF"
+    },
+    {
+      title: `Rewards ${summary.premium_active ? "boosted" : "base"}`,
+      meta: `SC ${Math.round(toNum(summary.spend_sc || 0))} | RC ${Math.round(toNum(summary.spend_rc || 0))} | HC ${Math.round(
+        toNum(summary.spend_hc || 0)
+      )}`,
+      tone: summary.premium_active ? "ready" : "warn",
+      chip: summary.premium_active ? "BOOST" : "BASE"
     }
   ];
 
@@ -960,17 +1229,28 @@ function buildTokenTreasuryPayload(mutators, vaultRoot, vaultView) {
       tone: mapRuntimeTone(treasuryMetrics.tone || "balanced"),
       badgeText: treasuryMetrics.gateOpen ? "TREASURY LIVE" : "TREASURY LOCK",
       badgeTone: mapBadgeTone(treasuryMetrics.gateOpen ? "info" : "warn"),
-      stateLineText: `Routes ${treasuryMetrics.enabledRoutes}/${treasuryMetrics.totalRoutes} | API ${treasuryMetrics.apiOk}/${treasuryMetrics.apiTotal}`,
-      gateLineText: `Gate ${treasuryMetrics.gateOpen ? "OPEN" : "LOCKED"} | Queue ${treasuryMetrics.pendingPayoutCount}`,
-      curveLineText: `Coverage ${Math.round(clamp(treasuryMetrics.routeCoverage) * 100)}% | Auto ${treasuryMetrics.autoPolicyEnabled ? "ON" : "OFF"}`,
-      quorumLineText: `Quorum ${toText(routeMetrics.quorumDecision, "WAIT")} | Agree ${Math.round(clamp(routeMetrics.agreementRatio) * 100)}%`,
-      policyLineText: `${directorMetrics.nextStepLabel} | ${directorMetrics.verifyStateLabel}`,
+      stateLineText: `Routes ${treasuryMetrics.enabledRoutes}/${treasuryMetrics.totalRoutes} | API ${treasuryMetrics.apiOk}/${treasuryMetrics.apiTotal} | ${toText(
+        summary.wallet_chain || selectedChain,
+        selectedChain
+      ).toUpperCase()}`,
+      gateLineText: `Gate ${treasuryMetrics.gateOpen ? "OPEN" : "LOCKED"} | Payout ${Number(toNum(summary.payout_requestable_btc)).toFixed(6)} BTC`,
+      curveLineText: `Coverage ${Math.round(clamp(treasuryMetrics.routeCoverage) * 100)}% | Auto ${treasuryMetrics.autoPolicyEnabled ? "ON" : "OFF"} | Pass ${Math.round(
+        toNum(summary.active_pass_count)
+      )}`,
+      quorumLineText: `Quorum ${toText(routeMetrics.quorumDecision, "WAIT")} | Agree ${Math.round(clamp(routeMetrics.agreementRatio) * 100)}% | KYC ${toText(
+        summary.wallet_kyc_status || "unknown",
+        "unknown"
+      ).toUpperCase()}`,
+      policyLineText: `${directorMetrics.nextStepLabel} | ${directorMetrics.verifyStateLabel} | ${toText(
+        latest.submit_status || latest.payout_request_status || latest.intent_status || "idle",
+        "idle"
+      ).toUpperCase()}`,
       chips: [
         { id: "treasuryPulseGateChip", text: treasuryMetrics.gateOpen ? "GATE OPEN" : "GATE LOCK", tone: treasuryMetrics.gateOpen ? "safe" : "critical", level: treasuryMetrics.gateOpen ? 0.92 : 0.24 },
         { id: "treasuryPulseRouteChip", text: `ROUTE ${treasuryMetrics.enabledRoutes}/${treasuryMetrics.totalRoutes}`, tone: routeMetrics.routeCoverage < 0.5 ? "aggressive" : "balanced", level: clamp(routeMetrics.routeCoverage) },
         { id: "treasuryPulseApiChip", text: `API ${treasuryMetrics.apiOk}/${treasuryMetrics.apiTotal || 0}`, tone: treasuryMetrics.apiRatio < 0.5 ? "aggressive" : "safe", level: clamp(treasuryMetrics.apiRatio) },
-        { id: "treasuryPulseQueueChip", text: `Q ${treasuryMetrics.manualQueueCount + treasuryMetrics.pendingPayoutCount}`, tone: treasuryMetrics.queuePressure > 0.55 ? "aggressive" : "neutral", level: clamp(treasuryMetrics.queuePressure) },
-        { id: "treasuryPulsePolicyChip", text: `STEP ${directorMetrics.nextStepKey.toUpperCase()}`, tone: directorMetrics.tone === "critical" ? "aggressive" : directorMetrics.tone === "pressure" ? "balanced" : "safe", level: clamp(directorMetrics.readinessRatio) }
+        { id: "treasuryPulseQueueChip", text: `PAY ${summary.payout_can_request ? "OPEN" : "LOCK"}`, tone: summary.payout_can_request ? "safe" : "neutral", level: clamp(summary.payout_can_request ? 0.88 : treasuryMetrics.queuePressure) },
+        { id: "treasuryPulsePolicyChip", text: `STEP ${directorMetrics.nextStepKey.toUpperCase()} | ${summary.premium_active ? "BOOST" : "BASE"}`, tone: directorMetrics.tone === "critical" ? "aggressive" : directorMetrics.tone === "pressure" ? "balanced" : "safe", level: clamp(directorMetrics.readinessRatio) }
       ],
       meters: [
         { id: "treasuryPulseRouteMeter", pct: Math.round(clamp(routeMetrics.routeCoverage) * 100), palette: mapMeterPalette(routeMetrics.tone) },
@@ -1158,6 +1438,7 @@ function buildAdminAuditPayload(adminPanels) {
 function buildPlayerBridgePayloads(options = {}) {
   const mutators = asRecord(options.mutators);
   const data = asRecord(options.data);
+  const homeFeed = asRecord(options.homeFeed);
   const vaultRoot = asRecord(options.vaultData);
   const scene = asRecord(options.scene);
   const sceneRuntime = asRecord(options.sceneRuntime);
@@ -1230,8 +1511,10 @@ function buildPlayerBridgePayloads(options = {}) {
     pvpDirector: pvpRuntimePayloads.director,
     pvpEvents: pvpRuntimePayloads.events,
     pvpDuel: pvpRuntimePayloads.duel,
+    combatHud: pvpRuntimePayloads.combatHud,
+    cameraDirector: pvpRuntimePayloads.camera,
     pvpRoundDirector: pvpRuntimePayloads.roundDirector,
-    operations: buildOperationsDeckPayload(data, options.taskResult),
+    operations: buildOperationsDeckPayload(data, options.taskResult, homeFeed),
     tokenOverview: buildTokenOverviewPayload(vaultRoot, vaultView),
     tokenTreasury: buildTokenTreasuryPayload(mutators, vaultRoot, vaultView)
   };
