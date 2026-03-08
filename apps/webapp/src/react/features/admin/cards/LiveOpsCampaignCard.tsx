@@ -372,6 +372,12 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <span className="akrChip">
             {t(props.lang, "admin_live_ops_skip_at_label")}: {asText(schedulerSkipSummary.latest_skip_at)}
           </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_skip_alarm_label")}: {asText(schedulerSkipSummary.alarm_state)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_skip_alarm_reason_label")}: {asText(schedulerSkipSummary.alarm_reason)}
+          </span>
         </div>
         <div className="akrSplit">
           <SkipDailyTrendList title={t(props.lang, "admin_live_ops_skip_daily_title")} rows={schedulerSkipDailyBreakdown} />

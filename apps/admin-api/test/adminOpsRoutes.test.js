@@ -153,6 +153,10 @@ function buildLiveOpsSnapshot() {
       skipped_7d: 5,
       latest_skip_at: "2026-03-08T04:00:00.000Z",
       latest_skip_reason: "scene_runtime_watch_capped",
+      alarm_state: "watch",
+      alarm_reason: "scene_runtime_watch_capped_repeated",
+      scene_alert_blocked_7d: 0,
+      scene_watch_capped_7d: 4,
       daily_breakdown: [
         { day: "2026-03-08", skip_count: 2 },
         { day: "2026-03-07", skip_count: 3 }
@@ -302,6 +306,8 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.daily_breakdown[0].day, "2026-03-08");
   assert.equal(body.data.live_ops_campaign.scheduler_skip.skipped_7d, 5);
   assert.equal(body.data.live_ops_campaign.scheduler_skip.reason_breakdown[0].bucket_key, "scene_runtime_watch_capped");
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_state, "watch");
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.scene_watch_capped_7d, 4);
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -383,6 +389,7 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.locale_breakdown[0].bucket_key, "tr");
   assert.equal(body.data.live_ops_campaign.daily_breakdown[1].sent_count, 9);
   assert.equal(body.data.live_ops_campaign.scheduler_skip.latest_skip_reason, "scene_runtime_watch_capped");
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");
   await app.close();
 });

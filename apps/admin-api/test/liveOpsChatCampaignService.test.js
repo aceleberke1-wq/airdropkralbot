@@ -417,7 +417,11 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       scene_gate_effect: "capped",
       scene_gate_reason: "scene_runtime_watch_capped",
       scene_gate_recipient_cap: 20,
-      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z"
+      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z",
+      scheduler_skip_24h: 2,
+      scheduler_skip_7d: 4,
+      scheduler_skip_alarm_state: "alert",
+      scheduler_skip_alarm_reason: "scene_runtime_alert_blocked_repeated"
     }),
     logger: () => {}
   });
@@ -446,6 +450,9 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.delivery_summary.daily_breakdown[0].sent_count, 2);
   assert.equal(snapshot.scheduler_skip_summary.skipped_24h, 2);
   assert.equal(snapshot.scheduler_skip_summary.latest_skip_reason, "scene_runtime_alert_blocked");
+  assert.equal(snapshot.scheduler_skip_summary.alarm_state, "alert");
+  assert.equal(snapshot.scheduler_skip_summary.alarm_reason, "scene_runtime_alert_blocked_repeated");
+  assert.equal(snapshot.scheduler_skip_summary.scene_alert_blocked_7d, 3);
   assert.equal(snapshot.scheduler_skip_summary.reason_breakdown[0].bucket_key, "scene_runtime_alert_blocked");
   assert.equal(snapshot.scheduler_skip_summary.daily_breakdown[0].skip_count, 2);
   assert.equal(snapshot.scene_runtime_summary.ready_24h, 9);
@@ -456,6 +463,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.artifact_found, true);
   assert.equal(snapshot.task_summary.artifact_age_min, 5);
   assert.equal(snapshot.task_summary.scene_gate_reason, "scene_runtime_watch_capped");
+  assert.equal(snapshot.task_summary.scheduler_skip_alarm_state, "alert");
+  assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {

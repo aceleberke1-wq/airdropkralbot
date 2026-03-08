@@ -200,6 +200,10 @@ const LiveOpsCampaignSchedulerSkipSummarySchema = z.object({
   skipped_7d: z.number().int().nonnegative().default(0),
   latest_skip_at: z.string().nullable().default(null),
   latest_skip_reason: z.string().default(""),
+  alarm_state: z.enum(["clear", "watch", "alert"]).default("clear"),
+  alarm_reason: z.string().default(""),
+  scene_alert_blocked_7d: z.number().int().nonnegative().default(0),
+  scene_watch_capped_7d: z.number().int().nonnegative().default(0),
   daily_breakdown: z.array(LiveOpsCampaignSkipDailyTrendPointSchema).default([]),
   reason_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
 });
@@ -792,7 +796,11 @@ const LiveOpsCampaignTaskSummarySchema = z.object({
   scene_gate_effect: z.enum(["open", "capped", "blocked"]).default("open"),
   scene_gate_reason: z.string().default(""),
   scene_gate_recipient_cap: z.number().int().nonnegative().default(0),
-  window_key: z.string().default("")
+  window_key: z.string().default(""),
+  scheduler_skip_24h: z.number().int().nonnegative().default(0),
+  scheduler_skip_7d: z.number().int().nonnegative().default(0),
+  scheduler_skip_alarm_state: z.enum(["clear", "watch", "alert"]).default("clear"),
+  scheduler_skip_alarm_reason: z.string().default("")
 });
 
 const LiveOpsCampaignAnalyticsBucketSchema = z.object({

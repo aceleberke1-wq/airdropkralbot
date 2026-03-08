@@ -113,6 +113,12 @@ async function main() {
       maxRecipients: toNumber(args.max_recipients ?? args.maxRecipients, 0) || undefined,
       reason: String(args.reason || process.env.LIVE_OPS_SCHEDULER_REASON || "scheduled_window_dispatch").trim().slice(0, 240)
     });
+    let snapshot = null;
+    try {
+      snapshot = await service.getCampaignSnapshot();
+    } catch (snapshotErr) {
+      console.warn(`[liveops] snapshot_summary_failed=${snapshotErr?.message || snapshotErr}`);
+    }
     const emitReport = parseBool(args.emit_report ?? args.emitReport ?? process.env.V5_LIVE_OPS_DISPATCH_EMIT_REPORT, true);
     let reportPath = "";
     if (emitReport) {
@@ -120,9 +126,34 @@ async function main() {
       if (!fs.existsSync(artifactPaths.outDir)) {
         fs.mkdirSync(artifactPaths.outDir, { recursive: true });
       }
+      const schedulerSkipSummary =
+        snapshot && snapshot.scheduler_skip_summary && typeof snapshot.scheduler_skip_summary === "object"
+          ? snapshot.scheduler_skip_summary
+          : {};
+      const sceneRuntimeSummary =
+        snapshot && snapshot.scene_runtime_summary && typeof snapshot.scene_runtime_summary === "object"
+          ? {
+              health_band_24h: String(snapshot.scene_runtime_summary.health_band_24h || "no_data"),
+              trend_direction_7d: String(snapshot.scene_runtime_summary.trend_direction_7d || "no_data"),
+              alarm_state_7d: String(snapshot.scene_runtime_summary.alarm_state_7d || "no_data"),
+              alarm_reasons_7d: Array.isArray(snapshot.scene_runtime_summary.alarm_reasons_7d)
+                ? snapshot.scene_runtime_summary.alarm_reasons_7d
+                : []
+            }
+          : {};
       const payload = {
         generated_at: new Date().toISOString(),
-        ...result
+        ...result,
+        scheduler_skip_summary: schedulerSkipSummary,
+        scene_runtime_summary: sceneRuntimeSummary,
+        ops_alarm: {
+          state: String(schedulerSkipSummary.alarm_state || "clear"),
+          reason: String(schedulerSkipSummary.alarm_reason || ""),
+          skipped_24h: Math.max(0, Number(schedulerSkipSummary.skipped_24h || 0)),
+          skipped_7d: Math.max(0, Number(schedulerSkipSummary.skipped_7d || 0)),
+          latest_skip_reason: String(schedulerSkipSummary.latest_skip_reason || ""),
+          latest_skip_at: schedulerSkipSummary.latest_skip_at || null
+        }
       };
       fs.writeFileSync(artifactPaths.latestJsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
       reportPath = artifactPaths.latestJsonPath;

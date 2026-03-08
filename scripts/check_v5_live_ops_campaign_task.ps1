@@ -98,6 +98,8 @@ $latestPayload = Read-JsonSafe -Path $latestJson
 $latestSummary = $null
 if ($latestPayload -ne $null) {
   $scheduler = Get-PropValue -Source $latestPayload -Name "scheduler_summary"
+  $schedulerSkip = Get-PropValue -Source $latestPayload -Name "scheduler_skip_summary"
+  $opsAlarm = Get-PropValue -Source $latestPayload -Name "ops_alarm"
   $data = Get-PropValue -Source $latestPayload -Name "data"
   $latestSummary = [pscustomobject]@{
     ok = [bool](Get-PropValue -Source $latestPayload -Name "ok" -Fallback $false)
@@ -109,18 +111,38 @@ if ($latestPayload -ne $null) {
     scene_gate_effect = [string](Get-PropValue -Source $scheduler -Name "scene_gate_effect" -Fallback (Get-PropValue -Source $data -Name "scene_gate_effect" -Fallback ""))
     scene_gate_reason = [string](Get-PropValue -Source $scheduler -Name "scene_gate_reason" -Fallback (Get-PropValue -Source $data -Name "scene_gate_reason" -Fallback ""))
     scene_gate_recipient_cap = [int](Get-PropValue -Source $scheduler -Name "scene_gate_recipient_cap" -Fallback (Get-PropValue -Source $data -Name "scene_gate_recipient_cap" -Fallback 0))
+    scheduler_skip_24h = [int](Get-PropValue -Source $schedulerSkip -Name "skipped_24h" -Fallback 0)
+    scheduler_skip_7d = [int](Get-PropValue -Source $schedulerSkip -Name "skipped_7d" -Fallback 0)
+    scheduler_skip_alarm_state = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_state" -Fallback (Get-PropValue -Source $opsAlarm -Name "state" -Fallback "clear"))
+    scheduler_skip_alarm_reason = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_reason" -Fallback (Get-PropValue -Source $opsAlarm -Name "reason" -Fallback ""))
   }
 }
 
 $ok = $true
 if (-not $task.exists) { $ok = $false }
 if (-not $jsonInfo.exists -or [double]$jsonInfo.age_min -gt $StaleMinutes) { $ok = $false }
+if ($latestSummary -ne $null -and [string]$latestSummary.scheduler_skip_alarm_state -eq "alert") { $ok = $false }
+
+$opsAlarmSummary = $null
+if ($latestPayload -ne $null) {
+  $schedulerSkip = Get-PropValue -Source $latestPayload -Name "scheduler_skip_summary"
+  $opsAlarm = Get-PropValue -Source $latestPayload -Name "ops_alarm"
+  $opsAlarmSummary = [pscustomobject]@{
+    state = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_state" -Fallback (Get-PropValue -Source $opsAlarm -Name "state" -Fallback "clear"))
+    reason = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_reason" -Fallback (Get-PropValue -Source $opsAlarm -Name "reason" -Fallback ""))
+    skipped_24h = [int](Get-PropValue -Source $schedulerSkip -Name "skipped_24h" -Fallback (Get-PropValue -Source $opsAlarm -Name "skipped_24h" -Fallback 0))
+    skipped_7d = [int](Get-PropValue -Source $schedulerSkip -Name "skipped_7d" -Fallback (Get-PropValue -Source $opsAlarm -Name "skipped_7d" -Fallback 0))
+    latest_skip_reason = [string](Get-PropValue -Source $schedulerSkip -Name "latest_skip_reason" -Fallback (Get-PropValue -Source $opsAlarm -Name "latest_skip_reason" -Fallback ""))
+    latest_skip_at = (Get-PropValue -Source $schedulerSkip -Name "latest_skip_at" -Fallback (Get-PropValue -Source $opsAlarm -Name "latest_skip_at" -Fallback $null))
+  }
+}
 
 $payload = [pscustomobject]@{
   success = $ok
   task = $task
   latest_json = $jsonInfo
   latest_summary = $latestSummary
+  ops_alarm = $opsAlarmSummary
   stale_minutes_threshold = $StaleMinutes
 }
 

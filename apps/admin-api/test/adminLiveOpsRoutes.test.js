@@ -133,6 +133,10 @@ function buildSnapshot(version, approvalState) {
       skipped_7d: 3,
       latest_skip_at: "2026-03-08T10:11:00.000Z",
       latest_skip_reason: "scene_runtime_alert_blocked",
+      alarm_state: "alert",
+      alarm_reason: "scene_runtime_alert_blocked_repeated",
+      scene_alert_blocked_7d: 3,
+      scene_watch_capped_7d: 0,
       daily_breakdown: [{ day: "2026-03-08", skip_count: 1 }],
       reason_breakdown: [{ bucket_key: "scene_runtime_alert_blocked", item_count: 3 }]
     },
@@ -150,7 +154,11 @@ function buildSnapshot(version, approvalState) {
       scene_gate_effect: "open",
       scene_gate_reason: "scene_runtime_no_data",
       scene_gate_recipient_cap: 40,
-      window_key: "wallet_reconnect:2026-03-08T09:00:00.000Z:2026-03-08T18:00:00.000Z"
+      window_key: "wallet_reconnect:2026-03-08T09:00:00.000Z:2026-03-08T18:00:00.000Z",
+      scheduler_skip_24h: 1,
+      scheduler_skip_7d: 3,
+      scheduler_skip_alarm_state: "alert",
+      scheduler_skip_alarm_reason: "scene_runtime_alert_blocked_repeated"
     },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
@@ -224,6 +232,7 @@ test("v2 admin live ops campaign routes read, save approve and dispatch canonica
   assert.equal(getRes.json().data.campaign.campaign_key, "wallet_reconnect");
   assert.equal(getRes.json().data.approval_summary.approval_state, "not_requested");
   assert.equal(getRes.json().data.scheduler_skip_summary.skipped_7d, 3);
+  assert.equal(getRes.json().data.scheduler_skip_summary.alarm_state, "alert");
 
   const saveRes = await app.inject({
     method: "POST",

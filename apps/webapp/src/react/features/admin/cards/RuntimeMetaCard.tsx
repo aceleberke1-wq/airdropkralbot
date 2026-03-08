@@ -341,6 +341,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_skip_reason_label")}: {readText(schedulerSkip, "latest_skip_reason") || "-"}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_skip_alarm_label")}: {readText(schedulerSkip, "alarm_state") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_skip_alarm_reason_label")}: {readText(schedulerSkip, "alarm_reason") || "-"}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_live_ops_scheduler_scene_effect_label")}: {readText(liveOpsKpi, "scene_gate_effect") || "-"}
           </span>
           <span className="akrChip">

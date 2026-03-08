@@ -115,6 +115,10 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       skipped_7d: Math.max(0, Number(schedulerSkip.skipped_7d || 0)),
       latest_skip_at: schedulerSkip.latest_skip_at || null,
       latest_skip_reason: String(schedulerSkip.latest_skip_reason || ""),
+      alarm_state: String(schedulerSkip.alarm_state || "clear"),
+      alarm_reason: String(schedulerSkip.alarm_reason || ""),
+      scene_alert_blocked_7d: Math.max(0, Number(schedulerSkip.scene_alert_blocked_7d || 0)),
+      scene_watch_capped_7d: Math.max(0, Number(schedulerSkip.scene_watch_capped_7d || 0)),
       daily_breakdown: normalizeSkipDailyRows(schedulerSkip.daily_breakdown),
       reason_breakdown: normalizeBreakdownRows(schedulerSkip.reason_breakdown)
     },
@@ -164,6 +168,10 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         skipped_7d: 0,
         latest_skip_at: null,
         latest_skip_reason: "",
+        alarm_state: "clear",
+        alarm_reason: "",
+        scene_alert_blocked_7d: 0,
+        scene_watch_capped_7d: 0,
         daily_breakdown: [],
         reason_breakdown: []
       },

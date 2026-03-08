@@ -981,7 +981,7 @@ async function loadSchedulerSkipSummary(client, campaignKey) {
   const totals = totalsResult.rows[0] || {};
   const latest = latestResult.rows[0] || {};
   const latestPayload = latest.payload_json && typeof latest.payload_json === "object" && !Array.isArray(latest.payload_json) ? latest.payload_json : {};
-  return {
+  const summary = {
     skipped_24h: Math.max(0, Number(totals.skipped_24h || 0)),
     skipped_7d: Math.max(0, Number(totals.skipped_7d || 0)),
     latest_skip_at: latest.created_at || null,
@@ -993,6 +993,43 @@ async function loadSchedulerSkipSummary(client, campaignKey) {
         skip_count: Math.max(0, Number(row.skip_count || 0))
       }))
       .filter((row) => row.day)
+  };
+  return buildSchedulerSkipAlarmSummary(summary);
+}
+
+function countSkipReason(rows, reasonKey) {
+  const safeReason = String(reasonKey || "").trim();
+  if (!safeReason || !Array.isArray(rows)) {
+    return 0;
+  }
+  const match = rows.find((row) => String(row?.bucket_key || "").trim() === safeReason);
+  return Math.max(0, Number(match?.item_count || 0));
+}
+
+function buildSchedulerSkipAlarmSummary(summary = {}) {
+  const reasonBreakdown = Array.isArray(summary.reason_breakdown) ? summary.reason_breakdown : [];
+  const alertBlocked7d = countSkipReason(reasonBreakdown, "scene_runtime_alert_blocked");
+  const watchCapped7d = countSkipReason(reasonBreakdown, "scene_runtime_watch_capped");
+  let alarmState = "clear";
+  let alarmReason = "";
+  if (alertBlocked7d >= 2) {
+    alarmState = "alert";
+    alarmReason = "scene_runtime_alert_blocked_repeated";
+  } else if (watchCapped7d >= 3) {
+    alarmState = "watch";
+    alarmReason = "scene_runtime_watch_capped_repeated";
+  }
+  return {
+    skipped_24h: Math.max(0, Number(summary.skipped_24h || 0)),
+    skipped_7d: Math.max(0, Number(summary.skipped_7d || 0)),
+    latest_skip_at: summary.latest_skip_at || null,
+    latest_skip_reason: String(summary.latest_skip_reason || ""),
+    alarm_state: alarmState,
+    alarm_reason: alarmReason,
+    scene_alert_blocked_7d: alertBlocked7d,
+    scene_watch_capped_7d: watchCapped7d,
+    reason_breakdown: normalizeBreakdownRows(reasonBreakdown),
+    daily_breakdown: Array.isArray(summary.daily_breakdown) ? summary.daily_breakdown : []
   };
 }
 
@@ -1134,7 +1171,11 @@ function buildEmptyLiveOpsTaskSummary() {
     scene_gate_effect: "open",
     scene_gate_reason: "",
     scene_gate_recipient_cap: 0,
-    window_key: ""
+    window_key: "",
+    scheduler_skip_24h: 0,
+    scheduler_skip_7d: 0,
+    scheduler_skip_alarm_state: "clear",
+    scheduler_skip_alarm_reason: ""
   };
 }
 
@@ -1160,6 +1201,7 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
     const stat = fs.statSync(artifactPaths.latestJsonPath);
     const payload = JSON.parse(fs.readFileSync(artifactPaths.latestJsonPath, "utf8"));
     const scheduler = payload && typeof payload.scheduler_summary === "object" ? payload.scheduler_summary : {};
+    const schedulerSkip = payload && typeof payload.scheduler_skip_summary === "object" ? payload.scheduler_skip_summary : {};
     const data = payload && typeof payload.data === "object" ? payload.data : {};
     return {
       artifact_found: true,
@@ -1175,7 +1217,11 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
       scene_gate_effect: String(scheduler?.scene_gate_effect || data?.scene_gate_effect || "open").trim() || "open",
       scene_gate_reason: String(scheduler?.scene_gate_reason || data?.scene_gate_reason || "").trim(),
       scene_gate_recipient_cap: Math.max(0, Number(scheduler?.scene_gate_recipient_cap || data?.scene_gate_recipient_cap || 0) || 0),
-      window_key: String(scheduler?.window_key || data?.window_key || "").trim()
+      window_key: String(scheduler?.window_key || data?.window_key || "").trim(),
+      scheduler_skip_24h: Math.max(0, Number(schedulerSkip?.skipped_24h || 0) || 0),
+      scheduler_skip_7d: Math.max(0, Number(schedulerSkip?.skipped_7d || 0) || 0),
+      scheduler_skip_alarm_state: String(schedulerSkip?.alarm_state || "clear").trim() || "clear",
+      scheduler_skip_alarm_reason: String(schedulerSkip?.alarm_reason || "").trim()
     };
   } catch {
     return {
