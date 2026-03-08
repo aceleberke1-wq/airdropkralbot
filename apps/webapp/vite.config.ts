@@ -12,6 +12,14 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(__dirname, "index.vite.html")
+      },
+      output: {
+        manualChunks(id) {
+          const normalized = String(id || "").replace(/\\/g, "/");
+          if (normalized.includes("/node_modules/")) {
+            return "vendor";
+          }
+        }
       }
     }
   }

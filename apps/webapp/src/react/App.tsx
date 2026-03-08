@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useMemo, useRef, useState } from "react";
 import { buildPvpSessionMachine } from "../core/player/pvpSessionMachine";
 import {
   UI_EVENT_KEY,
@@ -12,11 +12,8 @@ import type {
   WebAppApiResponse,
   WebAppAuth
 } from "./types";
-import { AdminWorkspace } from "./features/admin/AdminWorkspace";
 import { useAdminQueueController } from "./features/admin/useAdminQueueController";
 import { useAdminRuntimeController } from "./features/admin/useAdminRuntimeController";
-import { OnboardingOverlay } from "./features/onboarding/OnboardingOverlay";
-import { PlayerWorkspace } from "./features/player/PlayerWorkspace";
 import { usePlayerRefreshController } from "./features/player/usePlayerRefreshController";
 import { usePvpAutoRefresh } from "./features/pvp/usePvpAutoRefresh";
 import { usePvpController } from "./features/pvp/usePvpController";
@@ -90,6 +87,21 @@ import {
 } from "./redux/api/webappApi";
 import "./styles.css";
 
+const PlayerWorkspace = lazy(async () => {
+  const mod = await import("./features/player/PlayerWorkspace");
+  return { default: mod.PlayerWorkspace };
+});
+
+const AdminWorkspace = lazy(async () => {
+  const mod = await import("./features/admin/AdminWorkspace");
+  return { default: mod.AdminWorkspace };
+});
+
+const OnboardingOverlay = lazy(async () => {
+  const mod = await import("./features/onboarding/OnboardingOverlay");
+  return { default: mod.OnboardingOverlay };
+});
+
 type ReactWebAppV1Props = {
   auth: WebAppAuth;
   bootstrap: BootstrapV2Payload;
@@ -106,6 +118,18 @@ type QueueActionForm = {
 
 function asError(payload: WebAppApiResponse | null | undefined, fallback = "request_failed"): string {
   return String(payload?.error || payload?.message || fallback);
+}
+
+function WorkspaceLoadingFallback() {
+  return (
+    <main className="akrPanelGrid">
+      <section className="akrCard akrCardWide">
+        <p className="akrKicker">workspace</p>
+        <h2>Loading interface</h2>
+        <p className="akrMuted">Segmented shell is preparing the active surface.</p>
+      </section>
+    </main>
+  );
 }
 
 export function ReactWebAppV1(props: ReactWebAppV1Props) {
@@ -593,173 +617,177 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           focusLabel={launchSummary.focusLabel}
         />
       ) : null}
-      {workspace === "player" && (
-        <PlayerWorkspace
-          lang={lang}
-          tab={tab}
-          tabs={tabs}
-          advanced={advanced}
-          data={data}
-          homeFeed={(homeFeed as Record<string, unknown> | null) || null}
-          pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
-          leagueOverview={(leagueOverview as Record<string, unknown> | null) || null}
-          pvpLive={{
-            leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
-            diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
-            tick: (pvpLive?.tick as Record<string, unknown> | null) || null
-          }}
-          pvpCapabilities={{
-            canStart: pvpSessionMachine.can_start,
-            canRefreshState: pvpSessionMachine.can_refresh_state,
-            canStrike: pvpSessionMachine.can_strike,
-            canResolve: pvpSessionMachine.can_resolve
-          }}
-          taskResult={(taskResult as Record<string, unknown> | null) || null}
-          vaultData={(vaultData as Record<string, unknown> | null) || null}
-          quoteUsd={quoteUsd}
-          quoteChain={quoteChain}
-          submitRequestId={submitRequestId}
-          submitTxHash={submitTxHash}
-          walletChain={walletChain}
-          walletAddress={walletAddress}
-          walletChallengeRef={walletChallengeRef}
-          walletSignature={walletSignature}
-          payoutCurrency={payoutCurrency}
-          walletChallengeLoading={walletChallengeLoading}
-          walletVerifyLoading={walletVerifyLoading}
-          walletUnlinkLoading={walletUnlinkLoading}
-          payoutRequestLoading={payoutRequestLoading}
-          passPurchaseLoading={passPurchaseLoading}
-          cosmeticPurchaseLoading={cosmeticPurchaseLoading}
-          trackUiEvent={trackUiEvent}
-          onTabChange={onTabChange}
-          onToggleReducedMotion={onToggleReducedMotion}
-          onToggleLargeText={onToggleLargeText}
-          onToggleLanguage={onToggleLanguage}
-          onRefreshHome={() => void refreshHome()}
-          onPvpStart={() => void handlePvpStart()}
-          onPvpRefreshState={() => void handlePvpRefreshState()}
-          onPvpRefreshLeague={() => void refreshLeagueOverview()}
-          onPvpRefreshLive={() => void refreshPvpLive()}
-          onPvpStrike={() => void handlePvpStrike()}
-          onPvpResolve={() => void handlePvpResolve()}
-          onTasksReroll={() => void handleTasksReroll()}
-          onTaskComplete={() => void handleTaskComplete()}
-          onTaskReveal={() => void handleTaskReveal()}
-          onTaskAccept={(offerId) => void handleTaskAccept(offerId)}
-          onMissionClaim={(missionKey) => void handleMissionClaim(missionKey)}
-          onVaultRefresh={() => void refreshVault()}
-          onTokenQuote={() => void handleTokenQuote()}
-          onTokenBuyIntent={() => void handleTokenBuyIntent()}
-          onTokenSubmitTx={() => void handleTokenSubmitTx()}
-          onWalletChallenge={() => void handleWalletChallenge()}
-          onWalletVerify={() => void handleWalletVerify()}
-          onWalletUnlink={() => void handleWalletUnlink()}
-          onPayoutRequest={() => void handlePayoutRequest()}
-          onPassPurchase={(passKey, paymentCurrency) => void handlePassPurchase(passKey, paymentCurrency)}
-          onCosmeticPurchase={(itemKey, paymentCurrency) => void handleCosmeticPurchase(itemKey, paymentCurrency)}
-          onQuoteUsdChange={setQuoteUsd}
-          onQuoteChainChange={setQuoteChain}
-          onSubmitRequestIdChange={setSubmitRequestId}
-          onSubmitTxHashChange={setSubmitTxHash}
-          onWalletChainChange={setWalletChain}
-          onWalletAddressChange={setWalletAddress}
-          onWalletChallengeRefChange={setWalletChallengeRef}
-          onWalletSignatureChange={setWalletSignature}
-          onPayoutCurrencyChange={setPayoutCurrency}
-        />
-      )}
+      <Suspense fallback={<WorkspaceLoadingFallback />}>
+        {workspace === "player" && (
+          <PlayerWorkspace
+            lang={lang}
+            tab={tab}
+            tabs={tabs}
+            advanced={advanced}
+            data={data}
+            homeFeed={(homeFeed as Record<string, unknown> | null) || null}
+            pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
+            leagueOverview={(leagueOverview as Record<string, unknown> | null) || null}
+            pvpLive={{
+              leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
+              diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
+              tick: (pvpLive?.tick as Record<string, unknown> | null) || null
+            }}
+            pvpCapabilities={{
+              canStart: pvpSessionMachine.can_start,
+              canRefreshState: pvpSessionMachine.can_refresh_state,
+              canStrike: pvpSessionMachine.can_strike,
+              canResolve: pvpSessionMachine.can_resolve
+            }}
+            taskResult={(taskResult as Record<string, unknown> | null) || null}
+            vaultData={(vaultData as Record<string, unknown> | null) || null}
+            quoteUsd={quoteUsd}
+            quoteChain={quoteChain}
+            submitRequestId={submitRequestId}
+            submitTxHash={submitTxHash}
+            walletChain={walletChain}
+            walletAddress={walletAddress}
+            walletChallengeRef={walletChallengeRef}
+            walletSignature={walletSignature}
+            payoutCurrency={payoutCurrency}
+            walletChallengeLoading={walletChallengeLoading}
+            walletVerifyLoading={walletVerifyLoading}
+            walletUnlinkLoading={walletUnlinkLoading}
+            payoutRequestLoading={payoutRequestLoading}
+            passPurchaseLoading={passPurchaseLoading}
+            cosmeticPurchaseLoading={cosmeticPurchaseLoading}
+            trackUiEvent={trackUiEvent}
+            onTabChange={onTabChange}
+            onToggleReducedMotion={onToggleReducedMotion}
+            onToggleLargeText={onToggleLargeText}
+            onToggleLanguage={onToggleLanguage}
+            onRefreshHome={() => void refreshHome()}
+            onPvpStart={() => void handlePvpStart()}
+            onPvpRefreshState={() => void handlePvpRefreshState()}
+            onPvpRefreshLeague={() => void refreshLeagueOverview()}
+            onPvpRefreshLive={() => void refreshPvpLive()}
+            onPvpStrike={() => void handlePvpStrike()}
+            onPvpResolve={() => void handlePvpResolve()}
+            onTasksReroll={() => void handleTasksReroll()}
+            onTaskComplete={() => void handleTaskComplete()}
+            onTaskReveal={() => void handleTaskReveal()}
+            onTaskAccept={(offerId) => void handleTaskAccept(offerId)}
+            onMissionClaim={(missionKey) => void handleMissionClaim(missionKey)}
+            onVaultRefresh={() => void refreshVault()}
+            onTokenQuote={() => void handleTokenQuote()}
+            onTokenBuyIntent={() => void handleTokenBuyIntent()}
+            onTokenSubmitTx={() => void handleTokenSubmitTx()}
+            onWalletChallenge={() => void handleWalletChallenge()}
+            onWalletVerify={() => void handleWalletVerify()}
+            onWalletUnlink={() => void handleWalletUnlink()}
+            onPayoutRequest={() => void handlePayoutRequest()}
+            onPassPurchase={(passKey, paymentCurrency) => void handlePassPurchase(passKey, paymentCurrency)}
+            onCosmeticPurchase={(itemKey, paymentCurrency) => void handleCosmeticPurchase(itemKey, paymentCurrency)}
+            onQuoteUsdChange={setQuoteUsd}
+            onQuoteChainChange={setQuoteChain}
+            onSubmitRequestIdChange={setSubmitRequestId}
+            onSubmitTxHashChange={setSubmitTxHash}
+            onWalletChainChange={setWalletChain}
+            onWalletAddressChange={setWalletAddress}
+            onWalletChallengeRefChange={setWalletChallengeRef}
+            onWalletSignatureChange={setWalletSignature}
+            onPayoutCurrencyChange={setPayoutCurrency}
+          />
+        )}
 
-      {workspace === "admin" && (
-        <AdminWorkspace
-          lang={lang}
-          isAdmin={isAdmin}
-          advanced={advanced}
-          reducedMotion={reducedMotion}
-          trackUiEvent={trackUiEvent}
-          adminRuntime={adminRuntime}
-          adminPanels={adminPanels}
-          queueAction={queueAction}
-          panelVisibility={adminPanelVisibility}
-          dynamicPolicyData={(adminPanels?.dynamic_policy as Record<string, unknown> | null) || null}
-          dynamicPolicyTokenSymbol={dynamicPolicyTokenSymbol}
-          dynamicPolicyDraft={dynamicPolicyDraft}
-          dynamicPolicyError={dynamicPolicyError}
-          dynamicPolicySaving={dynamicPolicySaving}
-          liveOpsCampaignData={(adminPanels?.live_ops_campaign as Record<string, unknown> | null) || null}
-          liveOpsCampaignDispatchData={(adminPanels?.live_ops_campaign_dispatch as Record<string, unknown> | null) || null}
-          liveOpsCampaignDraft={liveOpsCampaignDraft}
-          liveOpsCampaignError={liveOpsCampaignError}
-          liveOpsCampaignApprovalError={liveOpsCampaignApprovalError}
-          liveOpsCampaignDispatchError={liveOpsCampaignDispatchError}
-          liveOpsCampaignSaving={liveOpsCampaignSaving}
-          liveOpsCampaignApprovaling={liveOpsCampaignApprovaling}
-          liveOpsCampaignDispatching={liveOpsCampaignDispatching}
-          runtimeFlagsData={(adminPanels?.runtime_flags as Record<string, unknown> | null) || null}
-          runtimeFlagsDraft={runtimeFlagsDraft}
-          runtimeFlagsError={runtimeFlagsError}
-          runtimeFlagsSaving={runtimeFlagsSaving}
-          botRuntimeData={(adminPanels?.runtime_bot as Record<string, unknown> | null) || null}
-          botReconcileDraft={botReconcileDraft}
-          botReconcileError={botReconcileError}
-          botReconcileSaving={botReconcileSaving}
-          metricsData={(adminPanels?.metrics as Record<string, unknown> | null) || null}
-          opsKpiData={(adminPanels?.ops_kpi as Record<string, unknown> | null) || null}
-          opsKpiRunData={(adminPanels?.ops_kpi_run as Record<string, unknown> | null) || null}
-          opsKpiRunError={opsKpiRunError}
-          opsKpiRunning={opsKpiRunning}
-          deployStatusData={(adminPanels?.deploy_status as Record<string, unknown> | null) || null}
-          assetsStatusData={(adminPanels?.assets as Record<string, unknown> | null) || null}
-          assetsReloading={assetsReloading}
-          auditPhaseStatusData={(adminPanels?.audit_phase_status as Record<string, unknown> | null) || null}
-          auditIntegrityData={(adminPanels?.audit_data_integrity as Record<string, unknown> | null) || null}
-          onQueueActionChange={patchQueueAction}
-          onRefresh={() => void refreshAdmin()}
-          onRunQueueAction={() => void runQueueAction()}
-          onDynamicPolicyTokenSymbolChange={setDynamicPolicyTokenSymbol}
-          onDynamicPolicyDraftChange={setDynamicPolicyDraft}
-          onRefreshDynamicPolicy={() => void refreshDynamicPolicy()}
-          onSaveDynamicPolicy={() => void saveDynamicPolicy()}
-          onLiveOpsCampaignDraftChange={setLiveOpsCampaignDraft}
-          onRefreshLiveOpsCampaign={() => void refreshLiveOpsCampaign()}
-          onSaveLiveOpsCampaign={() => void saveLiveOpsCampaign()}
-          onRequestLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("request")}
-          onApproveLiveOpsCampaign={() => void updateLiveOpsCampaignApproval("approve")}
-          onRevokeLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("revoke")}
-          onDryRunLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(true)}
-          onDispatchLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(false)}
-          onRuntimeFlagsDraftChange={setRuntimeFlagsDraft}
-          onRefreshRuntimeFlags={() => void refreshRuntimeFlags()}
-          onSaveRuntimeFlags={() => void saveRuntimeFlags()}
-          onBotReconcileDraftChange={setBotReconcileDraft}
-          onRefreshBotRuntime={() => void refreshBotRuntime()}
-          onRunBotReconcile={() => void runBotReconcile()}
-          onRefreshRuntimeMeta={() => void refreshRuntimeMeta()}
-          onRefreshOpsKpi={() => void refreshOpsKpi()}
-          onRunOpsKpi={() => void runOpsKpiBundle()}
-          onReloadAssets={() => void reloadAssets()}
-        />
-      )}
+        {workspace === "admin" && (
+          <AdminWorkspace
+            lang={lang}
+            isAdmin={isAdmin}
+            advanced={advanced}
+            reducedMotion={reducedMotion}
+            trackUiEvent={trackUiEvent}
+            adminRuntime={adminRuntime}
+            adminPanels={adminPanels}
+            queueAction={queueAction}
+            panelVisibility={adminPanelVisibility}
+            dynamicPolicyData={(adminPanels?.dynamic_policy as Record<string, unknown> | null) || null}
+            dynamicPolicyTokenSymbol={dynamicPolicyTokenSymbol}
+            dynamicPolicyDraft={dynamicPolicyDraft}
+            dynamicPolicyError={dynamicPolicyError}
+            dynamicPolicySaving={dynamicPolicySaving}
+            liveOpsCampaignData={(adminPanels?.live_ops_campaign as Record<string, unknown> | null) || null}
+            liveOpsCampaignDispatchData={(adminPanels?.live_ops_campaign_dispatch as Record<string, unknown> | null) || null}
+            liveOpsCampaignDraft={liveOpsCampaignDraft}
+            liveOpsCampaignError={liveOpsCampaignError}
+            liveOpsCampaignApprovalError={liveOpsCampaignApprovalError}
+            liveOpsCampaignDispatchError={liveOpsCampaignDispatchError}
+            liveOpsCampaignSaving={liveOpsCampaignSaving}
+            liveOpsCampaignApprovaling={liveOpsCampaignApprovaling}
+            liveOpsCampaignDispatching={liveOpsCampaignDispatching}
+            runtimeFlagsData={(adminPanels?.runtime_flags as Record<string, unknown> | null) || null}
+            runtimeFlagsDraft={runtimeFlagsDraft}
+            runtimeFlagsError={runtimeFlagsError}
+            runtimeFlagsSaving={runtimeFlagsSaving}
+            botRuntimeData={(adminPanels?.runtime_bot as Record<string, unknown> | null) || null}
+            botReconcileDraft={botReconcileDraft}
+            botReconcileError={botReconcileError}
+            botReconcileSaving={botReconcileSaving}
+            metricsData={(adminPanels?.metrics as Record<string, unknown> | null) || null}
+            opsKpiData={(adminPanels?.ops_kpi as Record<string, unknown> | null) || null}
+            opsKpiRunData={(adminPanels?.ops_kpi_run as Record<string, unknown> | null) || null}
+            opsKpiRunError={opsKpiRunError}
+            opsKpiRunning={opsKpiRunning}
+            deployStatusData={(adminPanels?.deploy_status as Record<string, unknown> | null) || null}
+            assetsStatusData={(adminPanels?.assets as Record<string, unknown> | null) || null}
+            assetsReloading={assetsReloading}
+            auditPhaseStatusData={(adminPanels?.audit_phase_status as Record<string, unknown> | null) || null}
+            auditIntegrityData={(adminPanels?.audit_data_integrity as Record<string, unknown> | null) || null}
+            onQueueActionChange={patchQueueAction}
+            onRefresh={() => void refreshAdmin()}
+            onRunQueueAction={() => void runQueueAction()}
+            onDynamicPolicyTokenSymbolChange={setDynamicPolicyTokenSymbol}
+            onDynamicPolicyDraftChange={setDynamicPolicyDraft}
+            onRefreshDynamicPolicy={() => void refreshDynamicPolicy()}
+            onSaveDynamicPolicy={() => void saveDynamicPolicy()}
+            onLiveOpsCampaignDraftChange={setLiveOpsCampaignDraft}
+            onRefreshLiveOpsCampaign={() => void refreshLiveOpsCampaign()}
+            onSaveLiveOpsCampaign={() => void saveLiveOpsCampaign()}
+            onRequestLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("request")}
+            onApproveLiveOpsCampaign={() => void updateLiveOpsCampaignApproval("approve")}
+            onRevokeLiveOpsCampaignApproval={() => void updateLiveOpsCampaignApproval("revoke")}
+            onDryRunLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(true)}
+            onDispatchLiveOpsCampaign={() => void runLiveOpsCampaignDispatch(false)}
+            onRuntimeFlagsDraftChange={setRuntimeFlagsDraft}
+            onRefreshRuntimeFlags={() => void refreshRuntimeFlags()}
+            onSaveRuntimeFlags={() => void saveRuntimeFlags()}
+            onBotReconcileDraftChange={setBotReconcileDraft}
+            onRefreshBotRuntime={() => void refreshBotRuntime()}
+            onRunBotReconcile={() => void runBotReconcile()}
+            onRefreshRuntimeMeta={() => void refreshRuntimeMeta()}
+            onRefreshOpsKpi={() => void refreshOpsKpi()}
+            onRunOpsKpi={() => void runOpsKpiBundle()}
+            onReloadAssets={() => void reloadAssets()}
+          />
+        )}
+      </Suspense>
 
       <ShellStatus lang={lang} loading={loading} error={error} />
 
       {onboardingVisible && (
-        <OnboardingOverlay
-          lang={lang}
-          onContinue={() => {
-            trackUiEvent({
-              event_key: UI_EVENT_KEY.ONBOARDING_COMPLETE,
-              panel_key: UI_SURFACE_KEY.SHELL,
-              funnel_key: UI_FUNNEL_KEY.ONBOARDING,
-              surface_key: UI_SURFACE_KEY.SHELL,
-              payload_json: {
-                onboarding_version: String(data?.ui_shell?.onboarding_version || "v1")
-              }
-            });
-            hideOnboarding();
-            void syncPrefs({ onboarding_completed: true });
-          }}
-        />
+        <Suspense fallback={null}>
+          <OnboardingOverlay
+            lang={lang}
+            onContinue={() => {
+              trackUiEvent({
+                event_key: UI_EVENT_KEY.ONBOARDING_COMPLETE,
+                panel_key: UI_SURFACE_KEY.SHELL,
+                funnel_key: UI_FUNNEL_KEY.ONBOARDING,
+                surface_key: UI_SURFACE_KEY.SHELL,
+                payload_json: {
+                  onboarding_version: String(data?.ui_shell?.onboarding_version || "v1")
+                }
+              });
+              hideOnboarding();
+              void syncPrefs({ onboarding_completed: true });
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );
