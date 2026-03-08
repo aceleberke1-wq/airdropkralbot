@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { resolveLiveOpsSceneGate } = require("../../../packages/shared/src/liveOpsSceneGate");
+const { resolveLiveOpsSceneGate } = require("../../../packages/shared/src/liveOpsSceneGate.cjs");
 
 test("resolveLiveOpsSceneGate blocks scheduler on alert band", () => {
   const gate = resolveLiveOpsSceneGate(

@@ -82,6 +82,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const operatorTimeline = asArray(snapshot.operator_timeline);
   const deliverySummary = asRecord(snapshot.delivery_summary);
   const sceneRuntimeSummary = asRecord(snapshot.scene_runtime_summary);
+  const taskSummary = asRecord(snapshot.task_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
   const localeBreakdown = asArray(deliverySummary.locale_breakdown);
   const segmentBreakdown = asArray(deliverySummary.segment_breakdown);
@@ -298,6 +299,55 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <li>
             <span>{t(props.lang, "admin_live_ops_scheduler_reason_label")}</span>
             <strong>{asText(schedulerSummary.latest_auto_dispatch_reason)}</strong>
+          </li>
+        </ul>
+      </section>
+      <section className="akrMiniPanel" data-akr-focus-key="task_summary">
+        <h4>{t(props.lang, "admin_live_ops_task_title")}</h4>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_task_ok_label")}:{" "}
+            {taskSummary.ok === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_task_skipped_label")}:{" "}
+            {taskSummary.skipped === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_task_age_label")}: {taskSummary.artifact_found === true ? asText(taskSummary.artifact_age_min) : "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_task_generated_label")}: {asText(taskSummary.artifact_generated_at)}
+          </span>
+        </div>
+        <ul className="akrList">
+          <li>
+            <span>{t(props.lang, "admin_live_ops_task_reason_label")}</span>
+            <strong>{asText(taskSummary.reason)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_task_dispatch_label")}</span>
+            <strong>{asText(taskSummary.dispatch_ref)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_task_source_label")}</span>
+            <strong>{asText(taskSummary.dispatch_source)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_scene_state_label")}</span>
+            <strong>{asText(taskSummary.scene_gate_state)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_scene_effect_label")}</span>
+            <strong>{asText(taskSummary.scene_gate_effect)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_scheduler_scene_cap_label")}</span>
+            <strong>{asCount(taskSummary.scene_gate_recipient_cap)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_task_scene_reason_label")}</span>
+            <strong>{asText(taskSummary.scene_gate_reason)}</strong>
           </li>
         </ul>
       </section>

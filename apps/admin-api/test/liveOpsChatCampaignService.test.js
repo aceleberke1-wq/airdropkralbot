@@ -365,6 +365,22 @@ test("live ops chat campaign service snapshot includes approval summary schedule
     webappHmacSecret: "secret",
     resolveWebappVersion: async () => ({ version: "abc123" }),
     nowFactory: () => new Date("2026-03-08T12:30:00.000Z"),
+    readLatestTaskArtifactSummary: async () => ({
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json",
+      artifact_generated_at: "2026-03-08T12:25:00.000Z",
+      artifact_age_min: 5,
+      ok: true,
+      skipped: true,
+      reason: "campaign_approval_required",
+      dispatch_ref: "",
+      dispatch_source: "",
+      scene_gate_state: "watch",
+      scene_gate_effect: "capped",
+      scene_gate_reason: "scene_runtime_watch_capped",
+      scene_gate_recipient_cap: 20,
+      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z"
+    }),
     logger: () => {}
   });
 
@@ -395,6 +411,9 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.scene_runtime_summary.trend_direction_7d, "degrading");
   assert.equal(snapshot.scene_runtime_summary.alarm_state_7d, "alert");
   assert.equal(snapshot.scene_runtime_summary.quality_breakdown_24h[0].bucket_key, "medium");
+  assert.equal(snapshot.task_summary.artifact_found, true);
+  assert.equal(snapshot.task_summary.artifact_age_min, 5);
+  assert.equal(snapshot.task_summary.scene_gate_reason, "scene_runtime_watch_capped");
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {

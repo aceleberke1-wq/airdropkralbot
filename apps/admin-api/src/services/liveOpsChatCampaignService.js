@@ -1,6 +1,8 @@
 "use strict";
 
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const {
   buildStartAppPayload,
   encodeStartAppPayload
@@ -13,7 +15,8 @@ const {
   LIVE_OPS_APPROVAL_STATE,
   buildDefaultLiveOpsCampaignConfig
 } = require("../../../../packages/shared/src/liveOpsCampaignContract");
-const { resolveLiveOpsSceneGate } = require("../../../../packages/shared/src/liveOpsSceneGate");
+const { resolveLiveOpsSceneGate } = require("../../../../packages/shared/src/liveOpsSceneGate.cjs");
+const { resolveLiveOpsDispatchArtifactPaths } = require("../../../../packages/shared/src/runtimeArtifactPaths");
 const { normalizeTrustMessageLanguage, escapeMarkdown } = require("../../../../packages/shared/src/chatTrustMessages");
 const { DEFAULT_EXPERIMENT_KEY } = require("./webapp/reactV1Service");
 const {
@@ -398,6 +401,11 @@ function createLiveOpsChatCampaignService(deps = {}) {
   const resolveWebappVersion = typeof deps.resolveWebappVersion === "function" ? deps.resolveWebappVersion : async () => ({ version: "" });
   const loadCandidates = typeof deps.loadCandidates === "function" ? deps.loadCandidates : null;
   const nowFactory = typeof deps.nowFactory === "function" ? deps.nowFactory : () => new Date();
+  const runtimeArtifactRepoRoot = String(deps.runtimeArtifactRepoRoot || path.resolve(__dirname, "../../../..")).trim();
+  const readLatestTaskArtifactSummary =
+    typeof deps.readLatestTaskArtifactSummary === "function"
+      ? deps.readLatestTaskArtifactSummary
+      : async () => readLatestTaskArtifactSummaryFromDisk(nowFactory(), runtimeArtifactRepoRoot);
 
   function isEnabled() {
     return Boolean(pool?.connect && fetchImpl && botToken && webappPublicUrl && webappHmacSecret);
@@ -1007,6 +1015,74 @@ function buildEmptySceneRuntimeSummary() {
   };
 }
 
+function buildEmptyLiveOpsTaskSummary() {
+  return {
+    artifact_found: false,
+    artifact_path: "",
+    artifact_generated_at: null,
+    artifact_age_min: null,
+    ok: false,
+    skipped: false,
+    reason: "",
+    dispatch_ref: "",
+    dispatch_source: "",
+    scene_gate_state: "no_data",
+    scene_gate_effect: "open",
+    scene_gate_reason: "",
+    scene_gate_recipient_cap: 0,
+    window_key: ""
+  };
+}
+
+function toTaskAgeMinutes(now, stat) {
+  if (!stat?.mtime) {
+    return null;
+  }
+  const ageMinutes = ((now.getTime() - stat.mtime.getTime()) / 60000);
+  if (!Number.isFinite(ageMinutes) || ageMinutes < 0) {
+    return null;
+  }
+  return Number(ageMinutes.toFixed(2));
+}
+
+function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
+  const artifactPaths = resolveLiveOpsDispatchArtifactPaths(repoRootDir || process.cwd());
+  const empty = buildEmptyLiveOpsTaskSummary();
+  if (!artifactPaths?.latestJsonPath || !fs.existsSync(artifactPaths.latestJsonPath)) {
+    return empty;
+  }
+
+  try {
+    const stat = fs.statSync(artifactPaths.latestJsonPath);
+    const payload = JSON.parse(fs.readFileSync(artifactPaths.latestJsonPath, "utf8"));
+    const scheduler = payload && typeof payload.scheduler_summary === "object" ? payload.scheduler_summary : {};
+    const data = payload && typeof payload.data === "object" ? payload.data : {};
+    return {
+      artifact_found: true,
+      artifact_path: artifactPaths.latestJsonPath,
+      artifact_generated_at: String(payload.generated_at || data.generated_at || "").trim() || null,
+      artifact_age_min: toTaskAgeMinutes(now, stat),
+      ok: payload?.ok === true,
+      skipped: payload?.skipped === true,
+      reason: String(payload?.reason || "").trim(),
+      dispatch_ref: String(data?.dispatch_ref || "").trim(),
+      dispatch_source: String(data?.dispatch_source || "").trim(),
+      scene_gate_state: String(scheduler?.scene_gate_state || data?.scene_gate_state || "no_data").trim() || "no_data",
+      scene_gate_effect: String(scheduler?.scene_gate_effect || data?.scene_gate_effect || "open").trim() || "open",
+      scene_gate_reason: String(scheduler?.scene_gate_reason || data?.scene_gate_reason || "").trim(),
+      scene_gate_recipient_cap: Math.max(0, Number(scheduler?.scene_gate_recipient_cap || data?.scene_gate_recipient_cap || 0) || 0),
+      window_key: String(scheduler?.window_key || data?.window_key || "").trim()
+    };
+  } catch {
+    return {
+      ...empty,
+      artifact_found: true,
+      artifact_path: artifactPaths.latestJsonPath,
+      reason: "task_artifact_invalid"
+    };
+  }
+}
+
 function buildSchedulerSummary(campaign, approvalSummary, latestSchedulerDispatch, windowDispatch, sceneRuntimeSummary) {
   const sceneGate = resolveLiveOpsSceneGate(sceneRuntimeSummary, campaign);
   return {
@@ -1204,14 +1280,15 @@ async function buildCampaignSnapshot(client, current) {
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
   const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary] = await Promise.all([
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
     loadDeliverySummary(client, snapshotState.campaign.campaign_key),
     loadLatestSchedulerDispatch(client, snapshotState.campaign.campaign_key),
     loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey),
-    loadSceneRuntimeSummary(client)
+    loadSceneRuntimeSummary(client),
+    readLatestTaskArtifactSummary()
   ]);
   return {
     api_version: "v2",
@@ -1233,6 +1310,7 @@ async function buildCampaignSnapshot(client, current) {
     operator_timeline: operatorTimeline,
     delivery_summary: deliverySummary,
     scene_runtime_summary: sceneRuntimeSummary,
+    task_summary: taskSummary,
     latest_dispatch: latestDispatch
   };
 }

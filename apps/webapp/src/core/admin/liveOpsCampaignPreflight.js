@@ -1,5 +1,5 @@
 import { parseLiveOpsCampaignDraft } from "./adminDraftParsers.js";
-import { resolveLiveOpsSceneGate } from "../../../../../packages/shared/src/liveOpsSceneGate.js";
+import { resolveLiveOpsSceneGate } from "../../../../../packages/shared/src/liveOpsSceneGate.mjs";
 
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};

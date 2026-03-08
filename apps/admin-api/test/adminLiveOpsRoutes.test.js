@@ -128,6 +128,22 @@ function buildSnapshot(version, approvalState) {
       variant_breakdown: [],
       cohort_breakdown: []
     },
+    task_summary: {
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json",
+      artifact_generated_at: "2026-03-08T10:12:00.000Z",
+      artifact_age_min: 3,
+      ok: true,
+      skipped: true,
+      reason: "campaign_approval_required",
+      dispatch_ref: "",
+      dispatch_source: "",
+      scene_gate_state: "no_data",
+      scene_gate_effect: "open",
+      scene_gate_reason: "scene_runtime_no_data",
+      scene_gate_recipient_cap: 40,
+      window_key: "wallet_reconnect:2026-03-08T09:00:00.000Z:2026-03-08T18:00:00.000Z"
+    },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
       sent_total: 0,

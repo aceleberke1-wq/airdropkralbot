@@ -762,6 +762,23 @@ const LiveOpsCampaignSchedulerSummarySchema = z.object({
   latest_auto_dispatch_reason: z.string().default("")
 });
 
+const LiveOpsCampaignTaskSummarySchema = z.object({
+  artifact_found: z.boolean().default(false),
+  artifact_path: z.string().default(""),
+  artifact_generated_at: z.string().nullable().default(null),
+  artifact_age_min: z.number().nonnegative().nullable().default(null),
+  ok: z.boolean().default(false),
+  skipped: z.boolean().default(false),
+  reason: z.string().default(""),
+  dispatch_ref: z.string().default(""),
+  dispatch_source: z.string().default(""),
+  scene_gate_state: z.enum(["clear", "watch", "alert", "no_data"]).default("no_data"),
+  scene_gate_effect: z.enum(["open", "capped", "blocked"]).default("open"),
+  scene_gate_reason: z.string().default(""),
+  scene_gate_recipient_cap: z.number().int().nonnegative().default(0),
+  window_key: z.string().default("")
+});
+
 const LiveOpsCampaignAnalyticsBucketSchema = z.object({
   bucket_key: z.string().default("unknown"),
   item_count: z.number().int().nonnegative().default(0)
@@ -795,6 +812,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   operator_timeline: z.array(LiveOpsCampaignOperatorTimelineRowSchema).default([]),
   delivery_summary: LiveOpsCampaignDeliverySummarySchema.default({}),
   scene_runtime_summary: SceneRuntimeCompactSummarySchema.default({}),
+  task_summary: LiveOpsCampaignTaskSummarySchema.default({}),
   latest_dispatch: z
     .object({
       event_type: z.string().default("live_ops_campaign_sent"),
