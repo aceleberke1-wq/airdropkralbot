@@ -33,6 +33,13 @@ test("resolveConversionBand accounts for low volume and rate quality", () => {
   assert.equal(service.resolveConversionBand(0.2, 0.3, 120), "red");
 });
 
+test("resolveSceneRuntimeHealthBand reflects runtime success quality", () => {
+  assert.equal(service.resolveSceneRuntimeHealthBand(0, 0, 0), "no_data");
+  assert.equal(service.resolveSceneRuntimeHealthBand(0.98, 40, 1), "green");
+  assert.equal(service.resolveSceneRuntimeHealthBand(0.92, 40, 4), "yellow");
+  assert.equal(service.resolveSceneRuntimeHealthBand(0.7, 40, 12), "red");
+});
+
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   const enriched = service.enrichWebappRevenueMetrics({
     ui_events_ingested_24h: 100,
@@ -44,7 +51,15 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     funnel_approved_24h: 30,
     funnel_pass_purchase_24h: 4,
     funnel_cosmetic_purchase_24h: 6,
-    funnel_value_usd_24h: 120.9999999
+    funnel_value_usd_24h: 120.9999999,
+    scene_runtime_ready_24h: 24,
+    scene_runtime_failed_24h: 2,
+    scene_runtime_low_end_24h: 8,
+    scene_runtime_avg_loaded_bundles_24h: 3.6666667,
+    scene_runtime_quality_breakdown_24h: [{ bucket_key: "high", item_count: 14 }],
+    scene_runtime_perf_breakdown_24h: [{ bucket_key: "mid", item_count: 10 }],
+    scene_runtime_device_breakdown_24h: [{ bucket_key: "mobile", item_count: 20 }],
+    scene_runtime_profile_breakdown_24h: [{ bucket_key: "cinematic", item_count: 12 }]
   });
 
   assert.equal(enriched.ui_event_quality_score_24h, 0.94);
@@ -54,4 +69,14 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.funnel_conversion_band_24h, "green");
   assert.equal(enriched.ui_events_value_usd_24h, 321.98765432);
   assert.equal(enriched.funnel_value_usd_24h, 120.9999999);
+  assert.equal(enriched.scene_runtime_total_24h, 26);
+  assert.equal(enriched.scene_runtime_ready_rate_24h, 0.9231);
+  assert.equal(enriched.scene_runtime_failure_rate_24h, 0.0769);
+  assert.equal(enriched.scene_runtime_low_end_share_24h, 0.3077);
+  assert.equal(enriched.scene_runtime_avg_loaded_bundles_24h, 3.67);
+  assert.equal(enriched.scene_runtime_health_band_24h, "yellow");
+  assert.equal(enriched.scene_runtime_quality_breakdown_24h[0].bucket_key, "high");
+  assert.equal(enriched.scene_runtime_perf_breakdown_24h[0].bucket_key, "mid");
+  assert.equal(enriched.scene_runtime_device_breakdown_24h[0].bucket_key, "mobile");
+  assert.equal(enriched.scene_runtime_profile_breakdown_24h[0].bucket_key, "cinematic");
 });

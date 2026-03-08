@@ -4141,7 +4141,20 @@ async function buildAdminMetrics(db) {
     funnel_value_usd_24h: 0,
     funnel_intent_to_submit_rate_24h: 0,
     funnel_submit_to_approved_rate_24h: 0,
-    funnel_conversion_band_24h: "low_volume"
+    funnel_conversion_band_24h: "low_volume",
+    scene_runtime_ready_24h: 0,
+    scene_runtime_failed_24h: 0,
+    scene_runtime_low_end_24h: 0,
+    scene_runtime_total_24h: 0,
+    scene_runtime_ready_rate_24h: 0,
+    scene_runtime_failure_rate_24h: 0,
+    scene_runtime_low_end_share_24h: 0,
+    scene_runtime_avg_loaded_bundles_24h: 0,
+    scene_runtime_health_band_24h: "no_data",
+    scene_runtime_quality_breakdown_24h: [],
+    scene_runtime_perf_breakdown_24h: [],
+    scene_runtime_device_breakdown_24h: [],
+    scene_runtime_profile_breakdown_24h: []
   };
 
   const coreRes = await db.query(
@@ -4205,6 +4218,105 @@ async function buildAdminMetrics(db) {
     for (const [key, value] of Object.entries(uiRow)) {
       metrics[key] = Number(value || 0);
     }
+
+    const sceneRuntimeRes = await db.query(
+      `WITH scoped AS (
+         SELECT event_key, payload_json
+         FROM v5_webapp_ui_events
+         WHERE created_at >= now() - interval '24 hours'
+           AND event_key IN ('runtime.scene.ready', 'runtime.scene.failed')
+       )
+       SELECT
+         COUNT(*) FILTER (WHERE event_key = 'runtime.scene.ready')::bigint AS scene_runtime_ready_24h,
+         COUNT(*) FILTER (WHERE event_key = 'runtime.scene.failed')::bigint AS scene_runtime_failed_24h,
+         COUNT(*) FILTER (
+           WHERE COALESCE(lower(payload_json->>'low_end_mode'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS scene_runtime_low_end_24h,
+         COALESCE(
+           AVG(
+             CASE
+               WHEN jsonb_typeof(payload_json->'loaded_bundles') = 'array'
+                 THEN jsonb_array_length(payload_json->'loaded_bundles')
+               ELSE NULL
+             END
+           ),
+           0
+         )::numeric AS scene_runtime_avg_loaded_bundles_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'effective_quality'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) quality_rows
+         ) AS scene_runtime_quality_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'perf_tier'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) perf_rows
+         ) AS scene_runtime_perf_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'device_class'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) device_rows
+         ) AS scene_runtime_device_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'scene_profile'), ''), NULLIF(lower(payload_json->>'profile_key'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) profile_rows
+         ) AS scene_runtime_profile_breakdown_24h
+       FROM scoped;`
+    );
+    const sceneRow = sceneRuntimeRes.rows[0] || {};
+    metrics.scene_runtime_ready_24h = Number(sceneRow.scene_runtime_ready_24h || 0);
+    metrics.scene_runtime_failed_24h = Number(sceneRow.scene_runtime_failed_24h || 0);
+    metrics.scene_runtime_low_end_24h = Number(sceneRow.scene_runtime_low_end_24h || 0);
+    metrics.scene_runtime_avg_loaded_bundles_24h = Number(sceneRow.scene_runtime_avg_loaded_bundles_24h || 0);
+    metrics.scene_runtime_quality_breakdown_24h = Array.isArray(sceneRow.scene_runtime_quality_breakdown_24h)
+      ? sceneRow.scene_runtime_quality_breakdown_24h
+      : [];
+    metrics.scene_runtime_perf_breakdown_24h = Array.isArray(sceneRow.scene_runtime_perf_breakdown_24h)
+      ? sceneRow.scene_runtime_perf_breakdown_24h
+      : [];
+    metrics.scene_runtime_device_breakdown_24h = Array.isArray(sceneRow.scene_runtime_device_breakdown_24h)
+      ? sceneRow.scene_runtime_device_breakdown_24h
+      : [];
+    metrics.scene_runtime_profile_breakdown_24h = Array.isArray(sceneRow.scene_runtime_profile_breakdown_24h)
+      ? sceneRow.scene_runtime_profile_breakdown_24h
+      : [];
   } catch (err) {
     if (err.code !== "42P01" && err.code !== "42703") {
       throw err;

@@ -82,6 +82,19 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const submitToApproved = readNum(props.metricsData, "funnel_submit_to_approved_rate_24h");
   const qualityBand = String(props.metricsData?.ui_event_quality_band_24h || "unknown");
   const funnelBand = String(props.metricsData?.funnel_conversion_band_24h || "unknown");
+  const sceneRuntimeReady = readNum(props.metricsData, "scene_runtime_ready_24h");
+  const sceneRuntimeFailed = readNum(props.metricsData, "scene_runtime_failed_24h");
+  const sceneRuntimeTotal = readNum(props.metricsData, "scene_runtime_total_24h");
+  const sceneRuntimeLowEnd = readNum(props.metricsData, "scene_runtime_low_end_24h");
+  const sceneRuntimeReadyRate = readNum(props.metricsData, "scene_runtime_ready_rate_24h");
+  const sceneRuntimeFailureRate = readNum(props.metricsData, "scene_runtime_failure_rate_24h");
+  const sceneRuntimeLowEndShare = readNum(props.metricsData, "scene_runtime_low_end_share_24h");
+  const sceneRuntimeAvgBundles = readNum(props.metricsData, "scene_runtime_avg_loaded_bundles_24h");
+  const sceneRuntimeHealthBand = String(props.metricsData?.scene_runtime_health_band_24h || "no_data");
+  const sceneRuntimeQualityBreakdown = asRows(props.metricsData?.scene_runtime_quality_breakdown_24h);
+  const sceneRuntimePerfBreakdown = asRows(props.metricsData?.scene_runtime_perf_breakdown_24h);
+  const sceneRuntimeDeviceBreakdown = asRows(props.metricsData?.scene_runtime_device_breakdown_24h);
+  const sceneRuntimeProfileBreakdown = asRows(props.metricsData?.scene_runtime_profile_breakdown_24h);
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
   const localeBreakdown = asRows(liveOpsKpi?.locale_breakdown);
@@ -145,6 +158,39 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <span className="akrChip">S-&gt;A: {toPct(submitToApproved)}</span>
         <span className="akrChip">Funnel Band: {funnelBand}</span>
       </div>
+      <section className="akrMiniPanel" data-akr-focus-key="scene_runtime_kpi">
+        <h3>{t(props.lang, "admin_runtime_scene_title")}</h3>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_ready")}: {Math.floor(sceneRuntimeReady)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_failed")}: {Math.floor(sceneRuntimeFailed)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_total")}: {Math.floor(sceneRuntimeTotal)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_ready_rate")}: {toPct(sceneRuntimeReadyRate)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_failure_rate")}: {toPct(sceneRuntimeFailureRate)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_low_end")}: {Math.floor(sceneRuntimeLowEnd)} ({toPct(sceneRuntimeLowEndShare)})
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loaded_bundles")}: {sceneRuntimeAvgBundles.toFixed(2)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_health")}: {sceneRuntimeHealthBand}
+          </span>
+        </div>
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_quality_title")} rows={sceneRuntimeQualityBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_perf_title")} rows={sceneRuntimePerfBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_device_title")} rows={sceneRuntimeDeviceBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_profile_title")} rows={sceneRuntimeProfileBreakdown} />
+      </section>
       <section className="akrMiniPanel" data-akr-focus-key="live_ops_kpi">
         <h3>{t(props.lang, "admin_runtime_live_ops_kpi_title")}</h3>
         <div className="akrChipRow">

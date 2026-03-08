@@ -41,6 +41,33 @@ function resolveConversionBand(intentToSubmitRate, submitToApprovedRate, intentC
   return "red";
 }
 
+function normalizeBreakdownRows(rows, limit = 6) {
+  const source = Array.isArray(rows) ? rows : [];
+  return source
+    .map((row) => ({
+      bucket_key: String(row?.bucket_key || "unknown"),
+      item_count: Math.max(0, Math.floor(toNum(row?.item_count, 0)))
+    }))
+    .filter((row) => row.bucket_key)
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 6))));
+}
+
+function resolveSceneRuntimeHealthBand(readyRate, totalCount, failedCount) {
+  const safeReadyRate = clamp(toNum(readyRate, 0), 0, 1);
+  const total = Math.max(0, Math.floor(toNum(totalCount, 0)));
+  const failed = Math.max(0, Math.floor(toNum(failedCount, 0)));
+  if (total <= 0) {
+    return "no_data";
+  }
+  if (safeReadyRate >= 0.96 && failed <= 3) {
+    return "green";
+  }
+  if (safeReadyRate >= 0.9) {
+    return "yellow";
+  }
+  return "red";
+}
+
 function enrichWebappRevenueMetrics(rawMetrics = {}) {
   const metrics = rawMetrics && typeof rawMetrics === "object" ? rawMetrics : {};
   const uiIngested = Math.max(0, Math.floor(toNum(metrics.ui_events_ingested_24h, 0)));
@@ -68,6 +95,27 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.funnel_intent_to_submit_rate_24h = intentToSubmitRate;
   metrics.funnel_submit_to_approved_rate_24h = submitToApprovedRate;
   metrics.funnel_conversion_band_24h = resolveConversionBand(intentToSubmitRate, submitToApprovedRate, intent);
+
+  const sceneReady = Math.max(0, Math.floor(toNum(metrics.scene_runtime_ready_24h, 0)));
+  const sceneFailed = Math.max(0, Math.floor(toNum(metrics.scene_runtime_failed_24h, 0)));
+  const sceneLowEnd = Math.max(0, Math.floor(toNum(metrics.scene_runtime_low_end_24h, 0)));
+  const sceneTotal = sceneReady + sceneFailed;
+  const sceneReadyRate = toRate(sceneReady, sceneTotal);
+  const sceneFailureRate = toRate(sceneFailed, sceneTotal);
+  const sceneLowEndShare = toRate(sceneLowEnd, sceneTotal);
+  metrics.scene_runtime_ready_24h = sceneReady;
+  metrics.scene_runtime_failed_24h = sceneFailed;
+  metrics.scene_runtime_low_end_24h = sceneLowEnd;
+  metrics.scene_runtime_total_24h = sceneTotal;
+  metrics.scene_runtime_ready_rate_24h = sceneReadyRate;
+  metrics.scene_runtime_failure_rate_24h = sceneFailureRate;
+  metrics.scene_runtime_low_end_share_24h = sceneLowEndShare;
+  metrics.scene_runtime_avg_loaded_bundles_24h = Number(toNum(metrics.scene_runtime_avg_loaded_bundles_24h, 0).toFixed(2));
+  metrics.scene_runtime_health_band_24h = resolveSceneRuntimeHealthBand(sceneReadyRate, sceneTotal, sceneFailed);
+  metrics.scene_runtime_quality_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_quality_breakdown_24h);
+  metrics.scene_runtime_perf_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_perf_breakdown_24h);
+  metrics.scene_runtime_device_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_device_breakdown_24h);
+  metrics.scene_runtime_profile_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_profile_breakdown_24h);
   return metrics;
 }
 
@@ -75,6 +123,7 @@ module.exports = {
   toRate,
   resolveQualityBand,
   resolveConversionBand,
+  resolveSceneRuntimeHealthBand,
+  normalizeBreakdownRows,
   enrichWebappRevenueMetrics
 };
-
