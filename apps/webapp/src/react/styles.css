@@ -696,6 +696,209 @@ body {
   width: 100%;
 }
 
+.akrPvpBridgeGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.akrPvpMiniStats {
+  align-items: stretch;
+}
+
+#pvpRadarCanvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid rgba(123, 192, 227, 0.18);
+  background: rgba(5, 14, 29, 0.82);
+}
+
+.pvpTickLine.live {
+  color: #d5f8ea;
+}
+
+.pvpTickLine.urgency-advantage {
+  color: #b9ffe2;
+}
+
+.pvpTickLine.urgency-pressure {
+  color: #ffd7a5;
+}
+
+.pvpTickLine.urgency-critical {
+  color: #ffc0d1;
+}
+
+.pvpMomentumStrip,
+.pvpCadenceStrip,
+.pvpTheaterStrip,
+.pvpObjectiveGrid,
+.pvpRadarStats,
+.pvpRejectIntelMeterGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.pvpMomentumStrip,
+.pvpObjectiveGrid,
+.pvpRadarStats,
+.pvpRejectIntelMeterGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pvpTheaterStrip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pvpMomentumCell,
+.pvpCadenceCell,
+.pvpTheaterCell,
+.pvpObjectiveCard,
+.akrPvpRejectAction {
+  border: 1px solid rgba(123, 192, 227, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(6, 21, 41, 0.42);
+}
+
+.pvpObjectiveCard {
+  display: grid;
+  gap: 6px;
+}
+
+.pvpObjectiveCard .label,
+.pvpObjectiveCard .micro {
+  margin: 0;
+}
+
+.pvpObjectiveCard .value {
+  margin: 0;
+  font-weight: 700;
+}
+
+.pvpObjectiveCard.neutral {
+  border-color: rgba(123, 192, 227, 0.14);
+}
+
+.pvpObjectiveCard.advantage {
+  border-color: rgba(47, 255, 181, 0.32);
+}
+
+.pvpObjectiveCard.warning {
+  border-color: rgba(255, 178, 94, 0.3);
+}
+
+.pvpObjectiveCard.danger {
+  border-color: rgba(255, 95, 127, 0.32);
+}
+
+.pvpObjectiveCard.pulse {
+  box-shadow: 0 0 0 1px rgba(47, 255, 181, 0.18), 0 0 24px rgba(47, 255, 181, 0.08);
+}
+
+.pvpLiveChip,
+.replayChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(123, 192, 227, 0.2);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  background: rgba(7, 21, 42, 0.66);
+}
+
+.pvpLiveChip.neutral {
+  border-color: rgba(123, 192, 227, 0.2);
+}
+
+.pvpLiveChip.balanced,
+.pvpLiveChip.advantage {
+  border-color: rgba(47, 255, 181, 0.28);
+}
+
+.pvpLiveChip.pressure {
+  border-color: rgba(255, 178, 94, 0.3);
+}
+
+.pvpLiveChip.critical {
+  border-color: rgba(255, 95, 127, 0.32);
+}
+
+.akrPvpChipWrap {
+  flex-wrap: wrap;
+}
+
+.pvpTimelineList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pvpTimelineRow {
+  border: 1px solid rgba(123, 192, 227, 0.16);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(6, 21, 41, 0.42);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pvpTimelineRow .meta {
+  color: var(--akr-muted);
+  font-size: 0.72rem;
+}
+
+.pvpTimelineRow.tick {
+  border-color: rgba(123, 192, 227, 0.24);
+}
+
+.pvpTimelineRow.action {
+  border-color: rgba(47, 255, 181, 0.26);
+}
+
+.pvpTimelineRow.resolve {
+  border-color: rgba(255, 178, 94, 0.28);
+}
+
+.pvpTimelineRow.reject {
+  border-color: rgba(255, 95, 127, 0.32);
+}
+
+.replayStripWrap {
+  display: grid;
+  gap: 8px;
+}
+
+.pvpReplayStrip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.replayChip.strike {
+  border-color: rgba(255, 95, 127, 0.32);
+}
+
+.replayChip.guard {
+  border-color: rgba(47, 255, 181, 0.28);
+}
+
+.replayChip.charge {
+  border-color: rgba(123, 192, 227, 0.3);
+}
+
+.replayChip.resolve {
+  border-color: rgba(255, 178, 94, 0.32);
+}
+
 @media (max-width: 900px) {
   .akrTopbar {
     flex-direction: column;
@@ -716,6 +919,14 @@ body {
 
   .akrShellSurfaceHero {
     flex-direction: column;
+  }
+
+  .pvpMomentumStrip,
+  .pvpTheaterStrip,
+  .pvpObjectiveGrid,
+  .pvpRadarStats,
+  .pvpRejectIntelMeterGrid {
+    grid-template-columns: 1fr;
   }
 }
 

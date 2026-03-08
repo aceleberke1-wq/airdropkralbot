@@ -52,6 +52,20 @@ function normalizeBreakdownRows(rows, limit = 6) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 6))));
 }
 
+function normalizeSceneDailyRows(rows, limit = 7) {
+  const source = Array.isArray(rows) ? rows : [];
+  return source
+    .map((row) => ({
+      day: String(row?.day || ""),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      ready_count: Math.max(0, Math.floor(toNum(row?.ready_count, 0))),
+      failed_count: Math.max(0, Math.floor(toNum(row?.failed_count, 0))),
+      low_end_count: Math.max(0, Math.floor(toNum(row?.low_end_count, 0)))
+    }))
+    .filter((row) => row.day)
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 7))));
+}
+
 function resolveSceneRuntimeHealthBand(readyRate, totalCount, failedCount) {
   const safeReadyRate = clamp(toNum(readyRate, 0), 0, 1);
   const total = Math.max(0, Math.floor(toNum(totalCount, 0)));
@@ -116,6 +130,7 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_runtime_perf_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_perf_breakdown_24h);
   metrics.scene_runtime_device_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_device_breakdown_24h);
   metrics.scene_runtime_profile_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_profile_breakdown_24h);
+  metrics.scene_runtime_daily_breakdown_7d = normalizeSceneDailyRows(metrics.scene_runtime_daily_breakdown_7d);
   return metrics;
 }
 
@@ -125,5 +140,6 @@ module.exports = {
   resolveConversionBand,
   resolveSceneRuntimeHealthBand,
   normalizeBreakdownRows,
+  normalizeSceneDailyRows,
   enrichWebappRevenueMetrics
 };

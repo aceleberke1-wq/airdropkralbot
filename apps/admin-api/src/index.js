@@ -4151,6 +4151,7 @@ async function buildAdminMetrics(db) {
     scene_runtime_low_end_share_24h: 0,
     scene_runtime_avg_loaded_bundles_24h: 0,
     scene_runtime_health_band_24h: "no_data",
+    scene_runtime_daily_breakdown_7d: [],
     scene_runtime_quality_breakdown_24h: [],
     scene_runtime_perf_breakdown_24h: [],
     scene_runtime_device_breakdown_24h: [],
@@ -4221,7 +4222,7 @@ async function buildAdminMetrics(db) {
 
     const sceneRuntimeRes = await db.query(
       `WITH scoped AS (
-         SELECT event_key, payload_json
+         SELECT event_key, payload_json, created_at
          FROM v5_webapp_ui_events
          WHERE created_at >= now() - interval '24 hours'
            AND event_key IN ('runtime.scene.ready', 'runtime.scene.failed')
@@ -4242,6 +4243,37 @@ async function buildAdminMetrics(db) {
            ),
            0
          )::numeric AS scene_runtime_avg_loaded_bundles_24h,
+         (
+           SELECT COALESCE(
+             json_agg(
+               json_build_object(
+                 'day', day,
+                 'total_count', total_count,
+                 'ready_count', ready_count,
+                 'failed_count', failed_count,
+                 'low_end_count', low_end_count
+               )
+               ORDER BY day DESC
+             ),
+             '[]'::json
+           )
+           FROM (
+             SELECT
+               to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+               COUNT(*)::int AS total_count,
+               COUNT(*) FILTER (WHERE event_key = 'runtime.scene.ready')::int AS ready_count,
+               COUNT(*) FILTER (WHERE event_key = 'runtime.scene.failed')::int AS failed_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(lower(payload_json->>'low_end_mode'), 'false') IN ('true', '1', 'yes', 'on')
+               )::int AS low_end_count
+             FROM v5_webapp_ui_events
+             WHERE created_at >= now() - interval '7 days'
+               AND event_key IN ('runtime.scene.ready', 'runtime.scene.failed')
+             GROUP BY 1
+             ORDER BY day DESC
+             LIMIT 7
+           ) daily_rows
+         ) AS scene_runtime_daily_breakdown_7d,
          (
            SELECT COALESCE(
              json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
@@ -4305,6 +4337,9 @@ async function buildAdminMetrics(db) {
     metrics.scene_runtime_failed_24h = Number(sceneRow.scene_runtime_failed_24h || 0);
     metrics.scene_runtime_low_end_24h = Number(sceneRow.scene_runtime_low_end_24h || 0);
     metrics.scene_runtime_avg_loaded_bundles_24h = Number(sceneRow.scene_runtime_avg_loaded_bundles_24h || 0);
+    metrics.scene_runtime_daily_breakdown_7d = Array.isArray(sceneRow.scene_runtime_daily_breakdown_7d)
+      ? sceneRow.scene_runtime_daily_breakdown_7d
+      : [];
     metrics.scene_runtime_quality_breakdown_24h = Array.isArray(sceneRow.scene_runtime_quality_breakdown_24h)
       ? sceneRow.scene_runtime_quality_breakdown_24h
       : [];

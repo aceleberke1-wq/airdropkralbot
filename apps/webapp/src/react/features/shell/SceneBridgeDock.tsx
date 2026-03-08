@@ -138,6 +138,262 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
         </div>
       </BridgeCard>
 
+      {props.tab === "pvp" ? (
+        <BridgeCard title={t(props.lang, "scene_bridge_pvp_title")}>
+          <div className="akrPvpBridgeGrid">
+            <div className="akrSplit">
+              <div className="akrBridgeStrip">
+                <p className="akrBridgeHint">Round Director</p>
+                <p id="roundHeatLine" className="akrBridgeLine">
+                  0% | WARMUP
+                </p>
+                <MeterTrack id="roundHeatMeter" />
+                <p id="roundTempoLine" className="akrBridgeLine">
+                  0% | Tick 1000ms
+                </p>
+                <MeterTrack id="roundTempoMeter" />
+                <p id="roundDominanceLine" className="akrBridgeLine">
+                  YOU 0 - 0 OPP | EVEN
+                </p>
+                <MeterTrack id="roundDominanceMeter" />
+                <p id="roundPressureLine" className="akrBridgeLine">
+                  0% | Queue 0
+                </p>
+                <MeterTrack id="roundPressureMeter" />
+              </div>
+
+              <div id="pvpCineStrip" className="akrBridgeStrip akrPvpCineStrip" data-tone="neutral">
+                <div className="akrBridgeHeader">
+                  <span id="pvpCinePhaseBadge" className="badge info">
+                    DUEL PHASE
+                  </span>
+                  <span id="pvpCineHint" className="akrBridgeHint">
+                    Tick akisina kilitlen.
+                  </span>
+                </div>
+                <p id="pvpCineLine" className="akrBridgeLine">
+                  Cinematic Director
+                </p>
+                <MeterTrack id="pvpCineMeter" />
+              </div>
+            </div>
+
+            <div className="akrSplit">
+              <div id="pvpRadarStrip" className="akrBridgeStrip akrPvpRadarStrip" data-tone="neutral">
+                <div className="akrBridgeHeader">
+                  <span className="akrBridgeHint">Duel Radar</span>
+                  <span id="pvpRadarToneBadge" className="badge info">
+                    IDLE
+                  </span>
+                </div>
+                <canvas id="pvpRadarCanvas" width={360} height={196} />
+                <p id="pvpRadarLine" className="akrBridgeLine">
+                  Sweep 0% | Drift 0 | Queue 0
+                </p>
+                <p id="pvpRadarHint" className="akrBridgeHint">
+                  Radar feed bekleniyor.
+                </p>
+                <div className="akrSplit akrPvpMiniStats">
+                  <div className="akrBridgeStrip">
+                    <p id="pvpDuelFlowLine" className="akrBridgeLine">
+                      FLOW 0% | STABLE
+                    </p>
+                    <MeterTrack id="pvpDuelFlowMeter" />
+                  </div>
+                  <div className="akrBridgeStrip">
+                    <p id="pvpClutchVectorLine" className="akrBridgeLine">
+                      VECTOR 0% | LOCK
+                    </p>
+                    <MeterTrack id="pvpClutchVectorMeter" />
+                  </div>
+                </div>
+              </div>
+
+              <div id="pvpRejectIntelStrip" className="akrBridgeStrip akrPvpRejectIntelStrip" data-tone="neutral" data-category="none" data-recent="0">
+                <div className="akrBridgeHeader">
+                  <span id="pvpRejectIntelBadge" className="badge info">
+                    CLEAN
+                  </span>
+                  <div className="akrChipRow akrPvpChipWrap">
+                    <span id="pvpRejectIntelReasonChip" className="pvpLiveChip neutral">
+                      REJ NONE
+                    </span>
+                    <span id="pvpRejectIntelFreshChip" className="pvpLiveChip neutral">
+                      FRESH --
+                    </span>
+                    <span id="pvpRejectIntelWindowChip" className="pvpLiveChip neutral">
+                      WND --
+                    </span>
+                    <span id="pvpRejectIntelAssetChip" className="pvpLiveChip neutral">
+                      AST --
+                    </span>
+                  </div>
+                </div>
+                <p id="pvpRejectIntelLine" className="akrBridgeLine">
+                  Reject diagnostics bekleniyor.
+                </p>
+                <div className="akrSplit akrPvpMiniStats">
+                  <div className="akrBridgeStrip">
+                    <p className="akrBridgeHint">Recovery Window</p>
+                    <MeterTrack id="pvpRejectIntelRecoveryMeter" />
+                  </div>
+                  <div className="akrBridgeStrip">
+                    <p className="akrBridgeHint">Risk / Drift</p>
+                    <MeterTrack id="pvpRejectIntelRiskMeter" />
+                  </div>
+                </div>
+                <p id="pvpRejectIntelHint" className="akrBridgeHint">
+                  Reject diagnostics aktif.
+                </p>
+                <p id="pvpRejectIntelPlan" className="akrBridgeHint">
+                  Plan bilgisi yok.
+                </p>
+                <div id="pvpRejectIntelActionPanel" className="akrBridgeStrip akrPvpRejectAction" data-tone="neutral" data-category="none">
+                  <div className="akrChipRow akrPvpChipWrap">
+                    <span id="pvpRejectIntelDirectiveChip" className="pvpLiveChip neutral">
+                      DIR WAIT
+                    </span>
+                    <span id="pvpRejectIntelExpectedChip" className="pvpLiveChip neutral">
+                      EXP --
+                    </span>
+                    <span id="pvpRejectIntelQueueChip" className="pvpLiveChip neutral">
+                      Q --
+                    </span>
+                    <span id="pvpRejectIntelBackoffChip" className="pvpLiveChip neutral">
+                      BACKOFF --
+                    </span>
+                    <span id="pvpRejectIntelSyncChip" className="pvpLiveChip neutral">
+                      SYNC --
+                    </span>
+                  </div>
+                  <p id="pvpRejectIntelSolutionLine" className="akrBridgeHint">
+                    Recovery guidance bekleniyor.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="akrSplit">
+              <div className="akrBridgeStrip">
+                <p id="pvpTickLive" className="akrBridgeHint pvpTickLine">
+                  Tick: bekleniyor
+                </p>
+                <div className="pvpMomentumStrip">
+                  <div className="pvpMomentumCell">
+                    <p className="akrBridgeHint">Momentum (Sen)</p>
+                    <p id="pvpMomentumSelfLine" className="akrBridgeLine">
+                      50% | EVEN
+                    </p>
+                    <MeterTrack id="pvpMomentumSelfMeter" />
+                  </div>
+                  <div className="pvpMomentumCell">
+                    <p className="akrBridgeHint">Momentum (Rakip)</p>
+                    <p id="pvpMomentumOppLine" className="akrBridgeLine">
+                      50% | EVEN
+                    </p>
+                    <MeterTrack id="pvpMomentumOppMeter" />
+                  </div>
+                </div>
+
+                <div className="pvpObjectiveGrid">
+                  <article id="pvpObjectivePrimary" className="pvpObjectiveCard neutral">
+                    <p className="label">Hedef 1</p>
+                    <p className="value">Pattern Hazir</p>
+                    <p className="micro">Beklenen aksiyonla ritmi tut.</p>
+                  </article>
+                  <article id="pvpObjectiveSecondary" className="pvpObjectiveCard neutral">
+                    <p className="label">Hedef 2</p>
+                    <p className="value">Resolve Penceresi</p>
+                    <p className="micro">Duel cozum ritmi.</p>
+                  </article>
+                  <article id="pvpObjectiveRisk" className="pvpObjectiveCard neutral">
+                    <p className="label">Risk Komutu</p>
+                    <p className="value">Kontrol Modu</p>
+                    <p className="micro">Baski artarsa guard ile dengele.</p>
+                  </article>
+                </div>
+              </div>
+
+              <div id="pvpTheaterStrip" className="akrBridgeStrip pvpTheaterStrip" data-tone="neutral">
+                <div className="pvpCadenceStrip">
+                  <div className="pvpCadenceCell">
+                    <p className="akrBridgeHint">Tick Pulse</p>
+                    <p id="pvpPulseLine" className="akrBridgeLine">
+                      Phase 0% | Window 80%
+                    </p>
+                    <MeterTrack id="pvpPulseMeter" />
+                    <MeterTrack id="pvpWindowMeter" />
+                    <p id="pvpCadenceHint" className="akrBridgeHint">
+                      Cadence bekleniyor.
+                    </p>
+                  </div>
+                </div>
+                <div className="pvpTheaterStrip">
+                  <div className="pvpTheaterCell">
+                    <p className="akrBridgeHint">Duel Senkron</p>
+                    <p id="pvpSyncLine" className="akrBridgeLine">
+                      SYNC 50% | EVEN
+                    </p>
+                    <MeterTrack id="pvpSyncMeter" />
+                    <p id="pvpSyncHint" className="akrBridgeHint">
+                      Senkron farki bekleniyor.
+                    </p>
+                  </div>
+                  <div className="pvpTheaterCell">
+                    <p className="akrBridgeHint">Overheat Core</p>
+                    <p id="pvpOverheatLine" className="akrBridgeLine">
+                      Heat 0% | Stable
+                    </p>
+                    <MeterTrack id="pvpOverheatMeter" />
+                    <p id="pvpOverheatHint" className="akrBridgeHint">
+                      Queue ve latency burada izlenir.
+                    </p>
+                  </div>
+                  <div className="pvpTheaterCell">
+                    <p className="akrBridgeHint">Clutch Window</p>
+                    <p id="pvpClutchLine" className="akrBridgeLine">
+                      Window 0% | Resolve LOCK
+                    </p>
+                    <MeterTrack id="pvpClutchMeter" />
+                    <p id="pvpClutchHint" className="akrBridgeHint">
+                      Resolve penceresi burada akar.
+                    </p>
+                  </div>
+                  <div className="pvpTheaterCell">
+                    <p className="akrBridgeHint">Stance Pressure</p>
+                    <p id="pvpStanceLine" className="akrBridgeLine">
+                      STR 0 | GRD 0 | CHG 0
+                    </p>
+                    <MeterTrack id="pvpStanceMeter" />
+                    <p id="pvpStanceHint" className="akrBridgeHint">
+                      Duruş baskisi burada izlenir.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="akrBridgeStrip pvpTimelineBlock">
+              <div className="akrBridgeHeader">
+                <span className="akrBridgeHint">Tick Timeline</span>
+                <span id="pvpTimelineBadge" className="badge info">
+                  0 event
+                </span>
+              </div>
+              <ul id="pvpTimelineList" className="pvpTimelineList">
+                <li className="muted">Timeline bekleniyor</li>
+              </ul>
+              <div className="replayStripWrap">
+                <p className="akrBridgeHint">Round Replay</p>
+                <div id="pvpReplayStrip" className="pvpReplayStrip">
+                  <span className="replayChip muted">Replay bos</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </BridgeCard>
+      ) : null}
+
       {props.tab === "tasks" ? (
         <BridgeCard title={t(props.lang, "scene_bridge_operations_title")}>
           <div className="akrSplit">

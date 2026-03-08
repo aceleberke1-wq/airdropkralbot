@@ -181,9 +181,20 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
       transport: "socket",
       tick_ms: 48,
       action_window_ms: 900,
-      action_count: { self: 3, opponent: 2 }
+      ttl_sec_left: 22,
+      action_count: { self: 3, opponent: 2 },
+      state: {
+        shadow_last_action: "guard",
+        shadow_last_accept: false,
+        last_reject_reason: "timeout"
+      }
     },
     leagueOverview: {
+      daily_duel: { status: "active", wins: 3, losses: 1, progress_pct: 75, win_rate_pct: 75 },
+      weekly_ladder: { rank: 8, points: 1840, tier: "platinum", promotion_zone: true },
+      season_arc_boss: { phase: "live", stage: "hydra", hp_pct: 38, attempts: 4 },
+      session_snapshot: { rating: 1442, rank: 18, games_played: 29, wins: 17, losses: 12, last_result: "win" },
+      last_session_trend: [{ session_ref: "prev_1", result: "win", rating_delta: 12, score_self: 18, score_opponent: 14 }],
       leaderboard_snippet: [
         { rank: 1, user_id: 101, public_name: "alpha", rating: 1280, last_match_at: "2099-03-10T12:00:00.000Z" },
         { rank: 2, user_id: 102, public_name: "beta", rating: 1190, last_match_at: "2099-03-10T11:59:00.000Z" }
@@ -202,7 +213,17 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
         accept_rate: 0.82,
         reject_mix: [{ reason_code: "timeout", hit_count: 2 }]
       },
-      tick: { tick: { tick_ms: 48 }, transport: "socket" }
+      tick: {
+        tick: {
+          tick_ms: 48,
+          tick_seq: 27,
+          state_json: {
+            shadow: { input_action: "charge", accepted: true, score_delta: 4 }
+          }
+        },
+        transport: "socket",
+        shadow: { input_action: "charge", accepted: true, score_delta: 4 }
+      }
     },
     vaultData: {
       overview: {
@@ -235,6 +256,12 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.sceneTelemetry.alarm.badgeText, "SCENE WARN");
   assert.equal(payloads.publicTelemetry.assetManifest.badgeText, "ASSET 3/4");
   assert.equal(payloads.publicTelemetry.pvpLeaderboard.badgeText, "TOP 2");
+  assert.equal(payloads.pvpDirector.cinematic.phaseBadgeText, "ACTIVE");
+  assert.equal(payloads.pvpRejectIntel.badge.text, "REJ TIMEOUT");
+  assert.equal(payloads.pvpEvents.timelineRows.length, 6);
+  assert.equal(payloads.pvpDuel.tick.live, true);
+  assert.equal(payloads.pvpRoundDirector.heat.phase, "engage");
+  assert.equal(payloads.pvpRadar.replay.length, 3);
   assert.equal(payloads.operations.offers.items.length, 1);
   assert.equal(payloads.tokenOverview.symbol, "NXT");
   assert.equal(payloads.tokenTreasury.route.badgeText, "ROUTE 2/3");

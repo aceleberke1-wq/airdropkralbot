@@ -73,6 +73,31 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
   );
 }
 
+function SceneDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 7).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}`}>
+            {String(row.day || "-")} | total {Math.floor(Number(row.total_count || 0))} | ready{" "}
+            {Math.floor(Number(row.ready_count || 0))} | fail {Math.floor(Number(row.failed_count || 0))} | low-end{" "}
+            {Math.floor(Number(row.low_end_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const qualityScore = readNum(props.metricsData, "ui_event_quality_score_24h");
   const intent = readNum(props.metricsData, "funnel_intent_24h");
@@ -91,6 +116,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneRuntimeLowEndShare = readNum(props.metricsData, "scene_runtime_low_end_share_24h");
   const sceneRuntimeAvgBundles = readNum(props.metricsData, "scene_runtime_avg_loaded_bundles_24h");
   const sceneRuntimeHealthBand = String(props.metricsData?.scene_runtime_health_band_24h || "no_data");
+  const sceneRuntimeDailyBreakdown = asRows(props.metricsData?.scene_runtime_daily_breakdown_7d);
   const sceneRuntimeQualityBreakdown = asRows(props.metricsData?.scene_runtime_quality_breakdown_24h);
   const sceneRuntimePerfBreakdown = asRows(props.metricsData?.scene_runtime_perf_breakdown_24h);
   const sceneRuntimeDeviceBreakdown = asRows(props.metricsData?.scene_runtime_device_breakdown_24h);
@@ -186,6 +212,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_scene_health")}: {sceneRuntimeHealthBand}
           </span>
         </div>
+        <SceneDailyTrendList title={t(props.lang, "admin_runtime_scene_daily_title")} rows={sceneRuntimeDailyBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_quality_title")} rows={sceneRuntimeQualityBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_perf_title")} rows={sceneRuntimePerfBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_device_title")} rows={sceneRuntimeDeviceBreakdown} />

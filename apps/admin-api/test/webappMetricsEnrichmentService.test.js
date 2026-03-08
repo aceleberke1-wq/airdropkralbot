@@ -40,6 +40,22 @@ test("resolveSceneRuntimeHealthBand reflects runtime success quality", () => {
   assert.equal(service.resolveSceneRuntimeHealthBand(0.7, 40, 12), "red");
 });
 
+test("normalizeSceneDailyRows keeps only stable daily runtime keys", () => {
+  const rows = service.normalizeSceneDailyRows([
+    { day: "2026-03-08", total_count: 12, ready_count: 10, failed_count: 2, low_end_count: 4 },
+    { day: "2026-03-07", total_count: 9, ready_count: 8, failed_count: 1, low_end_count: 3 }
+  ]);
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], {
+    day: "2026-03-08",
+    total_count: 12,
+    ready_count: 10,
+    failed_count: 2,
+    low_end_count: 4
+  });
+});
+
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   const enriched = service.enrichWebappRevenueMetrics({
     ui_events_ingested_24h: 100,
@@ -56,6 +72,10 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     scene_runtime_failed_24h: 2,
     scene_runtime_low_end_24h: 8,
     scene_runtime_avg_loaded_bundles_24h: 3.6666667,
+    scene_runtime_daily_breakdown_7d: [
+      { day: "2026-03-08", total_count: 12, ready_count: 10, failed_count: 2, low_end_count: 4 },
+      { day: "2026-03-07", total_count: 9, ready_count: 8, failed_count: 1, low_end_count: 3 }
+    ],
     scene_runtime_quality_breakdown_24h: [{ bucket_key: "high", item_count: 14 }],
     scene_runtime_perf_breakdown_24h: [{ bucket_key: "mid", item_count: 10 }],
     scene_runtime_device_breakdown_24h: [{ bucket_key: "mobile", item_count: 20 }],
@@ -75,6 +95,8 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_runtime_low_end_share_24h, 0.3077);
   assert.equal(enriched.scene_runtime_avg_loaded_bundles_24h, 3.67);
   assert.equal(enriched.scene_runtime_health_band_24h, "yellow");
+  assert.equal(enriched.scene_runtime_daily_breakdown_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_runtime_daily_breakdown_7d[0].total_count, 12);
   assert.equal(enriched.scene_runtime_quality_breakdown_24h[0].bucket_key, "high");
   assert.equal(enriched.scene_runtime_perf_breakdown_24h[0].bucket_key, "mid");
   assert.equal(enriched.scene_runtime_device_breakdown_24h[0].bucket_key, "mobile");

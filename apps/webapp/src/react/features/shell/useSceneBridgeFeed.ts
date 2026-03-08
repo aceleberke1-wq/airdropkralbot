@@ -24,6 +24,60 @@ type SceneBridgeFeedOptions = {
   adminPanels: Record<string, unknown> | null;
 };
 
+const METER_PALETTES: Record<string, { start: string; end: string; glow: string }> = {
+  neutral: { start: "#3df8c2", end: "#ffb85c", glow: "rgba(61, 248, 194, 0.42)" },
+  safe: { start: "#70ffa0", end: "#3df8c2", glow: "rgba(112, 255, 160, 0.38)" },
+  balanced: { start: "#7fd6ff", end: "#3df8c2", glow: "rgba(127, 214, 255, 0.4)" },
+  aggressive: { start: "#ff5d7d", end: "#ffb85c", glow: "rgba(255, 93, 125, 0.44)" },
+  critical: { start: "#ff416d", end: "#ffc266", glow: "rgba(255, 93, 125, 0.56)" }
+};
+
+function byId<T extends HTMLElement>(id: string) {
+  return document.getElementById(id) as T | null;
+}
+
+function clamp(value: number, min = 0, max = 100) {
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+function setMeter(node: HTMLElement | null, pct: number, paletteKey = "balanced") {
+  if (!node?.style) {
+    return;
+  }
+  const palette = METER_PALETTES[String(paletteKey || "balanced").toLowerCase()] || METER_PALETTES.balanced;
+  node.style.width = `${Math.round(clamp(Number(pct || 0)))}%`;
+  node.style.setProperty("--meter-start", palette.start);
+  node.style.setProperty("--meter-end", palette.end);
+  node.style.setProperty("--meter-glow", palette.glow);
+}
+
+function renderPvpRadarTelemetry(payload: Record<string, unknown> | null | undefined) {
+  if (!payload) {
+    return;
+  }
+  const root = byId<HTMLElement>("pvpRadarStrip");
+  const badge = byId<HTMLElement>("pvpRadarToneBadge");
+  const line = byId<HTMLElement>("pvpRadarLine");
+  const hint = byId<HTMLElement>("pvpRadarHint");
+  const flowLine = byId<HTMLElement>("pvpDuelFlowLine");
+  const flowMeter = byId<HTMLElement>("pvpDuelFlowMeter");
+  const clutchLine = byId<HTMLElement>("pvpClutchVectorLine");
+  const clutchMeter = byId<HTMLElement>("pvpClutchVectorMeter");
+  if (!root || !badge || !line || !hint || !flowLine || !flowMeter || !clutchLine || !clutchMeter) {
+    return;
+  }
+  const tone = String(payload.tone || "neutral").toLowerCase();
+  root.dataset.tone = tone;
+  badge.textContent = String(payload.badgeText || "IDLE");
+  badge.className = tone === "critical" ? "badge warn" : tone === "advantage" ? "badge" : "badge info";
+  line.textContent = String(payload.lineText || "-");
+  hint.textContent = String(payload.hintText || "-");
+  flowLine.textContent = String(payload.duelFlowLineText || "-");
+  clutchLine.textContent = String(payload.clutchLineText || "-");
+  setMeter(flowMeter, Number(payload.duelFlowPct || 0), tone === "advantage" ? "safe" : tone === "critical" ? "critical" : "balanced");
+  setMeter(clutchMeter, Number(payload.clutchPct || 0), tone === "critical" ? "aggressive" : "balanced");
+}
+
 function renderPlayerBridges(payloads: ReturnType<typeof buildPlayerBridgePayloads>) {
   const anyWindow = window as any;
   if (payloads.sceneStatus && anyWindow.__AKR_SCENE_STATUS_DECK__?.render) {
@@ -46,6 +100,28 @@ function renderPlayerBridges(payloads: ReturnType<typeof buildPlayerBridgePayloa
   }
   if (payloads.tokenTreasury && anyWindow.__AKR_TOKEN_TREASURY__?.render) {
     anyWindow.__AKR_TOKEN_TREASURY__.render(payloads.tokenTreasury);
+  }
+  if (payloads.pvpRadar) {
+    renderPvpRadarTelemetry(payloads.pvpRadar as Record<string, unknown>);
+    const radarCanvas = byId<HTMLCanvasElement>("pvpRadarCanvas");
+    if (radarCanvas && anyWindow.__AKR_PVP_RADAR__?.draw) {
+      anyWindow.__AKR_PVP_RADAR__.draw(radarCanvas, payloads.pvpRadar);
+    }
+  }
+  if (payloads.pvpRejectIntel && anyWindow.__AKR_PVP_REJECT_INTEL__?.render) {
+    anyWindow.__AKR_PVP_REJECT_INTEL__.render(payloads.pvpRejectIntel);
+  }
+  if (payloads.pvpDirector && anyWindow.__AKR_PVP_DIRECTOR__?.render) {
+    anyWindow.__AKR_PVP_DIRECTOR__.render(payloads.pvpDirector);
+  }
+  if (payloads.pvpEvents && anyWindow.__AKR_PVP_EVENTS__?.render) {
+    anyWindow.__AKR_PVP_EVENTS__.render(payloads.pvpEvents);
+  }
+  if (payloads.pvpDuel && anyWindow.__AKR_PVP_DUEL__?.render) {
+    anyWindow.__AKR_PVP_DUEL__.render(payloads.pvpDuel);
+  }
+  if (payloads.pvpRoundDirector && anyWindow.__AKR_ROUND_DIRECTOR__?.render) {
+    anyWindow.__AKR_ROUND_DIRECTOR__.render(payloads.pvpRoundDirector);
   }
 }
 
