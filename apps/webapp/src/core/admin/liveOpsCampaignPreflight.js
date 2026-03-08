@@ -1,8 +1,10 @@
 import { parseLiveOpsCampaignDraft } from "./adminDraftParsers.js";
 import {
+  resolveLiveOpsPressureEscalation,
   resolveLiveOpsPressureFocus,
   resolveLiveOpsRecipientCapRecommendation,
-  resolveLiveOpsSceneGate
+  resolveLiveOpsSceneGate,
+  resolveLiveOpsTargetingGuidance
 } from "../../../../../packages/shared/src/liveOpsSceneGate.mjs";
 
 function asRecord(value) {
@@ -37,6 +39,8 @@ export function buildLiveOpsCampaignPreflight(draftText, sceneRuntimeSummary, sc
     schedulerSkip,
     asRecord(opsAlertTrendSummary)
   );
+  const fallbackPressureFocus = resolveLiveOpsPressureFocus(asRecord(opsAlertTrendSummary), fallbackCampaign, fallbackRecommendation);
+  const fallbackPressureEscalation = resolveLiveOpsPressureEscalation(fallbackPressureFocus, fallbackRecommendation);
   const parsed = parseLiveOpsCampaignDraft(draftText || "{}");
   if (!parsed.ok || !parsed.campaign) {
     return {
@@ -52,7 +56,13 @@ export function buildLiveOpsCampaignPreflight(draftText, sceneRuntimeSummary, sc
       latest_skip_at: latestSkipAt,
       gate: resolveLiveOpsSceneGate(asRecord(sceneRuntimeSummary), fallbackCampaign),
       recipient_cap_recommendation: fallbackRecommendation,
-      pressure_focus: resolveLiveOpsPressureFocus(asRecord(opsAlertTrendSummary), fallbackCampaign, fallbackRecommendation)
+      pressure_focus: fallbackPressureFocus,
+      pressure_escalation: fallbackPressureEscalation,
+      targeting_guidance: resolveLiveOpsTargetingGuidance(
+        fallbackPressureFocus,
+        fallbackRecommendation,
+        fallbackPressureEscalation
+      )
     };
   }
 
@@ -64,6 +74,8 @@ export function buildLiveOpsCampaignPreflight(draftText, sceneRuntimeSummary, sc
     schedulerSkip,
     asRecord(opsAlertTrendSummary)
   );
+  const pressureFocus = resolveLiveOpsPressureFocus(asRecord(opsAlertTrendSummary), campaign, recommendation);
+  const pressureEscalation = resolveLiveOpsPressureEscalation(pressureFocus, recommendation);
   return {
     ok: true,
     error: "",
@@ -77,6 +89,8 @@ export function buildLiveOpsCampaignPreflight(draftText, sceneRuntimeSummary, sc
     latest_skip_at: latestSkipAt,
     gate: resolveLiveOpsSceneGate(asRecord(sceneRuntimeSummary), campaign),
     recipient_cap_recommendation: recommendation,
-    pressure_focus: resolveLiveOpsPressureFocus(asRecord(opsAlertTrendSummary), campaign, recommendation)
+    pressure_focus: pressureFocus,
+    pressure_escalation: pressureEscalation,
+    targeting_guidance: resolveLiveOpsTargetingGuidance(pressureFocus, recommendation, pressureEscalation)
   };
 }

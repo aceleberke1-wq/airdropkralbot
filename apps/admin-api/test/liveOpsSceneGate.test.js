@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  resolveLiveOpsTargetingGuidance,
   resolveLiveOpsPressureEscalation,
   resolveLiveOpsPressureFocus,
   resolveLiveOpsRecipientCapRecommendation,
@@ -168,4 +169,47 @@ test("resolveLiveOpsPressureEscalation escalates watch pressure on concentrated 
   assert.equal(escalation.focus_matches_target, true);
   assert.equal(escalation.focus_share_of_recommended_cap, 0.875);
   assert.equal(escalation.effective_cap_delta_ratio, 0.8);
+});
+
+test("resolveLiveOpsTargetingGuidance derives protective default when focus escalation is alert", () => {
+  const guidance = resolveLiveOpsTargetingGuidance(
+    {
+      pressure_band: "watch",
+      warning_rows: [{ dimension: "locale", bucket_key: "tr", item_count: 7, matches_target: true }],
+      locale_cap_split: [
+        { bucket_key: "tr", item_count: 7, suggested_recipient_cap: 7 },
+        { bucket_key: "en", item_count: 1, suggested_recipient_cap: 1 }
+      ],
+      variant_cap_split: [{ bucket_key: "treatment", item_count: 5, suggested_recipient_cap: 5 }],
+      cohort_cap_split: [{ bucket_key: "17", item_count: 4, suggested_recipient_cap: 4 }]
+    },
+    {
+      configured_recipients: 40,
+      scene_gate_recipient_cap: 20,
+      recommended_recipient_cap: 8,
+      effective_cap_delta: 32,
+      pressure_band: "watch"
+    },
+    {
+      escalation_band: "alert",
+      reason: "watch_state_locale_pressure",
+      focus_dimension: "locale",
+      focus_bucket: "tr",
+      focus_matches_target: true,
+      focus_share_of_recommended_cap: 0.875,
+      focus_suggested_recipient_cap: 7,
+      effective_cap_delta_ratio: 0.8
+    }
+  );
+
+  assert.equal(guidance.default_mode, "protective");
+  assert.equal(guidance.guidance_state, "alert");
+  assert.equal(guidance.focus_dimension, "locale");
+  assert.equal(guidance.focus_bucket, "tr");
+  assert.equal(guidance.mode_rows[0].mode_key, "protective");
+  assert.equal(guidance.mode_rows[0].suggested_recipient_cap, 7);
+  assert.equal(guidance.mode_rows[1].mode_key, "balanced");
+  assert.equal(guidance.mode_rows[1].suggested_recipient_cap, 8);
+  assert.equal(guidance.mode_rows[2].mode_key, "aggressive");
+  assert.equal(guidance.mode_rows[2].suggested_recipient_cap, 8);
 });

@@ -75,6 +75,15 @@ function formatTimelineActionLabel(lang: Lang, value: string) {
   return dictionary[actionKey] ? t(lang, dictionary[actionKey]) : formatWarningCode(actionKey || "unknown");
 }
 
+function formatGuidanceModeLabel(lang: Lang, value: string) {
+  const dictionary: Record<string, Parameters<typeof t>[1]> = {
+    protective: "admin_live_ops_guidance_mode_protective",
+    balanced: "admin_live_ops_guidance_mode_balanced",
+    aggressive: "admin_live_ops_guidance_mode_aggressive"
+  };
+  return dictionary[value] ? t(lang, dictionary[value]) : formatWarningCode(value || "balanced");
+}
+
 function BreakdownList(props: { title: string; rows: Array<Record<string, unknown>> }) {
   if (!props.rows.length) {
     return <p className="akrMuted">{props.title}: -</p>;
@@ -131,6 +140,28 @@ function CapSplitList(props: { title: string; rows: Array<Record<string, unknown
             <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
             <strong>
               {asCount(row.suggested_recipient_cap)} / {asCount(row.item_count)}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function GuidanceModeList(props: { title: string; rows: Array<Record<string, unknown>>; lang: Lang }) {
+  if (!props.rows.length) {
+    return <p className="akrMuted">{props.title}: -</p>;
+  }
+  return (
+    <section className="akrMiniPanel">
+      <h4>{props.title}</h4>
+      <ul className="akrList">
+        {props.rows.map((row, index) => (
+          <li key={`${asText(row.mode_key, "mode")}_${index}`}>
+            <span>{formatGuidanceModeLabel(props.lang, asText(row.mode_key, "balanced"))}</span>
+            <strong>
+              {asCount(row.suggested_recipient_cap)} | {formatWarningCode(asText(row.reason_code))} |{" "}
+              {asCount(row.delta_vs_recommended)}
             </strong>
           </li>
         ))}
@@ -226,10 +257,13 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   );
   const preflightRecommendation = asRecord(preflight.recipient_cap_recommendation);
   const preflightPressureFocus = asRecord(preflight.pressure_focus);
+  const preflightPressureEscalation = asRecord(preflight.pressure_escalation);
+  const preflightTargetingGuidance = asRecord(preflight.targeting_guidance);
   const preflightPressureWarnings = asArray(preflightPressureFocus.warning_rows);
   const preflightLocaleCapSplit = asArray(preflightPressureFocus.locale_cap_split);
   const preflightVariantCapSplit = asArray(preflightPressureFocus.variant_cap_split);
   const preflightCohortCapSplit = asArray(preflightPressureFocus.cohort_cap_split);
+  const preflightGuidanceModes = asArray(preflightTargetingGuidance.mode_rows);
   const liveReady = approvalSummary.live_dispatch_ready === true;
   const approvalState = asText(approvalSummary.approval_state);
   const scheduleState = asText(approvalSummary.schedule_state);
@@ -342,6 +376,17 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
               {t(props.lang, "admin_live_ops_recommend_focus_label")}: {asText(preflightRecommendation.segment_key, "-")} /{" "}
               {asText(preflightRecommendation.locale_bucket, "-")} / {asText(preflightRecommendation.surface_bucket, "-")}
             </p>
+            <p className="akrMutedLine">
+              {t(props.lang, "admin_live_ops_guidance_default_label")}: {formatGuidanceModeLabel(props.lang, asText(preflightTargetingGuidance.default_mode, "balanced"))} |{" "}
+              {t(props.lang, "admin_live_ops_guidance_state_label")}: {asText(preflightTargetingGuidance.guidance_state)} |{" "}
+              {t(props.lang, "admin_live_ops_guidance_reason_label")}: {asText(preflightTargetingGuidance.guidance_reason)}
+            </p>
+            <p className="akrMutedLine">
+              {t(props.lang, "admin_live_ops_escalation_band_label")}: {asText(preflightPressureEscalation.escalation_band)} |{" "}
+              {t(props.lang, "admin_live_ops_escalation_focus_label")}: {asText(preflightPressureEscalation.focus_dimension, "-")} /{" "}
+              {asText(preflightPressureEscalation.focus_bucket, "-")} | {t(props.lang, "admin_live_ops_escalation_share_label")}:{" "}
+              {toPct(preflightPressureEscalation.focus_share_of_recommended_cap)}
+            </p>
             <div className="akrSplit">
               <PressureWarningList
                 title={t(props.lang, "admin_live_ops_pressure_warning_title")}
@@ -354,6 +399,11 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
               <CapSplitList title={t(props.lang, "admin_live_ops_pressure_split_variant_title")} rows={preflightVariantCapSplit} />
               <CapSplitList title={t(props.lang, "admin_live_ops_pressure_split_cohort_title")} rows={preflightCohortCapSplit} />
             </div>
+            <GuidanceModeList
+              title={t(props.lang, "admin_live_ops_guidance_modes_title")}
+              rows={preflightGuidanceModes}
+              lang={props.lang}
+            />
           </>
         ) : (
           <p className="akrErrorLine">{preflight.error}</p>

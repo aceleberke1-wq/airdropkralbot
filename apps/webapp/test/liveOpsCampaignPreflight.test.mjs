@@ -30,16 +30,16 @@ test("buildLiveOpsCampaignPreflight exposes capped watch gate for draft campaign
       experiment_key: "webapp_react_v1",
       segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 3 }],
       locale_breakdown: [
-        { bucket_key: "tr", item_count: 3 },
+        { bucket_key: "tr", item_count: 7 },
         { bucket_key: "en", item_count: 1 }
       ],
       surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 2 }],
       variant_breakdown: [
-        { bucket_key: "treatment", item_count: 3 },
+        { bucket_key: "treatment", item_count: 7 },
         { bucket_key: "control", item_count: 1 }
       ],
       cohort_breakdown: [
-        { bucket_key: "17", item_count: 2 },
+        { bucket_key: "17", item_count: 6 },
         { bucket_key: "42", item_count: 1 }
       ]
     }
@@ -62,9 +62,17 @@ test("buildLiveOpsCampaignPreflight exposes capped watch gate for draft campaign
   assert.equal(result.pressure_focus.warning_rows[0].dimension, "segment");
   assert.equal(result.pressure_focus.warning_rows[0].matches_target, true);
   assert.equal(result.pressure_focus.locale_cap_split[0].bucket_key, "tr");
-  assert.equal(result.pressure_focus.locale_cap_split[0].suggested_recipient_cap, 9);
+  assert.equal(result.pressure_focus.locale_cap_split[0].suggested_recipient_cap, 11);
   assert.equal(result.pressure_focus.variant_cap_split[0].bucket_key, "treatment");
-  assert.equal(result.pressure_focus.variant_cap_split[0].suggested_recipient_cap, 9);
+  assert.equal(result.pressure_focus.variant_cap_split[0].suggested_recipient_cap, 11);
+  assert.equal(result.pressure_escalation.escalation_band, "alert");
+  assert.equal(result.pressure_escalation.reason, "watch_state_locale_pressure");
+  assert.equal(result.targeting_guidance.default_mode, "protective");
+  assert.equal(result.targeting_guidance.guidance_state, "alert");
+  assert.equal(result.targeting_guidance.mode_rows[0].mode_key, "protective");
+  assert.equal(result.targeting_guidance.mode_rows[0].suggested_recipient_cap, 11);
+  assert.equal(result.targeting_guidance.mode_rows[2].mode_key, "aggressive");
+  assert.equal(result.targeting_guidance.mode_rows[2].suggested_recipient_cap, 12);
 });
 
 test("buildLiveOpsCampaignPreflight returns parse error for invalid draft", () => {
@@ -87,4 +95,5 @@ test("buildLiveOpsCampaignPreflight returns parse error for invalid draft", () =
   assert.equal(result.recent_skip_pressure, "watch");
   assert.equal(result.latest_skip_reason, "already_dispatched_for_window");
   assert.equal(result.gate.scene_gate_state, "no_data");
+  assert.equal(result.targeting_guidance.default_mode, "aggressive");
 });

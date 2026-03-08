@@ -107,6 +107,30 @@ function pickPressureSplitCandidate(dimension, rows, recommendedCap, warningInde
   };
 }
 
+function sortPressureCandidates(candidates) {
+  return candidates
+    .filter(Boolean)
+    .slice()
+    .sort((left, right) => {
+      if (right.share_of_recommended_cap !== left.share_of_recommended_cap) {
+        return right.share_of_recommended_cap - left.share_of_recommended_cap;
+      }
+      if (right.item_count !== left.item_count) {
+        return right.item_count - left.item_count;
+      }
+      return left.dimension.localeCompare(right.dimension);
+    });
+}
+
+function clampRecipientCap(value, maxCap) {
+  const safeMax = Math.max(0, Number(maxCap || 0));
+  const parsed = Math.max(0, Math.floor(Number(value || 0)));
+  if (safeMax <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.min(safeMax, parsed));
+}
+
 function resolveLiveOpsSceneGate(sceneRuntimeSummary, campaign) {
   const safeSummary = sceneRuntimeSummary && typeof sceneRuntimeSummary === "object" && !Array.isArray(sceneRuntimeSummary)
     ? sceneRuntimeSummary
@@ -388,9 +412,117 @@ function resolveLiveOpsPressureEscalation(pressureFocusSummary, recommendation) 
   };
 }
 
+function resolveLiveOpsTargetingGuidance(pressureFocusSummary, recommendation, pressureEscalation) {
+  const safeFocus = asRecord(pressureFocusSummary);
+  const safeRecommendation = asRecord(recommendation);
+  const safeEscalation = asRecord(pressureEscalation);
+  const configuredRecipients = Math.max(0, Number(safeRecommendation.configured_recipients || 0));
+  const sceneGateCap = Math.max(
+    0,
+    Number(safeRecommendation.scene_gate_recipient_cap || safeRecommendation.recommended_recipient_cap || configuredRecipients)
+  );
+  const maxCap = Math.max(sceneGateCap, configuredRecipients, Number(safeRecommendation.recommended_recipient_cap || 0));
+  const recommendedCap = clampRecipientCap(safeRecommendation.recommended_recipient_cap, maxCap);
+  const pressureBand = String(safeRecommendation.pressure_band || safeFocus.pressure_band || "clear").trim().toLowerCase();
+  const escalationBand = String(safeEscalation.escalation_band || pressureBand || "clear").trim().toLowerCase();
+  const warningIndex = buildWarningMatchIndex(safeFocus.warning_rows);
+  const focusCandidates = sortPressureCandidates([
+    pickPressureSplitCandidate("locale", safeFocus.locale_cap_split, recommendedCap, warningIndex),
+    pickPressureSplitCandidate("variant", safeFocus.variant_cap_split, recommendedCap, warningIndex),
+    pickPressureSplitCandidate("cohort", safeFocus.cohort_cap_split, recommendedCap, warningIndex)
+  ]);
+  const topCandidate = focusCandidates[0] || null;
+  const focusDimension = String(safeEscalation.focus_dimension || ((topCandidate && topCandidate.dimension) || "")).trim();
+  const focusBucket = String(safeEscalation.focus_bucket || ((topCandidate && topCandidate.bucket_key) || "")).trim();
+  const focusMatchesTarget = safeEscalation.focus_matches_target === true || (topCandidate && topCandidate.matches_target === true);
+  const focusShare = Math.max(
+    0,
+    Number(safeEscalation.focus_share_of_recommended_cap || ((topCandidate && topCandidate.share_of_recommended_cap) || 0))
+  );
+  const focusSuggestedCap = clampRecipientCap(
+    safeEscalation.focus_suggested_recipient_cap || ((topCandidate && topCandidate.suggested_recipient_cap) || 0),
+    maxCap
+  );
+  const effectiveCapDeltaRatio = Math.max(0, Number(safeEscalation.effective_cap_delta_ratio || 0));
+  const balancedCap = clampRecipientCap(recommendedCap || sceneGateCap || configuredRecipients, maxCap);
+  let protectiveCap = focusSuggestedCap;
+
+  if (!protectiveCap) {
+    if (escalationBand === "alert" || pressureBand === "alert") {
+      protectiveCap = clampRecipientCap(Math.ceil(balancedCap * 0.75), maxCap);
+    } else if (pressureBand === "watch") {
+      protectiveCap = clampRecipientCap(Math.ceil(balancedCap * 0.85), maxCap);
+    } else {
+      protectiveCap = balancedCap;
+    }
+  }
+  protectiveCap = clampRecipientCap(Math.min(protectiveCap, balancedCap || protectiveCap), maxCap);
+
+  let aggressiveCap = 0;
+  if (escalationBand === "alert" || pressureBand === "alert") {
+    aggressiveCap = balancedCap;
+  } else if (pressureBand === "watch") {
+    aggressiveCap = clampRecipientCap(Math.ceil((balancedCap + sceneGateCap) / 2), maxCap);
+  } else {
+    aggressiveCap = clampRecipientCap(sceneGateCap || configuredRecipients, maxCap);
+  }
+  aggressiveCap = Math.max(aggressiveCap, balancedCap);
+
+  return {
+    default_mode:
+      escalationBand === "alert" || pressureBand === "alert"
+        ? "protective"
+        : pressureBand === "watch"
+          ? "balanced"
+          : "aggressive",
+    guidance_state: escalationBand === "alert" ? "alert" : pressureBand === "watch" ? "watch" : "clear",
+    guidance_reason: String(safeEscalation.reason || safeRecommendation.reason || "").trim(),
+    focus_dimension: focusDimension,
+    focus_bucket: focusBucket,
+    focus_matches_target: focusMatchesTarget,
+    focus_share_of_recommended_cap: roundRatio(focusShare),
+    focus_suggested_recipient_cap: focusSuggestedCap,
+    effective_cap_delta_ratio: roundRatio(effectiveCapDeltaRatio),
+    mode_rows: [
+      {
+        mode_key: "protective",
+        suggested_recipient_cap: protectiveCap,
+        effective_cap_delta: Math.max(0, configuredRecipients - protectiveCap),
+        delta_vs_recommended: Math.max(0, balancedCap - protectiveCap),
+        reason_code:
+          focusDimension && focusBucket
+            ? `focus_${focusDimension}_protective`
+            : pressureBand === "clear"
+              ? "steady_state"
+              : "pressure_band_protective"
+      },
+      {
+        mode_key: "balanced",
+        suggested_recipient_cap: balancedCap,
+        effective_cap_delta: Math.max(0, configuredRecipients - balancedCap),
+        delta_vs_recommended: 0,
+        reason_code: "recommended_cap"
+      },
+      {
+        mode_key: "aggressive",
+        suggested_recipient_cap: aggressiveCap,
+        effective_cap_delta: Math.max(0, configuredRecipients - aggressiveCap),
+        delta_vs_recommended: Math.max(0, aggressiveCap - balancedCap),
+        reason_code:
+          aggressiveCap === balancedCap
+            ? "scene_gate_locked"
+            : pressureBand === "watch"
+              ? "scene_gate_headroom_watch"
+              : "scene_gate_headroom_clear"
+      }
+    ]
+  };
+}
+
 module.exports = {
   resolveLiveOpsSceneGate,
   resolveLiveOpsRecipientCapRecommendation,
   resolveLiveOpsPressureFocus,
-  resolveLiveOpsPressureEscalation
+  resolveLiveOpsPressureEscalation,
+  resolveLiveOpsTargetingGuidance
 };
