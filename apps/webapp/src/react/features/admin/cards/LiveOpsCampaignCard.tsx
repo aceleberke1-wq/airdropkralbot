@@ -224,6 +224,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const deliverySummary = asRecord(snapshot.delivery_summary);
   const sceneRuntimeSummary = asRecord(snapshot.scene_runtime_summary);
   const taskSummary = asRecord(snapshot.task_summary);
+  const taskSelectionSummary = asRecord(taskSummary.selection_summary);
   const opsAlertSummary = asRecord(snapshot.ops_alert_summary);
   const opsAlertTrendSummary = asRecord(snapshot.ops_alert_trend_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
@@ -650,6 +651,39 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             <strong>{asText(taskSummary.recommendation_reason)}</strong>
           </li>
         </ul>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_selection_mode_label")}: {formatGuidanceModeLabel(props.lang, asText(taskSelectionSummary.guidance_mode, "balanced"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_selection_state_label")}: {asText(taskSelectionSummary.guidance_state)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_selection_prioritized_label")}: {asCount(taskSelectionSummary.prioritized_candidates)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_selection_selected_label")}: {asCount(taskSelectionSummary.selected_candidates)}
+          </span>
+        </div>
+        <div className="akrStack">
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_reason_label")}: {asText(taskSelectionSummary.guidance_reason)} |{" "}
+            {t(props.lang, "admin_live_ops_selection_focus_label")}: {asText(taskSelectionSummary.focus_dimension)} /{" "}
+            {asText(taskSelectionSummary.focus_bucket)} /{" "}
+            {taskSelectionSummary.focus_matches_target === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_locale_label")}: {asCount(taskSelectionSummary.selected_top_locale_matches)} /{" "}
+            {asCount(taskSelectionSummary.prioritized_top_locale_matches)} | {t(props.lang, "admin_live_ops_selection_variant_label")}:{" "}
+            {asCount(taskSelectionSummary.selected_top_variant_matches)} / {asCount(taskSelectionSummary.prioritized_top_variant_matches)} |{" "}
+            {t(props.lang, "admin_live_ops_selection_cohort_label")}: {asCount(taskSelectionSummary.selected_top_cohort_matches)} /{" "}
+            {asCount(taskSelectionSummary.prioritized_top_cohort_matches)}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_focus_match_label")}: {asCount(taskSelectionSummary.selected_focus_matches)} /{" "}
+            {asCount(taskSelectionSummary.prioritized_focus_matches)}
+          </p>
+        </div>
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="ops_alert_summary">
         <h4>{t(props.lang, "admin_live_ops_ops_alert_title")}</h4>

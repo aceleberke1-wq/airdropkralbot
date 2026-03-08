@@ -192,6 +192,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const opsAlertTrend = asRecord(liveOpsKpi?.ops_alert_trend);
   const recipientCapRecommendation = asRecord(liveOpsKpi?.recipient_cap_recommendation);
   const targetingGuidance = asRecord(liveOpsKpi?.targeting_guidance);
+  const selectionSummary = asRecord(liveOpsKpi?.selection_summary);
   const schedulerSkipDaily = asRows(schedulerSkip?.daily_breakdown);
   const schedulerSkipReasons = asRows(schedulerSkip?.reason_breakdown);
   const opsAlertLocaleBreakdown = asRows(opsAlertTrend?.locale_breakdown);
@@ -384,6 +385,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_guidance_state_label")}: {readText(targetingGuidance, "guidance_state") || "-"}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_selection_mode_label")}: {readText(selectionSummary, "guidance_mode") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_selection_state_label")}: {readText(selectionSummary, "guidance_state") || "-"}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_recommend_delta_label")}: {Math.floor(readNum(recipientCapRecommendation, "effective_cap_delta"))}
           </span>
           <span className="akrChip">
@@ -448,6 +455,22 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_guidance_focus_label")}: {readText(targetingGuidance, "focus_dimension") || "-"} /{" "}
             {readText(targetingGuidance, "focus_bucket") || "-"} | {t(props.lang, "admin_runtime_live_ops_guidance_focus_share_label")}:{" "}
             {toPct(readNum(targetingGuidance, "focus_share_of_recommended_cap"))}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_selection_reason_label")}: {readText(selectionSummary, "guidance_reason") || "-"} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_selection_focus_label")}: {readText(selectionSummary, "focus_dimension") || "-"} /{" "}
+            {readText(selectionSummary, "focus_bucket") || "-"}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_selection_count_label")}: {Math.floor(readNum(selectionSummary, "selected_candidates"))} /{" "}
+            {Math.floor(readNum(selectionSummary, "prioritized_candidates"))} | {t(props.lang, "admin_runtime_live_ops_selection_locale_label")}:{" "}
+            {Math.floor(readNum(selectionSummary, "selected_top_locale_matches"))} / {Math.floor(readNum(selectionSummary, "prioritized_top_locale_matches"))} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_selection_variant_label")}: {Math.floor(readNum(selectionSummary, "selected_top_variant_matches"))} /{" "}
+            {Math.floor(readNum(selectionSummary, "prioritized_top_variant_matches"))}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_selection_focus_match_label")}: {Math.floor(readNum(selectionSummary, "selected_focus_matches"))} /{" "}
+            {Math.floor(readNum(selectionSummary, "prioritized_focus_matches"))}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_24h_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_24h"))} |{" "}

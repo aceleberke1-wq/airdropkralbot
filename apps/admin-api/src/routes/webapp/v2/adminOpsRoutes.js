@@ -102,6 +102,9 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
   const sceneRuntime = safeSnapshot.scene_runtime_summary && typeof safeSnapshot.scene_runtime_summary === "object"
     ? safeSnapshot.scene_runtime_summary
     : {};
+  const taskSummary = safeSnapshot.task_summary && typeof safeSnapshot.task_summary === "object"
+    ? safeSnapshot.task_summary
+    : {};
   const recipientCapRecommendation =
     scheduler.recipient_cap_recommendation && typeof scheduler.recipient_cap_recommendation === "object"
       ? scheduler.recipient_cap_recommendation
@@ -109,6 +112,10 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
   const targetingGuidance =
     scheduler.targeting_guidance && typeof scheduler.targeting_guidance === "object"
       ? scheduler.targeting_guidance
+      : {};
+  const selectionSummary =
+    taskSummary.selection_summary && typeof taskSummary.selection_summary === "object"
+      ? taskSummary.selection_summary
       : {};
   const latestDispatch = safeSnapshot.latest_dispatch && typeof safeSnapshot.latest_dispatch === "object" ? safeSnapshot.latest_dispatch : {};
   return {
@@ -175,6 +182,24 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
             reason_code: String(row?.reason_code || "")
           }))
         : []
+    },
+    selection_summary: {
+      guidance_mode: String(selectionSummary.guidance_mode || "balanced"),
+      guidance_state: String(selectionSummary.guidance_state || "clear"),
+      guidance_reason: String(selectionSummary.guidance_reason || ""),
+      focus_dimension: String(selectionSummary.focus_dimension || ""),
+      focus_bucket: String(selectionSummary.focus_bucket || ""),
+      focus_matches_target: selectionSummary.focus_matches_target === true,
+      prioritized_candidates: Math.max(0, Number(selectionSummary.prioritized_candidates || 0)),
+      selected_candidates: Math.max(0, Number(selectionSummary.selected_candidates || 0)),
+      prioritized_focus_matches: Math.max(0, Number(selectionSummary.prioritized_focus_matches || 0)),
+      selected_focus_matches: Math.max(0, Number(selectionSummary.selected_focus_matches || 0)),
+      prioritized_top_locale_matches: Math.max(0, Number(selectionSummary.prioritized_top_locale_matches || 0)),
+      selected_top_locale_matches: Math.max(0, Number(selectionSummary.selected_top_locale_matches || 0)),
+      prioritized_top_variant_matches: Math.max(0, Number(selectionSummary.prioritized_top_variant_matches || 0)),
+      selected_top_variant_matches: Math.max(0, Number(selectionSummary.selected_top_variant_matches || 0)),
+      prioritized_top_cohort_matches: Math.max(0, Number(selectionSummary.prioritized_top_cohort_matches || 0)),
+      selected_top_cohort_matches: Math.max(0, Number(selectionSummary.selected_top_cohort_matches || 0))
     },
     scheduler_skip: {
       skipped_24h: Math.max(0, Number(schedulerSkip.skipped_24h || 0)),
@@ -297,6 +322,24 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         focus_suggested_recipient_cap: 0,
         effective_cap_delta_ratio: 0,
         mode_rows: []
+      },
+      selection_summary: {
+        guidance_mode: "balanced",
+        guidance_state: "clear",
+        guidance_reason: "",
+        focus_dimension: "",
+        focus_bucket: "",
+        focus_matches_target: false,
+        prioritized_candidates: 0,
+        selected_candidates: 0,
+        prioritized_focus_matches: 0,
+        selected_focus_matches: 0,
+        prioritized_top_locale_matches: 0,
+        selected_top_locale_matches: 0,
+        prioritized_top_variant_matches: 0,
+        selected_top_variant_matches: 0,
+        prioritized_top_cohort_matches: 0,
+        selected_top_cohort_matches: 0
       },
       scheduler_skip: {
         skipped_24h: 0,

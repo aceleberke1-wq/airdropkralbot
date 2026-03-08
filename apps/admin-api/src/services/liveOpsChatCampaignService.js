@@ -1605,6 +1605,24 @@ function buildEmptyLiveOpsTaskSummary() {
     targeting_guidance_state: "clear",
     targeting_guidance_cap: 0,
     targeting_guidance_reason: "",
+    selection_summary: {
+      guidance_mode: "balanced",
+      guidance_state: "clear",
+      guidance_reason: "",
+      focus_dimension: "",
+      focus_bucket: "",
+      focus_matches_target: false,
+      prioritized_candidates: 0,
+      selected_candidates: 0,
+      prioritized_focus_matches: 0,
+      selected_focus_matches: 0,
+      prioritized_top_locale_matches: 0,
+      selected_top_locale_matches: 0,
+      prioritized_top_variant_matches: 0,
+      selected_top_variant_matches: 0,
+      prioritized_top_cohort_matches: 0,
+      selected_top_cohort_matches: 0
+    },
     window_key: "",
     scheduler_skip_24h: 0,
     scheduler_skip_7d: 0,
@@ -1698,6 +1716,12 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
           ? scheduler.targeting_guidance
           : {};
     const data = payload && typeof payload.data === "object" ? payload.data : {};
+    const selectionSummary =
+      payload && typeof payload.selection_summary === "object" && !Array.isArray(payload.selection_summary)
+        ? payload.selection_summary
+        : data && typeof data.selection_summary === "object" && !Array.isArray(data.selection_summary)
+          ? data.selection_summary
+          : {};
     const selectedMode = String(targetingGuidance?.default_mode || data?.recommendation_mode || "balanced").trim() || "balanced";
     const selectedModeRow = findGuidanceModeRow(targetingGuidance, selectedMode);
     return {
@@ -1730,6 +1754,24 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
         ) || 0
       ),
       targeting_guidance_reason: String(targetingGuidance?.guidance_reason || data?.recommendation_guidance_state || "").trim(),
+      selection_summary: {
+        guidance_mode: String(selectionSummary.guidance_mode || selectedMode).trim() || selectedMode,
+        guidance_state: String(selectionSummary.guidance_state || targetingGuidance?.guidance_state || "clear").trim() || "clear",
+        guidance_reason: String(selectionSummary.guidance_reason || targetingGuidance?.guidance_reason || "").trim(),
+        focus_dimension: String(selectionSummary.focus_dimension || "").trim(),
+        focus_bucket: String(selectionSummary.focus_bucket || "").trim(),
+        focus_matches_target: selectionSummary.focus_matches_target === true,
+        prioritized_candidates: Math.max(0, Number(selectionSummary.prioritized_candidates || 0) || 0),
+        selected_candidates: Math.max(0, Number(selectionSummary.selected_candidates || 0) || 0),
+        prioritized_focus_matches: Math.max(0, Number(selectionSummary.prioritized_focus_matches || 0) || 0),
+        selected_focus_matches: Math.max(0, Number(selectionSummary.selected_focus_matches || 0) || 0),
+        prioritized_top_locale_matches: Math.max(0, Number(selectionSummary.prioritized_top_locale_matches || 0) || 0),
+        selected_top_locale_matches: Math.max(0, Number(selectionSummary.selected_top_locale_matches || 0) || 0),
+        prioritized_top_variant_matches: Math.max(0, Number(selectionSummary.prioritized_top_variant_matches || 0) || 0),
+        selected_top_variant_matches: Math.max(0, Number(selectionSummary.selected_top_variant_matches || 0) || 0),
+        prioritized_top_cohort_matches: Math.max(0, Number(selectionSummary.prioritized_top_cohort_matches || 0) || 0),
+        selected_top_cohort_matches: Math.max(0, Number(selectionSummary.selected_top_cohort_matches || 0) || 0)
+      },
       window_key: String(scheduler?.window_key || data?.window_key || "").trim(),
       scheduler_skip_24h: Math.max(0, Number(schedulerSkip?.skipped_24h || 0) || 0),
       scheduler_skip_7d: Math.max(0, Number(schedulerSkip?.skipped_7d || 0) || 0),

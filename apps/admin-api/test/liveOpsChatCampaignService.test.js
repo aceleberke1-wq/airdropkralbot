@@ -513,6 +513,24 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       targeting_guidance_state: "alert",
       targeting_guidance_cap: 10,
       targeting_guidance_reason: "watch_state_locale_pressure",
+      selection_summary: {
+        guidance_mode: "protective",
+        guidance_state: "alert",
+        guidance_reason: "watch_state_locale_pressure",
+        focus_dimension: "locale",
+        focus_bucket: "tr",
+        focus_matches_target: true,
+        prioritized_candidates: 12,
+        selected_candidates: 4,
+        prioritized_focus_matches: 5,
+        selected_focus_matches: 0,
+        prioritized_top_locale_matches: 7,
+        selected_top_locale_matches: 0,
+        prioritized_top_variant_matches: 6,
+        selected_top_variant_matches: 1,
+        prioritized_top_cohort_matches: 5,
+        selected_top_cohort_matches: 1
+      },
       window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z",
       scheduler_skip_24h: 2,
       scheduler_skip_7d: 4,
@@ -588,6 +606,9 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.effective_cap_delta, 40);
   assert.equal(snapshot.task_summary.targeting_guidance_default_mode, "protective");
   assert.equal(snapshot.task_summary.targeting_guidance_cap, 10);
+  assert.equal(snapshot.task_summary.selection_summary.guidance_mode, "protective");
+  assert.equal(snapshot.task_summary.selection_summary.selected_candidates, 4);
+  assert.equal(snapshot.task_summary.selection_summary.selected_top_locale_matches, 0);
   assert.equal(snapshot.task_summary.scheduler_skip_alarm_state, "alert");
   assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
   assert.equal(snapshot.ops_alert_summary.artifact_found, true);

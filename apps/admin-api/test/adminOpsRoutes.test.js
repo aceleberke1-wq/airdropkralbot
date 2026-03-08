@@ -281,6 +281,52 @@ function buildLiveOpsSnapshot() {
         health_band: "yellow"
       }
     },
+    task_summary: {
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json",
+      artifact_generated_at: "2026-03-08T04:06:00.000Z",
+      artifact_age_min: 5,
+      ok: true,
+      skipped: false,
+      reason: "scheduled_window_dispatch",
+      dispatch_ref: "dispatch_auto_1",
+      dispatch_source: "scheduler",
+      scene_gate_state: "watch",
+      scene_gate_effect: "capped",
+      scene_gate_reason: "scene_runtime_watch_capped",
+      scene_gate_recipient_cap: 10,
+      recommended_recipient_cap: 12,
+      effective_cap_delta: 28,
+      recommendation_pressure_band: "watch",
+      recommendation_reason: "ops_alert_segment_pressure",
+      targeting_guidance_default_mode: "protective",
+      targeting_guidance_state: "alert",
+      targeting_guidance_cap: 10,
+      targeting_guidance_reason: "watch_state_locale_pressure",
+      selection_summary: {
+        guidance_mode: "protective",
+        guidance_state: "alert",
+        guidance_reason: "watch_state_locale_pressure",
+        focus_dimension: "locale",
+        focus_bucket: "tr",
+        focus_matches_target: true,
+        prioritized_candidates: 12,
+        selected_candidates: 4,
+        prioritized_focus_matches: 5,
+        selected_focus_matches: 0,
+        prioritized_top_locale_matches: 7,
+        selected_top_locale_matches: 0,
+        prioritized_top_variant_matches: 6,
+        selected_top_variant_matches: 1,
+        prioritized_top_cohort_matches: 4,
+        selected_top_cohort_matches: 1
+      },
+      window_key: "wallet_reconnect:2026-03-08T00:00:00.000Z:2026-03-08T23:59:59.000Z",
+      scheduler_skip_24h: 2,
+      scheduler_skip_7d: 5,
+      scheduler_skip_alarm_state: "watch",
+      scheduler_skip_alarm_reason: "scene_runtime_watch_capped_repeated"
+    },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
       sent_total: 33,
@@ -393,6 +439,9 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.recipient_cap_recommendation.reason, "ops_alert_segment_pressure");
   assert.equal(body.data.live_ops_campaign.targeting_guidance.default_mode, "protective");
   assert.equal(body.data.live_ops_campaign.targeting_guidance.mode_rows[0].suggested_recipient_cap, 10);
+  assert.equal(body.data.live_ops_campaign.selection_summary.guidance_mode, "protective");
+  assert.equal(body.data.live_ops_campaign.selection_summary.selected_candidates, 4);
+  assert.equal(body.data.live_ops_campaign.selection_summary.selected_top_locale_matches, 0);
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -477,6 +526,8 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.ops_alert.notification_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.targeting_guidance.guidance_state, "alert");
+  assert.equal(body.data.live_ops_campaign.selection_summary.focus_dimension, "locale");
+  assert.equal(body.data.live_ops_campaign.selection_summary.prioritized_top_variant_matches, 6);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.telegram_sent_7d, 1);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");
