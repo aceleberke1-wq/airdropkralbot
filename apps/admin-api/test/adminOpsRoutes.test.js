@@ -134,6 +134,10 @@ function buildLiveOpsSnapshot() {
       unique_users_7d: 28,
       experiment_key: "webapp_react_v1",
       experiment_assignment_available: true,
+      daily_breakdown: [
+        { day: "2026-03-08", sent_count: 12, unique_users: 10 },
+        { day: "2026-03-07", sent_count: 9, unique_users: 8 }
+      ],
       locale_breakdown: [{ bucket_key: "tr", item_count: 21 }],
       segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 33 }],
       surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 33 }],
@@ -232,6 +236,7 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.sent_7d, 33);
   assert.equal(body.data.live_ops_campaign.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(body.data.live_ops_campaign.segment_breakdown[0].bucket_key, "wallet_unlinked");
+  assert.equal(body.data.live_ops_campaign.daily_breakdown[0].day, "2026-03-08");
   await app.close();
 });
 
@@ -307,5 +312,6 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.ready_for_auto_dispatch, true);
   assert.equal(body.data.live_ops_campaign.latest_auto_dispatch_ref, "dispatch_auto_1");
   assert.equal(body.data.live_ops_campaign.locale_breakdown[0].bucket_key, "tr");
+  assert.equal(body.data.live_ops_campaign.daily_breakdown[1].sent_count, 9);
   await app.close();
 });

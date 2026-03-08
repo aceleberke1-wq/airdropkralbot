@@ -557,7 +557,7 @@ async function loadLatestDispatchSummary(client, campaignKey) {
 
 async function loadDeliverySummary(client, campaignKey) {
   const params = [LIVE_OPS_CAMPAIGN_EVENT_TYPE, String(campaignKey || "")];
-  const [totalsRes, localeRes, segmentRes, surfaceRes] = await Promise.all([
+  const [totalsRes, dailyRes, localeRes, segmentRes, surfaceRes] = await Promise.all([
     client.query(
       `SELECT
          COUNT(*) FILTER (WHERE event_at >= now() - interval '24 hours')::int AS sent_24h,
@@ -566,6 +566,20 @@ async function loadDeliverySummary(client, campaignKey) {
        FROM behavior_events
        WHERE event_type = $1
          AND COALESCE(meta_json->>'campaign_key', '') = $2;`,
+      params
+    ),
+    client.query(
+      `SELECT
+         to_char(date_trunc('day', event_at), 'YYYY-MM-DD') AS day,
+         COUNT(*)::int AS sent_count,
+         COUNT(DISTINCT user_id)::int AS unique_users
+       FROM behavior_events
+       WHERE event_type = $1
+         AND COALESCE(meta_json->>'campaign_key', '') = $2
+         AND event_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY day DESC
+       LIMIT 7;`,
       params
     ),
     client.query(
@@ -614,6 +628,12 @@ async function loadDeliverySummary(client, campaignKey) {
     rows.map((row) => ({
       bucket_key: String(row.bucket_key || "unknown"),
       item_count: Number(row.item_count || 0)
+    }));
+  const normalizeDailyBreakdown = (rows = []) =>
+    rows.map((row) => ({
+      day: String(row.day || ""),
+      sent_count: Number(row.sent_count || 0),
+      unique_users: Number(row.unique_users || 0)
     }));
 
   let experimentAssignmentAvailable = false;
@@ -671,6 +691,7 @@ async function loadDeliverySummary(client, campaignKey) {
     unique_users_7d: Number(totals.unique_users_7d || 0),
     experiment_key: DEFAULT_EXPERIMENT_KEY,
     experiment_assignment_available: experimentAssignmentAvailable,
+    daily_breakdown: normalizeDailyBreakdown(dailyRes.rows),
     locale_breakdown: normalizeBuckets(localeRes.rows),
     segment_breakdown: normalizeBuckets(segmentRes.rows),
     surface_breakdown: normalizeBuckets(surfaceRes.rows),

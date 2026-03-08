@@ -78,6 +78,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const surfaceBreakdown = asArray(deliverySummary.surface_breakdown);
   const variantBreakdown = asArray(deliverySummary.variant_breakdown);
   const cohortBreakdown = asArray(deliverySummary.cohort_breakdown);
+  const dailyBreakdown = asArray(deliverySummary.daily_breakdown);
   const liveReady = approvalSummary.live_dispatch_ready === true;
   const approvalState = asText(approvalSummary.approval_state);
   const scheduleState = asText(approvalSummary.schedule_state);
@@ -276,6 +277,23 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             <strong>{asCount(deliverySummary.unique_users_7d)}</strong>
           </li>
         </ul>
+        <section className="akrMiniPanel">
+          <h4>{t(props.lang, "admin_live_ops_daily_breakdown_title")}</h4>
+          {dailyBreakdown.length ? (
+            <ul className="akrList">
+              {dailyBreakdown.map((row, index) => (
+                <li key={`${asText(row.day, "day")}_${index}`}>
+                  <span>{asText(row.day)}</span>
+                  <strong>
+                    {asCount(row.sent_count)} / {asCount(row.unique_users)}
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+          )}
+        </section>
         <div className="akrSplit">
           <section className="akrMiniPanel">
             <h4>{t(props.lang, "admin_live_ops_locale_breakdown_title")}</h4>

@@ -203,6 +203,22 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
+            if (text.includes("to_char(date_trunc('day', event_at), 'YYYY-MM-DD') AS day")) {
+              return {
+                rows: [
+                  {
+                    day: "2026-03-08",
+                    sent_count: 2,
+                    unique_users: 2
+                  },
+                  {
+                    day: "2026-03-07",
+                    sent_count: 1,
+                    unique_users: 1
+                  }
+                ]
+              };
+            }
             if (text.includes("meta_json->>'locale'")) {
               return { rows: [{ bucket_key: "en", item_count: 2 }, { bucket_key: "tr", item_count: 1 }] };
             }
@@ -342,6 +358,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.delivery_summary.surface_breakdown[0].bucket_key, "wallet_panel");
   assert.equal(snapshot.delivery_summary.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(snapshot.delivery_summary.cohort_breakdown[0].bucket_key, "17");
+  assert.equal(snapshot.delivery_summary.daily_breakdown[0].day, "2026-03-08");
+  assert.equal(snapshot.delivery_summary.daily_breakdown[0].sent_count, 2);
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {
@@ -409,6 +427,9 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
           }
         ]
       };
+    }
+    if (text.includes("to_char(date_trunc('day', event_at), 'YYYY-MM-DD') AS day")) {
+      return { rows: [] };
     }
     if (
       text.includes("meta_json->>'locale'") ||

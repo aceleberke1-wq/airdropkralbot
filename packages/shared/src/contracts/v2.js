@@ -179,6 +179,12 @@ const KpiBundleRunRequestSchema = z.object({
   emit_slo: z.boolean().optional()
 });
 
+const LiveOpsCampaignDailyTrendPointSchema = z.object({
+  day: z.string().default(""),
+  sent_count: z.number().int().nonnegative().default(0),
+  unique_users: z.number().int().nonnegative().default(0)
+});
+
 const KpiLiveOpsCampaignBreakdownSchema = z.object({
   bucket_key: z.string().default("unknown"),
   item_count: z.number().int().nonnegative().default(0)
@@ -203,6 +209,7 @@ const KpiLiveOpsCampaignSummarySchema = z.object({
   unique_users_7d: z.number().int().nonnegative().default(0),
   experiment_key: z.string().default("webapp_react_v1"),
   experiment_assignment_available: z.boolean().default(false),
+  daily_breakdown: z.array(LiveOpsCampaignDailyTrendPointSchema).default([]),
   locale_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   segment_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   surface_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
@@ -721,6 +728,7 @@ const LiveOpsCampaignDeliverySummarySchema = z.object({
   unique_users_7d: z.number().int().nonnegative().default(0),
   experiment_key: z.string().default("webapp_react_v1"),
   experiment_assignment_available: z.boolean().default(false),
+  daily_breakdown: z.array(LiveOpsCampaignDailyTrendPointSchema).default([]),
   locale_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([]),
   segment_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([]),
   surface_breakdown: z.array(LiveOpsCampaignAnalyticsBucketSchema).default([]),
@@ -801,6 +809,7 @@ module.exports = {
   KpiLiveOpsCampaignSummarySchema,
   KpiBundleSnapshotResponseSchema,
   KpiBundleSnapshotSchema,
+  LiveOpsCampaignDailyTrendPointSchema,
   LocalizedStringMapSchema,
   MonetizationTrendPointSchema,
   PayoutDisputeMetricsSchema,

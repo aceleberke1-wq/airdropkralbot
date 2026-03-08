@@ -89,6 +89,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const surfaceBreakdown = asRows(liveOpsKpi?.surface_breakdown);
   const variantBreakdown = asRows(liveOpsKpi?.variant_breakdown);
   const cohortBreakdown = asRows(liveOpsKpi?.cohort_breakdown);
+  const dailyBreakdown = asRows(liveOpsKpi?.daily_breakdown);
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_meta">
@@ -184,6 +185,13 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           </p>
           {readText(liveOpsKpi, "error_code") ? <p className="akrErrorLine">{readText(liveOpsKpi, "error_code")}</p> : null}
         </div>
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_live_ops_daily_title")}
+          rows={dailyBreakdown.map((row) => ({
+            bucket_key: `${String(row.day || "-")}`,
+            item_count: Number(row.sent_count || 0)
+          }))}
+        />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_locale_title")} rows={localeBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_segment_title")} rows={segmentBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_surface_title")} rows={surfaceBreakdown} />

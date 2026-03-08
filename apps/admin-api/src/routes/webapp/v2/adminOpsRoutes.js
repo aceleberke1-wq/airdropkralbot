@@ -41,6 +41,20 @@ function normalizeBreakdownRows(rows) {
     .slice(0, 8);
 }
 
+function normalizeDailyRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((row) => ({
+      day: String(row?.day || ""),
+      sent_count: Math.max(0, Number(row?.sent_count || 0)),
+      unique_users: Math.max(0, Number(row?.unique_users || 0))
+    }))
+    .filter((row) => row.day)
+    .slice(0, 7);
+}
+
 function buildLiveOpsCampaignKpiSummary(snapshot) {
   const safeSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
   const campaign = safeSnapshot.campaign && typeof safeSnapshot.campaign === "object" ? safeSnapshot.campaign : {};
@@ -67,6 +81,7 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
     unique_users_7d: Math.max(0, Number(delivery.unique_users_7d || 0)),
     experiment_key: String(delivery.experiment_key || "webapp_react_v1"),
     experiment_assignment_available: delivery.experiment_assignment_available === true,
+    daily_breakdown: normalizeDailyRows(delivery.daily_breakdown),
     locale_breakdown: normalizeBreakdownRows(delivery.locale_breakdown),
     segment_breakdown: normalizeBreakdownRows(delivery.segment_breakdown),
     surface_breakdown: normalizeBreakdownRows(delivery.surface_breakdown),
@@ -102,6 +117,7 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
       unique_users_7d: 0,
       experiment_key: "webapp_react_v1",
       experiment_assignment_available: false,
+      daily_breakdown: [],
       locale_breakdown: [],
       segment_breakdown: [],
       surface_breakdown: [],
