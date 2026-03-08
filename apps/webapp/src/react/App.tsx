@@ -21,8 +21,10 @@ import { useRetriableAction } from "./features/shared/useRetriableAction";
 import { useBootstrapRefreshController } from "./features/shell/useBootstrapRefreshController";
 import { LaunchHandoffStrip } from "./features/shell/LaunchHandoffStrip";
 import { MetaStrip } from "./features/shell/MetaStrip";
+import { SceneRuntimeStrip } from "./features/shell/SceneRuntimeStrip";
 import { useLaunchFocusController } from "./features/shell/useLaunchFocusController";
 import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
+import { useSceneRuntimeLoader } from "./features/shell/useSceneRuntimeLoader";
 import { useShellDataSyncController } from "./features/shell/useShellDataSyncController";
 import { useShellSessionPrefsController } from "./features/shell/useShellSessionPrefsController";
 import { useShellTelemetryController } from "./features/shell/useShellTelemetryController";
@@ -523,6 +525,15 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     trackUiEvent,
     syncPrefs
   });
+  const { sceneRuntime } = useSceneRuntimeLoader({
+    workspace,
+    tab,
+    trackUiEvent,
+    scene: {
+      effectiveQuality: scene.effectiveQuality,
+      capabilityProfile
+    }
+  });
   const pvpSessionMachine = useMemo(
     () =>
       buildPvpSessionMachine({
@@ -630,6 +641,17 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         perfTier={String(capabilityProfile?.perf_tier || "-")}
         deviceClass={String(capabilityProfile?.device_class || "-")}
         sceneProfile={String(capabilityProfile?.scene_profile || "-")}
+      />
+      <SceneRuntimeStrip
+        lang={lang}
+        phase={sceneRuntime.phase}
+        districtKey={sceneRuntime.districtKey}
+        profileKey={sceneRuntime.profileKey}
+        effectiveQuality={sceneRuntime.effectiveQuality}
+        lowEndMode={sceneRuntime.lowEndMode}
+        loadedBundles={sceneRuntime.loadedBundles}
+        skippedBundles={sceneRuntime.skippedBundles}
+        error={sceneRuntime.error}
       />
       {launchSummary ? (
         <LaunchHandoffStrip
