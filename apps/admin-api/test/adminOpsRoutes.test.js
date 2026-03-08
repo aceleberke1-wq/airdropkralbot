@@ -200,6 +200,8 @@ function buildLiveOpsSnapshot() {
       raised_7d: 4,
       telegram_sent_24h: 0,
       telegram_sent_7d: 1,
+      effective_cap_delta_24h: 28,
+      effective_cap_delta_7d: 56,
       experiment_key: "webapp_react_v1",
       latest_alert_at: "2026-03-08T04:05:00.000Z",
       latest_alarm_state: "watch",
@@ -208,8 +210,8 @@ function buildLiveOpsSnapshot() {
       latest_effective_cap_delta: 28,
       max_effective_cap_delta_7d: 28,
       daily_breakdown: [
-        { day: "2026-03-08", alert_count: 2, telegram_sent_count: 0 },
-        { day: "2026-03-07", alert_count: 2, telegram_sent_count: 1 }
+        { day: "2026-03-08", alert_count: 2, telegram_sent_count: 0, effective_cap_delta_sum: 28, effective_cap_delta_max: 28 },
+        { day: "2026-03-07", alert_count: 2, telegram_sent_count: 1, effective_cap_delta_sum: 28, effective_cap_delta_max: 20 }
       ],
       reason_breakdown: [{ bucket_key: "scene_runtime_watch_capped_repeated", item_count: 4 }],
       locale_breakdown: [{ bucket_key: "tr", item_count: 3 }],
@@ -364,7 +366,10 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.ops_alert.telegram_sent, false);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.raised_7d, 4);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.experiment_key, "webapp_react_v1");
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.effective_cap_delta_24h, 28);
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.effective_cap_delta_7d, 56);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.max_effective_cap_delta_7d, 28);
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.daily_breakdown[0].effective_cap_delta_sum, 28);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.reason_breakdown[0].bucket_key, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.surface_breakdown[0].bucket_key, "wallet_panel");
   assert.equal(body.data.live_ops_campaign.recipient_cap_recommendation.recommended_recipient_cap, 12);

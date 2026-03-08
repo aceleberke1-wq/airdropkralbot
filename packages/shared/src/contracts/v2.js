@@ -188,7 +188,9 @@ const LiveOpsCampaignDailyTrendPointSchema = z.object({
 const LiveOpsCampaignOpsAlertDailyTrendPointSchema = z.object({
   day: z.string().default(""),
   alert_count: z.number().int().nonnegative().default(0),
-  telegram_sent_count: z.number().int().nonnegative().default(0)
+  telegram_sent_count: z.number().int().nonnegative().default(0),
+  effective_cap_delta_sum: z.number().int().nonnegative().default(0),
+  effective_cap_delta_max: z.number().int().nonnegative().default(0)
 });
 
 const LiveOpsCampaignSkipDailyTrendPointSchema = z.object({
@@ -269,6 +271,8 @@ const LiveOpsCampaignOpsAlertTrendSummarySchema = z.object({
   raised_7d: z.number().int().nonnegative().default(0),
   telegram_sent_24h: z.number().int().nonnegative().default(0),
   telegram_sent_7d: z.number().int().nonnegative().default(0),
+  effective_cap_delta_24h: z.number().int().nonnegative().default(0),
+  effective_cap_delta_7d: z.number().int().nonnegative().default(0),
   latest_effective_cap_delta: z.number().int().nonnegative().default(0),
   max_effective_cap_delta_7d: z.number().int().nonnegative().default(0),
   experiment_key: z.string().default("webapp_react_v1"),

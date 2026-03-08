@@ -1048,7 +1048,9 @@ function normalizeOpsAlertDailyRows(rows) {
     .map((row) => ({
       day: String(row?.day || "").trim(),
       alert_count: Math.max(0, Number(row?.alert_count || 0)),
-      telegram_sent_count: Math.max(0, Number(row?.telegram_sent_count || 0))
+      telegram_sent_count: Math.max(0, Number(row?.telegram_sent_count || 0)),
+      effective_cap_delta_sum: Math.max(0, Number(row?.effective_cap_delta_sum || 0)),
+      effective_cap_delta_max: Math.max(0, Number(row?.effective_cap_delta_max || 0))
     }))
     .filter((row) => row.day)
     .slice(0, 7);
@@ -1070,6 +1072,28 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
            WHERE created_at >= now() - interval '7 days'
              AND COALESCE(lower(payload_json->>'telegram_sent'), 'false') IN ('true', '1', 'yes', 'on')
         )::bigint AS telegram_sent_7d,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN created_at >= now() - interval '24 hours'
+               AND NULLIF(payload_json->>'effective_cap_delta', '') IS NOT NULL
+                THEN (payload_json->>'effective_cap_delta')::int
+              ELSE 0
+            END
+          ),
+          0
+        )::bigint AS effective_cap_delta_24h,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN created_at >= now() - interval '7 days'
+               AND NULLIF(payload_json->>'effective_cap_delta', '') IS NOT NULL
+                THEN (payload_json->>'effective_cap_delta')::int
+              ELSE 0
+            END
+          ),
+          0
+        )::bigint AS effective_cap_delta_7d,
         MAX(
           CASE
             WHEN NULLIF(payload_json->>'effective_cap_delta', '') IS NOT NULL
@@ -1113,7 +1137,24 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
          COUNT(*)::bigint AS alert_count,
          COUNT(*) FILTER (
            WHERE COALESCE(lower(payload_json->>'telegram_sent'), 'false') IN ('true', '1', 'yes', 'on')
-         )::bigint AS telegram_sent_count
+         )::bigint AS telegram_sent_count,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN NULLIF(payload_json->>'effective_cap_delta', '') IS NOT NULL
+                 THEN (payload_json->>'effective_cap_delta')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS effective_cap_delta_sum,
+         MAX(
+           CASE
+             WHEN NULLIF(payload_json->>'effective_cap_delta', '') IS NOT NULL
+               THEN (payload_json->>'effective_cap_delta')::int
+             ELSE 0
+           END
+         )::bigint AS effective_cap_delta_max
        FROM admin_audit
        WHERE target = $1
          AND action = 'live_ops_campaign_ops_alert'
@@ -1206,6 +1247,8 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
     raised_7d: Math.max(0, Number(totals.raised_7d || 0)),
     telegram_sent_24h: Math.max(0, Number(totals.telegram_sent_24h || 0)),
     telegram_sent_7d: Math.max(0, Number(totals.telegram_sent_7d || 0)),
+    effective_cap_delta_24h: Math.max(0, Number(totals.effective_cap_delta_24h || 0)),
+    effective_cap_delta_7d: Math.max(0, Number(totals.effective_cap_delta_7d || 0)),
     experiment_key: String(latestPayload.experiment_key || "webapp_react_v1"),
     latest_alert_at: latest.created_at || null,
     latest_alarm_state: String(latestPayload.alarm_state || "clear"),
@@ -1398,6 +1441,8 @@ function buildEmptyLiveOpsOpsAlertTrendSummary() {
     raised_7d: 0,
     telegram_sent_24h: 0,
     telegram_sent_7d: 0,
+    effective_cap_delta_24h: 0,
+    effective_cap_delta_7d: 0,
     experiment_key: "webapp_react_v1",
     latest_alert_at: null,
     latest_alarm_state: "clear",

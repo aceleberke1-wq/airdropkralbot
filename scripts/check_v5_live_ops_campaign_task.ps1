@@ -103,6 +103,7 @@ if ($latestPayload -ne $null) {
   $scheduler = Get-PropValue -Source $latestPayload -Name "scheduler_summary"
   $schedulerSkip = Get-PropValue -Source $latestPayload -Name "scheduler_skip_summary"
   $pressureFocus = Get-PropValue -Source $latestPayload -Name "pressure_focus_summary"
+  $opsAlertTrend = Get-PropValue -Source $latestPayload -Name "ops_alert_trend"
   $opsAlarm = Get-PropValue -Source $latestPayload -Name "ops_alarm"
   $recommendation = Get-PropValue -Source $scheduler -Name "recipient_cap_recommendation"
   $data = Get-PropValue -Source $latestPayload -Name "data"
@@ -136,6 +137,10 @@ if ($latestPayload -ne $null) {
     scheduler_skip_7d = [int](Get-PropValue -Source $schedulerSkip -Name "skipped_7d" -Fallback 0)
     scheduler_skip_alarm_state = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_state" -Fallback (Get-PropValue -Source $opsAlarm -Name "state" -Fallback "clear"))
     scheduler_skip_alarm_reason = [string](Get-PropValue -Source $schedulerSkip -Name "alarm_reason" -Fallback (Get-PropValue -Source $opsAlarm -Name "reason" -Fallback ""))
+    ops_alert_delta_24h = [int](Get-PropValue -Source $opsAlertTrend -Name "effective_cap_delta_24h" -Fallback 0)
+    ops_alert_delta_7d = [int](Get-PropValue -Source $opsAlertTrend -Name "effective_cap_delta_7d" -Fallback 0)
+    ops_alert_delta_latest = [int](Get-PropValue -Source $opsAlertTrend -Name "latest_effective_cap_delta" -Fallback 0)
+    ops_alert_delta_max_7d = [int](Get-PropValue -Source $opsAlertTrend -Name "max_effective_cap_delta_7d" -Fallback 0)
   }
 }
 

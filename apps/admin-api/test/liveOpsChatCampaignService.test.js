@@ -304,6 +304,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                     raised_7d: 3,
                     telegram_sent_24h: 1,
                     telegram_sent_7d: 2,
+                    effective_cap_delta_24h: 40,
+                    effective_cap_delta_7d: 68,
                     max_effective_cap_delta_7d: 40
                   }
                 ]
@@ -360,8 +362,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
             if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("telegram_sent_count")) {
               return {
                 rows: [
-                  { day: "2026-03-08", alert_count: 1, telegram_sent_count: 1 },
-                  { day: "2026-03-07", alert_count: 2, telegram_sent_count: 1 }
+                  { day: "2026-03-08", alert_count: 1, telegram_sent_count: 1, effective_cap_delta_sum: 40, effective_cap_delta_max: 40 },
+                  { day: "2026-03-07", alert_count: 2, telegram_sent_count: 1, effective_cap_delta_sum: 28, effective_cap_delta_max: 20 }
                 ]
               };
             }
@@ -581,10 +583,14 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.ops_alert_trend_summary.raised_24h, 1);
   assert.equal(snapshot.ops_alert_trend_summary.raised_7d, 3);
   assert.equal(snapshot.ops_alert_trend_summary.experiment_key, "webapp_react_v1");
+  assert.equal(snapshot.ops_alert_trend_summary.effective_cap_delta_24h, 40);
+  assert.equal(snapshot.ops_alert_trend_summary.effective_cap_delta_7d, 68);
   assert.equal(snapshot.ops_alert_trend_summary.latest_effective_cap_delta, 40);
   assert.equal(snapshot.ops_alert_trend_summary.max_effective_cap_delta_7d, 40);
   assert.equal(snapshot.ops_alert_trend_summary.reason_breakdown[0].bucket_key, "alert_state");
   assert.equal(snapshot.ops_alert_trend_summary.daily_breakdown[0].alert_count, 1);
+  assert.equal(snapshot.ops_alert_trend_summary.daily_breakdown[0].effective_cap_delta_sum, 40);
+  assert.equal(snapshot.ops_alert_trend_summary.daily_breakdown[1].effective_cap_delta_max, 20);
   assert.equal(snapshot.ops_alert_trend_summary.locale_breakdown[0].bucket_key, "tr");
   assert.equal(snapshot.ops_alert_trend_summary.segment_breakdown[0].bucket_key, "wallet_unlinked");
   assert.equal(snapshot.ops_alert_trend_summary.surface_breakdown[0].bucket_key, "wallet_panel");

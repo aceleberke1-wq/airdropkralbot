@@ -199,6 +199,15 @@ async function main() {
           surface_bucket: resolveTopBucketKey(deliverySummary.surface_breakdown),
           variant_bucket: resolveTopBucketKey(deliverySummary.variant_breakdown),
           cohort_bucket: resolveTopBucketKey(deliverySummary.cohort_breakdown)
+        },
+        ops_alert_trend: {
+          effective_cap_delta_24h: Math.max(0, Number(opsAlertTrendSummary.effective_cap_delta_24h || 0)),
+          effective_cap_delta_7d: Math.max(0, Number(opsAlertTrendSummary.effective_cap_delta_7d || 0)),
+          latest_effective_cap_delta: Math.max(0, Number(opsAlertTrendSummary.latest_effective_cap_delta || 0)),
+          max_effective_cap_delta_7d: Math.max(0, Number(opsAlertTrendSummary.max_effective_cap_delta_7d || 0)),
+          daily_breakdown: Array.isArray(opsAlertTrendSummary.daily_breakdown)
+            ? opsAlertTrendSummary.daily_breakdown
+            : []
         }
       };
       fs.writeFileSync(artifactPaths.latestJsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");

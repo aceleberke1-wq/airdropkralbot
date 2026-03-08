@@ -76,7 +76,9 @@ function normalizeOpsAlertDailyRows(rows) {
     .map((row) => ({
       day: String(row?.day || ""),
       alert_count: Math.max(0, Number(row?.alert_count || 0)),
-      telegram_sent_count: Math.max(0, Number(row?.telegram_sent_count || 0))
+      telegram_sent_count: Math.max(0, Number(row?.telegram_sent_count || 0)),
+      effective_cap_delta_sum: Math.max(0, Number(row?.effective_cap_delta_sum || 0)),
+      effective_cap_delta_max: Math.max(0, Number(row?.effective_cap_delta_max || 0))
     }))
     .filter((row) => row.day)
     .slice(0, 7);
@@ -180,6 +182,8 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       raised_7d: Math.max(0, Number(opsAlertTrend.raised_7d || 0)),
       telegram_sent_24h: Math.max(0, Number(opsAlertTrend.telegram_sent_24h || 0)),
       telegram_sent_7d: Math.max(0, Number(opsAlertTrend.telegram_sent_7d || 0)),
+      effective_cap_delta_24h: Math.max(0, Number(opsAlertTrend.effective_cap_delta_24h || 0)),
+      effective_cap_delta_7d: Math.max(0, Number(opsAlertTrend.effective_cap_delta_7d || 0)),
       experiment_key: String(opsAlertTrend.experiment_key || "webapp_react_v1"),
       latest_alert_at: opsAlertTrend.latest_alert_at || null,
       latest_alarm_state: String(opsAlertTrend.latest_alarm_state || "clear"),
@@ -282,6 +286,8 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         raised_7d: 0,
         telegram_sent_24h: 0,
         telegram_sent_7d: 0,
+        effective_cap_delta_24h: 0,
+        effective_cap_delta_7d: 0,
         experiment_key: "webapp_react_v1",
         latest_alert_at: null,
         latest_alarm_state: "clear",

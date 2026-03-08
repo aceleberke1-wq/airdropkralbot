@@ -368,6 +368,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_ops_alert_raised_7d_label")}: {Math.floor(readNum(opsAlertTrend, "raised_7d"))}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_24h_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_24h"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_7d_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_7d"))}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_recommend_cap_label")}: {Math.floor(readNum(recipientCapRecommendation, "recommended_recipient_cap"))}
           </span>
           <span className="akrChip">
@@ -416,6 +422,11 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_recommend_reason_label")}: {readText(recipientCapRecommendation, "reason") || "-"} |{" "}
             {t(props.lang, "admin_runtime_live_ops_recommend_focus_label")}: {readText(recipientCapRecommendation, "segment_key") || "-"} /{" "}
             {readText(recipientCapRecommendation, "locale_bucket") || "-"} / {readText(recipientCapRecommendation, "surface_bucket") || "-"}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_24h_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_24h"))} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_7d_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_7d"))} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_max_label")}: {Math.floor(readNum(opsAlertTrend, "max_effective_cap_delta_7d"))}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_recommend_delta_label")}: {Math.floor(readNum(recipientCapRecommendation, "effective_cap_delta"))} |{" "}

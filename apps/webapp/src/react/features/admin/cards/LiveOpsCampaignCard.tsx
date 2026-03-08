@@ -170,7 +170,8 @@ function OpsAlertDailyTrendList(props: { title: string; rows: Array<Record<strin
           <li key={`${asText(row.day, "day")}_${index}`}>
             <span>{asText(row.day)}</span>
             <strong>
-              {asCount(row.alert_count)} / {asCount(row.telegram_sent_count)}
+              {asCount(row.alert_count)} / {asCount(row.telegram_sent_count)} / {asCount(row.effective_cap_delta_sum)} /{" "}
+              {asCount(row.effective_cap_delta_max)}
             </strong>
           </li>
         ))}
@@ -623,6 +624,12 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           </span>
           <span className="akrChip">
             {t(props.lang, "admin_live_ops_ops_alert_sent_7d_label")}: {asCount(opsAlertTrendSummary.telegram_sent_7d)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_delta_24h_label")}: {asCount(opsAlertTrendSummary.effective_cap_delta_24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_delta_7d_label")}: {asCount(opsAlertTrendSummary.effective_cap_delta_7d)}
           </span>
           <span className="akrChip">
             {t(props.lang, "admin_live_ops_ops_alert_experiment_label")}: {asText(opsAlertTrendSummary.experiment_key)}

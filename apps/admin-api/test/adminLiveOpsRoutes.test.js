@@ -202,6 +202,8 @@ function buildSnapshot(version, approvalState) {
       raised_7d: 2,
       telegram_sent_24h: 1,
       telegram_sent_7d: 1,
+      effective_cap_delta_24h: 40,
+      effective_cap_delta_7d: 40,
       experiment_key: "webapp_react_v1",
       latest_alert_at: "2026-03-08T10:13:00.000Z",
       latest_alarm_state: "alert",
@@ -209,7 +211,7 @@ function buildSnapshot(version, approvalState) {
       latest_telegram_sent_at: "2026-03-08T10:13:20.000Z",
       latest_effective_cap_delta: 40,
       max_effective_cap_delta_7d: 40,
-      daily_breakdown: [{ day: "2026-03-08", alert_count: 1, telegram_sent_count: 1 }],
+      daily_breakdown: [{ day: "2026-03-08", alert_count: 1, telegram_sent_count: 1, effective_cap_delta_sum: 40, effective_cap_delta_max: 40 }],
       reason_breakdown: [{ bucket_key: "alert_state", item_count: 2 }],
       locale_breakdown: [{ bucket_key: "tr", item_count: 1 }],
       segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 1 }],
@@ -294,7 +296,10 @@ test("v2 admin live ops campaign routes read, save approve and dispatch canonica
   assert.equal(getRes.json().data.ops_alert_summary.telegram_sent, true);
   assert.equal(getRes.json().data.ops_alert_trend_summary.raised_7d, 2);
   assert.equal(getRes.json().data.ops_alert_trend_summary.experiment_key, "webapp_react_v1");
+  assert.equal(getRes.json().data.ops_alert_trend_summary.effective_cap_delta_24h, 40);
+  assert.equal(getRes.json().data.ops_alert_trend_summary.effective_cap_delta_7d, 40);
   assert.equal(getRes.json().data.ops_alert_trend_summary.latest_effective_cap_delta, 40);
+  assert.equal(getRes.json().data.ops_alert_trend_summary.daily_breakdown[0].effective_cap_delta_sum, 40);
   assert.equal(getRes.json().data.ops_alert_trend_summary.surface_breakdown[0].bucket_key, "wallet_panel");
   assert.equal(getRes.json().data.scheduler_summary.recipient_cap_recommendation.recommended_recipient_cap, 0);
   assert.equal(getRes.json().data.scheduler_summary.recipient_cap_recommendation.effective_cap_delta, 40);
