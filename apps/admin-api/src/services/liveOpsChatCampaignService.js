@@ -16,7 +16,10 @@ const {
   buildDefaultLiveOpsCampaignConfig
 } = require("../../../../packages/shared/src/liveOpsCampaignContract");
 const { resolveLiveOpsSceneGate } = require("../../../../packages/shared/src/liveOpsSceneGate.cjs");
-const { resolveLiveOpsDispatchArtifactPaths } = require("../../../../packages/shared/src/runtimeArtifactPaths");
+const {
+  resolveLiveOpsDispatchArtifactPaths,
+  resolveLiveOpsOpsAlertArtifactPaths
+} = require("../../../../packages/shared/src/runtimeArtifactPaths");
 const { normalizeTrustMessageLanguage, escapeMarkdown } = require("../../../../packages/shared/src/chatTrustMessages");
 const { DEFAULT_EXPERIMENT_KEY } = require("./webapp/reactV1Service");
 const {
@@ -406,6 +409,10 @@ function createLiveOpsChatCampaignService(deps = {}) {
     typeof deps.readLatestTaskArtifactSummary === "function"
       ? deps.readLatestTaskArtifactSummary
       : async () => readLatestTaskArtifactSummaryFromDisk(nowFactory(), runtimeArtifactRepoRoot);
+  const readLatestOpsAlertArtifactSummary =
+    typeof deps.readLatestOpsAlertArtifactSummary === "function"
+      ? deps.readLatestOpsAlertArtifactSummary
+      : async () => readLatestOpsAlertArtifactSummaryFromDisk(nowFactory(), runtimeArtifactRepoRoot);
 
   function isEnabled() {
     return Boolean(pool?.connect && fetchImpl && botToken && webappPublicUrl && webappHmacSecret);
@@ -1179,6 +1186,22 @@ function buildEmptyLiveOpsTaskSummary() {
   };
 }
 
+function buildEmptyLiveOpsOpsAlertSummary() {
+  return {
+    artifact_found: false,
+    artifact_path: "",
+    artifact_generated_at: null,
+    artifact_age_min: null,
+    alarm_state: "clear",
+    should_notify: false,
+    notification_reason: "",
+    fingerprint: "",
+    telegram_sent: false,
+    telegram_reason: "",
+    telegram_sent_at: null
+  };
+}
+
 function toTaskAgeMinutes(now, stat) {
   if (!stat?.mtime) {
     return null;
@@ -1229,6 +1252,41 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
       artifact_found: true,
       artifact_path: artifactPaths.latestJsonPath,
       reason: "task_artifact_invalid"
+    };
+  }
+}
+
+function readLatestOpsAlertArtifactSummaryFromDisk(now, repoRootDir) {
+  const artifactPaths = resolveLiveOpsOpsAlertArtifactPaths(repoRootDir || process.cwd());
+  const empty = buildEmptyLiveOpsOpsAlertSummary();
+  if (!artifactPaths?.latestJsonPath || !fs.existsSync(artifactPaths.latestJsonPath)) {
+    return empty;
+  }
+
+  try {
+    const stat = fs.statSync(artifactPaths.latestJsonPath);
+    const payload = JSON.parse(fs.readFileSync(artifactPaths.latestJsonPath, "utf8"));
+    const evaluation = payload && typeof payload.evaluation === "object" ? payload.evaluation : {};
+    const telegram = payload && typeof payload.telegram === "object" ? payload.telegram : {};
+    return {
+      artifact_found: true,
+      artifact_path: artifactPaths.latestJsonPath,
+      artifact_generated_at: String(payload.generated_at || "").trim() || null,
+      artifact_age_min: toTaskAgeMinutes(now, stat),
+      alarm_state: String(evaluation.alarm_state || "clear").trim() || "clear",
+      should_notify: evaluation.should_notify === true,
+      notification_reason: String(evaluation.notification_reason || "").trim(),
+      fingerprint: String(evaluation.fingerprint || "").trim(),
+      telegram_sent: telegram.sent === true,
+      telegram_reason: String(telegram.reason || "").trim(),
+      telegram_sent_at: String(telegram.sent_at || "").trim() || null
+    };
+  } catch {
+    return {
+      ...empty,
+      artifact_found: true,
+      artifact_path: artifactPaths.latestJsonPath,
+      notification_reason: "ops_alert_artifact_invalid"
     };
   }
 }
@@ -1430,7 +1488,7 @@ async function buildCampaignSnapshot(client, current) {
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
   const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, schedulerSkipSummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary] = await Promise.all([
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, schedulerSkipSummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary, opsAlertSummary] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
@@ -1439,7 +1497,8 @@ async function buildCampaignSnapshot(client, current) {
     loadLatestSchedulerDispatch(client, snapshotState.campaign.campaign_key),
     loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey),
     loadSceneRuntimeSummary(client),
-    readLatestTaskArtifactSummary()
+    readLatestTaskArtifactSummary(),
+    readLatestOpsAlertArtifactSummary()
   ]);
   return {
     api_version: "v2",
@@ -1463,6 +1522,7 @@ async function buildCampaignSnapshot(client, current) {
     scheduler_skip_summary: schedulerSkipSummary,
     scene_runtime_summary: sceneRuntimeSummary,
     task_summary: taskSummary,
+    ops_alert_summary: opsAlertSummary,
     latest_dispatch: latestDispatch
   };
 }

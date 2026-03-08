@@ -160,6 +160,19 @@ function buildSnapshot(version, approvalState) {
       scheduler_skip_alarm_state: "alert",
       scheduler_skip_alarm_reason: "scene_runtime_alert_blocked_repeated"
     },
+    ops_alert_summary: {
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_OPS_ALERT_latest.json",
+      artifact_generated_at: "2026-03-08T10:13:00.000Z",
+      artifact_age_min: 2,
+      alarm_state: "alert",
+      should_notify: true,
+      notification_reason: "scene_runtime_alert_blocked_repeated",
+      fingerprint: "alert|scene_runtime_alert_blocked_repeated|2026-03-08T10:13:00.000Z",
+      telegram_sent: true,
+      telegram_reason: "",
+      telegram_sent_at: "2026-03-08T10:13:20.000Z"
+    },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
       sent_total: 0,
@@ -233,6 +246,8 @@ test("v2 admin live ops campaign routes read, save approve and dispatch canonica
   assert.equal(getRes.json().data.approval_summary.approval_state, "not_requested");
   assert.equal(getRes.json().data.scheduler_skip_summary.skipped_7d, 3);
   assert.equal(getRes.json().data.scheduler_skip_summary.alarm_state, "alert");
+  assert.equal(getRes.json().data.ops_alert_summary.alarm_state, "alert");
+  assert.equal(getRes.json().data.ops_alert_summary.telegram_sent, true);
 
   const saveRes = await app.inject({
     method: "POST",

@@ -244,6 +244,20 @@ const SceneRuntimeCompactSummarySchema = z.object({
   worst_day_7d: SceneRuntimeDailySummarySchema.nullable().default(null)
 });
 
+const LiveOpsCampaignOpsAlertSummarySchema = z.object({
+  artifact_found: z.boolean().default(false),
+  artifact_path: z.string().default(""),
+  artifact_generated_at: z.string().nullable().default(null),
+  artifact_age_min: z.number().nonnegative().nullable().default(null),
+  alarm_state: z.enum(["clear", "watch", "alert"]).default("clear"),
+  should_notify: z.boolean().default(false),
+  notification_reason: z.string().default(""),
+  fingerprint: z.string().default(""),
+  telegram_sent: z.boolean().default(false),
+  telegram_reason: z.string().default(""),
+  telegram_sent_at: z.string().nullable().default(null)
+});
+
 const KpiLiveOpsCampaignSummarySchema = z.object({
   available: z.boolean().default(false),
   error_code: z.string().default(""),
@@ -274,6 +288,7 @@ const KpiLiveOpsCampaignSummarySchema = z.object({
   variant_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   scheduler_skip: LiveOpsCampaignSchedulerSkipSummarySchema.default({}),
+  ops_alert: LiveOpsCampaignOpsAlertSummarySchema.default({}),
   scene_runtime: SceneRuntimeCompactSummarySchema.default({})
 });
 
@@ -838,6 +853,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   scheduler_skip_summary: LiveOpsCampaignSchedulerSkipSummarySchema.default({}),
   scene_runtime_summary: SceneRuntimeCompactSummarySchema.default({}),
   task_summary: LiveOpsCampaignTaskSummarySchema.default({}),
+  ops_alert_summary: LiveOpsCampaignOpsAlertSummarySchema.default({}),
   latest_dispatch: z
     .object({
       event_type: z.string().default("live_ops_campaign_sent"),

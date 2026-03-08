@@ -77,6 +77,9 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
   const schedulerSkip = safeSnapshot.scheduler_skip_summary && typeof safeSnapshot.scheduler_skip_summary === "object"
     ? safeSnapshot.scheduler_skip_summary
     : {};
+  const opsAlert = safeSnapshot.ops_alert_summary && typeof safeSnapshot.ops_alert_summary === "object"
+    ? safeSnapshot.ops_alert_summary
+    : {};
   const sceneRuntime = safeSnapshot.scene_runtime_summary && typeof safeSnapshot.scene_runtime_summary === "object"
     ? safeSnapshot.scene_runtime_summary
     : {};
@@ -121,6 +124,19 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       scene_watch_capped_7d: Math.max(0, Number(schedulerSkip.scene_watch_capped_7d || 0)),
       daily_breakdown: normalizeSkipDailyRows(schedulerSkip.daily_breakdown),
       reason_breakdown: normalizeBreakdownRows(schedulerSkip.reason_breakdown)
+    },
+    ops_alert: {
+      artifact_found: opsAlert.artifact_found === true,
+      artifact_path: String(opsAlert.artifact_path || ""),
+      artifact_generated_at: opsAlert.artifact_generated_at || null,
+      artifact_age_min: Math.max(0, Number(opsAlert.artifact_age_min || 0)),
+      alarm_state: String(opsAlert.alarm_state || "clear"),
+      should_notify: opsAlert.should_notify === true,
+      notification_reason: String(opsAlert.notification_reason || ""),
+      fingerprint: String(opsAlert.fingerprint || ""),
+      telegram_sent: opsAlert.telegram_sent === true,
+      telegram_reason: String(opsAlert.telegram_reason || ""),
+      telegram_sent_at: opsAlert.telegram_sent_at || null
     },
     scene_runtime: sceneRuntime
   };
@@ -174,6 +190,19 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         scene_watch_capped_7d: 0,
         daily_breakdown: [],
         reason_breakdown: []
+      },
+      ops_alert: {
+        artifact_found: false,
+        artifact_path: "",
+        artifact_generated_at: null,
+        artifact_age_min: 0,
+        alarm_state: "clear",
+        should_notify: false,
+        notification_reason: "",
+        fingerprint: "",
+        telegram_sent: false,
+        telegram_reason: "",
+        telegram_sent_at: null
       },
       scene_runtime: {}
     };

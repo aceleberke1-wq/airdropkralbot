@@ -123,6 +123,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const deliverySummary = asRecord(snapshot.delivery_summary);
   const sceneRuntimeSummary = asRecord(snapshot.scene_runtime_summary);
   const taskSummary = asRecord(snapshot.task_summary);
+  const opsAlertSummary = asRecord(snapshot.ops_alert_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
   const localeBreakdown = asArray(deliverySummary.locale_breakdown);
   const segmentBreakdown = asArray(deliverySummary.segment_breakdown);
@@ -430,6 +431,36 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <li>
             <span>{t(props.lang, "admin_live_ops_task_scene_reason_label")}</span>
             <strong>{asText(taskSummary.scene_gate_reason)}</strong>
+          </li>
+        </ul>
+      </section>
+      <section className="akrMiniPanel" data-akr-focus-key="ops_alert_summary">
+        <h4>{t(props.lang, "admin_live_ops_ops_alert_title")}</h4>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_state_label")}: {asText(opsAlertSummary.alarm_state)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_notify_label")}:{" "}
+            {opsAlertSummary.should_notify === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_sent_label")}:{" "}
+            {opsAlertSummary.telegram_sent === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_age_label")}:{" "}
+            {opsAlertSummary.artifact_found === true ? asText(opsAlertSummary.artifact_age_min) : "-"}
+          </span>
+        </div>
+        <ul className="akrList">
+          <li>
+            <span>{t(props.lang, "admin_live_ops_ops_alert_reason_label")}</span>
+            <strong>{asText(opsAlertSummary.notification_reason)}</strong>
+          </li>
+          <li>
+            <span>{t(props.lang, "admin_live_ops_ops_alert_sent_at_label")}</span>
+            <strong>{asText(opsAlertSummary.telegram_sent_at)}</strong>
           </li>
         </ul>
       </section>

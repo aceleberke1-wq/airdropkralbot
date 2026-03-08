@@ -188,6 +188,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const cohortBreakdown = asRows(liveOpsKpi?.cohort_breakdown);
   const dailyBreakdown = asRows(liveOpsKpi?.daily_breakdown);
   const schedulerSkip = asRecord(liveOpsKpi?.scheduler_skip);
+  const opsAlert = asRecord(liveOpsKpi?.ops_alert);
   const schedulerSkipDaily = asRows(schedulerSkip?.daily_breakdown);
   const schedulerSkipReasons = asRows(schedulerSkip?.reason_breakdown);
 
@@ -347,6 +348,13 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_skip_alarm_reason_label")}: {readText(schedulerSkip, "alarm_reason") || "-"}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_label")}: {readText(opsAlert, "alarm_state") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_sent_label")}:{" "}
+            {opsAlert?.telegram_sent ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_live_ops_scheduler_scene_effect_label")}: {readText(liveOpsKpi, "scene_gate_effect") || "-"}
           </span>
           <span className="akrChip">
@@ -367,6 +375,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_latest_auto_label")}: {formatStamp(liveOpsKpi?.latest_auto_dispatch_at)} /{" "}
             {readText(liveOpsKpi, "latest_auto_dispatch_ref") || "-"}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_reason_label")}: {readText(opsAlert, "notification_reason") || "-"} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_sent_at_label")}: {formatStamp(opsAlert?.telegram_sent_at)}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_live_ops_scheduler_scene_state_label")}: {readText(liveOpsKpi, "scene_gate_state") || "-"} /{" "}

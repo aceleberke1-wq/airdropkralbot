@@ -423,6 +423,19 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       scheduler_skip_alarm_state: "alert",
       scheduler_skip_alarm_reason: "scene_runtime_alert_blocked_repeated"
     }),
+    readLatestOpsAlertArtifactSummary: async () => ({
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_OPS_ALERT_latest.json",
+      artifact_generated_at: "2026-03-08T12:26:00.000Z",
+      artifact_age_min: 4,
+      alarm_state: "alert",
+      should_notify: true,
+      notification_reason: "scene_runtime_alert_blocked_repeated",
+      fingerprint: "alert|scene_runtime_alert_blocked_repeated|2026-03-08T12:26:00.000Z",
+      telegram_sent: true,
+      telegram_reason: "",
+      telegram_sent_at: "2026-03-08T12:26:30.000Z"
+    }),
     logger: () => {}
   });
 
@@ -465,6 +478,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.scene_gate_reason, "scene_runtime_watch_capped");
   assert.equal(snapshot.task_summary.scheduler_skip_alarm_state, "alert");
   assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
+  assert.equal(snapshot.ops_alert_summary.artifact_found, true);
+  assert.equal(snapshot.ops_alert_summary.alarm_state, "alert");
+  assert.equal(snapshot.ops_alert_summary.telegram_sent, true);
+  assert.equal(snapshot.ops_alert_summary.notification_reason, "scene_runtime_alert_blocked_repeated");
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {

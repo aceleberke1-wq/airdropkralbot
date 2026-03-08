@@ -166,6 +166,19 @@ function buildLiveOpsSnapshot() {
         { bucket_key: "already_dispatched_for_window", item_count: 1 }
       ]
     },
+    ops_alert_summary: {
+      artifact_found: true,
+      artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_OPS_ALERT_latest.json",
+      artifact_generated_at: "2026-03-08T04:05:00.000Z",
+      artifact_age_min: 6,
+      alarm_state: "watch",
+      should_notify: false,
+      notification_reason: "scene_runtime_watch_capped_repeated",
+      fingerprint: "watch|scene_runtime_watch_capped_repeated|2026-03-08T04:05:00.000Z",
+      telegram_sent: false,
+      telegram_reason: "watch_band_no_notify",
+      telegram_sent_at: null
+    },
     scene_runtime_summary: {
       ready_24h: 18,
       failed_24h: 2,
@@ -308,6 +321,8 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.scheduler_skip.reason_breakdown[0].bucket_key, "scene_runtime_watch_capped");
   assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_state, "watch");
   assert.equal(body.data.live_ops_campaign.scheduler_skip.scene_watch_capped_7d, 4);
+  assert.equal(body.data.live_ops_campaign.ops_alert.alarm_state, "watch");
+  assert.equal(body.data.live_ops_campaign.ops_alert.telegram_sent, false);
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -390,6 +405,7 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.daily_breakdown[1].sent_count, 9);
   assert.equal(body.data.live_ops_campaign.scheduler_skip.latest_skip_reason, "scene_runtime_watch_capped");
   assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_reason, "scene_runtime_watch_capped_repeated");
+  assert.equal(body.data.live_ops_campaign.ops_alert.notification_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");
   await app.close();
 });
