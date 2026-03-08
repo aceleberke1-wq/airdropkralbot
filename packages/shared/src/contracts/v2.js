@@ -728,6 +728,7 @@ const LiveOpsCampaignOperatorTimelineRowSchema = z.object({
       "live_ops_campaign_request",
       "live_ops_campaign_approve",
       "live_ops_campaign_revoke",
+      "live_ops_campaign_scheduler_skip",
       "live_ops_campaign_dry_run",
       "live_ops_campaign_dispatch"
     ])

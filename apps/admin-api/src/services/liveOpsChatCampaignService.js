@@ -834,6 +834,37 @@ function buildCampaignAuditPayload(campaign, meta = {}) {
   };
 }
 
+async function writeSchedulerSkipAudit(client, campaign, meta = {}) {
+  const safeCampaign = buildDefaultLiveOpsCampaignConfig(campaign || {});
+  const sceneGate = meta.sceneGate && typeof meta.sceneGate === "object"
+    ? meta.sceneGate
+    : resolveLiveOpsSceneGate(meta.sceneRuntimeSummary, safeCampaign);
+  const now = meta.now instanceof Date ? meta.now : new Date();
+  await client.query(
+    `INSERT INTO admin_audit (admin_id, action, target, payload_json)
+     VALUES ($1, 'live_ops_campaign_scheduler_skip', $2, $3::jsonb);`,
+    [
+      Number(meta.adminId || 0),
+      `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`,
+      JSON.stringify(
+        buildCampaignAuditPayload(safeCampaign, {
+          now,
+          reason: String(meta.reason || "").trim().slice(0, 240),
+          version: Number(meta.version || 0),
+          dispatchRef: String(meta.dispatchRef || "").trim(),
+          dispatchSource: "scheduler",
+          windowKey: String(meta.windowKey || buildScheduleWindowKey(safeCampaign) || "").trim(),
+          sceneGateState: sceneGate.scene_gate_state,
+          sceneGateEffect: sceneGate.scene_gate_effect,
+          sceneGateReason: sceneGate.scene_gate_reason,
+          sceneGateRecipientCap: Number(sceneGate.scene_gate_recipient_cap || 0),
+          dryRun: false
+        })
+      )
+    ]
+  );
+}
+
 async function loadVersionHistory(client) {
   const result = await client.query(
     `SELECT version, created_at, created_by, config_json
@@ -903,6 +934,7 @@ async function loadOperatorTimeline(client, campaignKey) {
          'live_ops_campaign_request',
          'live_ops_campaign_approve',
          'live_ops_campaign_revoke',
+         'live_ops_campaign_scheduler_skip',
          'live_ops_campaign_dry_run',
          'live_ops_campaign_dispatch'
        )
@@ -1662,19 +1694,30 @@ async function buildCampaignSnapshot(client, current) {
       windowKey = buildScheduleWindowKey(campaign);
       const sceneGate = resolveLiveOpsSceneGate(sceneRuntimeSummary, campaign);
       if (!approvalSummary.live_dispatch_ready) {
+        const reason =
+          approvalSummary.warnings.includes("approval_missing") || approvalSummary.warnings.includes("approval_pending")
+            ? "campaign_approval_required"
+            : approvalSummary.warnings.includes("schedule_not_open") || approvalSummary.warnings.includes("schedule_missing")
+              ? "campaign_schedule_closed"
+              : approvalSummary.warnings.includes("schedule_expired")
+                ? "campaign_schedule_expired"
+                : approvalSummary.warnings.includes("schedule_invalid")
+                  ? "campaign_schedule_invalid"
+                  : "campaign_not_ready";
+        if (input.dryRun !== true) {
+          await writeSchedulerSkipAudit(client, campaign, {
+            adminId: Number(input.adminId || 0),
+            reason,
+            version: current.version,
+            now,
+            windowKey,
+            sceneGate
+          });
+        }
         return {
           ok: true,
           skipped: true,
-          reason:
-            approvalSummary.warnings.includes("approval_missing") || approvalSummary.warnings.includes("approval_pending")
-              ? "campaign_approval_required"
-              : approvalSummary.warnings.includes("schedule_not_open") || approvalSummary.warnings.includes("schedule_missing")
-                ? "campaign_schedule_closed"
-                : approvalSummary.warnings.includes("schedule_expired")
-                  ? "campaign_schedule_expired"
-                  : approvalSummary.warnings.includes("schedule_invalid")
-                    ? "campaign_schedule_invalid"
-                    : "campaign_not_ready",
+          reason,
           campaign_key: campaign.campaign_key,
           version: current.version,
           window_key: windowKey,
@@ -1682,10 +1725,19 @@ async function buildCampaignSnapshot(client, current) {
         };
       }
       if (input.dryRun !== true && sceneGate.ready_for_auto_dispatch !== true) {
+        const reason = sceneGate.scene_gate_reason || "scene_runtime_scheduler_blocked";
+        await writeSchedulerSkipAudit(client, campaign, {
+          adminId: Number(input.adminId || 0),
+          reason,
+          version: current.version,
+          now,
+          windowKey,
+          sceneGate
+        });
         return {
           ok: true,
           skipped: true,
-          reason: sceneGate.scene_gate_reason || "scene_runtime_scheduler_blocked",
+          reason,
           campaign_key: campaign.campaign_key,
           version: current.version,
           window_key: windowKey,
@@ -1695,6 +1747,15 @@ async function buildCampaignSnapshot(client, current) {
 
       const existing = input.dryRun === true ? null : await loadSchedulerWindowDispatch(client, campaign.campaign_key, windowKey);
       if (existing) {
+        await writeSchedulerSkipAudit(client, campaign, {
+          adminId: Number(input.adminId || 0),
+          reason: "already_dispatched_for_window",
+          version: current.version,
+          now,
+          windowKey,
+          dispatchRef: existing.dispatch_ref,
+          sceneGate
+        });
         return {
           ok: true,
           skipped: true,

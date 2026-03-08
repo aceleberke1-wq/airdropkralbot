@@ -586,11 +586,12 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
 
 test("live ops chat campaign service runScheduledDispatch skips duplicate scheduler window", async () => {
   let fetchCalled = false;
+  let skipAuditPayload = null;
   const service = createLiveOpsChatCampaignService({
     pool: {
       async connect() {
         return {
-          async query(sql) {
+          async query(sql, params) {
             const text = String(sql || "");
             if (text.includes("FROM config_versions") && text.includes("LIMIT 1")) {
               return {
@@ -633,6 +634,10 @@ test("live ops chat campaign service runScheduledDispatch skips duplicate schedu
                 ]
               };
             }
+            if (text.includes("INSERT INTO admin_audit") && text.includes("live_ops_campaign_scheduler_skip")) {
+              skipAuditPayload = JSON.parse(String(params[2] || "{}"));
+              return { rows: [] };
+            }
             return { rows: [] };
           },
           release() {}
@@ -660,16 +665,19 @@ test("live ops chat campaign service runScheduledDispatch skips duplicate schedu
   assert.equal(result.skipped, true);
   assert.equal(result.reason, "already_dispatched_for_window");
   assert.equal(result.window_key, "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z");
+  assert.equal(skipAuditPayload.reason, "already_dispatched_for_window");
+  assert.equal(skipAuditPayload.dispatch_ref, "wallet_reconnect_scheduler_ref");
   assert.equal(fetchCalled, false);
 });
 
 test("live ops chat campaign service runScheduledDispatch blocks live send on scene alert gate", async () => {
   let fetchCalled = false;
+  let skipAuditPayload = null;
   const service = createLiveOpsChatCampaignService({
     pool: {
       async connect() {
         return {
-          async query(sql) {
+          async query(sql, params) {
             const text = String(sql || "");
             if (text.includes("FROM config_versions") && text.includes("LIMIT 1")) {
               return {
@@ -717,6 +725,10 @@ test("live ops chat campaign service runScheduledDispatch blocks live send on sc
             if (text.includes("COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'")) {
               return { rows: [] };
             }
+            if (text.includes("INSERT INTO admin_audit") && text.includes("live_ops_campaign_scheduler_skip")) {
+              skipAuditPayload = JSON.parse(String(params[2] || "{}"));
+              return { rows: [] };
+            }
             return { rows: [] };
           },
           release() {}
@@ -746,6 +758,8 @@ test("live ops chat campaign service runScheduledDispatch blocks live send on sc
   assert.equal(result.scheduler_summary.scene_gate_state, "alert");
   assert.equal(result.scheduler_summary.scene_gate_effect, "blocked");
   assert.equal(result.scheduler_summary.ready_for_auto_dispatch, false);
+  assert.equal(skipAuditPayload.reason, "scene_runtime_alert_blocked");
+  assert.equal(skipAuditPayload.scene_gate_state, "alert");
   assert.equal(fetchCalled, false);
 });
 

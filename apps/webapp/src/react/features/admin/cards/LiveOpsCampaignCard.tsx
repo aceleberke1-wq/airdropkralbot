@@ -67,6 +67,7 @@ function formatTimelineActionLabel(lang: Lang, value: string) {
     request: "admin_live_ops_action_request",
     approve: "admin_live_ops_action_approve",
     revoke: "admin_live_ops_action_revoke",
+    scheduler_skip: "admin_live_ops_action_scheduler_skip",
     dry_run: "admin_live_ops_action_dry_run",
     dispatch: "admin_live_ops_action_dispatch"
   };
