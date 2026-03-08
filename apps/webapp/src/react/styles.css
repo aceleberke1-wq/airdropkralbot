@@ -430,6 +430,272 @@ body {
   color: #c2def4;
 }
 
+.akrBridgeDock {
+  margin-top: 14px;
+  align-items: start;
+}
+
+.akrBridgeIntro {
+  padding-bottom: 14px;
+}
+
+.akrBridgeCard {
+  gap: 12px;
+}
+
+.akrBridgeCard h3 {
+  margin: 0 0 10px;
+}
+
+.akrBridgeStrip {
+  border: 1px solid rgba(123, 192, 227, 0.22);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(4, 18, 38, 0.44);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.akrBridgeStrip[data-tone="critical"] {
+  border-color: rgba(255, 95, 127, 0.5);
+}
+
+.akrBridgeStrip[data-tone="pressure"] {
+  border-color: rgba(255, 178, 94, 0.46);
+}
+
+.akrBridgeStrip[data-tone="balanced"],
+.akrBridgeStrip[data-tone="advantage"] {
+  border-color: rgba(0, 214, 255, 0.36);
+}
+
+.akrBridgeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.akrBridgeLine,
+.akrBridgeHint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.akrBridgeHint,
+.muted,
+.micro,
+.adminAssetMeta {
+  color: var(--akr-muted);
+}
+
+.micro {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+}
+
+.akrBridgeList {
+  margin-top: 10px;
+}
+
+.akrBridgeMeter {
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(120, 181, 225, 0.12);
+}
+
+.akrBridgeMeter span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--meter-start, #7fd6ff), var(--meter-end, #3df8c2));
+  box-shadow: 0 0 14px var(--meter-glow, rgba(127, 214, 255, 0.32));
+  transition: width 180ms ease;
+}
+
+.badge,
+.combatAlertChip,
+.adminAssetState {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.69rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge {
+  color: #d5f8ea;
+  background: rgba(47, 255, 181, 0.12);
+  border: 1px solid rgba(47, 255, 181, 0.32);
+}
+
+.badge.info {
+  color: #d9f4ff;
+  background: rgba(0, 214, 255, 0.12);
+  border-color: rgba(0, 214, 255, 0.28);
+}
+
+.badge.warn {
+  color: #ffe2c4;
+  background: rgba(255, 178, 94, 0.14);
+  border-color: rgba(255, 178, 94, 0.32);
+}
+
+.combatAlertChip {
+  color: #d9f4ff;
+  background: rgba(123, 192, 227, 0.1);
+  border: 1px solid rgba(123, 192, 227, 0.18);
+}
+
+.combatAlertChip.neutral,
+.tone-neutral {
+  color: #d8ecff;
+  background: rgba(123, 192, 227, 0.1);
+  border-color: rgba(123, 192, 227, 0.18);
+}
+
+.combatAlertChip.info,
+.info {
+  color: #d9f4ff;
+  background: rgba(0, 214, 255, 0.12);
+  border-color: rgba(0, 214, 255, 0.24);
+}
+
+.combatAlertChip.safe,
+.safe,
+.combatAlertChip.advantage,
+.advantage {
+  color: #d5f8ea;
+  background: rgba(47, 255, 181, 0.12);
+  border-color: rgba(47, 255, 181, 0.28);
+}
+
+.combatAlertChip.balanced,
+.balanced {
+  color: #e0f2ff;
+  background: rgba(84, 196, 255, 0.12);
+  border-color: rgba(84, 196, 255, 0.24);
+}
+
+.combatAlertChip.pressure,
+.pressure,
+.combatAlertChip.aggressive,
+.aggressive {
+  color: #ffe2c4;
+  background: rgba(255, 178, 94, 0.14);
+  border-color: rgba(255, 178, 94, 0.28);
+}
+
+.combatAlertChip.critical,
+.critical {
+  color: #ffe1ea;
+  background: rgba(255, 95, 127, 0.14);
+  border-color: rgba(255, 95, 127, 0.32);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.offer,
+.mission,
+.tokenRouteRow,
+.adminAssetRow {
+  border: 1px solid rgba(123, 192, 227, 0.14);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(6, 21, 41, 0.42);
+}
+
+.offer,
+.mission {
+  margin-top: 10px;
+}
+
+.offerTop,
+.tokenRouteRow,
+.adminAssetRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.offer h4,
+.mission h4 {
+  margin: 0;
+}
+
+.btn {
+  border: 1px solid var(--akr-line);
+  color: var(--akr-ink);
+  background: rgba(7, 21, 42, 0.66);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+}
+
+.btn.accent {
+  background: linear-gradient(120deg, rgba(0, 214, 255, 0.18), rgba(47, 255, 181, 0.18));
+  border-color: rgba(47, 255, 181, 0.38);
+}
+
+.tokenRouteRow {
+  margin-top: 8px;
+}
+
+.tokenRouteRow.selected {
+  border-color: rgba(47, 255, 181, 0.4);
+  box-shadow: 0 0 0 1px rgba(47, 255, 181, 0.14);
+}
+
+.adminAssetRow {
+  margin-top: 8px;
+}
+
+.adminAssetState.ready {
+  color: #d5f8ea;
+  background: rgba(47, 255, 181, 0.12);
+  border: 1px solid rgba(47, 255, 181, 0.3);
+}
+
+.adminAssetState.warn {
+  color: #ffe2c4;
+  background: rgba(255, 178, 94, 0.12);
+  border: 1px solid rgba(255, 178, 94, 0.28);
+}
+
+.adminAssetState.missing {
+  color: #ffe1ea;
+  background: rgba(255, 95, 127, 0.14);
+  border: 1px solid rgba(255, 95, 127, 0.28);
+}
+
+.akrBridgeDock .offerActions,
+.akrBridgeDock .missionActions,
+.akrBridgeDock #tokenBuyBtn,
+.akrBridgeDock #tokenSubmitBtn,
+.akrBridgeDock #walletChallengeBtn,
+.akrBridgeDock #walletVerifyBtn,
+.akrBridgeDock #walletUnlinkBtn,
+.akrBridgeDock #payoutRequestBtn {
+  display: none !important;
+}
+
+.akrBridgeSelect {
+  width: 100%;
+}
+
 @media (max-width: 900px) {
   .akrTopbar {
     flex-direction: column;

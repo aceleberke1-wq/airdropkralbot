@@ -21,7 +21,9 @@ import { useRetriableAction } from "./features/shared/useRetriableAction";
 import { useBootstrapRefreshController } from "./features/shell/useBootstrapRefreshController";
 import { LaunchHandoffStrip } from "./features/shell/LaunchHandoffStrip";
 import { MetaStrip } from "./features/shell/MetaStrip";
+import { SceneBridgeDock } from "./features/shell/SceneBridgeDock";
 import { SceneRuntimeStrip } from "./features/shell/SceneRuntimeStrip";
+import { useSceneBridgeFeed } from "./features/shell/useSceneBridgeFeed";
 import { useLaunchFocusController } from "./features/shell/useLaunchFocusController";
 import { usePlayerTabsController } from "./features/shell/usePlayerTabsController";
 import { useSceneRuntimeLoader } from "./features/shell/useSceneRuntimeLoader";
@@ -534,6 +536,29 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       capabilityProfile
     }
   });
+  const bridgeDockEnabled = advanced || workspace === "admin";
+  useSceneBridgeFeed({
+    enabled: bridgeDockEnabled,
+    workspace,
+    tab,
+    scene: (scene as Record<string, unknown>) || {},
+    sceneRuntime: (sceneRuntime as Record<string, unknown>) || {},
+    data: (data as Record<string, unknown> | null) || null,
+    taskResult: (taskResult as Record<string, unknown> | null) || null,
+    pvpRuntime: (pvpRuntime.session as Record<string, unknown> | null) || null,
+    leagueOverview: (leagueOverview as Record<string, unknown> | null) || null,
+    pvpLive: {
+      leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
+      diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
+      tick: (pvpLive?.tick as Record<string, unknown> | null) || null
+    },
+    vaultData: (vaultData as Record<string, unknown> | null) || null,
+    adminRuntime: {
+      summary: (adminRuntime.summary as Record<string, unknown> | null) || null,
+      queue: Array.isArray(adminRuntime.queue) ? (adminRuntime.queue as Array<Record<string, unknown>>) : []
+    },
+    adminPanels: (adminPanels as Record<string, unknown> | null) || null
+  });
   const pvpSessionMachine = useMemo(
     () =>
       buildPvpSessionMachine({
@@ -661,6 +686,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           focusLabel={launchSummary.focusLabel}
         />
       ) : null}
+      <SceneBridgeDock lang={lang} workspace={workspace} tab={tab} advanced={advanced} />
       <Suspense fallback={<WorkspaceLoadingFallback />}>
         {workspace === "player" && (
           <PlayerWorkspace
