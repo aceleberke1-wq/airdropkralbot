@@ -316,6 +316,46 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
+            if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("payload_json->>'locale_bucket'")) {
+              return {
+                rows: [
+                  { bucket_key: "tr", item_count: 2 },
+                  { bucket_key: "en", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("payload_json->>'segment_key'")) {
+              return {
+                rows: [
+                  { bucket_key: "wallet_unlinked", item_count: 2 },
+                  { bucket_key: "inactive_returning", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("payload_json->>'surface_bucket'")) {
+              return {
+                rows: [
+                  { bucket_key: "wallet_panel", item_count: 2 },
+                  { bucket_key: "support_panel", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("payload_json->>'variant_bucket'")) {
+              return {
+                rows: [
+                  { bucket_key: "treatment", item_count: 2 },
+                  { bucket_key: "control", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("payload_json->>'cohort_bucket'")) {
+              return {
+                rows: [
+                  { bucket_key: "17", item_count: 2 },
+                  { bucket_key: "42", item_count: 1 }
+                ]
+              };
+            }
             if (text.includes("action = 'live_ops_campaign_ops_alert'") && text.includes("telegram_sent_count")) {
               return {
                 rows: [
@@ -332,6 +372,7 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                     payload_json: {
                       alarm_state: "alert",
                       notification_reason: "alert_state",
+                      experiment_key: "webapp_react_v1",
                       telegram_sent: true,
                       telegram_sent_at: "2026-03-08T12:26:30.000Z"
                     }
@@ -527,8 +568,14 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.ops_alert_summary.notification_reason, "scene_runtime_alert_blocked_repeated");
   assert.equal(snapshot.ops_alert_trend_summary.raised_24h, 1);
   assert.equal(snapshot.ops_alert_trend_summary.raised_7d, 3);
+  assert.equal(snapshot.ops_alert_trend_summary.experiment_key, "webapp_react_v1");
   assert.equal(snapshot.ops_alert_trend_summary.reason_breakdown[0].bucket_key, "alert_state");
   assert.equal(snapshot.ops_alert_trend_summary.daily_breakdown[0].alert_count, 1);
+  assert.equal(snapshot.ops_alert_trend_summary.locale_breakdown[0].bucket_key, "tr");
+  assert.equal(snapshot.ops_alert_trend_summary.segment_breakdown[0].bucket_key, "wallet_unlinked");
+  assert.equal(snapshot.ops_alert_trend_summary.surface_breakdown[0].bucket_key, "wallet_panel");
+  assert.equal(snapshot.ops_alert_trend_summary.variant_breakdown[0].bucket_key, "treatment");
+  assert.equal(snapshot.ops_alert_trend_summary.cohort_breakdown[0].bucket_key, "17");
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {

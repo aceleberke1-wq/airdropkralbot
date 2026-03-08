@@ -269,12 +269,18 @@ const LiveOpsCampaignOpsAlertTrendSummarySchema = z.object({
   raised_7d: z.number().int().nonnegative().default(0),
   telegram_sent_24h: z.number().int().nonnegative().default(0),
   telegram_sent_7d: z.number().int().nonnegative().default(0),
+  experiment_key: z.string().default("webapp_react_v1"),
   latest_alert_at: z.string().nullable().default(null),
   latest_alarm_state: z.enum(["clear", "watch", "alert"]).default("clear"),
   latest_notification_reason: z.string().default(""),
   latest_telegram_sent_at: z.string().nullable().default(null),
   daily_breakdown: z.array(LiveOpsCampaignOpsAlertDailyTrendPointSchema).default([]),
-  reason_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
+  reason_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  locale_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  segment_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  surface_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  variant_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
 });
 
 const KpiLiveOpsCampaignSummarySchema = z.object({

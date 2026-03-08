@@ -178,12 +178,18 @@ function buildSnapshot(version, approvalState) {
       raised_7d: 2,
       telegram_sent_24h: 1,
       telegram_sent_7d: 1,
+      experiment_key: "webapp_react_v1",
       latest_alert_at: "2026-03-08T10:13:00.000Z",
       latest_alarm_state: "alert",
       latest_notification_reason: "alert_state",
       latest_telegram_sent_at: "2026-03-08T10:13:20.000Z",
       daily_breakdown: [{ day: "2026-03-08", alert_count: 1, telegram_sent_count: 1 }],
-      reason_breakdown: [{ bucket_key: "alert_state", item_count: 2 }]
+      reason_breakdown: [{ bucket_key: "alert_state", item_count: 2 }],
+      locale_breakdown: [{ bucket_key: "tr", item_count: 1 }],
+      segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 1 }],
+      surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 1 }],
+      variant_breakdown: [{ bucket_key: "treatment", item_count: 1 }],
+      cohort_breakdown: [{ bucket_key: "17", item_count: 1 }]
     },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
@@ -261,6 +267,8 @@ test("v2 admin live ops campaign routes read, save approve and dispatch canonica
   assert.equal(getRes.json().data.ops_alert_summary.alarm_state, "alert");
   assert.equal(getRes.json().data.ops_alert_summary.telegram_sent, true);
   assert.equal(getRes.json().data.ops_alert_trend_summary.raised_7d, 2);
+  assert.equal(getRes.json().data.ops_alert_trend_summary.experiment_key, "webapp_react_v1");
+  assert.equal(getRes.json().data.ops_alert_trend_summary.surface_breakdown[0].bucket_key, "wallet_panel");
 
   const saveRes = await app.inject({
     method: "POST",

@@ -162,6 +162,11 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const scenePerfBreakdown = asArray(sceneRuntimeSummary.perf_breakdown_24h);
   const opsAlertTrendDailyBreakdown = asArray(opsAlertTrendSummary.daily_breakdown);
   const opsAlertTrendReasonBreakdown = asArray(opsAlertTrendSummary.reason_breakdown);
+  const opsAlertTrendLocaleBreakdown = asArray(opsAlertTrendSummary.locale_breakdown);
+  const opsAlertTrendSegmentBreakdown = asArray(opsAlertTrendSummary.segment_breakdown);
+  const opsAlertTrendSurfaceBreakdown = asArray(opsAlertTrendSummary.surface_breakdown);
+  const opsAlertTrendVariantBreakdown = asArray(opsAlertTrendSummary.variant_breakdown);
+  const opsAlertTrendCohortBreakdown = asArray(opsAlertTrendSummary.cohort_breakdown);
   const sceneAlarmReasons = Array.isArray(sceneRuntimeSummary.alarm_reasons_7d)
     ? sceneRuntimeSummary.alarm_reasons_7d.map((row) => String(row || "").trim()).filter(Boolean)
     : [];
@@ -501,6 +506,9 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <span className="akrChip">
             {t(props.lang, "admin_live_ops_ops_alert_sent_7d_label")}: {asCount(opsAlertTrendSummary.telegram_sent_7d)}
           </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_experiment_label")}: {asText(opsAlertTrendSummary.experiment_key)}
+          </span>
         </div>
         <p className="akrMutedLine">
           {t(props.lang, "admin_live_ops_ops_alert_latest_label")}: {asText(opsAlertTrendSummary.latest_alert_at)} |{" "}
@@ -511,6 +519,15 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <OpsAlertDailyTrendList title={t(props.lang, "admin_live_ops_ops_alert_daily_title")} rows={opsAlertTrendDailyBreakdown} />
           <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_reason_title")} rows={opsAlertTrendReasonBreakdown} />
         </div>
+        <div className="akrSplit">
+          <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_locale_title")} rows={opsAlertTrendLocaleBreakdown} />
+          <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_segment_title")} rows={opsAlertTrendSegmentBreakdown} />
+        </div>
+        <div className="akrSplit">
+          <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_surface_title")} rows={opsAlertTrendSurfaceBreakdown} />
+          <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_variant_title")} rows={opsAlertTrendVariantBreakdown} />
+        </div>
+        <BreakdownList title={t(props.lang, "admin_live_ops_ops_alert_cohort_title")} rows={opsAlertTrendCohortBreakdown} />
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="scene_runtime_summary">
         <h4>{t(props.lang, "admin_runtime_scene_title")}</h4>

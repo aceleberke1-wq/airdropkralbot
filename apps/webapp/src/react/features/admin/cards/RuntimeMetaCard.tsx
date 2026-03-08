@@ -192,6 +192,11 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const opsAlertTrend = asRecord(liveOpsKpi?.ops_alert_trend);
   const schedulerSkipDaily = asRows(schedulerSkip?.daily_breakdown);
   const schedulerSkipReasons = asRows(schedulerSkip?.reason_breakdown);
+  const opsAlertLocaleBreakdown = asRows(opsAlertTrend?.locale_breakdown);
+  const opsAlertSegmentBreakdown = asRows(opsAlertTrend?.segment_breakdown);
+  const opsAlertSurfaceBreakdown = asRows(opsAlertTrend?.surface_breakdown);
+  const opsAlertVariantBreakdown = asRows(opsAlertTrend?.variant_breakdown);
+  const opsAlertCohortBreakdown = asRows(opsAlertTrend?.cohort_breakdown);
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_meta">
@@ -362,6 +367,9 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_ops_alert_raised_7d_label")}: {Math.floor(readNum(opsAlertTrend, "raised_7d"))}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_experiment_label")}: {readText(opsAlertTrend, "experiment_key") || "-"}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_live_ops_scheduler_scene_effect_label")}: {readText(liveOpsKpi, "scene_gate_effect") || "-"}
           </span>
           <span className="akrChip">
@@ -416,6 +424,11 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_cohort_title")} rows={cohortBreakdown} />
         <SkipDailyTrendList title={t(props.lang, "admin_runtime_live_ops_skip_daily_title")} rows={schedulerSkipDaily} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_skip_reason_title")} rows={schedulerSkipReasons} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_locale_title")} rows={opsAlertLocaleBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_segment_title")} rows={opsAlertSegmentBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_surface_title")} rows={opsAlertSurfaceBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_variant_title")} rows={opsAlertVariantBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_cohort_title")} rows={opsAlertCohortBreakdown} />
       </section>
       {props.opsKpiRunError ? <p className="akrErrorLine">{props.opsKpiRunError}</p> : null}
       <pre className="akrJsonBlock">{JSON.stringify(props.metricsData || {}, null, 2)}</pre>

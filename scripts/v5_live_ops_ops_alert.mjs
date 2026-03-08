@@ -308,6 +308,10 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
     created_at: null
   };
   if (shouldRecordOpsAlertAudit(evaluation, previousAlertArtifact, telegram)) {
+    const campaignContext =
+      dispatchArtifact && dispatchArtifact.campaign_context && typeof dispatchArtifact.campaign_context === "object"
+        ? dispatchArtifact.campaign_context
+        : {};
     const auditPayload = {
       admin_id: Math.max(
         0,
@@ -329,6 +333,12 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       scene_gate_state: String(dispatchArtifact?.scheduler_summary?.scene_gate_state || "no_data").trim() || "no_data",
       scene_gate_effect: String(dispatchArtifact?.scheduler_summary?.scene_gate_effect || "open").trim() || "open",
       scene_gate_reason: String(dispatchArtifact?.scheduler_summary?.scene_gate_reason || "").trim(),
+      experiment_key: String(campaignContext.experiment_key || "webapp_react_v1").trim() || "webapp_react_v1",
+      locale_bucket: String(campaignContext.locale_bucket || "").trim(),
+      segment_key: String(campaignContext.segment_key || dispatchArtifact.segment_key || "").trim(),
+      surface_bucket: String(campaignContext.surface_bucket || "").trim(),
+      variant_bucket: String(campaignContext.variant_bucket || "").trim(),
+      cohort_bucket: String(campaignContext.cohort_bucket || "").trim(),
       telegram_sent: telegram.sent === true,
       telegram_reason: String(telegram.reason || "").trim(),
       telegram_sent_at: telegram.sent_at || null

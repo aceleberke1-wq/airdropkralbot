@@ -160,12 +160,18 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       raised_7d: Math.max(0, Number(opsAlertTrend.raised_7d || 0)),
       telegram_sent_24h: Math.max(0, Number(opsAlertTrend.telegram_sent_24h || 0)),
       telegram_sent_7d: Math.max(0, Number(opsAlertTrend.telegram_sent_7d || 0)),
+      experiment_key: String(opsAlertTrend.experiment_key || "webapp_react_v1"),
       latest_alert_at: opsAlertTrend.latest_alert_at || null,
       latest_alarm_state: String(opsAlertTrend.latest_alarm_state || "clear"),
       latest_notification_reason: String(opsAlertTrend.latest_notification_reason || ""),
       latest_telegram_sent_at: opsAlertTrend.latest_telegram_sent_at || null,
       daily_breakdown: normalizeOpsAlertDailyRows(opsAlertTrend.daily_breakdown),
-      reason_breakdown: normalizeBreakdownRows(opsAlertTrend.reason_breakdown)
+      reason_breakdown: normalizeBreakdownRows(opsAlertTrend.reason_breakdown),
+      locale_breakdown: normalizeBreakdownRows(opsAlertTrend.locale_breakdown),
+      segment_breakdown: normalizeBreakdownRows(opsAlertTrend.segment_breakdown),
+      surface_breakdown: normalizeBreakdownRows(opsAlertTrend.surface_breakdown),
+      variant_breakdown: normalizeBreakdownRows(opsAlertTrend.variant_breakdown),
+      cohort_breakdown: normalizeBreakdownRows(opsAlertTrend.cohort_breakdown)
     },
     scene_runtime: sceneRuntime
   };
@@ -238,12 +244,18 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         raised_7d: 0,
         telegram_sent_24h: 0,
         telegram_sent_7d: 0,
+        experiment_key: "webapp_react_v1",
         latest_alert_at: null,
         latest_alarm_state: "clear",
         latest_notification_reason: "",
         latest_telegram_sent_at: null,
         daily_breakdown: [],
-        reason_breakdown: []
+        reason_breakdown: [],
+        locale_breakdown: [],
+        segment_breakdown: [],
+        surface_breakdown: [],
+        variant_breakdown: [],
+        cohort_breakdown: []
       },
       scene_runtime: {}
     };

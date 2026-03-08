@@ -63,6 +63,14 @@ function sanitizeVersion(value) {
     .slice(0, 40);
 }
 
+function resolveTopBucketKey(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return "";
+  }
+  const first = rows[0] && typeof rows[0] === "object" ? rows[0] : null;
+  return first ? String(first.bucket_key || "").trim() : "";
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const databaseUrl = String(process.env.DATABASE_URL || "").trim();
@@ -141,6 +149,18 @@ async function main() {
                 : []
             }
           : {};
+      const deliverySummary =
+        snapshot && snapshot.delivery_summary && typeof snapshot.delivery_summary === "object"
+          ? snapshot.delivery_summary
+          : {};
+      const campaignConfig =
+        snapshot && snapshot.campaign && typeof snapshot.campaign === "object"
+          ? snapshot.campaign
+          : {};
+      const campaignTargeting =
+        campaignConfig.targeting && typeof campaignConfig.targeting === "object"
+          ? campaignConfig.targeting
+          : {};
       const payload = {
         generated_at: new Date().toISOString(),
         ...result,
@@ -153,6 +173,14 @@ async function main() {
           skipped_7d: Math.max(0, Number(schedulerSkipSummary.skipped_7d || 0)),
           latest_skip_reason: String(schedulerSkipSummary.latest_skip_reason || ""),
           latest_skip_at: schedulerSkipSummary.latest_skip_at || null
+        },
+        campaign_context: {
+          experiment_key: String(deliverySummary.experiment_key || "webapp_react_v1"),
+          segment_key: String(campaignTargeting.segment_key || result.segment_key || ""),
+          locale_bucket: resolveTopBucketKey(deliverySummary.locale_breakdown),
+          surface_bucket: resolveTopBucketKey(deliverySummary.surface_breakdown),
+          variant_bucket: resolveTopBucketKey(deliverySummary.variant_breakdown),
+          cohort_bucket: resolveTopBucketKey(deliverySummary.cohort_breakdown)
         }
       };
       fs.writeFileSync(artifactPaths.latestJsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");

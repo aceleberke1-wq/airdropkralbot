@@ -184,6 +184,7 @@ function buildLiveOpsSnapshot() {
       raised_7d: 4,
       telegram_sent_24h: 0,
       telegram_sent_7d: 1,
+      experiment_key: "webapp_react_v1",
       latest_alert_at: "2026-03-08T04:05:00.000Z",
       latest_alarm_state: "watch",
       latest_notification_reason: "scene_runtime_watch_capped_repeated",
@@ -192,7 +193,12 @@ function buildLiveOpsSnapshot() {
         { day: "2026-03-08", alert_count: 2, telegram_sent_count: 0 },
         { day: "2026-03-07", alert_count: 2, telegram_sent_count: 1 }
       ],
-      reason_breakdown: [{ bucket_key: "scene_runtime_watch_capped_repeated", item_count: 4 }]
+      reason_breakdown: [{ bucket_key: "scene_runtime_watch_capped_repeated", item_count: 4 }],
+      locale_breakdown: [{ bucket_key: "tr", item_count: 3 }],
+      segment_breakdown: [{ bucket_key: "wallet_unlinked", item_count: 4 }],
+      surface_breakdown: [{ bucket_key: "wallet_panel", item_count: 4 }],
+      variant_breakdown: [{ bucket_key: "treatment", item_count: 3 }],
+      cohort_breakdown: [{ bucket_key: "17", item_count: 2 }]
     },
     scene_runtime_summary: {
       ready_24h: 18,
@@ -339,7 +345,9 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.ops_alert.alarm_state, "watch");
   assert.equal(body.data.live_ops_campaign.ops_alert.telegram_sent, false);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.raised_7d, 4);
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.experiment_key, "webapp_react_v1");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.reason_breakdown[0].bucket_key, "scene_runtime_watch_capped_repeated");
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.surface_breakdown[0].bucket_key, "wallet_panel");
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -424,6 +432,7 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.scheduler_skip.alarm_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.ops_alert.notification_reason, "scene_runtime_watch_capped_repeated");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.telegram_sent_7d, 1);
+  assert.equal(body.data.live_ops_campaign.ops_alert_trend.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");
   await app.close();
 });

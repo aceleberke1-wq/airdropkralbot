@@ -1054,7 +1054,7 @@ function normalizeOpsAlertDailyRows(rows) {
 async function loadOpsAlertTrendSummary(client, campaignKey) {
   const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
   const key = String(campaignKey || "");
-  const [totalsResult, latestResult, reasonResult, dailyResult] = await Promise.all([
+  const [totalsResult, latestResult, reasonResult, dailyResult, localeResult, segmentResult, surfaceResult, variantResult, cohortResult] = await Promise.all([
     client.query(
       `SELECT
          COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS raised_24h,
@@ -1113,6 +1113,76 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
        ORDER BY day DESC
        LIMIT 7;`,
       [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json->>'locale_bucket', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_ops_alert'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json->>'segment_key', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_ops_alert'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json->>'surface_bucket', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_ops_alert'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json->>'variant_bucket', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_ops_alert'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json->>'cohort_bucket', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_ops_alert'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
     )
   ]);
 
@@ -1126,6 +1196,7 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
     raised_7d: Math.max(0, Number(totals.raised_7d || 0)),
     telegram_sent_24h: Math.max(0, Number(totals.telegram_sent_24h || 0)),
     telegram_sent_7d: Math.max(0, Number(totals.telegram_sent_7d || 0)),
+    experiment_key: String(latestPayload.experiment_key || "webapp_react_v1"),
     latest_alert_at: latest.created_at || null,
     latest_alarm_state: String(latestPayload.alarm_state || "clear"),
     latest_notification_reason: String(latestPayload.notification_reason || ""),
@@ -1133,7 +1204,12 @@ async function loadOpsAlertTrendSummary(client, campaignKey) {
       ? String(latestPayload.telegram_sent_at || "").trim() || null
       : null,
     daily_breakdown: normalizeOpsAlertDailyRows(dailyResult.rows),
-    reason_breakdown: normalizeBreakdownRows(reasonResult.rows)
+    reason_breakdown: normalizeBreakdownRows(reasonResult.rows),
+    locale_breakdown: normalizeBreakdownRows(localeResult.rows),
+    segment_breakdown: normalizeBreakdownRows(segmentResult.rows),
+    surface_breakdown: normalizeBreakdownRows(surfaceResult.rows),
+    variant_breakdown: normalizeBreakdownRows(variantResult.rows),
+    cohort_breakdown: normalizeBreakdownRows(cohortResult.rows)
   };
 }
 
@@ -1306,12 +1382,18 @@ function buildEmptyLiveOpsOpsAlertTrendSummary() {
     raised_7d: 0,
     telegram_sent_24h: 0,
     telegram_sent_7d: 0,
+    experiment_key: "webapp_react_v1",
     latest_alert_at: null,
     latest_alarm_state: "clear",
     latest_notification_reason: "",
     latest_telegram_sent_at: null,
     daily_breakdown: [],
-    reason_breakdown: []
+    reason_breakdown: [],
+    locale_breakdown: [],
+    segment_breakdown: [],
+    surface_breakdown: [],
+    variant_breakdown: [],
+    cohort_breakdown: []
   };
 }
 

@@ -115,6 +115,14 @@ test("runLiveOpsOpsAlert records audit when alert fingerprint changes", async ()
       campaign_key: "wallet_reconnect",
       version: 9,
       dispatch_ref: "",
+      campaign_context: {
+        experiment_key: "webapp_react_v1",
+        segment_key: "wallet_unlinked",
+        locale_bucket: "tr",
+        surface_bucket: "wallet_panel",
+        variant_bucket: "treatment",
+        cohort_bucket: "17"
+      },
       scheduler_skip_summary: {
         alarm_state: "alert",
         alarm_reason: "scene_runtime_alert_blocked_repeated",
@@ -155,4 +163,10 @@ test("runLiveOpsOpsAlert records audit when alert fingerprint changes", async ()
   assert.equal(auditPayloads[0].campaign_key, "wallet_reconnect");
   assert.equal(auditPayloads[0].alarm_state, "alert");
   assert.equal(auditPayloads[0].admin_id, 7009);
+  assert.equal(auditPayloads[0].experiment_key, "webapp_react_v1");
+  assert.equal(auditPayloads[0].locale_bucket, "tr");
+  assert.equal(auditPayloads[0].segment_key, "wallet_unlinked");
+  assert.equal(auditPayloads[0].surface_bucket, "wallet_panel");
+  assert.equal(auditPayloads[0].variant_bucket, "treatment");
+  assert.equal(auditPayloads[0].cohort_bucket, "17");
 });
