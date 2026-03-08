@@ -185,9 +185,23 @@ const LiveOpsCampaignDailyTrendPointSchema = z.object({
   unique_users: z.number().int().nonnegative().default(0)
 });
 
+const LiveOpsCampaignSkipDailyTrendPointSchema = z.object({
+  day: z.string().default(""),
+  skip_count: z.number().int().nonnegative().default(0)
+});
+
 const KpiLiveOpsCampaignBreakdownSchema = z.object({
   bucket_key: z.string().default("unknown"),
   item_count: z.number().int().nonnegative().default(0)
+});
+
+const LiveOpsCampaignSchedulerSkipSummarySchema = z.object({
+  skipped_24h: z.number().int().nonnegative().default(0),
+  skipped_7d: z.number().int().nonnegative().default(0),
+  latest_skip_at: z.string().nullable().default(null),
+  latest_skip_reason: z.string().default(""),
+  daily_breakdown: z.array(LiveOpsCampaignSkipDailyTrendPointSchema).default([]),
+  reason_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
 });
 
 const SceneRuntimeDailySummarySchema = z.object({
@@ -255,6 +269,7 @@ const KpiLiveOpsCampaignSummarySchema = z.object({
   surface_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   variant_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  scheduler_skip: LiveOpsCampaignSchedulerSkipSummarySchema.default({}),
   scene_runtime: SceneRuntimeCompactSummarySchema.default({})
 });
 
@@ -812,6 +827,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   dispatch_history: z.array(LiveOpsCampaignDispatchHistoryRowSchema).default([]),
   operator_timeline: z.array(LiveOpsCampaignOperatorTimelineRowSchema).default([]),
   delivery_summary: LiveOpsCampaignDeliverySummarySchema.default({}),
+  scheduler_skip_summary: LiveOpsCampaignSchedulerSkipSummarySchema.default({}),
   scene_runtime_summary: SceneRuntimeCompactSummarySchema.default({}),
   task_summary: LiveOpsCampaignTaskSummarySchema.default({}),
   latest_dispatch: z

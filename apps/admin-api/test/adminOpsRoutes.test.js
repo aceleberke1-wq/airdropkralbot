@@ -148,6 +148,20 @@ function buildLiveOpsSnapshot() {
       variant_breakdown: [{ bucket_key: "treatment", item_count: 25 }],
       cohort_breakdown: [{ bucket_key: "17", item_count: 6 }]
     },
+    scheduler_skip_summary: {
+      skipped_24h: 2,
+      skipped_7d: 5,
+      latest_skip_at: "2026-03-08T04:00:00.000Z",
+      latest_skip_reason: "scene_runtime_watch_capped",
+      daily_breakdown: [
+        { day: "2026-03-08", skip_count: 2 },
+        { day: "2026-03-07", skip_count: 3 }
+      ],
+      reason_breakdown: [
+        { bucket_key: "scene_runtime_watch_capped", item_count: 4 },
+        { bucket_key: "already_dispatched_for_window", item_count: 1 }
+      ]
+    },
     scene_runtime_summary: {
       ready_24h: 18,
       failed_24h: 2,
@@ -286,6 +300,8 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(body.data.live_ops_campaign.segment_breakdown[0].bucket_key, "wallet_unlinked");
   assert.equal(body.data.live_ops_campaign.daily_breakdown[0].day, "2026-03-08");
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.skipped_7d, 5);
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.reason_breakdown[0].bucket_key, "scene_runtime_watch_capped");
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -366,6 +382,7 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.latest_auto_dispatch_ref, "dispatch_auto_1");
   assert.equal(body.data.live_ops_campaign.locale_breakdown[0].bucket_key, "tr");
   assert.equal(body.data.live_ops_campaign.daily_breakdown[1].sent_count, 9);
+  assert.equal(body.data.live_ops_campaign.scheduler_skip.latest_skip_reason, "scene_runtime_watch_capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");
   await app.close();
 });

@@ -924,6 +924,78 @@ async function loadDispatchHistory(client, campaignKey) {
   });
 }
 
+async function loadSchedulerSkipSummary(client, campaignKey) {
+  const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
+  const key = String(campaignKey || "");
+  const [totalsResult, latestResult, reasonResult, dailyResult] = await Promise.all([
+    client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS skipped_24h,
+         COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days')::bigint AS skipped_7d
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_scheduler_skip'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT created_at, payload_json
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_scheduler_skip'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+       ORDER BY created_at DESC
+       LIMIT 1;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(payload_json->>'reason', 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_scheduler_skip'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+         COUNT(*)::bigint AS skip_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_scheduler_skip'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY day DESC
+       LIMIT 7;`,
+      [target, key]
+    )
+  ]);
+
+  const totals = totalsResult.rows[0] || {};
+  const latest = latestResult.rows[0] || {};
+  const latestPayload = latest.payload_json && typeof latest.payload_json === "object" && !Array.isArray(latest.payload_json) ? latest.payload_json : {};
+  return {
+    skipped_24h: Math.max(0, Number(totals.skipped_24h || 0)),
+    skipped_7d: Math.max(0, Number(totals.skipped_7d || 0)),
+    latest_skip_at: latest.created_at || null,
+    latest_skip_reason: String(latestPayload.reason || ""),
+    reason_breakdown: normalizeBreakdownRows(reasonResult.rows),
+    daily_breakdown: (Array.isArray(dailyResult.rows) ? dailyResult.rows : [])
+      .map((row) => ({
+        day: String(row.day || ""),
+        skip_count: Math.max(0, Number(row.skip_count || 0))
+      }))
+      .filter((row) => row.day)
+  };
+}
+
 async function loadOperatorTimeline(client, campaignKey) {
   const result = await client.query(
     `SELECT admin_id, action, payload_json, created_at
@@ -1312,11 +1384,12 @@ async function buildCampaignSnapshot(client, current) {
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
   const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary] = await Promise.all([
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, schedulerSkipSummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
     loadDeliverySummary(client, snapshotState.campaign.campaign_key),
+    loadSchedulerSkipSummary(client, snapshotState.campaign.campaign_key),
     loadLatestSchedulerDispatch(client, snapshotState.campaign.campaign_key),
     loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey),
     loadSceneRuntimeSummary(client),
@@ -1341,6 +1414,7 @@ async function buildCampaignSnapshot(client, current) {
     dispatch_history: dispatchHistory,
     operator_timeline: operatorTimeline,
     delivery_summary: deliverySummary,
+    scheduler_skip_summary: schedulerSkipSummary,
     scene_runtime_summary: sceneRuntimeSummary,
     task_summary: taskSummary,
     latest_dispatch: latestDispatch

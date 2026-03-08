@@ -128,6 +128,14 @@ function buildSnapshot(version, approvalState) {
       variant_breakdown: [],
       cohort_breakdown: []
     },
+    scheduler_skip_summary: {
+      skipped_24h: 1,
+      skipped_7d: 3,
+      latest_skip_at: "2026-03-08T10:11:00.000Z",
+      latest_skip_reason: "scene_runtime_alert_blocked",
+      daily_breakdown: [{ day: "2026-03-08", skip_count: 1 }],
+      reason_breakdown: [{ bucket_key: "scene_runtime_alert_blocked", item_count: 3 }]
+    },
     task_summary: {
       artifact_found: true,
       artifact_path: ".runtime-artifacts/liveops/V5_LIVE_OPS_CAMPAIGN_DISPATCH_latest.json",
@@ -215,6 +223,7 @@ test("v2 admin live ops campaign routes read, save approve and dispatch canonica
   assert.equal(getRes.statusCode, 200);
   assert.equal(getRes.json().data.campaign.campaign_key, "wallet_reconnect");
   assert.equal(getRes.json().data.approval_summary.approval_state, "not_requested");
+  assert.equal(getRes.json().data.scheduler_skip_summary.skipped_7d, 3);
 
   const saveRes = await app.inject({
     method: "POST",

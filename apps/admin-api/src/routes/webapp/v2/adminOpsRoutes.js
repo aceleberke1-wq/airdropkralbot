@@ -55,12 +55,28 @@ function normalizeDailyRows(rows) {
     .slice(0, 7);
 }
 
+function normalizeSkipDailyRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((row) => ({
+      day: String(row?.day || ""),
+      skip_count: Math.max(0, Number(row?.skip_count || 0))
+    }))
+    .filter((row) => row.day)
+    .slice(0, 7);
+}
+
 function buildLiveOpsCampaignKpiSummary(snapshot) {
   const safeSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
   const campaign = safeSnapshot.campaign && typeof safeSnapshot.campaign === "object" ? safeSnapshot.campaign : {};
   const approval = safeSnapshot.approval_summary && typeof safeSnapshot.approval_summary === "object" ? safeSnapshot.approval_summary : {};
   const scheduler = safeSnapshot.scheduler_summary && typeof safeSnapshot.scheduler_summary === "object" ? safeSnapshot.scheduler_summary : {};
   const delivery = safeSnapshot.delivery_summary && typeof safeSnapshot.delivery_summary === "object" ? safeSnapshot.delivery_summary : {};
+  const schedulerSkip = safeSnapshot.scheduler_skip_summary && typeof safeSnapshot.scheduler_skip_summary === "object"
+    ? safeSnapshot.scheduler_skip_summary
+    : {};
   const sceneRuntime = safeSnapshot.scene_runtime_summary && typeof safeSnapshot.scene_runtime_summary === "object"
     ? safeSnapshot.scene_runtime_summary
     : {};
@@ -94,6 +110,14 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
     surface_breakdown: normalizeBreakdownRows(delivery.surface_breakdown),
     variant_breakdown: normalizeBreakdownRows(delivery.variant_breakdown),
     cohort_breakdown: normalizeBreakdownRows(delivery.cohort_breakdown),
+    scheduler_skip: {
+      skipped_24h: Math.max(0, Number(schedulerSkip.skipped_24h || 0)),
+      skipped_7d: Math.max(0, Number(schedulerSkip.skipped_7d || 0)),
+      latest_skip_at: schedulerSkip.latest_skip_at || null,
+      latest_skip_reason: String(schedulerSkip.latest_skip_reason || ""),
+      daily_breakdown: normalizeSkipDailyRows(schedulerSkip.daily_breakdown),
+      reason_breakdown: normalizeBreakdownRows(schedulerSkip.reason_breakdown)
+    },
     scene_runtime: sceneRuntime
   };
 }
@@ -135,6 +159,14 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
       surface_breakdown: [],
       variant_breakdown: [],
       cohort_breakdown: [],
+      scheduler_skip: {
+        skipped_24h: 0,
+        skipped_7d: 0,
+        latest_skip_at: null,
+        latest_skip_reason: "",
+        daily_breakdown: [],
+        reason_breakdown: []
+      },
       scene_runtime: {}
     };
   }

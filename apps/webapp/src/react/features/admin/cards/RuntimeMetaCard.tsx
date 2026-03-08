@@ -121,6 +121,29 @@ function SceneDailyTrendList(props: { title: string; rows: Array<Record<string, 
   );
 }
 
+function SkipDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 7).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}`}>
+            {String(row.day || "-")} | skip {Math.floor(Number(row.skip_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const qualityScore = readNum(props.metricsData, "ui_event_quality_score_24h");
   const intent = readNum(props.metricsData, "funnel_intent_24h");
@@ -164,6 +187,9 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const variantBreakdown = asRows(liveOpsKpi?.variant_breakdown);
   const cohortBreakdown = asRows(liveOpsKpi?.cohort_breakdown);
   const dailyBreakdown = asRows(liveOpsKpi?.daily_breakdown);
+  const schedulerSkip = asRecord(liveOpsKpi?.scheduler_skip);
+  const schedulerSkipDaily = asRows(schedulerSkip?.daily_breakdown);
+  const schedulerSkipReasons = asRows(schedulerSkip?.reason_breakdown);
 
   return (
     <section className="akrCard akrCardWide" data-akr-panel-key="panel_admin_runtime" data-akr-focus-key="runtime_meta">
@@ -306,6 +332,15 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_experiment_label")}: {readText(liveOpsKpi, "experiment_key") || "-"}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_skip_24h")}: {Math.floor(readNum(schedulerSkip, "skipped_24h"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_skip_7d")}: {Math.floor(readNum(schedulerSkip, "skipped_7d"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_skip_reason_label")}: {readText(schedulerSkip, "latest_skip_reason") || "-"}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_live_ops_scheduler_scene_effect_label")}: {readText(liveOpsKpi, "scene_gate_effect") || "-"}
           </span>
           <span className="akrChip">
@@ -350,6 +385,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_surface_title")} rows={surfaceBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_variant_title")} rows={variantBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_cohort_title")} rows={cohortBreakdown} />
+        <SkipDailyTrendList title={t(props.lang, "admin_runtime_live_ops_skip_daily_title")} rows={schedulerSkipDaily} />
+        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_skip_reason_title")} rows={schedulerSkipReasons} />
       </section>
       {props.opsKpiRunError ? <p className="akrErrorLine">{props.opsKpiRunError}</p> : null}
       <pre className="akrJsonBlock">{JSON.stringify(props.metricsData || {}, null, 2)}</pre>

@@ -258,6 +258,44 @@ test("live ops chat campaign service snapshot includes approval summary schedule
             if (text.includes("meta_json->>'primary_surface_key'")) {
               return { rows: [{ bucket_key: "wallet_panel", item_count: 3 }] };
             }
+            if (text.includes("action = 'live_ops_campaign_scheduler_skip'") && text.includes("COUNT(*) FILTER")) {
+              return {
+                rows: [
+                  {
+                    skipped_24h: 2,
+                    skipped_7d: 4
+                  }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_scheduler_skip'") && text.includes("ORDER BY created_at DESC") && text.includes("LIMIT 1")) {
+              return {
+                rows: [
+                  {
+                    created_at: "2026-03-08T12:22:00.000Z",
+                    payload_json: {
+                      reason: "scene_runtime_alert_blocked"
+                    }
+                  }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_scheduler_skip'") && text.includes("GROUP BY 1") && text.includes("bucket_key")) {
+              return {
+                rows: [
+                  { bucket_key: "scene_runtime_alert_blocked", item_count: 3 },
+                  { bucket_key: "already_dispatched_for_window", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_scheduler_skip'") && text.includes("skip_count")) {
+              return {
+                rows: [
+                  { day: "2026-03-08", skip_count: 2 },
+                  { day: "2026-03-07", skip_count: 2 }
+                ]
+              };
+            }
             if (text.includes("lower(a.variant_key)")) {
               return { rows: [{ bucket_key: "treatment", item_count: 2 }, { bucket_key: "control", item_count: 1 }] };
             }
@@ -406,6 +444,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.delivery_summary.cohort_breakdown[0].bucket_key, "17");
   assert.equal(snapshot.delivery_summary.daily_breakdown[0].day, "2026-03-08");
   assert.equal(snapshot.delivery_summary.daily_breakdown[0].sent_count, 2);
+  assert.equal(snapshot.scheduler_skip_summary.skipped_24h, 2);
+  assert.equal(snapshot.scheduler_skip_summary.latest_skip_reason, "scene_runtime_alert_blocked");
+  assert.equal(snapshot.scheduler_skip_summary.reason_breakdown[0].bucket_key, "scene_runtime_alert_blocked");
+  assert.equal(snapshot.scheduler_skip_summary.daily_breakdown[0].skip_count, 2);
   assert.equal(snapshot.scene_runtime_summary.ready_24h, 9);
   assert.equal(snapshot.scene_runtime_summary.health_band_24h, "yellow");
   assert.equal(snapshot.scene_runtime_summary.trend_direction_7d, "degrading");
