@@ -11,6 +11,14 @@ type PlayerShellPanelProps = {
   panelKey: PlayerShellPanelKey;
   focusKey: string;
   data: BootstrapV2Data | null;
+  sceneProfile: {
+    qualityMode: string;
+    effectiveQuality: string;
+    hudDensity: string;
+    perfTier: string;
+    deviceClass: string;
+    sceneProfile: string;
+  };
   homeFeed: Record<string, unknown> | null;
   vaultData: Record<string, unknown> | null;
   onClose: () => void;
@@ -128,7 +136,9 @@ export function PlayerShellPanel(props: PlayerShellPanelProps) {
             <h4>{t(props.lang, "shell_panel_settings_language")}</h4>
             <div className="akrChipRow">
               <span className="akrChip">{String(props.lang).toUpperCase()}</span>
-              <span className="akrChip">{String(prefs?.quality_mode || "auto")}</span>
+              <span className="akrChip">{String(props.sceneProfile.qualityMode || prefs?.quality_mode || "auto")}</span>
+              <span className="akrChip">{String(props.sceneProfile.effectiveQuality || "medium")}</span>
+              <span className="akrChip">{String(props.sceneProfile.hudDensity || "normal")}</span>
               <span className="akrChip">{String(prefsJson.workspace || "player")}</span>
             </div>
             <div className="akrActionRow">
@@ -143,6 +153,9 @@ export function PlayerShellPanel(props: PlayerShellPanelProps) {
               <span className="akrChip">{prefs?.reduced_motion ? "motion_reduced" : "motion_normal"}</span>
               <span className="akrChip">{prefs?.large_text ? "large_text" : "base_text"}</span>
               <span className="akrChip">{prefs?.sound_enabled === false ? "sound_off" : "sound_on"}</span>
+              <span className="akrChip">{String(props.sceneProfile.perfTier || "-")}</span>
+              <span className="akrChip">{String(props.sceneProfile.deviceClass || "-")}</span>
+              <span className="akrChip">{String(props.sceneProfile.sceneProfile || "-")}</span>
             </div>
             <div className="akrActionRow">
               <button className="akrBtn akrBtnGhost" onClick={() => props.onToggleReducedMotion(!Boolean(prefs?.reduced_motion))}>

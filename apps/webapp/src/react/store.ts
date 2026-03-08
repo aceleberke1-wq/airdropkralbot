@@ -8,6 +8,7 @@ import {
   playerActions,
   pvpActions,
   sceneActions,
+  selectScene,
   selectAdminRuntime,
   selectAuth,
   selectExperiment,
@@ -19,6 +20,7 @@ import {
   sessionActions,
   uiActions
 } from "./redux/slices/shellSlices";
+import { collectCapabilityProfile } from "../core/runtime/capabilityProfile.js";
 
 type AdminRuntimeData = {
   summary: Record<string, unknown> | null;
@@ -44,6 +46,14 @@ type ReactShellState = {
   error: string;
   adminRuntime: AdminRuntimeData;
   pvpRuntime: PvpRuntimeData;
+  scene: {
+    qualityMode: "auto" | "high" | "medium" | "low";
+    effectiveQuality: "high" | "medium" | "low";
+    hudDensity: "compact" | "normal";
+    reducedMotion: boolean;
+    largeText: boolean;
+    capabilityProfile: Record<string, unknown> | null;
+  };
   navigationContext: LaunchContext | null;
   navigationRequestKey: number;
   setBootstrap: (data: BootstrapV2Data) => void;
@@ -68,6 +78,7 @@ export function useReactShellStore(): ReactShellState {
   const ui = useAppSelector(selectUi);
   const adminRuntime = useAppSelector(selectAdminRuntime);
   const pvpRuntime = useAppSelector(selectPvpRuntime);
+  const scene = useAppSelector(selectScene);
   const navigationContext = useAppSelector(selectNavigationLaunchContext);
   const navigationRequestKey = useAppSelector(selectNavigationRequestKey);
 
@@ -84,9 +95,15 @@ export function useReactShellStore(): ReactShellState {
     error: ui.error,
     adminRuntime,
     pvpRuntime,
+    scene,
     navigationContext,
     navigationRequestKey,
     setBootstrap: (nextData) => {
+      const capabilityProfile = collectCapabilityProfile({
+        qualityMode: String(nextData?.ui_prefs?.quality_mode || "auto"),
+        reducedMotion: Boolean(nextData?.ui_prefs?.reduced_motion),
+        largeText: Boolean(nextData?.ui_prefs?.large_text)
+      });
       dispatch(playerActions.setBootstrap(nextData));
       dispatch(navigationActions.hydrateLaunchContext(nextData?.launch_context || null));
       dispatch(
@@ -101,9 +118,12 @@ export function useReactShellStore(): ReactShellState {
       );
       dispatch(
         sceneActions.setScenePreferences({
-          reducedMotion: Boolean(nextData?.ui_prefs?.reduced_motion),
-          largeText: Boolean(nextData?.ui_prefs?.large_text),
-          qualityMode: String(nextData?.ui_prefs?.quality_mode || "auto") as "auto" | "high" | "medium" | "low"
+          reducedMotion: Boolean(capabilityProfile.effective_reduced_motion),
+          largeText: Boolean(capabilityProfile.large_text),
+          qualityMode: String(capabilityProfile.requested_quality || "auto") as "auto" | "high" | "medium" | "low",
+          effectiveQuality: String(capabilityProfile.effective_quality || "medium") as "high" | "medium" | "low",
+          hudDensity: String(capabilityProfile.effective_hud_density || "normal") as "compact" | "normal",
+          capabilityProfile
         })
       );
     },
@@ -111,6 +131,26 @@ export function useReactShellStore(): ReactShellState {
       dispatch(playerActions.patchData(patch));
       if (Object.prototype.hasOwnProperty.call(patch || {}, "launch_context")) {
         dispatch(navigationActions.hydrateLaunchContext((patch || {}).launch_context || null));
+      }
+      if (Object.prototype.hasOwnProperty.call(patch || {}, "ui_prefs")) {
+        const nextPrefs = patch?.ui_prefs && typeof patch.ui_prefs === "object" ? patch.ui_prefs : {};
+        const nextPrefsRecord = nextPrefs as Record<string, unknown>;
+        const capabilityProfile = collectCapabilityProfile({
+          qualityMode: String(nextPrefsRecord.quality_mode || scene.qualityMode || "auto"),
+          reducedMotion:
+            typeof nextPrefsRecord.reduced_motion === "boolean" ? Boolean(nextPrefsRecord.reduced_motion) : scene.reducedMotion,
+          largeText: typeof nextPrefsRecord.large_text === "boolean" ? Boolean(nextPrefsRecord.large_text) : scene.largeText
+        });
+        dispatch(
+          sceneActions.setScenePreferences({
+            reducedMotion: Boolean(capabilityProfile.effective_reduced_motion),
+            largeText: Boolean(capabilityProfile.large_text),
+            qualityMode: String(capabilityProfile.requested_quality || "auto") as "auto" | "high" | "medium" | "low",
+            effectiveQuality: String(capabilityProfile.effective_quality || "medium") as "high" | "medium" | "low",
+            hudDensity: String(capabilityProfile.effective_hud_density || "normal") as "compact" | "normal",
+            capabilityProfile
+          })
+        );
       }
     },
     setAuth: (nextAuth) => {

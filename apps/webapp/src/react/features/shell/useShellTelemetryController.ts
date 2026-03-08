@@ -11,6 +11,13 @@ type ShellTelemetryControllerOptions = {
   workspace: "player" | "admin";
   data: Record<string, any> | null | undefined;
   launchContext?: LaunchContext | null;
+  scene: {
+    qualityMode: string;
+    effectiveQuality: string;
+    hudDensity: string;
+    reducedMotion: boolean;
+    capabilityProfile: Record<string, unknown> | null;
+  };
 };
 
 function resolveAnalyticsConfig(raw: unknown): AnalyticsConfig | null {
@@ -41,6 +48,7 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
       const launchEventKey = explicitLaunchEventKey || String(options.launchContext?.launch_event_key || "").trim();
       const explicitShellActionKey = String(rawPayload.shell_action_key || "").trim();
       const shellActionKey = explicitShellActionKey || String(options.launchContext?.shell_action_key || "").trim();
+      const capabilityProfile = options.scene.capabilityProfile || {};
       analyticsRef.current.track(
         buildUiEventRecord({
           tab_key: telemetryTabKey,
@@ -49,12 +57,30 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
           payload_json: {
             ...rawPayload,
             ...(launchEventKey ? { launch_event_key: launchEventKey } : {}),
-            ...(shellActionKey ? { shell_action_key: shellActionKey, action_key: shellActionKey } : {})
+            ...(shellActionKey ? { shell_action_key: shellActionKey, action_key: shellActionKey } : {}),
+            quality_mode: String(options.scene.qualityMode || "auto"),
+            effective_quality: String(options.scene.effectiveQuality || "medium"),
+            hud_density: String(options.scene.hudDensity || "normal"),
+            reduced_motion: Boolean(options.scene.reducedMotion),
+            capability_profile_key: String(capabilityProfile.profile_key || ""),
+            perf_tier: String(capabilityProfile.perf_tier || ""),
+            device_class: String(capabilityProfile.device_class || ""),
+            scene_profile: String(capabilityProfile.scene_profile || "")
           },
         })
       );
     },
-    [options.launchContext?.launch_event_key, options.launchContext?.shell_action_key, telemetryTabKey, telemetryRouteKey]
+    [
+      options.launchContext?.launch_event_key,
+      options.launchContext?.shell_action_key,
+      options.scene.capabilityProfile,
+      options.scene.effectiveQuality,
+      options.scene.hudDensity,
+      options.scene.qualityMode,
+      options.scene.reducedMotion,
+      telemetryTabKey,
+      telemetryRouteKey
+    ]
   );
 
   useEffect(() => {
@@ -84,7 +110,15 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
           ui_version: String(options.data?.ui_shell?.ui_version || "react_v1"),
           launch_event_key: String(options.launchContext?.launch_event_key || ""),
           shell_action_key: String(options.launchContext?.shell_action_key || ""),
-          action_key: String(options.launchContext?.shell_action_key || "")
+          action_key: String(options.launchContext?.shell_action_key || ""),
+          quality_mode: String(options.scene.qualityMode || "auto"),
+          effective_quality: String(options.scene.effectiveQuality || "medium"),
+          hud_density: String(options.scene.hudDensity || "normal"),
+          reduced_motion: Boolean(options.scene.reducedMotion),
+          capability_profile_key: String(options.scene.capabilityProfile?.profile_key || ""),
+          perf_tier: String(options.scene.capabilityProfile?.perf_tier || ""),
+          device_class: String(options.scene.capabilityProfile?.device_class || ""),
+          scene_profile: String(options.scene.capabilityProfile?.scene_profile || "")
         },
         event_value: 1
       })
@@ -96,7 +130,12 @@ export function useShellTelemetryController(options: ShellTelemetryControllerOpt
     options.activeAuth.sig,
     options.data,
     options.launchContext?.launch_event_key,
-    options.launchContext?.shell_action_key
+    options.launchContext?.shell_action_key,
+    options.scene.capabilityProfile,
+    options.scene.effectiveQuality,
+    options.scene.hudDensity,
+    options.scene.qualityMode,
+    options.scene.reducedMotion
   ]);
 
   useEffect(() => {

@@ -35,6 +35,15 @@ type PlayerWorkspaceProps = {
   tab: TabKey;
   tabs: TabKey[];
   advanced: boolean;
+  reducedMotion: boolean;
+  sceneProfile: {
+    qualityMode: string;
+    effectiveQuality: string;
+    hudDensity: string;
+    perfTier: string;
+    deviceClass: string;
+    sceneProfile: string;
+  };
   data: BootstrapV2Payload["data"] | undefined;
   homeFeed: Record<string, unknown> | null;
   pvpRuntime: Record<string, unknown> | null;
@@ -118,7 +127,7 @@ function PlayerPanelFallback(props: { label: string }) {
 export function PlayerWorkspace(props: PlayerWorkspaceProps) {
   const { activePanelKey, activeFocusKey, closePanel, routeToTarget } = usePlayerNavigationController({
     tab: props.tab,
-    reducedMotion: Boolean(props.data?.ui_prefs?.reduced_motion),
+    reducedMotion: props.reducedMotion,
     onTabChange: props.onTabChange,
     trackUiEvent: props.trackUiEvent
   });
@@ -148,6 +157,7 @@ export function PlayerWorkspace(props: PlayerWorkspaceProps) {
               panelKey={activePanelKey}
               focusKey={activeFocusKey}
               data={props.data || null}
+              sceneProfile={props.sceneProfile}
               homeFeed={props.homeFeed}
               vaultData={props.vaultData}
               onClose={closePanel}

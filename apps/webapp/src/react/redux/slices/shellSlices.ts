@@ -89,9 +89,11 @@ type TelemetryState = {
 
 type SceneState = {
   qualityMode: "auto" | "high" | "medium" | "low";
+  effectiveQuality: "high" | "medium" | "low";
   hudDensity: "compact" | "normal";
   reducedMotion: boolean;
   largeText: boolean;
+  capabilityProfile: Record<string, unknown> | null;
 };
 
 type NavigationState = {
@@ -333,15 +335,20 @@ const sceneSlice = createSlice({
   name: "scene",
   initialState: {
     qualityMode: "auto",
+    effectiveQuality: "medium",
     hudDensity: "normal",
     reducedMotion: false,
-    largeText: false
+    largeText: false,
+    capabilityProfile: null
   } as SceneState,
   reducers: {
     setScenePreferences(state, action: PayloadAction<Partial<SceneState>>) {
       const patch = action.payload || {};
       if (patch.qualityMode) {
         state.qualityMode = patch.qualityMode;
+      }
+      if (patch.effectiveQuality) {
+        state.effectiveQuality = patch.effectiveQuality;
       }
       if (patch.hudDensity) {
         state.hudDensity = patch.hudDensity;
@@ -351,6 +358,9 @@ const sceneSlice = createSlice({
       }
       if (typeof patch.largeText === "boolean") {
         state.largeText = patch.largeText;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, "capabilityProfile")) {
+        state.capabilityProfile = patch.capabilityProfile || null;
       }
     }
   }
@@ -445,3 +455,4 @@ export const selectVaultData = (state: any): Record<string, unknown> | null => s
 export const selectNavigation = (state: any): NavigationState => state.navigation;
 export const selectNavigationLaunchContext = (state: any): LaunchContext | null => state.navigation.launchContext;
 export const selectNavigationRequestKey = (state: any): number => state.navigation.requestKey;
+export const selectScene = (state: any): SceneState => state.scene;

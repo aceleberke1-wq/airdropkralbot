@@ -146,6 +146,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     onboardingVisible,
     adminRuntime,
     pvpRuntime,
+    scene,
     navigationContext,
     navigationRequestKey,
     setBootstrap,
@@ -295,7 +296,14 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     tab,
     workspace,
     data: (data as Record<string, any> | null | undefined) || null,
-    launchContext: navigationContext
+    launchContext: navigationContext,
+    scene: {
+      qualityMode: scene.qualityMode,
+      effectiveQuality: scene.effectiveQuality,
+      hudDensity: scene.hudDensity,
+      reducedMotion: scene.reducedMotion,
+      capabilityProfile: (scene.capabilityProfile as Record<string, unknown> | null) || null
+    }
   });
 
   const { refreshBootstrap } = useBootstrapRefreshController({
@@ -475,9 +483,14 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     refreshAdmin
   });
 
-  const reducedMotion = Boolean(data?.ui_prefs?.reduced_motion);
-  const largeText = Boolean(data?.ui_prefs?.large_text);
-  const rootClassName = `akrReactRoot${reducedMotion ? " isReducedMotion" : ""}${largeText ? " isLargeText" : ""}`;
+  const reducedMotion = Boolean(scene.reducedMotion);
+  const largeText = Boolean(scene.largeText);
+  const effectiveQuality = String(scene.effectiveQuality || "medium");
+  const hudDensity = String(scene.hudDensity || "normal");
+  const capabilityProfile = (scene.capabilityProfile as Record<string, unknown> | null) || null;
+  const rootClassName = `akrReactRoot${reducedMotion ? " isReducedMotion" : ""}${largeText ? " isLargeText" : ""}${
+    hudDensity === "compact" ? " isCompactHud" : ""
+  }${effectiveQuality === "low" ? " isQualityLow" : effectiveQuality === "high" ? " isQualityHigh" : " isQualityMedium"}`;
   const { launchSummary } = useLaunchFocusController({
     launchContext: navigationContext,
     workspace,
@@ -608,7 +621,16 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         onToggleLanguage={onToggleLanguage}
         onToggleWorkspace={onToggleWorkspace}
       />
-      <MetaStrip lang={lang} variant={data?.experiment?.variant || ""} sessionRef={data?.analytics?.session_ref || ""} />
+      <MetaStrip
+        lang={lang}
+        variant={data?.experiment?.variant || ""}
+        sessionRef={data?.analytics?.session_ref || ""}
+        qualityMode={scene.qualityMode}
+        effectiveQuality={scene.effectiveQuality}
+        perfTier={String(capabilityProfile?.perf_tier || "-")}
+        deviceClass={String(capabilityProfile?.device_class || "-")}
+        sceneProfile={String(capabilityProfile?.scene_profile || "-")}
+      />
       {launchSummary ? (
         <LaunchHandoffStrip
           lang={lang}
@@ -624,6 +646,15 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
             tab={tab}
             tabs={tabs}
             advanced={advanced}
+            reducedMotion={reducedMotion}
+            sceneProfile={{
+              qualityMode: scene.qualityMode,
+              effectiveQuality: scene.effectiveQuality,
+              hudDensity,
+              perfTier: String(capabilityProfile?.perf_tier || "-"),
+              deviceClass: String(capabilityProfile?.device_class || "-"),
+              sceneProfile: String(capabilityProfile?.scene_profile || "-")
+            }}
             data={data}
             homeFeed={(homeFeed as Record<string, unknown> | null) || null}
             pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
