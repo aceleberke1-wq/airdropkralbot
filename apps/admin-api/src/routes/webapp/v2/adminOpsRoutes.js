@@ -61,6 +61,9 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
   const approval = safeSnapshot.approval_summary && typeof safeSnapshot.approval_summary === "object" ? safeSnapshot.approval_summary : {};
   const scheduler = safeSnapshot.scheduler_summary && typeof safeSnapshot.scheduler_summary === "object" ? safeSnapshot.scheduler_summary : {};
   const delivery = safeSnapshot.delivery_summary && typeof safeSnapshot.delivery_summary === "object" ? safeSnapshot.delivery_summary : {};
+  const sceneRuntime = safeSnapshot.scene_runtime_summary && typeof safeSnapshot.scene_runtime_summary === "object"
+    ? safeSnapshot.scene_runtime_summary
+    : {};
   const latestDispatch = safeSnapshot.latest_dispatch && typeof safeSnapshot.latest_dispatch === "object" ? safeSnapshot.latest_dispatch : {};
   return {
     available: true,
@@ -86,7 +89,8 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
     segment_breakdown: normalizeBreakdownRows(delivery.segment_breakdown),
     surface_breakdown: normalizeBreakdownRows(delivery.surface_breakdown),
     variant_breakdown: normalizeBreakdownRows(delivery.variant_breakdown),
-    cohort_breakdown: normalizeBreakdownRows(delivery.cohort_breakdown)
+    cohort_breakdown: normalizeBreakdownRows(delivery.cohort_breakdown),
+    scene_runtime: sceneRuntime
   };
 }
 
@@ -122,7 +126,8 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
       segment_breakdown: [],
       surface_breakdown: [],
       variant_breakdown: [],
-      cohort_breakdown: []
+      cohort_breakdown: [],
+      scene_runtime: {}
     };
   }
 }

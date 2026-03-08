@@ -157,6 +157,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneRuntimeProfileBreakdown = asRows(props.metricsData?.scene_runtime_profile_breakdown_24h);
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
+  const liveOpsSceneRuntime = asRecord(liveOpsKpi?.scene_runtime);
   const localeBreakdown = asRows(liveOpsKpi?.locale_breakdown);
   const segmentBreakdown = asRows(liveOpsKpi?.segment_breakdown);
   const surfaceBreakdown = asRows(liveOpsKpi?.surface_breakdown);
@@ -304,6 +305,15 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_experiment_label")}: {readText(liveOpsKpi, "experiment_key") || "-"}
           </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_health")}: {readText(liveOpsSceneRuntime, "health_band_24h") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_trend")}: {readText(liveOpsSceneRuntime, "trend_direction_7d") || "-"}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_alarm")}: {readText(liveOpsSceneRuntime, "alarm_state_7d") || "-"}
+          </span>
         </div>
         <div className="akrStack">
           <p className="akrMutedLine">
@@ -313,6 +323,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_latest_auto_label")}: {formatStamp(liveOpsKpi?.latest_auto_dispatch_at)} /{" "}
             {readText(liveOpsKpi, "latest_auto_dispatch_ref") || "-"}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_scene_ready_avg")}: {toPct(readNum(liveOpsSceneRuntime, "ready_rate_7d_avg"))} |{" "}
+            {t(props.lang, "admin_runtime_scene_failure_avg")}: {toPct(readNum(liveOpsSceneRuntime, "failure_rate_7d_avg"))}
           </p>
           {readText(liveOpsKpi, "error_code") ? <p className="akrErrorLine">{readText(liveOpsKpi, "error_code")}</p> : null}
         </div>

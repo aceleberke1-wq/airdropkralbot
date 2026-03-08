@@ -41,6 +41,14 @@ function asCount(value: unknown) {
   return Number.isFinite(num) ? String(num) : "0";
 }
 
+function toPct(value: unknown) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) {
+    return "0%";
+  }
+  return `${Math.round(Math.max(0, num) * 100)}%`;
+}
+
 function formatWarningCode(value: string) {
   return asText(value, "-").replace(/_/g, " ");
 }
@@ -72,6 +80,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const dispatchHistory = asArray(snapshot.dispatch_history);
   const operatorTimeline = asArray(snapshot.operator_timeline);
   const deliverySummary = asRecord(snapshot.delivery_summary);
+  const sceneRuntimeSummary = asRecord(snapshot.scene_runtime_summary);
   const warnings = Array.isArray(approvalSummary.warnings) ? approvalSummary.warnings.map((row) => String(row || "").trim()).filter(Boolean) : [];
   const localeBreakdown = asArray(deliverySummary.locale_breakdown);
   const segmentBreakdown = asArray(deliverySummary.segment_breakdown);
@@ -79,6 +88,14 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const variantBreakdown = asArray(deliverySummary.variant_breakdown);
   const cohortBreakdown = asArray(deliverySummary.cohort_breakdown);
   const dailyBreakdown = asArray(deliverySummary.daily_breakdown);
+  const sceneDailyBreakdown = asArray(sceneRuntimeSummary.daily_breakdown_7d);
+  const sceneBandBreakdown = asArray(sceneRuntimeSummary.band_breakdown_7d);
+  const sceneQualityBreakdown = asArray(sceneRuntimeSummary.quality_breakdown_24h);
+  const scenePerfBreakdown = asArray(sceneRuntimeSummary.perf_breakdown_24h);
+  const sceneAlarmReasons = Array.isArray(sceneRuntimeSummary.alarm_reasons_7d)
+    ? sceneRuntimeSummary.alarm_reasons_7d.map((row) => String(row || "").trim()).filter(Boolean)
+    : [];
+  const sceneWorstDay = asRecord(sceneRuntimeSummary.worst_day_7d);
   const liveReady = approvalSummary.live_dispatch_ready === true;
   const approvalState = asText(approvalSummary.approval_state);
   const scheduleState = asText(approvalSummary.schedule_state);
@@ -240,6 +257,113 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             <strong>{asText(schedulerSummary.latest_auto_dispatch_reason)}</strong>
           </li>
         </ul>
+      </section>
+      <section className="akrMiniPanel" data-akr-focus-key="scene_runtime_summary">
+        <h4>{t(props.lang, "admin_runtime_scene_title")}</h4>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_health")}: {asText(sceneRuntimeSummary.health_band_24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_alarm")}: {asText(sceneRuntimeSummary.alarm_state_7d)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_trend")}: {asText(sceneRuntimeSummary.trend_direction_7d)} (
+            {toPct(sceneRuntimeSummary.trend_delta_ready_rate_7d)})
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_ready_rate")}: {toPct(sceneRuntimeSummary.ready_rate_24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_failure_rate")}: {toPct(sceneRuntimeSummary.failure_rate_24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_low_end")}: {asCount(sceneRuntimeSummary.low_end_24h)} (
+            {toPct(sceneRuntimeSummary.low_end_share_24h)})
+          </span>
+        </div>
+        <p className="akrMutedLine">
+          {t(props.lang, "admin_runtime_scene_worst_day")}: {asText(sceneWorstDay?.day)} | ready {toPct(sceneWorstDay?.ready_rate)} | fail{" "}
+          {toPct(sceneWorstDay?.failure_rate)} | {asText(sceneWorstDay?.health_band)}
+        </p>
+        <div className="akrSplit">
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_runtime_scene_daily_title")}</h4>
+            {sceneDailyBreakdown.length ? (
+              <ul className="akrList">
+                {sceneDailyBreakdown.map((row, index) => (
+                  <li key={`${asText(row.day, "day")}_${index}`}>
+                    <span>{asText(row.day)}</span>
+                    <strong>
+                      {toPct(row.ready_rate)} / {toPct(row.failure_rate)}
+                    </strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_runtime_scene_band_title")}</h4>
+            {sceneBandBreakdown.length ? (
+              <ul className="akrList">
+                {sceneBandBreakdown.map((row, index) => (
+                  <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                    <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                    <strong>{asCount(row.item_count)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+        </div>
+        <div className="akrSplit">
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_runtime_scene_quality_title")}</h4>
+            {sceneQualityBreakdown.length ? (
+              <ul className="akrList">
+                {sceneQualityBreakdown.map((row, index) => (
+                  <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                    <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                    <strong>{asCount(row.item_count)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+          <section className="akrMiniPanel">
+            <h4>{t(props.lang, "admin_runtime_scene_perf_title")}</h4>
+            {scenePerfBreakdown.length ? (
+              <ul className="akrList">
+                {scenePerfBreakdown.map((row, index) => (
+                  <li key={`${asText(row.bucket_key, "unknown")}_${index}`}>
+                    <span>{formatBucketCode(asText(row.bucket_key, "unknown"))}</span>
+                    <strong>{asCount(row.item_count)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="akrMuted">{t(props.lang, "admin_live_ops_no_history")}</p>
+            )}
+          </section>
+        </div>
+        {sceneAlarmReasons.length ? (
+          <div className="akrStack">
+            <strong>{t(props.lang, "admin_runtime_scene_alarm_reasons")}</strong>
+            <div className="akrChipRow">
+              {sceneAlarmReasons.map((reason) => (
+                <span className="akrChip" key={`scene_alarm_${reason}`}>
+                  {formatWarningCode(reason)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="operator_timeline">
         <h4>{t(props.lang, "admin_live_ops_timeline_title")}</h4>

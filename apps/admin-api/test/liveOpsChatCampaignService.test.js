@@ -192,13 +192,43 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
-            if (text.includes("COUNT(*) FILTER") && text.includes("interval '24 hours'")) {
+            if (text.includes("FROM behavior_events") && text.includes("COUNT(*) FILTER") && text.includes("interval '24 hours'")) {
               return {
                 rows: [
                   {
                     sent_24h: 2,
                     sent_7d: 3,
                     unique_users_7d: 3
+                  }
+                ]
+              };
+            }
+            if (text.includes("event_key IN ('runtime.scene.ready', 'runtime.scene.failed')")) {
+              return {
+                rows: [
+                  {
+                    ready_24h: 9,
+                    failed_24h: 1,
+                    low_end_24h: 3,
+                    avg_loaded_bundles_24h: 3.2,
+                    daily_breakdown_7d: [
+                      {
+                        day: "2026-03-08",
+                        total_count: 4,
+                        ready_count: 3,
+                        failed_count: 1,
+                        low_end_count: 2
+                      },
+                      {
+                        day: "2026-03-07",
+                        total_count: 5,
+                        ready_count: 5,
+                        failed_count: 0,
+                        low_end_count: 1
+                      }
+                    ],
+                    quality_breakdown_24h: [{ bucket_key: "medium", item_count: 6 }],
+                    perf_breakdown_24h: [{ bucket_key: "mid", item_count: 6 }]
                   }
                 ]
               };
@@ -360,6 +390,11 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.delivery_summary.cohort_breakdown[0].bucket_key, "17");
   assert.equal(snapshot.delivery_summary.daily_breakdown[0].day, "2026-03-08");
   assert.equal(snapshot.delivery_summary.daily_breakdown[0].sent_count, 2);
+  assert.equal(snapshot.scene_runtime_summary.ready_24h, 9);
+  assert.equal(snapshot.scene_runtime_summary.health_band_24h, "yellow");
+  assert.equal(snapshot.scene_runtime_summary.trend_direction_7d, "degrading");
+  assert.equal(snapshot.scene_runtime_summary.alarm_state_7d, "alert");
+  assert.equal(snapshot.scene_runtime_summary.quality_breakdown_24h[0].bucket_key, "medium");
 });
 
 test("live ops chat campaign service updateCampaignApproval promotes pending campaign to approved and writes audit", async () => {
@@ -417,7 +452,7 @@ test("live ops chat campaign service updateCampaignApproval promotes pending cam
         ]
       };
     }
-    if (text.includes("COUNT(*) FILTER") && text.includes("interval '24 hours'")) {
+    if (text.includes("FROM behavior_events") && text.includes("COUNT(*) FILTER") && text.includes("interval '24 hours'")) {
       return {
         rows: [
           {

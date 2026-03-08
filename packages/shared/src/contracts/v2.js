@@ -190,6 +190,42 @@ const KpiLiveOpsCampaignBreakdownSchema = z.object({
   item_count: z.number().int().nonnegative().default(0)
 });
 
+const SceneRuntimeDailySummarySchema = z.object({
+  day: z.string().default(""),
+  total_count: z.number().int().nonnegative().default(0),
+  ready_count: z.number().int().nonnegative().default(0),
+  failed_count: z.number().int().nonnegative().default(0),
+  low_end_count: z.number().int().nonnegative().default(0),
+  ready_rate: z.number().min(0).max(1).default(0),
+  failure_rate: z.number().min(0).max(1).default(0),
+  low_end_share: z.number().min(0).max(1).default(0),
+  health_band: z.string().default("no_data")
+});
+
+const SceneRuntimeCompactSummarySchema = z.object({
+  ready_24h: z.number().int().nonnegative().default(0),
+  failed_24h: z.number().int().nonnegative().default(0),
+  total_24h: z.number().int().nonnegative().default(0),
+  low_end_24h: z.number().int().nonnegative().default(0),
+  ready_rate_24h: z.number().min(0).max(1).default(0),
+  failure_rate_24h: z.number().min(0).max(1).default(0),
+  low_end_share_24h: z.number().min(0).max(1).default(0),
+  avg_loaded_bundles_24h: z.number().nonnegative().default(0),
+  health_band_24h: z.string().default("no_data"),
+  ready_rate_7d_avg: z.number().min(0).max(1).default(0),
+  failure_rate_7d_avg: z.number().min(0).max(1).default(0),
+  low_end_share_7d_avg: z.number().min(0).max(1).default(0),
+  trend_direction_7d: z.string().default("no_data"),
+  trend_delta_ready_rate_7d: z.number().default(0),
+  alarm_state_7d: z.string().default("no_data"),
+  alarm_reasons_7d: z.array(z.string()).default([]),
+  band_breakdown_7d: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  quality_breakdown_24h: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  perf_breakdown_24h: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  daily_breakdown_7d: z.array(SceneRuntimeDailySummarySchema).default([]),
+  worst_day_7d: SceneRuntimeDailySummarySchema.nullable().default(null)
+});
+
 const KpiLiveOpsCampaignSummarySchema = z.object({
   available: z.boolean().default(false),
   error_code: z.string().default(""),
@@ -214,7 +250,8 @@ const KpiLiveOpsCampaignSummarySchema = z.object({
   segment_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   surface_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
   variant_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
-  cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
+  cohort_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([]),
+  scene_runtime: SceneRuntimeCompactSummarySchema.default({})
 });
 
 const KpiBundleSnapshotResponseSchema = z.object({
@@ -749,6 +786,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   dispatch_history: z.array(LiveOpsCampaignDispatchHistoryRowSchema).default([]),
   operator_timeline: z.array(LiveOpsCampaignOperatorTimelineRowSchema).default([]),
   delivery_summary: LiveOpsCampaignDeliverySummarySchema.default({}),
+  scene_runtime_summary: SceneRuntimeCompactSummarySchema.default({}),
   latest_dispatch: z
     .object({
       event_type: z.string().default("live_ops_campaign_sent"),
@@ -809,6 +847,8 @@ module.exports = {
   KpiLiveOpsCampaignSummarySchema,
   KpiBundleSnapshotResponseSchema,
   KpiBundleSnapshotSchema,
+  SceneRuntimeCompactSummarySchema,
+  SceneRuntimeDailySummarySchema,
   LiveOpsCampaignDailyTrendPointSchema,
   LocalizedStringMapSchema,
   MonetizationTrendPointSchema,

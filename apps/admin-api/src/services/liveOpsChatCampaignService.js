@@ -15,6 +15,16 @@ const {
 } = require("../../../../packages/shared/src/liveOpsCampaignContract");
 const { normalizeTrustMessageLanguage, escapeMarkdown } = require("../../../../packages/shared/src/chatTrustMessages");
 const { DEFAULT_EXPERIMENT_KEY } = require("./webapp/reactV1Service");
+const {
+  toRate,
+  normalizeBreakdownRows,
+  normalizeSceneDailyRows,
+  resolveSceneRuntimeHealthBand,
+  resolveSceneTrendDirection,
+  resolveSceneAlarmState,
+  buildSceneBandBreakdown,
+  buildSceneAlarmReasons
+} = require("./webapp/metricsEnrichmentService");
 const { resolveLaunchSurface } = require("../../../bot/src/ui/launchSurfaceCatalog");
 const { buildNavigationFromCommand } = require("../../../bot/src/utils/miniAppLaunchResolver");
 const { resolvePlayerCommandNavigation } = require("../../../../packages/shared/src/playerCommandNavigation");
@@ -979,6 +989,203 @@ function buildSchedulerSummary(campaign, approvalSummary, latestSchedulerDispatc
   };
 }
 
+function buildEmptySceneRuntimeSummary() {
+  return {
+    ready_24h: 0,
+    failed_24h: 0,
+    total_24h: 0,
+    low_end_24h: 0,
+    ready_rate_24h: 0,
+    failure_rate_24h: 0,
+    low_end_share_24h: 0,
+    avg_loaded_bundles_24h: 0,
+    health_band_24h: "no_data",
+    ready_rate_7d_avg: 0,
+    failure_rate_7d_avg: 0,
+    low_end_share_7d_avg: 0,
+    trend_direction_7d: "no_data",
+    trend_delta_ready_rate_7d: 0,
+    alarm_state_7d: "no_data",
+    alarm_reasons_7d: [],
+    band_breakdown_7d: [],
+    quality_breakdown_24h: [],
+    perf_breakdown_24h: [],
+    daily_breakdown_7d: [],
+    worst_day_7d: null
+  };
+}
+
+async function loadSceneRuntimeSummary(client) {
+  try {
+    const result = await client.query(
+      `WITH scoped AS (
+         SELECT event_key, payload_json, created_at
+         FROM v5_webapp_ui_events
+         WHERE created_at >= now() - interval '24 hours'
+           AND event_key IN ('runtime.scene.ready', 'runtime.scene.failed')
+       )
+       SELECT
+         COUNT(*) FILTER (WHERE event_key = 'runtime.scene.ready')::bigint AS ready_24h,
+         COUNT(*) FILTER (WHERE event_key = 'runtime.scene.failed')::bigint AS failed_24h,
+         COUNT(*) FILTER (
+           WHERE COALESCE(lower(payload_json->>'low_end_mode'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS low_end_24h,
+         COALESCE(
+           AVG(
+             CASE
+               WHEN jsonb_typeof(payload_json->'loaded_bundles') = 'array'
+                 THEN jsonb_array_length(payload_json->'loaded_bundles')
+               ELSE NULL
+             END
+           ),
+           0
+         )::numeric AS avg_loaded_bundles_24h,
+         (
+           SELECT COALESCE(
+             json_agg(
+               json_build_object(
+                 'day', day,
+                 'total_count', total_count,
+                 'ready_count', ready_count,
+                 'failed_count', failed_count,
+                 'low_end_count', low_end_count
+               )
+               ORDER BY day DESC
+             ),
+             '[]'::json
+           )
+           FROM (
+             SELECT
+               to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+               COUNT(*)::int AS total_count,
+               COUNT(*) FILTER (WHERE event_key = 'runtime.scene.ready')::int AS ready_count,
+               COUNT(*) FILTER (WHERE event_key = 'runtime.scene.failed')::int AS failed_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(lower(payload_json->>'low_end_mode'), 'false') IN ('true', '1', 'yes', 'on')
+               )::int AS low_end_count
+             FROM v5_webapp_ui_events
+             WHERE created_at >= now() - interval '7 days'
+               AND event_key IN ('runtime.scene.ready', 'runtime.scene.failed')
+             GROUP BY 1
+             ORDER BY day DESC
+             LIMIT 7
+           ) daily_rows
+         ) AS daily_breakdown_7d,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'effective_quality'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) quality_rows
+         ) AS quality_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'perf_tier'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) perf_rows
+         ) AS perf_breakdown_24h
+       FROM scoped;`
+    );
+    const row = result.rows[0] || {};
+    const ready24h = Math.max(0, Number(row.ready_24h || 0));
+    const failed24h = Math.max(0, Number(row.failed_24h || 0));
+    const lowEnd24h = Math.max(0, Number(row.low_end_24h || 0));
+    const total24h = ready24h + failed24h;
+    const readyRate24h = toRate(ready24h, total24h);
+    const failureRate24h = toRate(failed24h, total24h);
+    const lowEndShare24h = toRate(lowEnd24h, total24h);
+    const dailyRows = normalizeSceneDailyRows(row.daily_breakdown_7d, 7);
+    const readyRate7dAvg = dailyRows.length
+      ? Number((dailyRows.reduce((sum, entry) => sum + Number(entry.ready_rate || 0), 0) / dailyRows.length).toFixed(4))
+      : 0;
+    const failureRate7dAvg = dailyRows.length
+      ? Number((dailyRows.reduce((sum, entry) => sum + Number(entry.failure_rate || 0), 0) / dailyRows.length).toFixed(4))
+      : 0;
+    const lowEndShare7dAvg = dailyRows.length
+      ? Number((dailyRows.reduce((sum, entry) => sum + Number(entry.low_end_share || 0), 0) / dailyRows.length).toFixed(4))
+      : 0;
+    const latestRow = dailyRows[0] || null;
+    const earliestRow = dailyRows[dailyRows.length - 1] || null;
+    const trendDirection = resolveSceneTrendDirection(
+      Number(latestRow?.ready_rate || 0),
+      Number(earliestRow?.ready_rate || 0),
+      dailyRows.length
+    );
+    const trendDelta = latestRow && earliestRow
+      ? Number((Number(latestRow.ready_rate || 0) - Number(earliestRow.ready_rate || 0)).toFixed(4))
+      : 0;
+    const worstDay = dailyRows.reduce((worst, rowEntry) => {
+      if (!worst) {
+        return rowEntry;
+      }
+      const currentFail = Number(rowEntry.failure_rate || 0);
+      const worstFail = Number(worst.failure_rate || 0);
+      if (currentFail > worstFail) {
+        return rowEntry;
+      }
+      if (currentFail === worstFail && Number(rowEntry.total_count || 0) > Number(worst.total_count || 0)) {
+        return rowEntry;
+      }
+      return worst;
+    }, null);
+    return {
+      ready_24h: ready24h,
+      failed_24h: failed24h,
+      total_24h: total24h,
+      low_end_24h: lowEnd24h,
+      ready_rate_24h: readyRate24h,
+      failure_rate_24h: failureRate24h,
+      low_end_share_24h: lowEndShare24h,
+      avg_loaded_bundles_24h: Number(Number(row.avg_loaded_bundles_24h || 0).toFixed(2)),
+      health_band_24h: resolveSceneRuntimeHealthBand(readyRate24h, total24h, failed24h),
+      ready_rate_7d_avg: readyRate7dAvg,
+      failure_rate_7d_avg: failureRate7dAvg,
+      low_end_share_7d_avg: lowEndShare7dAvg,
+      trend_direction_7d: trendDirection,
+      trend_delta_ready_rate_7d: trendDelta,
+      alarm_state_7d: resolveSceneAlarmState(dailyRows),
+      alarm_reasons_7d: buildSceneAlarmReasons(dailyRows),
+      band_breakdown_7d: buildSceneBandBreakdown(dailyRows),
+      quality_breakdown_24h: normalizeBreakdownRows(row.quality_breakdown_24h),
+      perf_breakdown_24h: normalizeBreakdownRows(row.perf_breakdown_24h),
+      daily_breakdown_7d: dailyRows,
+      worst_day_7d: worstDay
+        ? {
+            day: String(worstDay.day || ""),
+            total_count: Math.max(0, Number(worstDay.total_count || 0)),
+            ready_count: Math.max(0, Number(worstDay.ready_count || 0)),
+            failed_count: Math.max(0, Number(worstDay.failed_count || 0)),
+            low_end_count: Math.max(0, Number(worstDay.low_end_count || 0)),
+            ready_rate: Number(worstDay.ready_rate || 0),
+            failure_rate: Number(worstDay.failure_rate || 0),
+            low_end_share: Number(worstDay.low_end_share || 0),
+            health_band: String(worstDay.health_band || "no_data")
+          }
+        : null
+    };
+  } catch (err) {
+    if (err.code === "42P01" || err.code === "42703") {
+      return buildEmptySceneRuntimeSummary();
+    }
+    throw err;
+  }
+}
+
 async function buildCampaignSnapshot(client, current) {
   const snapshotState = current || (await loadLatestConfig(client));
   const latestDispatch = await loadLatestDispatchSummary(client, snapshotState.campaign.campaign_key);
@@ -987,13 +1194,14 @@ async function buildCampaignSnapshot(client, current) {
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
   const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch] = await Promise.all([
+  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
     loadDeliverySummary(client, snapshotState.campaign.campaign_key),
     loadLatestSchedulerDispatch(client, snapshotState.campaign.campaign_key),
-    loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey)
+    loadSchedulerWindowDispatch(client, snapshotState.campaign.campaign_key, currentWindowKey),
+    loadSceneRuntimeSummary(client)
   ]);
   return {
     api_version: "v2",
@@ -1008,6 +1216,7 @@ async function buildCampaignSnapshot(client, current) {
     dispatch_history: dispatchHistory,
     operator_timeline: operatorTimeline,
     delivery_summary: deliverySummary,
+    scene_runtime_summary: sceneRuntimeSummary,
     latest_dispatch: latestDispatch
   };
 }
