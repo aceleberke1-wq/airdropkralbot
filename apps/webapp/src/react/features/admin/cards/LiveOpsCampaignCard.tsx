@@ -1019,6 +1019,15 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           {asCount(opsAlertSummary.selection_query_adjustment_top_after_value)}
         </p>
         <p className="akrMutedLine">
+          {t(props.lang, "admin_live_ops_ops_alert_query_adjustment_pressure_label")}: {asText(opsAlertSummary.selection_query_adjustment_escalation_band, "-")} /{" "}
+          {asText(opsAlertSummary.selection_query_adjustment_escalation_reason, "-")} / {asText(opsAlertSummary.selection_query_adjustment_escalation_dimension, "-")} /{" "}
+          {asText(opsAlertSummary.selection_query_adjustment_escalation_bucket, "-")} / {asText(opsAlertSummary.selection_query_adjustment_escalation_field, "-")} |{" "}
+          {t(props.lang, "admin_live_ops_ops_alert_query_adjustment_score_label")}: {asCount(opsAlertSummary.selection_query_adjustment_escalation_score)} |{" "}
+          {t(props.lang, "admin_live_ops_ops_alert_query_adjustment_weights_label")}: {asCount(opsAlertSummary.selection_query_adjustment_daily_weight)} /{" "}
+          {asCount(opsAlertSummary.selection_query_adjustment_top_delta_weight)} / {asCount(opsAlertSummary.selection_query_adjustment_total_delta_weight)} /{" "}
+          {asCount(opsAlertSummary.selection_query_adjustment_field_weight)}
+        </p>
+        <p className="akrMutedLine">
           {t(props.lang, "admin_live_ops_ops_alert_selection_family_pressure_label")}: {asText(opsAlertSummary.selection_family_escalation_band, "-")} /{" "}
           {asText(opsAlertSummary.selection_family_escalation_reason, "-")} / {asText(opsAlertSummary.selection_family_escalation_dimension, "-")} /{" "}
           {asText(opsAlertSummary.selection_family_escalation_bucket, "-")} | {t(props.lang, "admin_live_ops_ops_alert_selection_family_score_label")}:{" "}

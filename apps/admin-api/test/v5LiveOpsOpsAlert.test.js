@@ -182,6 +182,18 @@ test("evaluateOpsAlert escalates watch state when recipient cap pressure is aler
   assert.equal(result.selection_query_adjustment_top_delta, -7);
   assert.equal(result.selection_query_adjustment_top_direction, "decrease");
   assert.equal(result.selection_query_adjustment_top_reason, "selection_family_risk_tightened");
+  assert.equal(result.selection_query_adjustment_escalation_band, "alert");
+  assert.equal(result.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_pressure");
+  assert.equal(result.selection_query_adjustment_escalation_dimension, "query_family");
+  assert.equal(result.selection_query_adjustment_escalation_bucket, "locale_and_segment");
+  assert.equal(result.selection_query_adjustment_escalation_field, "active_within_days_cap");
+  assert.equal(result.selection_query_adjustment_escalation_score, 11);
+  assert.equal(result.selection_query_adjustment_daily_weight, 0);
+  assert.equal(result.selection_query_adjustment_total_delta_weight, 2);
+  assert.equal(result.selection_query_adjustment_top_delta_weight, 2);
+  assert.equal(result.selection_query_adjustment_field_weight, 3);
+  assert.equal(result.selection_query_adjustment_query_family_match_days, 0);
+  assert.equal(result.selection_query_adjustment_segment_family_match_days, 0);
 });
 
 test("evaluateOpsAlert escalates watch state on concentrated locale pressure focus", async () => {
@@ -317,6 +329,88 @@ test("evaluateOpsAlert escalates watch state on severe selection prefilter press
   assert.equal(result.selection_prefilter_candidates_after, 4);
   assert.equal(result.selection_prefilter_reduction_count, 6);
   assert.equal(result.selection_prefilter_reduction_share, 0.6);
+});
+
+test("evaluateOpsAlert escalates watch state on query adjustment pressure", async () => {
+  const mod = await loadModule();
+  const result = mod.evaluateOpsAlert(
+    {
+      scheduler_skip_summary: {
+        alarm_state: "watch",
+        alarm_reason: "scene_runtime_watch_capped_repeated",
+        skipped_24h: 1,
+        skipped_7d: 2,
+        latest_skip_reason: "scene_runtime_watch_capped",
+        latest_skip_at: "2026-03-08T15:00:00.000Z"
+      },
+      scheduler_summary: {
+        recipient_cap_recommendation: {
+          pressure_band: "watch",
+          configured_recipients: 40,
+          recommended_recipient_cap: 12,
+          effective_cap_delta: 20,
+          reason: "ops_alert_segment_pressure"
+        }
+      },
+      selection_summary: {
+        query_strategy_summary: {
+          adjustment_rows: [
+            {
+              field_key: "active_within_days_cap",
+              before_value: 14,
+              after_value: 6,
+              delta_value: -8,
+              direction_key: "decrease",
+              reason_code: "selection_family_risk_tightened"
+            },
+            {
+              field_key: "pool_limit_multiplier",
+              before_value: 4,
+              after_value: 2,
+              delta_value: -2,
+              direction_key: "decrease",
+              reason_code: "selection_family_risk_tightened"
+            }
+          ]
+        }
+      },
+      selection_trend_summary: {
+        latest_query_strategy_family: "locale_and_segment",
+        latest_segment_strategy_family: "active_window",
+        query_adjustment_query_family_daily_breakdown: [
+          { day: "2026-03-08", bucket_key: "locale_and_segment", item_count: 10 },
+          { day: "2026-03-07", bucket_key: "locale_and_segment", item_count: 4 }
+        ],
+        query_adjustment_segment_family_daily_breakdown: [
+          { day: "2026-03-08", bucket_key: "active_window", item_count: 10 }
+        ]
+      },
+      pressure_focus_summary: {
+        pressure_band: "watch",
+        warning_rows: []
+      }
+    },
+    null,
+    {
+      now: new Date("2026-03-08T15:10:00.000Z"),
+      cooldownMinutes: 180
+    }
+  );
+
+  assert.equal(result.should_notify, true);
+  assert.equal(result.notification_reason, "watch_state_query_adjustment_pressure");
+  assert.equal(result.selection_query_adjustment_escalation_band, "alert");
+  assert.equal(result.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_pressure");
+  assert.equal(result.selection_query_adjustment_escalation_dimension, "query_family");
+  assert.equal(result.selection_query_adjustment_escalation_bucket, "locale_and_segment");
+  assert.equal(result.selection_query_adjustment_escalation_field, "active_within_days_cap");
+  assert.equal(result.selection_query_adjustment_escalation_score, 13);
+  assert.equal(result.selection_query_adjustment_daily_weight, 1);
+  assert.equal(result.selection_query_adjustment_total_delta_weight, 2);
+  assert.equal(result.selection_query_adjustment_top_delta_weight, 3);
+  assert.equal(result.selection_query_adjustment_field_weight, 3);
+  assert.equal(result.selection_query_adjustment_query_family_match_days, 2);
+  assert.equal(result.selection_query_adjustment_segment_family_match_days, 1);
 });
 
 test("evaluateOpsAlert escalates watch state on high query family pressure", async () => {

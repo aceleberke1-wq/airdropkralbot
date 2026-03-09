@@ -229,6 +229,18 @@ function buildLiveOpsSnapshot() {
       selection_query_adjustment_top_delta: -7,
       selection_query_adjustment_top_direction: "decrease",
       selection_query_adjustment_top_reason: "selection_family_risk_tightened",
+      selection_query_adjustment_escalation_band: "alert",
+      selection_query_adjustment_escalation_reason: "watch_state_query_adjustment_pressure",
+      selection_query_adjustment_escalation_dimension: "query_family",
+      selection_query_adjustment_escalation_bucket: "locale_and_segment",
+      selection_query_adjustment_escalation_field: "active_within_days_cap",
+      selection_query_adjustment_escalation_score: 11,
+      selection_query_adjustment_daily_weight: 1,
+      selection_query_adjustment_total_delta_weight: 3,
+      selection_query_adjustment_top_delta_weight: 2,
+      selection_query_adjustment_field_weight: 3,
+      selection_query_adjustment_query_family_match_days: 2,
+      selection_query_adjustment_segment_family_match_days: 1,
       telegram_sent: false,
       telegram_reason: "watch_band_no_notify",
       telegram_sent_at: null
@@ -587,6 +599,10 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_count, 2);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_total_delta, 9);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_top_field, "active_within_days_cap");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_band, "alert");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_pressure");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_field, "active_within_days_cap");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_score, 11);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.raised_7d, 4);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.experiment_key, "webapp_react_v1");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.effective_cap_delta_24h, 28);

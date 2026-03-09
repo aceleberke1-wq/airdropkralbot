@@ -243,6 +243,112 @@ function resolveSelectionFamilyEscalation(selectionTrend = {}, effectiveCapDelta
   };
 }
 
+function resolveSelectionAdjustmentFieldWeight(fieldKey) {
+  switch (String(fieldKey || "").trim().toLowerCase()) {
+    case "active_within_days_cap":
+      return 3;
+    case "pool_limit_multiplier":
+    case "inactive_hours_floor":
+      return 2;
+    case "max_age_days_cap":
+    case "offer_age_days_cap":
+      return 1;
+    case "":
+      return 0;
+    default:
+      return 1;
+  }
+}
+
+function resolveSelectionAdjustmentTotalDeltaWeight(totalDelta) {
+  const safeTotalDelta = Math.max(0, Number(totalDelta || 0));
+  if (safeTotalDelta >= 16) {
+    return 3;
+  }
+  if (safeTotalDelta >= 8) {
+    return 2;
+  }
+  if (safeTotalDelta >= 3) {
+    return 1;
+  }
+  return 0;
+}
+
+function resolveSelectionAdjustmentTopDeltaWeight(topDelta) {
+  const safeTopDelta = Math.abs(Number(topDelta || 0));
+  if (safeTopDelta >= 8) {
+    return 3;
+  }
+  if (safeTopDelta >= 4) {
+    return 2;
+  }
+  if (safeTopDelta >= 2) {
+    return 1;
+  }
+  return 0;
+}
+
+function resolveSelectionAdjustmentDailyWeight(matchDays) {
+  const safeMatchDays = Math.max(0, Number(matchDays || 0));
+  if (safeMatchDays >= 4) {
+    return 2;
+  }
+  if (safeMatchDays >= 2) {
+    return 1;
+  }
+  return 0;
+}
+
+function resolveSelectionAdjustmentEscalation(selectionTrend = {}, adjustmentSummary = {}) {
+  const latestQueryFamily = String(selectionTrend?.latest_query_strategy_family || "").trim().toLowerCase();
+  const latestSegmentFamily = String(selectionTrend?.latest_segment_strategy_family || "").trim().toLowerCase();
+  const queryAdjustmentFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_query_family_daily_breakdown)
+    ? selectionTrend.query_adjustment_query_family_daily_breakdown
+    : [];
+  const segmentAdjustmentFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_segment_family_daily_breakdown)
+    ? selectionTrend.query_adjustment_segment_family_daily_breakdown
+    : [];
+  const queryFamilyMatchDays = countSelectionFamilyDailyMatches(queryAdjustmentFamilyDailyRows, latestQueryFamily);
+  const segmentFamilyMatchDays = countSelectionFamilyDailyMatches(segmentAdjustmentFamilyDailyRows, latestSegmentFamily);
+  const queryFamilyWeight = resolveSelectionQueryFamilyWeight(latestQueryFamily);
+  const segmentFamilyWeight = resolveSelectionSegmentFamilyWeight(latestSegmentFamily);
+  const dailyWeight = Math.max(
+    resolveSelectionAdjustmentDailyWeight(queryFamilyMatchDays),
+    resolveSelectionAdjustmentDailyWeight(segmentFamilyMatchDays)
+  );
+  const totalDeltaWeight = resolveSelectionAdjustmentTotalDeltaWeight(adjustmentSummary.total_delta);
+  const topDeltaWeight = resolveSelectionAdjustmentTopDeltaWeight(adjustmentSummary.top_delta_value);
+  const fieldWeight = resolveSelectionAdjustmentFieldWeight(adjustmentSummary.top_field_key);
+  const queryScore = queryFamilyWeight + resolveSelectionAdjustmentDailyWeight(queryFamilyMatchDays);
+  const segmentScore = segmentFamilyWeight + resolveSelectionAdjustmentDailyWeight(segmentFamilyMatchDays);
+  const dominantDimension = queryScore >= segmentScore ? "query_family" : "segment_family";
+  const dominantBucket = dominantDimension === "query_family" ? latestQueryFamily : latestSegmentFamily;
+  const dominantScore = Math.max(queryScore, segmentScore) + totalDeltaWeight + topDeltaWeight + fieldWeight;
+  let escalationBand = "clear";
+  let reason = "";
+  if (dominantScore >= 8) {
+    escalationBand = "alert";
+    reason = "watch_state_query_adjustment_pressure";
+  } else if (dominantScore >= 5) {
+    escalationBand = "watch";
+    reason = "query_adjustment_watch_pressure";
+  }
+  return {
+    escalation_band: escalationBand,
+    reason,
+    dominant_dimension: dominantBucket ? dominantDimension : "field",
+    dominant_bucket: String(dominantBucket || "").trim(),
+    top_field_key: String(adjustmentSummary.top_field_key || "").trim(),
+    dominant_score: Math.max(0, Number(dominantScore || 0)),
+    daily_weight: dailyWeight,
+    total_delta_weight: totalDeltaWeight,
+    top_delta_weight: topDeltaWeight,
+    field_weight: fieldWeight,
+    query_family_match_days: queryFamilyMatchDays,
+    segment_family_match_days: segmentFamilyMatchDays
+  };
+}
+
 function normalizeQueryAdjustmentRows(rows) {
   if (!Array.isArray(rows)) {
     return [];
@@ -372,6 +478,7 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
       : 0;
   const pressureEscalation = resolveLiveOpsPressureEscalation(pressureFocusSummary, recipientCapRecommendation);
   const selectionFamilyEscalation = resolveSelectionFamilyEscalation(selectionTrend, effectiveCapDelta);
+  const selectionAdjustmentEscalation = resolveSelectionAdjustmentEscalation(selectionTrend, selectionQueryAdjustmentSummary);
   const fingerprint = buildAlertFingerprint(schedulerSkip);
   let shouldNotify = false;
   let notificationReason = "state_clear";
@@ -388,6 +495,9 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
   } else if (schedulerSkip.state === "watch" && selectionFamilyEscalation.escalation_band === "alert") {
     shouldNotify = true;
     notificationReason = String(selectionFamilyEscalation.reason || "watch_state_selection_family_pressure").trim() || "watch_state_selection_family_pressure";
+  } else if (schedulerSkip.state === "watch" && selectionAdjustmentEscalation.escalation_band === "alert") {
+    shouldNotify = true;
+    notificationReason = String(selectionAdjustmentEscalation.reason || "watch_state_query_adjustment_pressure").trim() || "watch_state_query_adjustment_pressure";
   } else if (
     schedulerSkip.state === "watch" &&
     selectionPrefilter.applied === true &&
@@ -477,6 +587,18 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     selection_query_adjustment_top_delta: Number(selectionQueryAdjustmentSummary.top_delta_value || 0),
     selection_query_adjustment_top_direction: String(selectionQueryAdjustmentSummary.top_direction_key || "").trim(),
     selection_query_adjustment_top_reason: String(selectionQueryAdjustmentSummary.top_reason_code || "").trim(),
+    selection_query_adjustment_escalation_band: String(selectionAdjustmentEscalation.escalation_band || "clear").trim().toLowerCase(),
+    selection_query_adjustment_escalation_reason: String(selectionAdjustmentEscalation.reason || "").trim(),
+    selection_query_adjustment_escalation_dimension: String(selectionAdjustmentEscalation.dominant_dimension || "").trim(),
+    selection_query_adjustment_escalation_bucket: String(selectionAdjustmentEscalation.dominant_bucket || "").trim(),
+    selection_query_adjustment_escalation_field: String(selectionAdjustmentEscalation.top_field_key || "").trim(),
+    selection_query_adjustment_escalation_score: Math.max(0, Number(selectionAdjustmentEscalation.dominant_score || 0)),
+    selection_query_adjustment_daily_weight: Math.max(0, Number(selectionAdjustmentEscalation.daily_weight || 0)),
+    selection_query_adjustment_total_delta_weight: Math.max(0, Number(selectionAdjustmentEscalation.total_delta_weight || 0)),
+    selection_query_adjustment_top_delta_weight: Math.max(0, Number(selectionAdjustmentEscalation.top_delta_weight || 0)),
+    selection_query_adjustment_field_weight: Math.max(0, Number(selectionAdjustmentEscalation.field_weight || 0)),
+    selection_query_adjustment_query_family_match_days: Math.max(0, Number(selectionAdjustmentEscalation.query_family_match_days || 0)),
+    selection_query_adjustment_segment_family_match_days: Math.max(0, Number(selectionAdjustmentEscalation.segment_family_match_days || 0)),
     selection_prefilter_applied: selectionPrefilter.applied === true,
     selection_prefilter_dimension: String(selectionPrefilter.dimension || "").trim(),
     selection_prefilter_bucket: String(selectionPrefilter.bucket || "").trim(),
@@ -556,6 +678,20 @@ function formatOpsAlertMessage(dispatchArtifact = {}, evaluation = {}) {
     )}/${String(evaluation.selection_query_adjustment_top_field || "-")}/${String(
       evaluation.selection_query_adjustment_top_reason || "-"
     )}/${Math.max(0, Number(evaluation.selection_query_adjustment_top_after_value || 0))}`,
+    `selection_query_adjustment_escalation=${String(evaluation.selection_query_adjustment_escalation_band || "-")}/${String(
+      evaluation.selection_query_adjustment_escalation_reason || "-"
+    )}/${String(evaluation.selection_query_adjustment_escalation_dimension || "-")}/${String(
+      evaluation.selection_query_adjustment_escalation_bucket || "-"
+    )}/${String(evaluation.selection_query_adjustment_escalation_field || "-")}:${Math.max(
+      0,
+      Number(evaluation.selection_query_adjustment_escalation_score || 0)
+    )}/${Math.max(0, Number(evaluation.selection_query_adjustment_daily_weight || 0))}/${Math.max(
+      0,
+      Number(evaluation.selection_query_adjustment_total_delta_weight || 0)
+    )}/${Math.max(0, Number(evaluation.selection_query_adjustment_top_delta_weight || 0))}/${Math.max(
+      0,
+      Number(evaluation.selection_query_adjustment_field_weight || 0)
+    )}`,
     `selection_segment_reason=${String(evaluation.selection_latest_segment_strategy_reason || "-")}/${String(
       evaluation.selection_top_segment_strategy_reason || "-"
     )}:${Math.max(0, Number(evaluation.selection_top_segment_strategy_reason_count || 0))}`,
@@ -813,6 +949,18 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       selection_query_adjustment_top_delta: Number(evaluation.selection_query_adjustment_top_delta || 0),
       selection_query_adjustment_top_direction: String(evaluation.selection_query_adjustment_top_direction || "").trim(),
       selection_query_adjustment_top_reason: String(evaluation.selection_query_adjustment_top_reason || "").trim(),
+      selection_query_adjustment_escalation_band: String(evaluation.selection_query_adjustment_escalation_band || "clear").trim() || "clear",
+      selection_query_adjustment_escalation_reason: String(evaluation.selection_query_adjustment_escalation_reason || "").trim(),
+      selection_query_adjustment_escalation_dimension: String(evaluation.selection_query_adjustment_escalation_dimension || "").trim(),
+      selection_query_adjustment_escalation_bucket: String(evaluation.selection_query_adjustment_escalation_bucket || "").trim(),
+      selection_query_adjustment_escalation_field: String(evaluation.selection_query_adjustment_escalation_field || "").trim(),
+      selection_query_adjustment_escalation_score: Math.max(0, Number(evaluation.selection_query_adjustment_escalation_score || 0)),
+      selection_query_adjustment_daily_weight: Math.max(0, Number(evaluation.selection_query_adjustment_daily_weight || 0)),
+      selection_query_adjustment_total_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_total_delta_weight || 0)),
+      selection_query_adjustment_top_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_top_delta_weight || 0)),
+      selection_query_adjustment_field_weight: Math.max(0, Number(evaluation.selection_query_adjustment_field_weight || 0)),
+      selection_query_adjustment_query_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_query_family_match_days || 0)),
+      selection_query_adjustment_segment_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_segment_family_match_days || 0)),
       selection_prefilter_applied: evaluation.selection_prefilter_applied === true,
       selection_prefilter_dimension: String(evaluation.selection_prefilter_dimension || "").trim(),
       selection_prefilter_bucket: String(evaluation.selection_prefilter_bucket || "").trim(),
