@@ -192,8 +192,11 @@ test("evaluateOpsAlert escalates watch state when recipient cap pressure is aler
   assert.equal(result.selection_query_adjustment_total_delta_weight, 2);
   assert.equal(result.selection_query_adjustment_top_delta_weight, 2);
   assert.equal(result.selection_query_adjustment_field_weight, 3);
+  assert.equal(result.selection_query_adjustment_field_family, "");
+  assert.equal(result.selection_query_adjustment_field_family_weight, 0);
   assert.equal(result.selection_query_adjustment_query_family_match_days, 0);
   assert.equal(result.selection_query_adjustment_segment_family_match_days, 0);
+  assert.equal(result.selection_query_adjustment_field_family_match_days, 0);
 });
 
 test("evaluateOpsAlert escalates watch state on concentrated locale pressure focus", async () => {
@@ -409,8 +412,77 @@ test("evaluateOpsAlert escalates watch state on query adjustment pressure", asyn
   assert.equal(result.selection_query_adjustment_total_delta_weight, 2);
   assert.equal(result.selection_query_adjustment_top_delta_weight, 3);
   assert.equal(result.selection_query_adjustment_field_weight, 3);
+  assert.equal(result.selection_query_adjustment_field_family, "");
+  assert.equal(result.selection_query_adjustment_field_family_weight, 0);
   assert.equal(result.selection_query_adjustment_query_family_match_days, 2);
   assert.equal(result.selection_query_adjustment_segment_family_match_days, 1);
+  assert.equal(result.selection_query_adjustment_field_family_match_days, 0);
+});
+
+test("evaluateOpsAlert escalates watch state on query adjustment field family pressure", async () => {
+  const mod = await loadModule();
+  const result = mod.evaluateOpsAlert(
+    {
+      scheduler_skip_summary: {
+        alarm_state: "watch",
+        alarm_reason: "scene_runtime_watch_capped_repeated",
+        skipped_24h: 1,
+        skipped_7d: 2,
+        latest_skip_reason: "scene_runtime_watch_capped",
+        latest_skip_at: "2026-03-08T15:00:00.000Z"
+      },
+      scheduler_summary: {
+        recipient_cap_recommendation: {
+          pressure_band: "watch",
+          configured_recipients: 40,
+          recommended_recipient_cap: 10,
+          effective_cap_delta: 24,
+          reason: "ops_alert_segment_pressure"
+        }
+      },
+      selection_summary: {
+        query_strategy_summary: {
+          adjustment_rows: [
+            {
+              field_key: "active_within_days_cap",
+              before_value: 14,
+              after_value: 9,
+              delta_value: -5,
+              direction_key: "decrease",
+              reason_code: "selection_family_risk_tightened"
+            }
+          ]
+        }
+      },
+      selection_trend_summary: {
+        latest_query_adjustment_field_family: "activity_window",
+        query_adjustment_field_family_daily_breakdown: [
+          { day: "2026-03-08", bucket_key: "activity_window", item_count: 6 },
+          { day: "2026-03-07", bucket_key: "activity_window", item_count: 4 },
+          { day: "2026-03-06", bucket_key: "activity_window", item_count: 3 }
+        ]
+      },
+      pressure_focus_summary: {
+        pressure_band: "watch",
+        warning_rows: []
+      }
+    },
+    null,
+    {
+      now: new Date("2026-03-08T15:10:00.000Z"),
+      cooldownMinutes: 180
+    }
+  );
+
+  assert.equal(result.should_notify, true);
+  assert.equal(result.notification_reason, "watch_state_query_adjustment_field_family_pressure");
+  assert.equal(result.selection_query_adjustment_escalation_band, "alert");
+  assert.equal(result.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_field_family_pressure");
+  assert.equal(result.selection_query_adjustment_escalation_dimension, "field_family");
+  assert.equal(result.selection_query_adjustment_escalation_bucket, "activity_window");
+  assert.equal(result.selection_query_adjustment_field_family, "activity_window");
+  assert.equal(result.selection_query_adjustment_field_family_weight, 3);
+  assert.equal(result.selection_query_adjustment_field_family_match_days, 3);
 });
 
 test("evaluateOpsAlert escalates watch state on high query family pressure", async () => {
@@ -486,8 +558,64 @@ test("evaluateOpsAlert escalates watch state on high query family pressure", asy
   assert.equal(result.selection_family_daily_weight, 2);
   assert.equal(result.selection_query_family_weight, 4);
   assert.equal(result.selection_segment_family_weight, 3);
+  assert.equal(result.selection_field_family_weight, 0);
   assert.equal(result.selection_query_family_match_days, 4);
   assert.equal(result.selection_segment_family_match_days, 2);
+  assert.equal(result.selection_field_family_match_days, 0);
+});
+
+test("evaluateOpsAlert escalates watch state on field family pressure", async () => {
+  const mod = await loadModule();
+  const result = mod.evaluateOpsAlert(
+    {
+      scheduler_skip_summary: {
+        alarm_state: "watch",
+        alarm_reason: "scene_runtime_watch_capped_repeated",
+        skipped_24h: 2,
+        skipped_7d: 5,
+        latest_skip_reason: "scene_runtime_watch_capped",
+        latest_skip_at: "2026-03-08T15:00:00.000Z"
+      },
+      scheduler_summary: {
+        recipient_cap_recommendation: {
+          pressure_band: "watch",
+          configured_recipients: 40,
+          recommended_recipient_cap: 8,
+          effective_cap_delta: 32,
+          reason: "ops_alert_segment_pressure"
+        }
+      },
+      selection_trend_summary: {
+        latest_query_adjustment_field_family: "activity_window",
+        query_adjustment_field_family_breakdown: [
+          { bucket_key: "activity_window", item_count: 6 }
+        ],
+        query_adjustment_field_family_daily_breakdown: [
+          { day: "2026-03-08", bucket_key: "activity_window", item_count: 3 },
+          { day: "2026-03-07", bucket_key: "activity_window", item_count: 2 },
+          { day: "2026-03-06", bucket_key: "activity_window", item_count: 1 }
+        ]
+      },
+      pressure_focus_summary: {
+        pressure_band: "watch",
+        warning_rows: []
+      }
+    },
+    null,
+    {
+      now: new Date("2026-03-08T15:10:00.000Z"),
+      cooldownMinutes: 180
+    }
+  );
+
+  assert.equal(result.should_notify, true);
+  assert.equal(result.notification_reason, "watch_state_field_family_pressure");
+  assert.equal(result.selection_family_escalation_band, "alert");
+  assert.equal(result.selection_family_escalation_reason, "watch_state_field_family_pressure");
+  assert.equal(result.selection_family_escalation_dimension, "field_family");
+  assert.equal(result.selection_family_escalation_bucket, "activity_window");
+  assert.equal(result.selection_field_family_weight, 3);
+  assert.equal(result.selection_field_family_match_days, 3);
 });
 
 test("runLiveOpsOpsAlert writes latest artifact and skips telegram on clear state", async () => {

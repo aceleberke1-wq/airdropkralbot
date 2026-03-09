@@ -899,8 +899,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       selection_family_daily_weight: 2,
       selection_query_family_weight: 4,
       selection_segment_family_weight: 3,
+      selection_field_family_weight: 0,
       selection_query_family_match_days: 4,
       selection_segment_family_match_days: 2,
+      selection_field_family_match_days: 0,
       selection_query_strategy_applied_24h: 1,
       selection_query_strategy_applied_7d: 3,
       selection_latest_query_strategy_reason: "query_strategy_locale_and_segment",
@@ -931,8 +933,11 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       selection_query_adjustment_total_delta_weight: 3,
       selection_query_adjustment_top_delta_weight: 2,
       selection_query_adjustment_field_weight: 3,
+      selection_query_adjustment_field_family: "activity_window",
+      selection_query_adjustment_field_family_weight: 3,
       selection_query_adjustment_query_family_match_days: 2,
       selection_query_adjustment_segment_family_match_days: 1,
+      selection_query_adjustment_field_family_match_days: 1,
       telegram_sent: true,
       telegram_reason: "",
       telegram_sent_at: "2026-03-08T12:26:30.000Z"
@@ -1066,6 +1071,7 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.ops_alert_summary.selection_family_escalation_dimension, "query_family");
   assert.equal(snapshot.ops_alert_summary.selection_family_escalation_bucket, "locale_and_segment");
   assert.equal(snapshot.ops_alert_summary.selection_family_escalation_score, 8);
+  assert.equal(snapshot.ops_alert_summary.selection_field_family_weight, 0);
   assert.equal(snapshot.ops_alert_summary.selection_family_daily_weight, 2);
   assert.equal(snapshot.ops_alert_summary.selection_query_family_match_days, 4);
   assert.equal(snapshot.ops_alert_summary.selection_segment_family_match_days, 2);
@@ -1088,6 +1094,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.ops_alert_summary.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_pressure");
   assert.equal(snapshot.ops_alert_summary.selection_query_adjustment_escalation_field, "active_within_days_cap");
   assert.equal(snapshot.ops_alert_summary.selection_query_adjustment_escalation_score, 11);
+  assert.equal(snapshot.ops_alert_summary.selection_query_adjustment_field_family, "activity_window");
+  assert.equal(snapshot.ops_alert_summary.selection_query_adjustment_field_family_weight, 3);
   assert.equal(snapshot.ops_alert_trend_summary.raised_24h, 1);
   assert.equal(snapshot.ops_alert_trend_summary.raised_7d, 3);
   assert.equal(snapshot.ops_alert_trend_summary.experiment_key, "webapp_react_v1");

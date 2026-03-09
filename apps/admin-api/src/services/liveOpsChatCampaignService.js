@@ -713,6 +713,20 @@ function resolveSelectionSegmentFamilyRiskWeight(familyKey) {
   }
 }
 
+function resolveSelectionAdjustmentFieldFamilyRiskWeight(familyKey) {
+  switch (String(familyKey || "").trim().toLowerCase()) {
+    case "activity_window":
+      return 3;
+    case "pool_limit":
+      return 2;
+    case "recency_window":
+    case "offer_window":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
 function countSelectionFamilyMatchDays(rows, familyKey) {
   const safeFamilyKey = String(familyKey || "").trim().toLowerCase();
   if (!safeFamilyKey) {
@@ -730,26 +744,44 @@ function resolveLiveOpsSelectionFamilyQueryRisk(selectionTrendSummary) {
     : {};
   const queryFamily = String(safeTrend.latest_query_strategy_family || "").trim().toLowerCase();
   const segmentFamily = String(safeTrend.latest_segment_strategy_family || "").trim().toLowerCase();
+  const fieldFamily = String(safeTrend.latest_query_adjustment_field_family || "").trim().toLowerCase();
   const queryMatchDays = countSelectionFamilyMatchDays(safeTrend.query_strategy_family_daily_breakdown, queryFamily);
   const segmentMatchDays = countSelectionFamilyMatchDays(safeTrend.segment_strategy_family_daily_breakdown, segmentFamily);
+  const fieldMatchDays = countSelectionFamilyMatchDays(safeTrend.query_adjustment_field_family_daily_breakdown, fieldFamily);
   const queryWeight = resolveSelectionQueryFamilyRiskWeight(queryFamily) + resolveSelectionFamilyRiskDailyWeight(queryMatchDays);
   const segmentWeight = resolveSelectionSegmentFamilyRiskWeight(segmentFamily) + resolveSelectionFamilyRiskDailyWeight(segmentMatchDays);
-  const dominantDimension = queryWeight >= segmentWeight ? "query_family" : "segment_family";
-  const dominantBucket = dominantDimension === "query_family" ? queryFamily : segmentFamily;
-  const dominantMatchDays = dominantDimension === "query_family" ? queryMatchDays : segmentMatchDays;
-  const dominantWeight = dominantDimension === "query_family" ? queryWeight : segmentWeight;
+  const fieldWeight = resolveSelectionAdjustmentFieldFamilyRiskWeight(fieldFamily) + resolveSelectionFamilyRiskDailyWeight(fieldMatchDays);
+  const candidates = [
+    { dimension: "query_family", bucket: queryFamily, matchDays: queryMatchDays, weight: queryWeight, priority: 0 },
+    { dimension: "segment_family", bucket: segmentFamily, matchDays: segmentMatchDays, weight: segmentWeight, priority: 1 },
+    { dimension: "field_family", bucket: fieldFamily, matchDays: fieldMatchDays, weight: fieldWeight, priority: 2 }
+  ].sort((left, right) => {
+    if (right.weight !== left.weight) {
+      return right.weight - left.weight;
+    }
+    return left.priority - right.priority;
+  });
+  const dominant = candidates[0] || { dimension: "", bucket: "", matchDays: 0, weight: 0 };
+  const dominantDimension = dominant.weight > 0 ? dominant.dimension : "";
+  const dominantBucket = dominant.weight > 0 ? dominant.bucket : "";
+  const dominantMatchDays = dominant.weight > 0 ? dominant.matchDays : 0;
+  const dominantWeight = dominant.weight;
   let state = "clear";
   let reason = "";
   if (dominantWeight >= 5) {
     state = "alert";
     reason = dominantDimension === "query_family"
       ? "query_strategy_family_streak_alert"
-      : "segment_strategy_family_streak_alert";
+      : dominantDimension === "segment_family"
+        ? "segment_strategy_family_streak_alert"
+        : "query_adjustment_field_family_streak_alert";
   } else if (dominantWeight >= 3) {
     state = "watch";
     reason = dominantDimension === "query_family"
       ? "query_strategy_family_streak_watch"
-      : "segment_strategy_family_streak_watch";
+      : dominantDimension === "segment_family"
+        ? "segment_strategy_family_streak_watch"
+        : "query_adjustment_field_family_streak_watch";
   }
   return {
     state,
@@ -760,8 +792,10 @@ function resolveLiveOpsSelectionFamilyQueryRisk(selectionTrendSummary) {
     weight: dominantWeight,
     query_match_days: queryMatchDays,
     segment_match_days: segmentMatchDays,
+    field_match_days: fieldMatchDays,
     query_weight: queryWeight,
-    segment_weight: segmentWeight
+    segment_weight: segmentWeight,
+    field_weight: fieldWeight
   };
 }
 
@@ -811,6 +845,35 @@ function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
       poolLimitMultiplier = 1;
       tightened = true;
       inactiveHoursFloor = Math.max(inactiveHoursFloor, strategy.family_risk_state === "alert" ? 120 : 96);
+      if (maxAgeDaysCap > 0) {
+        maxAgeDaysCap = Math.max(7, maxAgeDaysCap - (strategy.family_risk_state === "alert" ? 7 : 3));
+      }
+    } else if (strategy.family_risk_bucket === "offer_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      if (offerAgeDaysCap > 0) {
+        offerAgeDaysCap = Math.max(1, offerAgeDaysCap - 1);
+      }
+      if (activeWithinDaysCap > 0) {
+        activeWithinDaysCap = Math.max(3, activeWithinDaysCap - 1);
+      }
+    }
+  } else if (strategy.family_risk_dimension === "field_family") {
+    if (strategy.family_risk_bucket === "activity_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      if (activeWithinDaysCap > 0) {
+        activeWithinDaysCap = Math.max(3, activeWithinDaysCap - (strategy.family_risk_state === "alert" ? 3 : 2));
+      }
+      if (inactiveHoursFloor > 0) {
+        inactiveHoursFloor += strategy.family_risk_state === "alert" ? 24 : 12;
+      }
+    } else if (strategy.family_risk_bucket === "pool_limit") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+    } else if (strategy.family_risk_bucket === "recency_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
       if (maxAgeDaysCap > 0) {
         maxAgeDaysCap = Math.max(7, maxAgeDaysCap - (strategy.family_risk_state === "alert" ? 7 : 3));
       }
@@ -3182,8 +3245,10 @@ function buildEmptyLiveOpsOpsAlertSummary() {
     selection_family_daily_weight: 0,
     selection_query_family_weight: 0,
     selection_segment_family_weight: 0,
+    selection_field_family_weight: 0,
     selection_query_family_match_days: 0,
     selection_segment_family_match_days: 0,
+    selection_field_family_match_days: 0,
     selection_query_strategy_applied_24h: 0,
     selection_query_strategy_applied_7d: 0,
     selection_latest_query_strategy_reason: "",
@@ -3214,8 +3279,11 @@ function buildEmptyLiveOpsOpsAlertSummary() {
     selection_query_adjustment_total_delta_weight: 0,
     selection_query_adjustment_top_delta_weight: 0,
     selection_query_adjustment_field_weight: 0,
+    selection_query_adjustment_field_family: "",
+    selection_query_adjustment_field_family_weight: 0,
     selection_query_adjustment_query_family_match_days: 0,
     selection_query_adjustment_segment_family_match_days: 0,
+    selection_query_adjustment_field_family_match_days: 0,
     telegram_sent: false,
     telegram_reason: "",
     telegram_sent_at: null
@@ -3453,8 +3521,10 @@ function readLatestOpsAlertArtifactSummaryFromDisk(now, repoRootDir) {
       selection_family_daily_weight: Math.max(0, Number(evaluation.selection_family_daily_weight || 0)),
       selection_query_family_weight: Math.max(0, Number(evaluation.selection_query_family_weight || 0)),
       selection_segment_family_weight: Math.max(0, Number(evaluation.selection_segment_family_weight || 0)),
+      selection_field_family_weight: Math.max(0, Number(evaluation.selection_field_family_weight || 0)),
       selection_query_family_match_days: Math.max(0, Number(evaluation.selection_query_family_match_days || 0)),
       selection_segment_family_match_days: Math.max(0, Number(evaluation.selection_segment_family_match_days || 0)),
+      selection_field_family_match_days: Math.max(0, Number(evaluation.selection_field_family_match_days || 0)),
       selection_query_strategy_applied_24h: Math.max(0, Number(evaluation.selection_query_strategy_applied_24h || 0)),
       selection_query_strategy_applied_7d: Math.max(0, Number(evaluation.selection_query_strategy_applied_7d || 0)),
       selection_latest_query_strategy_reason: String(evaluation.selection_latest_query_strategy_reason || "").trim(),
@@ -3485,8 +3555,11 @@ function readLatestOpsAlertArtifactSummaryFromDisk(now, repoRootDir) {
       selection_query_adjustment_total_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_total_delta_weight || 0)),
       selection_query_adjustment_top_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_top_delta_weight || 0)),
       selection_query_adjustment_field_weight: Math.max(0, Number(evaluation.selection_query_adjustment_field_weight || 0)),
+      selection_query_adjustment_field_family: String(evaluation.selection_query_adjustment_field_family || "").trim(),
+      selection_query_adjustment_field_family_weight: Math.max(0, Number(evaluation.selection_query_adjustment_field_family_weight || 0)),
       selection_query_adjustment_query_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_query_family_match_days || 0)),
       selection_query_adjustment_segment_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_segment_family_match_days || 0)),
+      selection_query_adjustment_field_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_field_family_match_days || 0)),
       telegram_sent: telegram.sent === true,
       telegram_reason: String(telegram.reason || "").trim(),
       telegram_sent_at: String(telegram.sent_at || "").trim() || null

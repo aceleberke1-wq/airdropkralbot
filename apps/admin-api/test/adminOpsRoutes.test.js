@@ -215,8 +215,10 @@ function buildLiveOpsSnapshot() {
       selection_family_daily_weight: 2,
       selection_query_family_weight: 4,
       selection_segment_family_weight: 3,
+      selection_field_family_weight: 0,
       selection_query_family_match_days: 4,
       selection_segment_family_match_days: 2,
+      selection_field_family_match_days: 0,
       selection_latest_query_strategy_family: "locale_and_segment",
       selection_latest_segment_strategy_family: "active_window",
       selection_top_query_strategy_family: "locale_and_segment",
@@ -239,8 +241,11 @@ function buildLiveOpsSnapshot() {
       selection_query_adjustment_total_delta_weight: 3,
       selection_query_adjustment_top_delta_weight: 2,
       selection_query_adjustment_field_weight: 3,
+      selection_query_adjustment_field_family: "activity_window",
+      selection_query_adjustment_field_family_weight: 3,
       selection_query_adjustment_query_family_match_days: 2,
       selection_query_adjustment_segment_family_match_days: 1,
+      selection_query_adjustment_field_family_match_days: 1,
       telegram_sent: false,
       telegram_reason: "watch_band_no_notify",
       telegram_sent_at: null
@@ -600,6 +605,7 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.ops_alert.telegram_sent, false);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_family_escalation_band, "alert");
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_family_escalation_bucket, "locale_and_segment");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_field_family_weight, 0);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_family_daily_weight, 2);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_family_match_days, 4);
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_latest_query_strategy_family, "locale_and_segment");
@@ -612,6 +618,8 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_reason, "watch_state_query_adjustment_pressure");
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_field, "active_within_days_cap");
   assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_escalation_score, 11);
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_field_family, "activity_window");
+  assert.equal(body.data.live_ops_campaign.ops_alert.selection_query_adjustment_field_family_weight, 3);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.raised_7d, 4);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.experiment_key, "webapp_react_v1");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.effective_cap_delta_24h, 28);

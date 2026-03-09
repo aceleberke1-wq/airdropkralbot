@@ -175,6 +175,7 @@ function countSelectionFamilyDailyMatches(rows, familyKey) {
 function resolveSelectionFamilyEscalation(selectionTrend = {}, effectiveCapDelta = 0) {
   const latestQueryFamily = String(selectionTrend?.latest_query_strategy_family || "").trim().toLowerCase();
   const latestSegmentFamily = String(selectionTrend?.latest_segment_strategy_family || "").trim().toLowerCase();
+  const latestFieldFamily = String(selectionTrend?.latest_query_adjustment_field_family || "").trim().toLowerCase();
   const queryApplied7d = Math.max(0, Number(selectionTrend?.query_strategy_applied_7d || 0));
   const topQueryFamily =
     Array.isArray(selectionTrend?.query_strategy_family_breakdown) && selectionTrend.query_strategy_family_breakdown[0]
@@ -184,23 +185,35 @@ function resolveSelectionFamilyEscalation(selectionTrend = {}, effectiveCapDelta
     Array.isArray(selectionTrend?.segment_strategy_family_breakdown) && selectionTrend.segment_strategy_family_breakdown[0]
       ? selectionTrend.segment_strategy_family_breakdown[0]
       : {};
+  const topFieldFamily =
+    Array.isArray(selectionTrend?.query_adjustment_field_family_breakdown) && selectionTrend.query_adjustment_field_family_breakdown[0]
+      ? selectionTrend.query_adjustment_field_family_breakdown[0]
+      : {};
   const topQueryFamilyKey = String(topQueryFamily?.bucket_key || latestQueryFamily || "").trim().toLowerCase();
   const topSegmentFamilyKey = String(topSegmentFamily?.bucket_key || latestSegmentFamily || "").trim().toLowerCase();
+  const topFieldFamilyKey = String(topFieldFamily?.bucket_key || latestFieldFamily || "").trim().toLowerCase();
   const topQueryFamilyCount = Math.max(0, Number(topQueryFamily?.item_count || 0));
   const topSegmentFamilyCount = Math.max(0, Number(topSegmentFamily?.item_count || 0));
+  const topFieldFamilyCount = Math.max(0, Number(topFieldFamily?.item_count || 0));
   const queryFamilyDailyRows = Array.isArray(selectionTrend?.query_strategy_family_daily_breakdown)
     ? selectionTrend.query_strategy_family_daily_breakdown
     : [];
   const segmentFamilyDailyRows = Array.isArray(selectionTrend?.segment_strategy_family_daily_breakdown)
     ? selectionTrend.segment_strategy_family_daily_breakdown
     : [];
+  const fieldFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_field_family_daily_breakdown)
+    ? selectionTrend.query_adjustment_field_family_daily_breakdown
+    : [];
   const deltaWeight = resolveSelectionFamilyDeltaWeight(effectiveCapDelta);
   const queryFamilyWeight = resolveSelectionQueryFamilyWeight(topQueryFamilyKey || latestQueryFamily);
   const segmentFamilyWeight = resolveSelectionSegmentFamilyWeight(topSegmentFamilyKey || latestSegmentFamily);
+  const fieldFamilyWeight = resolveSelectionAdjustmentFieldFamilyWeight(topFieldFamilyKey || latestFieldFamily);
   const queryFamilyMatchDays = countSelectionFamilyDailyMatches(queryFamilyDailyRows, topQueryFamilyKey || latestQueryFamily);
   const segmentFamilyMatchDays = countSelectionFamilyDailyMatches(segmentFamilyDailyRows, topSegmentFamilyKey || latestSegmentFamily);
+  const fieldFamilyMatchDays = countSelectionFamilyDailyMatches(fieldFamilyDailyRows, topFieldFamilyKey || latestFieldFamily);
   const queryFamilyDailyWeight = resolveSelectionFamilyDailyWeight(queryFamilyMatchDays);
   const segmentFamilyDailyWeight = resolveSelectionFamilyDailyWeight(segmentFamilyMatchDays);
+  const fieldFamilyDailyWeight = resolveSelectionFamilyDailyWeight(fieldFamilyMatchDays);
   const queryScore =
     queryFamilyWeight +
     resolveSelectionFamilyCountWeight(topQueryFamilyCount) +
@@ -212,18 +225,42 @@ function resolveSelectionFamilyEscalation(selectionTrend = {}, effectiveCapDelta
     resolveSelectionFamilyCountWeight(topSegmentFamilyCount) +
     segmentFamilyDailyWeight +
     deltaWeight;
-  const dominantDimension = queryScore >= segmentScore ? "query_family" : "segment_family";
-  const dominantFamily = dominantDimension === "query_family" ? topQueryFamilyKey : topSegmentFamilyKey;
-  const dominantScore = dominantDimension === "query_family" ? queryScore : segmentScore;
+  const fieldScore =
+    fieldFamilyWeight +
+    resolveSelectionFamilyCountWeight(topFieldFamilyCount) +
+    fieldFamilyDailyWeight +
+    deltaWeight;
+  const candidates = [
+    { dimension: "query_family", family: topQueryFamilyKey, score: queryScore, dailyWeight: queryFamilyDailyWeight, priority: 0 },
+    { dimension: "segment_family", family: topSegmentFamilyKey, score: segmentScore, dailyWeight: segmentFamilyDailyWeight, priority: 1 },
+    { dimension: "field_family", family: topFieldFamilyKey, score: fieldScore, dailyWeight: fieldFamilyDailyWeight, priority: 2 }
+  ].sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+    return left.priority - right.priority;
+  });
+  const dominant = candidates[0] || { dimension: "", family: "", score: 0, dailyWeight: 0 };
+  const dominantDimension = dominant.score > 0 ? dominant.dimension : "";
+  const dominantFamily = dominant.score > 0 ? dominant.family : "";
+  const dominantScore = dominant.score;
   const hasDominantSignal = dominantScore > 0 && dominantFamily;
   let escalationBand = "clear";
   let reason = "";
   if (dominantScore >= 7) {
     escalationBand = "alert";
-    reason = dominantDimension === "query_family" ? "watch_state_query_family_pressure" : "watch_state_segment_family_pressure";
+    reason = dominantDimension === "query_family"
+      ? "watch_state_query_family_pressure"
+      : dominantDimension === "segment_family"
+        ? "watch_state_segment_family_pressure"
+        : "watch_state_field_family_pressure";
   } else if (dominantScore >= 4) {
     escalationBand = "watch";
-    reason = dominantDimension === "query_family" ? "query_family_watch_pressure" : "segment_family_watch_pressure";
+    reason = dominantDimension === "query_family"
+      ? "query_family_watch_pressure"
+      : dominantDimension === "segment_family"
+        ? "segment_family_watch_pressure"
+        : "field_family_watch_pressure";
   }
   return {
     escalation_band: escalationBand,
@@ -231,15 +268,19 @@ function resolveSelectionFamilyEscalation(selectionTrend = {}, effectiveCapDelta
     dominant_dimension: hasDominantSignal ? dominantDimension : "",
     dominant_family: hasDominantSignal ? dominantFamily : "",
     dominant_score: dominantScore,
-    daily_weight: dominantDimension === "query_family" ? queryFamilyDailyWeight : segmentFamilyDailyWeight,
+    daily_weight: Math.max(0, Number(dominant.dailyWeight || 0)),
     query_family_weight: queryFamilyWeight,
     segment_family_weight: segmentFamilyWeight,
+    field_family_weight: fieldFamilyWeight,
     query_family_match_days: queryFamilyMatchDays,
     segment_family_match_days: segmentFamilyMatchDays,
+    field_family_match_days: fieldFamilyMatchDays,
     top_query_family: topQueryFamilyKey,
     top_query_family_count: topQueryFamilyCount,
     top_segment_family: topSegmentFamilyKey,
-    top_segment_family_count: topSegmentFamilyCount
+    top_segment_family_count: topSegmentFamilyCount,
+    top_field_family: topFieldFamilyKey,
+    top_field_family_count: topFieldFamilyCount
   };
 }
 
@@ -252,6 +293,22 @@ function resolveSelectionAdjustmentFieldWeight(fieldKey) {
       return 2;
     case "max_age_days_cap":
     case "offer_age_days_cap":
+      return 1;
+    case "":
+      return 0;
+    default:
+      return 1;
+  }
+}
+
+function resolveSelectionAdjustmentFieldFamilyWeight(familyKey) {
+  switch (String(familyKey || "").trim().toLowerCase()) {
+    case "activity_window":
+      return 3;
+    case "pool_limit":
+      return 2;
+    case "recency_window":
+    case "offer_window":
       return 1;
     case "":
       return 0;
@@ -302,50 +359,99 @@ function resolveSelectionAdjustmentDailyWeight(matchDays) {
 function resolveSelectionAdjustmentEscalation(selectionTrend = {}, adjustmentSummary = {}) {
   const latestQueryFamily = String(selectionTrend?.latest_query_strategy_family || "").trim().toLowerCase();
   const latestSegmentFamily = String(selectionTrend?.latest_segment_strategy_family || "").trim().toLowerCase();
+  const latestFieldFamily = String(selectionTrend?.latest_query_adjustment_field_family || "").trim().toLowerCase();
   const queryAdjustmentFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_query_family_daily_breakdown)
     ? selectionTrend.query_adjustment_query_family_daily_breakdown
     : [];
   const segmentAdjustmentFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_segment_family_daily_breakdown)
     ? selectionTrend.query_adjustment_segment_family_daily_breakdown
     : [];
+  const fieldAdjustmentFamilyDailyRows = Array.isArray(selectionTrend?.query_adjustment_field_family_daily_breakdown)
+    ? selectionTrend.query_adjustment_field_family_daily_breakdown
+    : [];
   const queryFamilyMatchDays = countSelectionFamilyDailyMatches(queryAdjustmentFamilyDailyRows, latestQueryFamily);
   const segmentFamilyMatchDays = countSelectionFamilyDailyMatches(segmentAdjustmentFamilyDailyRows, latestSegmentFamily);
+  const fieldFamilyMatchDays = countSelectionFamilyDailyMatches(fieldAdjustmentFamilyDailyRows, latestFieldFamily);
   const queryFamilyWeight = resolveSelectionQueryFamilyWeight(latestQueryFamily);
   const segmentFamilyWeight = resolveSelectionSegmentFamilyWeight(latestSegmentFamily);
-  const dailyWeight = Math.max(
-    resolveSelectionAdjustmentDailyWeight(queryFamilyMatchDays),
-    resolveSelectionAdjustmentDailyWeight(segmentFamilyMatchDays)
-  );
+  const fieldFamilyWeight = resolveSelectionAdjustmentFieldFamilyWeight(latestFieldFamily);
   const totalDeltaWeight = resolveSelectionAdjustmentTotalDeltaWeight(adjustmentSummary.total_delta);
   const topDeltaWeight = resolveSelectionAdjustmentTopDeltaWeight(adjustmentSummary.top_delta_value);
   const fieldWeight = resolveSelectionAdjustmentFieldWeight(adjustmentSummary.top_field_key);
-  const queryScore = queryFamilyWeight + resolveSelectionAdjustmentDailyWeight(queryFamilyMatchDays);
-  const segmentScore = segmentFamilyWeight + resolveSelectionAdjustmentDailyWeight(segmentFamilyMatchDays);
-  const dominantDimension = queryScore >= segmentScore ? "query_family" : "segment_family";
-  const dominantBucket = dominantDimension === "query_family" ? latestQueryFamily : latestSegmentFamily;
-  const dominantScore = Math.max(queryScore, segmentScore) + totalDeltaWeight + topDeltaWeight + fieldWeight;
+  const candidates = [
+    {
+      dimension: "query_family",
+      bucket: latestQueryFamily,
+      familyWeight: queryFamilyWeight,
+      matchDays: queryFamilyMatchDays,
+      dailyWeight: resolveSelectionAdjustmentDailyWeight(queryFamilyMatchDays),
+      priority: 0
+    },
+    {
+      dimension: "segment_family",
+      bucket: latestSegmentFamily,
+      familyWeight: segmentFamilyWeight,
+      matchDays: segmentFamilyMatchDays,
+      dailyWeight: resolveSelectionAdjustmentDailyWeight(segmentFamilyMatchDays),
+      priority: 1
+    },
+    {
+      dimension: "field_family",
+      bucket: latestFieldFamily,
+      familyWeight: fieldFamilyWeight,
+      matchDays: fieldFamilyMatchDays,
+      dailyWeight: resolveSelectionAdjustmentDailyWeight(fieldFamilyMatchDays),
+      priority: 2
+    }
+  ].map((candidate) => ({
+    ...candidate,
+    score: candidate.familyWeight + candidate.dailyWeight
+  })).sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+    return left.priority - right.priority;
+  });
+  const dominant = candidates[0] || {
+    dimension: "",
+    bucket: "",
+    familyWeight: 0,
+    matchDays: 0,
+    dailyWeight: 0,
+    score: 0
+  };
+  const dominantDimension = dominant.score > 0 ? dominant.dimension : "";
+  const dominantBucket = dominant.score > 0 ? dominant.bucket : "";
+  const dominantScore = dominant.score + totalDeltaWeight + topDeltaWeight + fieldWeight;
   let escalationBand = "clear";
   let reason = "";
   if (dominantScore >= 8) {
     escalationBand = "alert";
-    reason = "watch_state_query_adjustment_pressure";
+    reason = dominantDimension === "field_family"
+      ? "watch_state_query_adjustment_field_family_pressure"
+      : "watch_state_query_adjustment_pressure";
   } else if (dominantScore >= 5) {
     escalationBand = "watch";
-    reason = "query_adjustment_watch_pressure";
+    reason = dominantDimension === "field_family"
+      ? "query_adjustment_field_family_watch_pressure"
+      : "query_adjustment_watch_pressure";
   }
   return {
     escalation_band: escalationBand,
     reason,
-    dominant_dimension: dominantBucket ? dominantDimension : "field",
+    dominant_dimension: dominantDimension || "field",
     dominant_bucket: String(dominantBucket || "").trim(),
     top_field_key: String(adjustmentSummary.top_field_key || "").trim(),
     dominant_score: Math.max(0, Number(dominantScore || 0)),
-    daily_weight: dailyWeight,
+    daily_weight: Math.max(0, Number(dominant.dailyWeight || 0)),
     total_delta_weight: totalDeltaWeight,
     top_delta_weight: topDeltaWeight,
     field_weight: fieldWeight,
+    field_family: String(latestFieldFamily || "").trim(),
+    field_family_weight: fieldFamilyWeight,
     query_family_match_days: queryFamilyMatchDays,
-    segment_family_match_days: segmentFamilyMatchDays
+    segment_family_match_days: segmentFamilyMatchDays,
+    field_family_match_days: fieldFamilyMatchDays
   };
 }
 
@@ -561,8 +667,10 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     selection_family_daily_weight: Math.max(0, Number(selectionFamilyEscalation.daily_weight || 0)),
     selection_query_family_weight: Math.max(0, Number(selectionFamilyEscalation.query_family_weight || 0)),
     selection_segment_family_weight: Math.max(0, Number(selectionFamilyEscalation.segment_family_weight || 0)),
+    selection_field_family_weight: Math.max(0, Number(selectionFamilyEscalation.field_family_weight || 0)),
     selection_query_family_match_days: Math.max(0, Number(selectionFamilyEscalation.query_family_match_days || 0)),
     selection_segment_family_match_days: Math.max(0, Number(selectionFamilyEscalation.segment_family_match_days || 0)),
+    selection_field_family_match_days: Math.max(0, Number(selectionFamilyEscalation.field_family_match_days || 0)),
     selection_focus_dimension: String(selectionSummary.focus_dimension || "").trim(),
     selection_focus_bucket: String(selectionSummary.focus_bucket || "").trim(),
     selection_focus_selected_matches: Math.max(0, Number(selectionSummary.selected_focus_matches || 0)),
@@ -597,8 +705,11 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     selection_query_adjustment_total_delta_weight: Math.max(0, Number(selectionAdjustmentEscalation.total_delta_weight || 0)),
     selection_query_adjustment_top_delta_weight: Math.max(0, Number(selectionAdjustmentEscalation.top_delta_weight || 0)),
     selection_query_adjustment_field_weight: Math.max(0, Number(selectionAdjustmentEscalation.field_weight || 0)),
+    selection_query_adjustment_field_family: String(selectionAdjustmentEscalation.field_family || "").trim(),
+    selection_query_adjustment_field_family_weight: Math.max(0, Number(selectionAdjustmentEscalation.field_family_weight || 0)),
     selection_query_adjustment_query_family_match_days: Math.max(0, Number(selectionAdjustmentEscalation.query_family_match_days || 0)),
     selection_query_adjustment_segment_family_match_days: Math.max(0, Number(selectionAdjustmentEscalation.segment_family_match_days || 0)),
+    selection_query_adjustment_field_family_match_days: Math.max(0, Number(selectionAdjustmentEscalation.field_family_match_days || 0)),
     selection_prefilter_applied: selectionPrefilter.applied === true,
     selection_prefilter_dimension: String(selectionPrefilter.dimension || "").trim(),
     selection_prefilter_bucket: String(selectionPrefilter.bucket || "").trim(),
@@ -923,8 +1034,10 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       selection_family_daily_weight: Math.max(0, Number(evaluation.selection_family_daily_weight || 0)),
       selection_query_family_weight: Math.max(0, Number(evaluation.selection_query_family_weight || 0)),
       selection_segment_family_weight: Math.max(0, Number(evaluation.selection_segment_family_weight || 0)),
+      selection_field_family_weight: Math.max(0, Number(evaluation.selection_field_family_weight || 0)),
       selection_query_family_match_days: Math.max(0, Number(evaluation.selection_query_family_match_days || 0)),
       selection_segment_family_match_days: Math.max(0, Number(evaluation.selection_segment_family_match_days || 0)),
+      selection_field_family_match_days: Math.max(0, Number(evaluation.selection_field_family_match_days || 0)),
       selection_focus_dimension: String(evaluation.selection_focus_dimension || "").trim(),
       selection_focus_bucket: String(evaluation.selection_focus_bucket || "").trim(),
       selection_focus_selected_matches: Math.max(0, Number(evaluation.selection_focus_selected_matches || 0)),
@@ -959,8 +1072,11 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       selection_query_adjustment_total_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_total_delta_weight || 0)),
       selection_query_adjustment_top_delta_weight: Math.max(0, Number(evaluation.selection_query_adjustment_top_delta_weight || 0)),
       selection_query_adjustment_field_weight: Math.max(0, Number(evaluation.selection_query_adjustment_field_weight || 0)),
+      selection_query_adjustment_field_family: String(evaluation.selection_query_adjustment_field_family || "").trim(),
+      selection_query_adjustment_field_family_weight: Math.max(0, Number(evaluation.selection_query_adjustment_field_family_weight || 0)),
       selection_query_adjustment_query_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_query_family_match_days || 0)),
       selection_query_adjustment_segment_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_segment_family_match_days || 0)),
+      selection_query_adjustment_field_family_match_days: Math.max(0, Number(evaluation.selection_query_adjustment_field_family_match_days || 0)),
       selection_prefilter_applied: evaluation.selection_prefilter_applied === true,
       selection_prefilter_dimension: String(evaluation.selection_prefilter_dimension || "").trim(),
       selection_prefilter_bucket: String(evaluation.selection_prefilter_bucket || "").trim(),

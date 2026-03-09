@@ -629,11 +629,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_ops_alert_query_adjustment_pressure_label")}: {readText(opsAlert, "selection_query_adjustment_escalation_band") || "-"} /{" "}
             {readText(opsAlert, "selection_query_adjustment_escalation_reason") || "-"} / {readText(opsAlert, "selection_query_adjustment_escalation_dimension") || "-"} /{" "}
-            {readText(opsAlert, "selection_query_adjustment_escalation_bucket") || "-"} / {readText(opsAlert, "selection_query_adjustment_escalation_field") || "-"} |{" "}
+            {readText(opsAlert, "selection_query_adjustment_escalation_bucket") || "-"} / {readText(opsAlert, "selection_query_adjustment_escalation_field") || "-"} /{" "}
+            {readText(opsAlert, "selection_query_adjustment_field_family") || "-"} |{" "}
             {t(props.lang, "admin_runtime_live_ops_ops_alert_query_adjustment_score_label")}: {Math.floor(readNum(opsAlert, "selection_query_adjustment_escalation_score"))} |{" "}
             {t(props.lang, "admin_runtime_live_ops_ops_alert_query_adjustment_weights_label")}: {Math.floor(readNum(opsAlert, "selection_query_adjustment_daily_weight"))} /{" "}
             {Math.floor(readNum(opsAlert, "selection_query_adjustment_top_delta_weight"))} / {Math.floor(readNum(opsAlert, "selection_query_adjustment_total_delta_weight"))} /{" "}
-            {Math.floor(readNum(opsAlert, "selection_query_adjustment_field_weight"))}
+            {Math.floor(readNum(opsAlert, "selection_query_adjustment_field_weight"))} / {Math.floor(readNum(opsAlert, "selection_query_adjustment_field_family_weight"))} /{" "}
+            {Math.floor(readNum(opsAlert, "selection_query_adjustment_query_family_match_days"))} / {Math.floor(readNum(opsAlert, "selection_query_adjustment_segment_family_match_days"))} /{" "}
+            {Math.floor(readNum(opsAlert, "selection_query_adjustment_field_family_match_days"))}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_ops_alert_selection_family_pressure_label")}: {readText(opsAlert, "selection_family_escalation_band") || "-"} /{" "}
@@ -641,8 +644,9 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {readText(opsAlert, "selection_family_escalation_bucket") || "-"} | {t(props.lang, "admin_runtime_live_ops_ops_alert_selection_family_score_label")}:{" "}
             {Math.floor(readNum(opsAlert, "selection_family_escalation_score"))} | {t(props.lang, "admin_runtime_live_ops_ops_alert_selection_family_daily_label")}:{" "}
             {Math.floor(readNum(opsAlert, "selection_family_daily_weight"))} / {Math.floor(readNum(opsAlert, "selection_query_family_match_days"))} /{" "}
-            {Math.floor(readNum(opsAlert, "selection_segment_family_match_days"))} | Q {Math.floor(readNum(opsAlert, "selection_query_family_weight"))} / S{" "}
-            {Math.floor(readNum(opsAlert, "selection_segment_family_weight"))}
+            {Math.floor(readNum(opsAlert, "selection_segment_family_match_days"))} / {Math.floor(readNum(opsAlert, "selection_field_family_match_days"))} | Q{" "}
+            {Math.floor(readNum(opsAlert, "selection_query_family_weight"))} / S {Math.floor(readNum(opsAlert, "selection_segment_family_weight"))} / F{" "}
+            {Math.floor(readNum(opsAlert, "selection_field_family_weight"))}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_recommend_reason_label")}: {readText(recipientCapRecommendation, "reason") || "-"} |{" "}
