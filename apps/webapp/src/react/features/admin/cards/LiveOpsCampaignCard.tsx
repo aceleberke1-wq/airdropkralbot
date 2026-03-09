@@ -254,6 +254,27 @@ function SelectionFamilyDailyTrendList(props: { title: string; rows: Array<Recor
   );
 }
 
+function SelectionFamilyRiskDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return <p className="akrMuted">{props.title}: -</p>;
+  }
+  return (
+    <section className="akrMiniPanel">
+      <h4>{props.title}</h4>
+      <ul className="akrList">
+        {props.rows.map((row, index) => (
+          <li key={`${asText(row.day, "day")}_${asText(row.risk_bucket, "bucket")}_${index}`}>
+            <span>{asText(row.day)} | {asText(row.risk_state, "-")} | {asText(row.risk_dimension, "-")} / {asText(row.risk_bucket, "-")}</span>
+            <strong>
+              {asCount(row.risk_score)} | {asText(row.query_family, "-")} / {asText(row.segment_family, "-")}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const snapshot = asRecord(props.liveOpsCampaignData);
   const approvalSummary = asRecord(snapshot.approval_summary);
@@ -300,7 +321,9 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const selectionTrendSegmentFamilies = asArray(selectionTrendSummary.segment_strategy_family_breakdown);
   const selectionTrendQueryFamilyDaily = asArray(selectionTrendSummary.query_strategy_family_daily_breakdown);
   const selectionTrendSegmentFamilyDaily = asArray(selectionTrendSummary.segment_strategy_family_daily_breakdown);
+  const selectionTrendFamilyRiskDaily = asArray(selectionTrendSummary.family_risk_daily_breakdown);
   const selectionTrendPrefilterReasons = asArray(selectionTrendSummary.prefilter_reason_breakdown);
+  const selectionTrendFamilyRiskBands = asArray(selectionTrendSummary.family_risk_band_breakdown);
   const sceneAlarmReasons = Array.isArray(sceneRuntimeSummary.alarm_reasons_7d)
     ? sceneRuntimeSummary.alarm_reasons_7d.map((row) => String(row || "").trim()).filter(Boolean)
     : [];
@@ -794,6 +817,11 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             {t(props.lang, "admin_live_ops_selection_trend_query_family_label")}: {asText(selectionTrendSummary.latest_query_strategy_family, "-")} |{" "}
             {t(props.lang, "admin_live_ops_selection_trend_segment_family_label")}: {asText(selectionTrendSummary.latest_segment_strategy_family, "-")}
           </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_trend_family_risk_label")}: {asText(selectionTrendSummary.latest_family_risk_state, "-")} /{" "}
+            {asText(selectionTrendSummary.latest_family_risk_reason, "-")} / {asText(selectionTrendSummary.latest_family_risk_dimension, "-")} /{" "}
+            {asText(selectionTrendSummary.latest_family_risk_bucket, "-")} | {asCount(selectionTrendSummary.latest_family_risk_score)}
+          </p>
         </div>
         <SelectionDailyTrendList title={t(props.lang, "admin_live_ops_selection_trend_daily_title")} rows={selectionTrendDailyBreakdown} />
         <SelectionFamilyDailyTrendList
@@ -804,10 +832,15 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           title={t(props.lang, "admin_live_ops_selection_trend_segment_family_daily_title")}
           rows={selectionTrendSegmentFamilyDaily}
         />
+        <SelectionFamilyRiskDailyTrendList
+          title={t(props.lang, "admin_live_ops_selection_trend_family_risk_daily_title")}
+          rows={selectionTrendFamilyRiskDaily}
+        />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_query_reason_title")} rows={selectionTrendQueryReasons} />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_query_family_title")} rows={selectionTrendQueryFamilies} />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_segment_reason_title")} rows={selectionTrendSegmentReasons} />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_segment_family_title")} rows={selectionTrendSegmentFamilies} />
+        <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_family_risk_band_title")} rows={selectionTrendFamilyRiskBands} />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_reason_title")} rows={selectionTrendPrefilterReasons} />
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="ops_alert_summary">

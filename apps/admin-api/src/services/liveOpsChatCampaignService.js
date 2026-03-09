@@ -685,7 +685,11 @@ function resolveLiveOpsSelectionFamilyQueryRisk(selectionTrendSummary) {
     dimension: dominantWeight > 0 ? dominantDimension : "",
     bucket: dominantWeight > 0 ? dominantBucket : "",
     match_days: dominantWeight > 0 ? dominantMatchDays : 0,
-    weight: dominantWeight
+    weight: dominantWeight,
+    query_match_days: queryMatchDays,
+    segment_match_days: segmentMatchDays,
+    query_weight: queryWeight,
+    segment_weight: segmentWeight
   };
 }
 
@@ -1979,6 +1983,64 @@ function buildFamilyDailyBreakdown(rows, resolver) {
     .slice(0, 7);
 }
 
+function buildSelectionFamilyRiskBandBreakdown(rows) {
+  const counts = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const bucketKey = String(row?.risk_state || "clear").trim().toLowerCase() || "clear";
+    counts.set(bucketKey, (counts.get(bucketKey) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([bucket_key, item_count]) => ({ bucket_key, item_count }))
+    .sort((left, right) => {
+      if (right.item_count !== left.item_count) {
+        return right.item_count - left.item_count;
+      }
+      return String(left.bucket_key).localeCompare(String(right.bucket_key));
+    })
+    .slice(0, 8);
+}
+
+function buildSelectionFamilyRiskDailyBreakdown(queryFamilyDailyRows, segmentFamilyDailyRows) {
+  const safeQueryRows = normalizeSelectionFamilyDailyRows(queryFamilyDailyRows);
+  const safeSegmentRows = normalizeSelectionFamilyDailyRows(segmentFamilyDailyRows);
+  const queryRowByDay = new Map(safeQueryRows.map((row) => [row.day, row]));
+  const segmentRowByDay = new Map(safeSegmentRows.map((row) => [row.day, row]));
+  const days = Array.from(
+    new Set([
+      ...safeQueryRows.map((row) => row.day),
+      ...safeSegmentRows.map((row) => row.day)
+    ])
+  )
+    .filter(Boolean)
+    .sort((left, right) => String(right).localeCompare(String(left)))
+    .slice(0, 7);
+
+  return days.map((day) => {
+    const queryRow = queryRowByDay.get(day);
+    const segmentRow = segmentRowByDay.get(day);
+    const risk = resolveLiveOpsSelectionFamilyQueryRisk({
+      latest_query_strategy_family: queryRow?.bucket_key || "",
+      latest_segment_strategy_family: segmentRow?.bucket_key || "",
+      query_strategy_family_daily_breakdown: safeQueryRows.filter((row) => String(row.day).localeCompare(day) <= 0),
+      segment_strategy_family_daily_breakdown: safeSegmentRows.filter((row) => String(row.day).localeCompare(day) <= 0)
+    });
+    return {
+      day,
+      risk_state: risk.state,
+      risk_reason: risk.reason,
+      risk_dimension: risk.dimension,
+      risk_bucket: risk.bucket,
+      risk_score: Math.max(0, Number(risk.weight || 0)),
+      query_family: String(queryRow?.bucket_key || "").trim(),
+      segment_family: String(segmentRow?.bucket_key || "").trim(),
+      query_match_days: Math.max(0, Number(risk.query_match_days || 0)),
+      segment_match_days: Math.max(0, Number(risk.segment_match_days || 0)),
+      query_weight: Math.max(0, Number(risk.query_weight || 0)),
+      segment_weight: Math.max(0, Number(risk.segment_weight || 0))
+    };
+  });
+}
+
 function normalizeSelectionTrendSummary(summary) {
   const safeSummary = summary && typeof summary === "object" && !Array.isArray(summary) ? summary : {};
   return {
@@ -2003,13 +2065,40 @@ function normalizeSelectionTrendSummary(summary) {
     latest_segment_strategy_reason: String(safeSummary.latest_segment_strategy_reason || "").trim(),
     latest_segment_strategy_family: String(safeSummary.latest_segment_strategy_family || "").trim(),
     latest_prefilter_reason: String(safeSummary.latest_prefilter_reason || "").trim(),
+    latest_family_risk_state: ["clear", "watch", "alert"].includes(String(safeSummary.latest_family_risk_state || "").trim().toLowerCase())
+      ? String(safeSummary.latest_family_risk_state || "").trim().toLowerCase()
+      : "clear",
+    latest_family_risk_reason: String(safeSummary.latest_family_risk_reason || "").trim(),
+    latest_family_risk_dimension: String(safeSummary.latest_family_risk_dimension || "").trim(),
+    latest_family_risk_bucket: String(safeSummary.latest_family_risk_bucket || "").trim(),
+    latest_family_risk_score: Math.max(0, Number(safeSummary.latest_family_risk_score || 0)),
     daily_breakdown: normalizeSelectionTrendDailyRows(safeSummary.daily_breakdown),
     query_strategy_family_daily_breakdown: normalizeSelectionFamilyDailyRows(safeSummary.query_strategy_family_daily_breakdown),
     segment_strategy_family_daily_breakdown: normalizeSelectionFamilyDailyRows(safeSummary.segment_strategy_family_daily_breakdown),
+    family_risk_daily_breakdown: (Array.isArray(safeSummary.family_risk_daily_breakdown) ? safeSummary.family_risk_daily_breakdown : [])
+      .map((row) => ({
+        day: String(row?.day || "").trim(),
+        risk_state: ["clear", "watch", "alert"].includes(String(row?.risk_state || "").trim().toLowerCase())
+          ? String(row?.risk_state || "").trim().toLowerCase()
+          : "clear",
+        risk_reason: String(row?.risk_reason || "").trim(),
+        risk_dimension: String(row?.risk_dimension || "").trim(),
+        risk_bucket: String(row?.risk_bucket || "").trim(),
+        risk_score: Math.max(0, Number(row?.risk_score || 0)),
+        query_family: String(row?.query_family || "").trim(),
+        segment_family: String(row?.segment_family || "").trim(),
+        query_match_days: Math.max(0, Number(row?.query_match_days || 0)),
+        segment_match_days: Math.max(0, Number(row?.segment_match_days || 0)),
+        query_weight: Math.max(0, Number(row?.query_weight || 0)),
+        segment_weight: Math.max(0, Number(row?.segment_weight || 0))
+      }))
+      .filter((row) => row.day)
+      .slice(0, 7),
     query_strategy_reason_breakdown: normalizeBreakdownRows(safeSummary.query_strategy_reason_breakdown),
     query_strategy_family_breakdown: normalizeBreakdownRows(safeSummary.query_strategy_family_breakdown),
     segment_strategy_reason_breakdown: normalizeBreakdownRows(safeSummary.segment_strategy_reason_breakdown),
     segment_strategy_family_breakdown: normalizeBreakdownRows(safeSummary.segment_strategy_family_breakdown),
+    family_risk_band_breakdown: normalizeBreakdownRows(safeSummary.family_risk_band_breakdown),
     prefilter_reason_breakdown: normalizeBreakdownRows(safeSummary.prefilter_reason_breakdown)
   };
 }
@@ -2297,6 +2386,10 @@ async function loadSelectionTrendSummary(client, campaignKey) {
     !Array.isArray(latestSelection.prefilter_summary)
       ? latestSelection.prefilter_summary
       : {};
+  const queryFamilyDailyBreakdown = buildFamilyDailyBreakdown(queryReasonDailyResult.rows, resolveLiveOpsQueryStrategyFamily);
+  const segmentFamilyDailyBreakdown = buildFamilyDailyBreakdown(segmentReasonDailyResult.rows, resolveLiveOpsSegmentStrategyFamily);
+  const familyRiskDailyBreakdown = buildSelectionFamilyRiskDailyBreakdown(queryFamilyDailyBreakdown, segmentFamilyDailyBreakdown);
+  const latestFamilyRisk = familyRiskDailyBreakdown[0] || {};
   return {
     dispatches_24h: Math.max(0, Number(totals.dispatches_24h || 0)),
     dispatches_7d: Math.max(0, Number(totals.dispatches_7d || 0)),
@@ -2319,13 +2412,20 @@ async function loadSelectionTrendSummary(client, campaignKey) {
     latest_segment_strategy_reason: String(latestQueryStrategy.segment_strategy_reason || ""),
     latest_segment_strategy_family: resolveLiveOpsSegmentStrategyFamily(latestQueryStrategy.segment_strategy_reason),
     latest_prefilter_reason: String(latestPrefilter.reason || ""),
+    latest_family_risk_state: String(latestFamilyRisk.risk_state || "clear"),
+    latest_family_risk_reason: String(latestFamilyRisk.risk_reason || ""),
+    latest_family_risk_dimension: String(latestFamilyRisk.risk_dimension || ""),
+    latest_family_risk_bucket: String(latestFamilyRisk.risk_bucket || ""),
+    latest_family_risk_score: Math.max(0, Number(latestFamilyRisk.risk_score || 0)),
     daily_breakdown: normalizeSelectionTrendDailyRows(dailyResult.rows),
-    query_strategy_family_daily_breakdown: buildFamilyDailyBreakdown(queryReasonDailyResult.rows, resolveLiveOpsQueryStrategyFamily),
-    segment_strategy_family_daily_breakdown: buildFamilyDailyBreakdown(segmentReasonDailyResult.rows, resolveLiveOpsSegmentStrategyFamily),
+    query_strategy_family_daily_breakdown: queryFamilyDailyBreakdown,
+    segment_strategy_family_daily_breakdown: segmentFamilyDailyBreakdown,
+    family_risk_daily_breakdown: familyRiskDailyBreakdown,
     query_strategy_reason_breakdown: normalizeBreakdownRows(queryReasonResult.rows),
     query_strategy_family_breakdown: buildFamilyBreakdown(queryReasonResult.rows, resolveLiveOpsQueryStrategyFamily),
     segment_strategy_reason_breakdown: normalizeBreakdownRows(segmentReasonResult.rows),
     segment_strategy_family_breakdown: buildFamilyBreakdown(segmentReasonResult.rows, resolveLiveOpsSegmentStrategyFamily),
+    family_risk_band_breakdown: buildSelectionFamilyRiskBandBreakdown(familyRiskDailyBreakdown),
     prefilter_reason_breakdown: normalizeBreakdownRows(prefilterReasonResult.rows)
   };
 }
@@ -2816,13 +2916,20 @@ function buildEmptyLiveOpsSelectionTrendSummary() {
     latest_segment_strategy_reason: "",
     latest_segment_strategy_family: "",
     latest_prefilter_reason: "",
+    latest_family_risk_state: "clear",
+    latest_family_risk_reason: "",
+    latest_family_risk_dimension: "",
+    latest_family_risk_bucket: "",
+    latest_family_risk_score: 0,
     daily_breakdown: [],
     query_strategy_family_daily_breakdown: [],
     segment_strategy_family_daily_breakdown: [],
+    family_risk_daily_breakdown: [],
     query_strategy_reason_breakdown: [],
     query_strategy_family_breakdown: [],
     segment_strategy_reason_breakdown: [],
     segment_strategy_family_breakdown: [],
+    family_risk_band_breakdown: [],
     prefilter_reason_breakdown: []
   };
 }

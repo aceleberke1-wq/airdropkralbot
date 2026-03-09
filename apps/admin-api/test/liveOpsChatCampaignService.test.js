@@ -847,6 +847,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.selection_trend_summary.latest_segment_strategy_reason, "segment_query_active_window_tight");
   assert.equal(snapshot.selection_trend_summary.latest_segment_strategy_family, "active_window");
   assert.equal(snapshot.selection_trend_summary.latest_prefilter_reason, "prefilter_applied");
+  assert.equal(snapshot.selection_trend_summary.latest_family_risk_state, "watch");
+  assert.equal(snapshot.selection_trend_summary.latest_family_risk_reason, "query_strategy_family_streak_watch");
+  assert.equal(snapshot.selection_trend_summary.latest_family_risk_bucket, "locale_and_segment");
+  assert.equal(snapshot.selection_trend_summary.latest_family_risk_score, 4);
   assert.equal(snapshot.selection_trend_summary.daily_breakdown[0].query_strategy_applied_count, 1);
   assert.equal(snapshot.selection_trend_summary.daily_breakdown[0].prefilter_delta_sum, 4);
   assert.equal(snapshot.selection_trend_summary.query_strategy_reason_breakdown[0].bucket_key, "query_strategy_locale_and_segment");
@@ -855,6 +859,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.selection_trend_summary.segment_strategy_reason_breakdown[0].bucket_key, "segment_query_active_window_tight");
   assert.equal(snapshot.selection_trend_summary.segment_strategy_family_breakdown[0].bucket_key, "active_window");
   assert.equal(snapshot.selection_trend_summary.segment_strategy_family_daily_breakdown[0].bucket_key, "active_window");
+  assert.equal(snapshot.selection_trend_summary.family_risk_daily_breakdown[0].risk_state, "watch");
+  assert.equal(snapshot.selection_trend_summary.family_risk_daily_breakdown[0].risk_score, 4);
+  assert.equal(snapshot.selection_trend_summary.family_risk_band_breakdown[0].bucket_key, "watch");
+  assert.equal(snapshot.selection_trend_summary.family_risk_band_breakdown[0].item_count, 3);
   assert.equal(snapshot.selection_trend_summary.prefilter_reason_breakdown[0].bucket_key, "prefilter_applied");
   assert.equal(snapshot.ops_alert_summary.artifact_found, true);
   assert.equal(snapshot.ops_alert_summary.alarm_state, "alert");

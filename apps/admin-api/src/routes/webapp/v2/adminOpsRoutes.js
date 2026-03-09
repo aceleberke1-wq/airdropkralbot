@@ -368,13 +368,38 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       latest_segment_strategy_reason: String(selectionTrend.latest_segment_strategy_reason || ""),
       latest_segment_strategy_family: String(selectionTrend.latest_segment_strategy_family || ""),
       latest_prefilter_reason: String(selectionTrend.latest_prefilter_reason || ""),
+      latest_family_risk_state: String(selectionTrend.latest_family_risk_state || "clear"),
+      latest_family_risk_reason: String(selectionTrend.latest_family_risk_reason || ""),
+      latest_family_risk_dimension: String(selectionTrend.latest_family_risk_dimension || ""),
+      latest_family_risk_bucket: String(selectionTrend.latest_family_risk_bucket || ""),
+      latest_family_risk_score: Math.max(0, Number(selectionTrend.latest_family_risk_score || 0)),
       daily_breakdown: normalizeSelectionTrendDailyRows(selectionTrend.daily_breakdown),
       query_strategy_family_daily_breakdown: normalizeSelectionFamilyDailyRows(selectionTrend.query_strategy_family_daily_breakdown),
       segment_strategy_family_daily_breakdown: normalizeSelectionFamilyDailyRows(selectionTrend.segment_strategy_family_daily_breakdown),
+      family_risk_daily_breakdown: Array.isArray(selectionTrend.family_risk_daily_breakdown)
+        ? selectionTrend.family_risk_daily_breakdown
+            .map((row) => ({
+              day: String(row?.day || ""),
+              risk_state: String(row?.risk_state || "clear"),
+              risk_reason: String(row?.risk_reason || ""),
+              risk_dimension: String(row?.risk_dimension || ""),
+              risk_bucket: String(row?.risk_bucket || ""),
+              risk_score: Math.max(0, Number(row?.risk_score || 0)),
+              query_family: String(row?.query_family || ""),
+              segment_family: String(row?.segment_family || ""),
+              query_match_days: Math.max(0, Number(row?.query_match_days || 0)),
+              segment_match_days: Math.max(0, Number(row?.segment_match_days || 0)),
+              query_weight: Math.max(0, Number(row?.query_weight || 0)),
+              segment_weight: Math.max(0, Number(row?.segment_weight || 0))
+            }))
+            .filter((row) => row.day)
+            .slice(0, 7)
+        : [],
       query_strategy_reason_breakdown: normalizeBreakdownRows(selectionTrend.query_strategy_reason_breakdown),
       query_strategy_family_breakdown: normalizeBreakdownRows(selectionTrend.query_strategy_family_breakdown),
       segment_strategy_reason_breakdown: normalizeBreakdownRows(selectionTrend.segment_strategy_reason_breakdown),
       segment_strategy_family_breakdown: normalizeBreakdownRows(selectionTrend.segment_strategy_family_breakdown),
+      family_risk_band_breakdown: normalizeBreakdownRows(selectionTrend.family_risk_band_breakdown),
       prefilter_reason_breakdown: normalizeBreakdownRows(selectionTrend.prefilter_reason_breakdown)
     },
     scene_runtime: sceneRuntime
@@ -596,13 +621,20 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         latest_segment_strategy_reason: "",
         latest_segment_strategy_family: "",
         latest_prefilter_reason: "",
+        latest_family_risk_state: "clear",
+        latest_family_risk_reason: "",
+        latest_family_risk_dimension: "",
+        latest_family_risk_bucket: "",
+        latest_family_risk_score: 0,
         daily_breakdown: [],
         query_strategy_family_daily_breakdown: [],
         segment_strategy_family_daily_breakdown: [],
+        family_risk_daily_breakdown: [],
         query_strategy_reason_breakdown: [],
         query_strategy_family_breakdown: [],
         segment_strategy_reason_breakdown: [],
         segment_strategy_family_breakdown: [],
+        family_risk_band_breakdown: [],
         prefilter_reason_breakdown: []
       },
       scene_runtime: {}
