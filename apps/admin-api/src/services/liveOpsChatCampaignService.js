@@ -1655,6 +1655,7 @@ function normalizeSelectionTrendDailyRows(rows) {
     .map((row) => ({
       day: String(row?.day || "").trim(),
       dispatch_count: Math.max(0, Number(row?.dispatch_count || 0)),
+      query_strategy_applied_count: Math.max(0, Number(row?.query_strategy_applied_count || 0)),
       prefilter_applied_count: Math.max(0, Number(row?.prefilter_applied_count || 0)),
       prefilter_delta_sum: Math.max(0, Number(row?.prefilter_delta_sum || 0)),
       prioritized_focus_matches: Math.max(0, Number(row?.prioritized_focus_matches || 0)),
@@ -1667,11 +1668,19 @@ function normalizeSelectionTrendDailyRows(rows) {
 async function loadSelectionTrendSummary(client, campaignKey) {
   const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
   const key = String(campaignKey || "");
-  const [totalsResult, latestResult, dailyResult, reasonResult] = await Promise.all([
+  const [totalsResult, latestResult, dailyResult, prefilterReasonResult, queryReasonResult, segmentReasonResult] = await Promise.all([
     client.query(
       `SELECT
          COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS dispatches_24h,
          COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days')::bigint AS dispatches_7d,
+         COUNT(*) FILTER (
+           WHERE created_at >= now() - interval '24 hours'
+             AND COALESCE(lower(payload_json#>>'{targeting_selection_summary,query_strategy_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS query_strategy_applied_24h,
+         COUNT(*) FILTER (
+           WHERE created_at >= now() - interval '7 days'
+             AND COALESCE(lower(payload_json#>>'{targeting_selection_summary,query_strategy_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS query_strategy_applied_7d,
          COUNT(*) FILTER (
            WHERE created_at >= now() - interval '24 hours'
              AND COALESCE(lower(payload_json#>>'{targeting_selection_summary,prefilter_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
@@ -1779,6 +1788,9 @@ async function loadSelectionTrendSummary(client, campaignKey) {
          to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
          COUNT(*)::bigint AS dispatch_count,
          COUNT(*) FILTER (
+           WHERE COALESCE(lower(payload_json#>>'{targeting_selection_summary,query_strategy_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS query_strategy_applied_count,
+         COUNT(*) FILTER (
            WHERE COALESCE(lower(payload_json#>>'{targeting_selection_summary,prefilter_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
          )::bigint AS prefilter_applied_count,
          COALESCE(
@@ -1841,6 +1853,36 @@ async function loadSelectionTrendSummary(client, campaignKey) {
        ORDER BY item_count DESC, bucket_key ASC
        LIMIT 8;`,
       [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json#>>'{targeting_selection_summary,query_strategy_summary,reason}', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json#>>'{targeting_selection_summary,query_strategy_summary,segment_strategy_reason}', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
     )
   ]);
 
@@ -1855,6 +1897,12 @@ async function loadSelectionTrendSummary(client, campaignKey) {
     !Array.isArray(latestPayload.targeting_selection_summary)
       ? latestPayload.targeting_selection_summary
       : {};
+  const latestQueryStrategy =
+    latestSelection.query_strategy_summary &&
+    typeof latestSelection.query_strategy_summary === "object" &&
+    !Array.isArray(latestSelection.query_strategy_summary)
+      ? latestSelection.query_strategy_summary
+      : {};
   const latestPrefilter =
     latestSelection.prefilter_summary &&
     typeof latestSelection.prefilter_summary === "object" &&
@@ -1864,6 +1912,8 @@ async function loadSelectionTrendSummary(client, campaignKey) {
   return {
     dispatches_24h: Math.max(0, Number(totals.dispatches_24h || 0)),
     dispatches_7d: Math.max(0, Number(totals.dispatches_7d || 0)),
+    query_strategy_applied_24h: Math.max(0, Number(totals.query_strategy_applied_24h || 0)),
+    query_strategy_applied_7d: Math.max(0, Number(totals.query_strategy_applied_7d || 0)),
     prefilter_applied_24h: Math.max(0, Number(totals.prefilter_applied_24h || 0)),
     prefilter_applied_7d: Math.max(0, Number(totals.prefilter_applied_7d || 0)),
     prefilter_delta_24h: Math.max(0, Number(totals.prefilter_delta_24h || 0)),
@@ -1876,9 +1926,13 @@ async function loadSelectionTrendSummary(client, campaignKey) {
     latest_guidance_mode: String(latestSelection.guidance_mode || "balanced"),
     latest_focus_dimension: String(latestSelection.focus_dimension || ""),
     latest_focus_bucket: String(latestSelection.focus_bucket || ""),
+    latest_query_strategy_reason: String(latestQueryStrategy.reason || ""),
+    latest_segment_strategy_reason: String(latestQueryStrategy.segment_strategy_reason || ""),
     latest_prefilter_reason: String(latestPrefilter.reason || ""),
     daily_breakdown: normalizeSelectionTrendDailyRows(dailyResult.rows),
-    prefilter_reason_breakdown: normalizeBreakdownRows(reasonResult.rows)
+    query_strategy_reason_breakdown: normalizeBreakdownRows(queryReasonResult.rows),
+    segment_strategy_reason_breakdown: normalizeBreakdownRows(segmentReasonResult.rows),
+    prefilter_reason_breakdown: normalizeBreakdownRows(prefilterReasonResult.rows)
   };
 }
 

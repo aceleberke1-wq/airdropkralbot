@@ -390,6 +390,8 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                   {
                     dispatches_24h: 1,
                     dispatches_7d: 3,
+                    query_strategy_applied_24h: 1,
+                    query_strategy_applied_7d: 3,
                     prefilter_applied_24h: 1,
                     prefilter_applied_7d: 2,
                     prefilter_delta_24h: 4,
@@ -408,6 +410,7 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                   {
                     day: "2026-03-08",
                     dispatch_count: 1,
+                    query_strategy_applied_count: 1,
                     prefilter_applied_count: 1,
                     prefilter_delta_sum: 4,
                     prioritized_focus_matches: 5,
@@ -416,6 +419,7 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                   {
                     day: "2026-03-07",
                     dispatch_count: 2,
+                    query_strategy_applied_count: 2,
                     prefilter_applied_count: 1,
                     prefilter_delta_sum: 2,
                     prioritized_focus_matches: 6,
@@ -429,6 +433,21 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 rows: [
                   { bucket_key: "prefilter_applied", item_count: 2 },
                   { bucket_key: "prefilter_shifted_to_query_strategy", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("targeting_selection_summary,query_strategy_summary,segment_strategy_reason")) {
+              return {
+                rows: [
+                  { bucket_key: "segment_query_active_window_tight", item_count: 2 },
+                  { bucket_key: "segment_query_offer_window_tight", item_count: 1 }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("targeting_selection_summary,query_strategy_summary,reason")) {
+              return {
+                rows: [
+                  { bucket_key: "query_strategy_locale_and_segment", item_count: 3 }
                 ]
               };
             }
@@ -503,6 +522,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                         guidance_mode: "protective",
                         focus_dimension: "locale",
                         focus_bucket: "tr",
+                        query_strategy_summary: {
+                          reason: "query_strategy_locale_and_segment",
+                          segment_strategy_reason: "segment_query_active_window_tight"
+                        },
                         prefilter_summary: {
                           reason: "prefilter_applied"
                         }
@@ -699,12 +722,19 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
   assert.equal(snapshot.selection_trend_summary.dispatches_24h, 1);
   assert.equal(snapshot.selection_trend_summary.dispatches_7d, 3);
+  assert.equal(snapshot.selection_trend_summary.query_strategy_applied_24h, 1);
+  assert.equal(snapshot.selection_trend_summary.query_strategy_applied_7d, 3);
   assert.equal(snapshot.selection_trend_summary.prefilter_applied_7d, 2);
   assert.equal(snapshot.selection_trend_summary.prefilter_delta_7d, 6);
   assert.equal(snapshot.selection_trend_summary.latest_guidance_mode, "protective");
   assert.equal(snapshot.selection_trend_summary.latest_focus_bucket, "tr");
+  assert.equal(snapshot.selection_trend_summary.latest_query_strategy_reason, "query_strategy_locale_and_segment");
+  assert.equal(snapshot.selection_trend_summary.latest_segment_strategy_reason, "segment_query_active_window_tight");
   assert.equal(snapshot.selection_trend_summary.latest_prefilter_reason, "prefilter_applied");
+  assert.equal(snapshot.selection_trend_summary.daily_breakdown[0].query_strategy_applied_count, 1);
   assert.equal(snapshot.selection_trend_summary.daily_breakdown[0].prefilter_delta_sum, 4);
+  assert.equal(snapshot.selection_trend_summary.query_strategy_reason_breakdown[0].bucket_key, "query_strategy_locale_and_segment");
+  assert.equal(snapshot.selection_trend_summary.segment_strategy_reason_breakdown[0].bucket_key, "segment_query_active_window_tight");
   assert.equal(snapshot.selection_trend_summary.prefilter_reason_breakdown[0].bucket_key, "prefilter_applied");
   assert.equal(snapshot.ops_alert_summary.artifact_found, true);
   assert.equal(snapshot.ops_alert_summary.alarm_state, "alert");

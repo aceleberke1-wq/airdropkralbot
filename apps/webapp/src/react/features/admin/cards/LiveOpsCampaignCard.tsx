@@ -223,7 +223,7 @@ function SelectionDailyTrendList(props: { title: string; rows: Array<Record<stri
           <li key={`${asText(row.day, "day")}_${index}`}>
             <span>{asText(row.day)}</span>
             <strong>
-              {asCount(row.dispatch_count)} / {asCount(row.prefilter_applied_count)} / {asCount(row.prefilter_delta_sum)} /{" "}
+              {asCount(row.dispatch_count)} / {asCount(row.query_strategy_applied_count)} / {asCount(row.prefilter_applied_count)} / {asCount(row.prefilter_delta_sum)} /{" "}
               {asCount(row.selected_focus_matches)} / {asCount(row.prioritized_focus_matches)}
             </strong>
           </li>
@@ -273,6 +273,8 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const opsAlertTrendVariantBreakdown = asArray(opsAlertTrendSummary.variant_breakdown);
   const opsAlertTrendCohortBreakdown = asArray(opsAlertTrendSummary.cohort_breakdown);
   const selectionTrendDailyBreakdown = asArray(selectionTrendSummary.daily_breakdown);
+  const selectionTrendQueryReasons = asArray(selectionTrendSummary.query_strategy_reason_breakdown);
+  const selectionTrendSegmentReasons = asArray(selectionTrendSummary.segment_strategy_reason_breakdown);
   const selectionTrendPrefilterReasons = asArray(selectionTrendSummary.prefilter_reason_breakdown);
   const sceneAlarmReasons = Array.isArray(sceneRuntimeSummary.alarm_reasons_7d)
     ? sceneRuntimeSummary.alarm_reasons_7d.map((row) => String(row || "").trim()).filter(Boolean)
@@ -738,7 +740,8 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_live_ops_selection_trend_dispatch_label")}: {asCount(selectionTrendSummary.dispatches_24h)} /{" "}
-            {asCount(selectionTrendSummary.dispatches_7d)} | {t(props.lang, "admin_live_ops_selection_trend_prefilter_label")}:{" "}
+            {asCount(selectionTrendSummary.dispatches_7d)} | {t(props.lang, "admin_live_ops_selection_trend_query_label")}: {asCount(selectionTrendSummary.query_strategy_applied_24h)} /{" "}
+            {asCount(selectionTrendSummary.query_strategy_applied_7d)} | {t(props.lang, "admin_live_ops_selection_trend_prefilter_label")}:{" "}
             {asCount(selectionTrendSummary.prefilter_applied_24h)} / {asCount(selectionTrendSummary.prefilter_applied_7d)} |{" "}
             {t(props.lang, "admin_live_ops_selection_trend_delta_label")}: {asCount(selectionTrendSummary.prefilter_delta_24h)} /{" "}
             {asCount(selectionTrendSummary.prefilter_delta_7d)}
@@ -747,10 +750,13 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             {t(props.lang, "admin_live_ops_selection_trend_focus_label")}: {asCount(selectionTrendSummary.selected_focus_matches_24h)} /{" "}
             {asCount(selectionTrendSummary.prioritized_focus_matches_24h)} | {t(props.lang, "admin_live_ops_selection_trend_latest_label")}:{" "}
             {asText(selectionTrendSummary.latest_guidance_mode, "balanced")} / {asText(selectionTrendSummary.latest_focus_dimension, "-")} /{" "}
-            {asText(selectionTrendSummary.latest_focus_bucket, "-")} / {asText(selectionTrendSummary.latest_prefilter_reason, "-")}
+            {asText(selectionTrendSummary.latest_focus_bucket, "-")} / {asText(selectionTrendSummary.latest_query_strategy_reason, "-")} /{" "}
+            {asText(selectionTrendSummary.latest_segment_strategy_reason, "-")} / {asText(selectionTrendSummary.latest_prefilter_reason, "-")}
           </p>
         </div>
         <SelectionDailyTrendList title={t(props.lang, "admin_live_ops_selection_trend_daily_title")} rows={selectionTrendDailyBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_query_reason_title")} rows={selectionTrendQueryReasons} />
+        <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_segment_reason_title")} rows={selectionTrendSegmentReasons} />
         <BreakdownList title={t(props.lang, "admin_live_ops_selection_trend_reason_title")} rows={selectionTrendPrefilterReasons} />
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="ops_alert_summary">

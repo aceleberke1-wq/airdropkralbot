@@ -92,6 +92,7 @@ function normalizeSelectionTrendDailyRows(rows) {
     .map((row) => ({
       day: String(row?.day || ""),
       dispatch_count: Math.max(0, Number(row?.dispatch_count || 0)),
+      query_strategy_applied_count: Math.max(0, Number(row?.query_strategy_applied_count || 0)),
       prefilter_applied_count: Math.max(0, Number(row?.prefilter_applied_count || 0)),
       prefilter_delta_sum: Math.max(0, Number(row?.prefilter_delta_sum || 0)),
       prioritized_focus_matches: Math.max(0, Number(row?.prioritized_focus_matches || 0)),
@@ -302,6 +303,8 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
     selection_trend: {
       dispatches_24h: Math.max(0, Number(selectionTrend.dispatches_24h || 0)),
       dispatches_7d: Math.max(0, Number(selectionTrend.dispatches_7d || 0)),
+      query_strategy_applied_24h: Math.max(0, Number(selectionTrend.query_strategy_applied_24h || 0)),
+      query_strategy_applied_7d: Math.max(0, Number(selectionTrend.query_strategy_applied_7d || 0)),
       prefilter_applied_24h: Math.max(0, Number(selectionTrend.prefilter_applied_24h || 0)),
       prefilter_applied_7d: Math.max(0, Number(selectionTrend.prefilter_applied_7d || 0)),
       prefilter_delta_24h: Math.max(0, Number(selectionTrend.prefilter_delta_24h || 0)),
@@ -314,8 +317,12 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       latest_guidance_mode: String(selectionTrend.latest_guidance_mode || "balanced"),
       latest_focus_dimension: String(selectionTrend.latest_focus_dimension || ""),
       latest_focus_bucket: String(selectionTrend.latest_focus_bucket || ""),
+      latest_query_strategy_reason: String(selectionTrend.latest_query_strategy_reason || ""),
+      latest_segment_strategy_reason: String(selectionTrend.latest_segment_strategy_reason || ""),
       latest_prefilter_reason: String(selectionTrend.latest_prefilter_reason || ""),
       daily_breakdown: normalizeSelectionTrendDailyRows(selectionTrend.daily_breakdown),
+      query_strategy_reason_breakdown: normalizeBreakdownRows(selectionTrend.query_strategy_reason_breakdown),
+      segment_strategy_reason_breakdown: normalizeBreakdownRows(selectionTrend.segment_strategy_reason_breakdown),
       prefilter_reason_breakdown: normalizeBreakdownRows(selectionTrend.prefilter_reason_breakdown)
     },
     scene_runtime: sceneRuntime
@@ -486,6 +493,8 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
       selection_trend: {
         dispatches_24h: 0,
         dispatches_7d: 0,
+        query_strategy_applied_24h: 0,
+        query_strategy_applied_7d: 0,
         prefilter_applied_24h: 0,
         prefilter_applied_7d: 0,
         prefilter_delta_24h: 0,
@@ -498,8 +507,12 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         latest_guidance_mode: "balanced",
         latest_focus_dimension: "",
         latest_focus_bucket: "",
+        latest_query_strategy_reason: "",
+        latest_segment_strategy_reason: "",
         latest_prefilter_reason: "",
         daily_breakdown: [],
+        query_strategy_reason_breakdown: [],
+        segment_strategy_reason_breakdown: [],
         prefilter_reason_breakdown: []
       },
       scene_runtime: {}

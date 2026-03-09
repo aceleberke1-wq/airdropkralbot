@@ -159,7 +159,7 @@ function SelectionDailyTrendList(props: { title: string; rows: Array<Record<stri
       <div className="akrStack">
         {props.rows.slice(0, 7).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}`}>
-            {String(row.day || "-")} | dispatch {Math.floor(Number(row.dispatch_count || 0))} | prefilter{" "}
+            {String(row.day || "-")} | dispatch {Math.floor(Number(row.dispatch_count || 0))} | query {Math.floor(Number(row.query_strategy_applied_count || 0))} | prefilter{" "}
             {Math.floor(Number(row.prefilter_applied_count || 0))} | delta {Math.floor(Number(row.prefilter_delta_sum || 0))} | focus{" "}
             {Math.floor(Number(row.selected_focus_matches || 0))}/{Math.floor(Number(row.prioritized_focus_matches || 0))}
           </p>
@@ -229,6 +229,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const opsAlertVariantBreakdown = asRows(opsAlertTrend?.variant_breakdown);
   const opsAlertCohortBreakdown = asRows(opsAlertTrend?.cohort_breakdown);
   const selectionTrendDaily = asRows(selectionTrend?.daily_breakdown);
+  const selectionTrendQueryReasons = asRows(selectionTrend?.query_strategy_reason_breakdown);
+  const selectionTrendSegmentReasons = asRows(selectionTrend?.segment_strategy_reason_breakdown);
   const selectionTrendReasons = asRows(selectionTrend?.prefilter_reason_breakdown);
 
   return (
@@ -428,7 +430,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_selection_trend_dispatch_label")}: {Math.floor(readNum(selectionTrend, "dispatches_7d"))}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_selection_trend_query_label")}: {Math.floor(readNum(selectionTrend, "query_strategy_applied_7d"))}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_selection_trend_prefilter_label")}: {Math.floor(readNum(selectionTrend, "prefilter_applied_7d"))}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_selection_query_label")}:{" "}
+            {selectionQueryStrategy?.applied ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
           </span>
           <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_selection_trend_delta_label")}: {Math.floor(readNum(selectionTrend, "prefilter_delta_7d"))}
@@ -539,7 +548,9 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_selection_trend_dispatch_label")}: {Math.floor(readNum(selectionTrend, "dispatches_24h"))} /{" "}
-            {Math.floor(readNum(selectionTrend, "dispatches_7d"))} | {t(props.lang, "admin_runtime_live_ops_selection_trend_prefilter_label")}:{" "}
+            {Math.floor(readNum(selectionTrend, "dispatches_7d"))} | {t(props.lang, "admin_runtime_live_ops_selection_trend_query_label")}:{" "}
+            {Math.floor(readNum(selectionTrend, "query_strategy_applied_24h"))} / {Math.floor(readNum(selectionTrend, "query_strategy_applied_7d"))} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_selection_trend_prefilter_label")}:{" "}
             {Math.floor(readNum(selectionTrend, "prefilter_applied_24h"))} / {Math.floor(readNum(selectionTrend, "prefilter_applied_7d"))} |{" "}
             {t(props.lang, "admin_runtime_live_ops_selection_trend_delta_label")}: {Math.floor(readNum(selectionTrend, "prefilter_delta_24h"))} /{" "}
             {Math.floor(readNum(selectionTrend, "prefilter_delta_7d"))}
@@ -548,7 +559,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_selection_trend_focus_label")}: {Math.floor(readNum(selectionTrend, "selected_focus_matches_24h"))} /{" "}
             {Math.floor(readNum(selectionTrend, "prioritized_focus_matches_24h"))} | {t(props.lang, "admin_runtime_live_ops_selection_trend_latest_label")}:{" "}
             {readText(selectionTrend, "latest_guidance_mode") || "-"} / {readText(selectionTrend, "latest_focus_dimension") || "-"} /{" "}
-            {readText(selectionTrend, "latest_focus_bucket") || "-"} / {readText(selectionTrend, "latest_prefilter_reason") || "-"}
+            {readText(selectionTrend, "latest_focus_bucket") || "-"} / {readText(selectionTrend, "latest_query_strategy_reason") || "-"} /{" "}
+            {readText(selectionTrend, "latest_segment_strategy_reason") || "-"} / {readText(selectionTrend, "latest_prefilter_reason") || "-"}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_24h_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_24h"))} |{" "}
@@ -582,8 +594,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_surface_title")} rows={surfaceBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_variant_title")} rows={variantBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_cohort_title")} rows={cohortBreakdown} />
-        <SelectionDailyTrendList title={t(props.lang, "admin_runtime_live_ops_selection_daily_title")} rows={selectionTrendDaily} />
-        <BreakdownList title={t(props.lang, "admin_runtime_live_ops_selection_reason_breakdown_title")} rows={selectionTrendReasons} />
+          <SelectionDailyTrendList title={t(props.lang, "admin_runtime_live_ops_selection_daily_title")} rows={selectionTrendDaily} />
+          <BreakdownList title={t(props.lang, "admin_runtime_live_ops_selection_query_reason_breakdown_title")} rows={selectionTrendQueryReasons} />
+          <BreakdownList title={t(props.lang, "admin_runtime_live_ops_selection_segment_reason_breakdown_title")} rows={selectionTrendSegmentReasons} />
+          <BreakdownList title={t(props.lang, "admin_runtime_live_ops_selection_reason_breakdown_title")} rows={selectionTrendReasons} />
         <SkipDailyTrendList title={t(props.lang, "admin_runtime_live_ops_skip_daily_title")} rows={schedulerSkipDaily} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_skip_reason_title")} rows={schedulerSkipReasons} />
         <BreakdownList title={t(props.lang, "admin_runtime_live_ops_ops_alert_locale_title")} rows={opsAlertLocaleBreakdown} />
