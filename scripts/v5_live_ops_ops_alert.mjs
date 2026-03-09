@@ -104,6 +104,10 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     dispatchArtifact?.selection_summary && typeof dispatchArtifact.selection_summary === "object"
       ? dispatchArtifact.selection_summary
       : {};
+  const selectionPrefilter =
+    selectionSummary?.prefilter_summary && typeof selectionSummary.prefilter_summary === "object"
+      ? selectionSummary.prefilter_summary
+      : {};
   const recipientCapRecommendation =
     dispatchArtifact?.scheduler_summary && typeof dispatchArtifact.scheduler_summary === "object"
       ? dispatchArtifact.scheduler_summary.recipient_cap_recommendation || {}
@@ -130,6 +134,14 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
   const recommendationPressure = String(recipientCapRecommendation.pressure_band || "clear").trim().toLowerCase();
   const recommendedCap = Math.max(0, Number(recipientCapRecommendation.recommended_recipient_cap || 0));
   const effectiveCapDelta = Math.max(0, Number(recipientCapRecommendation.effective_cap_delta || 0));
+  const prefilterCandidatesBefore = Math.max(0, Number(selectionPrefilter.candidates_before || 0));
+  const prefilterCandidatesAfter = Math.max(0, Number(selectionPrefilter.candidates_after || 0));
+  const prefilterReductionCount =
+    prefilterCandidatesBefore > prefilterCandidatesAfter ? prefilterCandidatesBefore - prefilterCandidatesAfter : 0;
+  const prefilterReductionShare =
+    prefilterCandidatesBefore > 0 && prefilterReductionCount > 0
+      ? prefilterReductionCount / prefilterCandidatesBefore
+      : 0;
   const pressureEscalation = resolveLiveOpsPressureEscalation(pressureFocusSummary, recipientCapRecommendation);
   const fingerprint = buildAlertFingerprint(schedulerSkip);
   let shouldNotify = false;
@@ -144,6 +156,14 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
   } else if (schedulerSkip.state === "watch" && pressureEscalation.escalation_band === "alert") {
     shouldNotify = true;
     notificationReason = String(pressureEscalation.reason || "watch_state_focus_pressure").trim() || "watch_state_focus_pressure";
+  } else if (
+    schedulerSkip.state === "watch" &&
+    selectionPrefilter.applied === true &&
+    prefilterReductionShare >= 0.5 &&
+    effectiveCapDelta > 0
+  ) {
+    shouldNotify = true;
+    notificationReason = "watch_state_prefilter_pressure";
   } else if (schedulerSkip.state === "watch" && notifyOnWatch) {
     shouldNotify = true;
     notificationReason = "watch_state";
@@ -195,6 +215,14 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     selection_focus_bucket: String(selectionSummary.focus_bucket || "").trim(),
     selection_focus_selected_matches: Math.max(0, Number(selectionSummary.selected_focus_matches || 0)),
     selection_prioritized_focus_matches: Math.max(0, Number(selectionSummary.prioritized_focus_matches || 0)),
+    selection_prefilter_applied: selectionPrefilter.applied === true,
+    selection_prefilter_dimension: String(selectionPrefilter.dimension || "").trim(),
+    selection_prefilter_bucket: String(selectionPrefilter.bucket || "").trim(),
+    selection_prefilter_reason: String(selectionPrefilter.reason || "").trim(),
+    selection_prefilter_candidates_before: prefilterCandidatesBefore,
+    selection_prefilter_candidates_after: prefilterCandidatesAfter,
+    selection_prefilter_reduction_count: prefilterReductionCount,
+    selection_prefilter_reduction_share: Math.max(0, Number(prefilterReductionShare || 0)),
     notify_on_watch: notifyOnWatch,
     cooldown_minutes: cooldownMinutes,
     previous_fingerprint: previousFingerprint,
@@ -244,6 +272,14 @@ function formatOpsAlertMessage(dispatchArtifact = {}, evaluation = {}) {
       0,
       Number(evaluation.selection_focus_selected_matches || 0)
     )}/${Math.max(0, Number(evaluation.selection_prioritized_focus_matches || 0))}`,
+    `selection_prefilter=${String(evaluation.selection_prefilter_applied === true ? "on" : "off")}/${String(
+      evaluation.selection_prefilter_dimension || "-"
+    )}/${String(evaluation.selection_prefilter_bucket || "-")}:${Math.max(0, Number(evaluation.selection_prefilter_candidates_after || 0))}/${Math.max(
+      0,
+      Number(evaluation.selection_prefilter_candidates_before || 0)
+    )}`,
+    `selection_prefilter_reason=${String(evaluation.selection_prefilter_reason || "-")}`,
+    `selection_prefilter_reduction=${Math.round(Math.max(0, Number(evaluation.selection_prefilter_reduction_share || 0)) * 100)}%`,
     `focus_delta_ratio=${Math.round(Math.max(0, Number(evaluation.pressure_focus_effective_delta_ratio || 0)) * 100)}%`,
     `campaign=${String(dispatchArtifact.campaign_key || "-")}`,
     `dispatch_reason=${String(dispatchArtifact.reason || "-")}`
@@ -457,6 +493,14 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       selection_focus_bucket: String(evaluation.selection_focus_bucket || "").trim(),
       selection_focus_selected_matches: Math.max(0, Number(evaluation.selection_focus_selected_matches || 0)),
       selection_prioritized_focus_matches: Math.max(0, Number(evaluation.selection_prioritized_focus_matches || 0)),
+      selection_prefilter_applied: evaluation.selection_prefilter_applied === true,
+      selection_prefilter_dimension: String(evaluation.selection_prefilter_dimension || "").trim(),
+      selection_prefilter_bucket: String(evaluation.selection_prefilter_bucket || "").trim(),
+      selection_prefilter_reason: String(evaluation.selection_prefilter_reason || "").trim(),
+      selection_prefilter_candidates_before: Math.max(0, Number(evaluation.selection_prefilter_candidates_before || 0)),
+      selection_prefilter_candidates_after: Math.max(0, Number(evaluation.selection_prefilter_candidates_after || 0)),
+      selection_prefilter_reduction_count: Math.max(0, Number(evaluation.selection_prefilter_reduction_count || 0)),
+      selection_prefilter_reduction_share: Math.max(0, Number(evaluation.selection_prefilter_reduction_share || 0)),
       telegram_sent: telegram.sent === true,
       telegram_reason: String(telegram.reason || "").trim(),
       telegram_sent_at: telegram.sent_at || null

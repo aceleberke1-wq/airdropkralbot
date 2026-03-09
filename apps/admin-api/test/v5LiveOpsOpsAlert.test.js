@@ -199,6 +199,64 @@ test("evaluateOpsAlert escalates watch state on concentrated locale pressure foc
   assert.equal(result.pressure_focus_effective_delta_ratio, 0.8);
 });
 
+test("evaluateOpsAlert escalates watch state on severe selection prefilter pressure", async () => {
+  const mod = await loadModule();
+  const result = mod.evaluateOpsAlert(
+    {
+      scheduler_skip_summary: {
+        alarm_state: "watch",
+        alarm_reason: "scene_runtime_watch_capped_repeated",
+        skipped_24h: 1,
+        skipped_7d: 2,
+        latest_skip_reason: "scene_runtime_watch_capped",
+        latest_skip_at: "2026-03-08T15:00:00.000Z"
+      },
+      scheduler_summary: {
+        recipient_cap_recommendation: {
+          pressure_band: "watch",
+          configured_recipients: 40,
+          recommended_recipient_cap: 12,
+          effective_cap_delta: 28,
+          reason: "ops_alert_segment_pressure"
+        }
+      },
+      selection_summary: {
+        focus_dimension: "locale",
+        focus_bucket: "tr",
+        selected_focus_matches: 0,
+        prioritized_focus_matches: 0,
+        prefilter_summary: {
+          applied: true,
+          dimension: "locale",
+          bucket: "tr",
+          reason: "prefilter_applied",
+          candidates_before: 10,
+          candidates_after: 4
+        }
+      },
+      pressure_focus_summary: {
+        pressure_band: "watch",
+        warning_rows: []
+      }
+    },
+    null,
+    {
+      now: new Date("2026-03-08T15:10:00.000Z"),
+      cooldownMinutes: 180
+    }
+  );
+
+  assert.equal(result.should_notify, true);
+  assert.equal(result.notification_reason, "watch_state_prefilter_pressure");
+  assert.equal(result.selection_prefilter_applied, true);
+  assert.equal(result.selection_prefilter_dimension, "locale");
+  assert.equal(result.selection_prefilter_bucket, "tr");
+  assert.equal(result.selection_prefilter_candidates_before, 10);
+  assert.equal(result.selection_prefilter_candidates_after, 4);
+  assert.equal(result.selection_prefilter_reduction_count, 6);
+  assert.equal(result.selection_prefilter_reduction_share, 0.6);
+});
+
 test("runLiveOpsOpsAlert writes latest artifact and skips telegram on clear state", async () => {
   const mod = await loadModule();
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "akr-liveops-alert-"));
@@ -335,6 +393,20 @@ test("runLiveOpsOpsAlert records audit when alert fingerprint changes", async ()
             suggested_recipient_cap: 0
           }
         ]
+      },
+      selection_summary: {
+        focus_dimension: "locale",
+        focus_bucket: "tr",
+        selected_focus_matches: 0,
+        prioritized_focus_matches: 0,
+        prefilter_summary: {
+          applied: true,
+          dimension: "locale",
+          bucket: "tr",
+          reason: "prefilter_applied",
+          candidates_before: 12,
+          candidates_after: 5
+        }
       }
     }, null, 2)}\n`,
     "utf8"
@@ -386,4 +458,12 @@ test("runLiveOpsOpsAlert records audit when alert fingerprint changes", async ()
   assert.equal(auditPayloads[0].pressure_focus_escalation_band, "alert");
   assert.equal(auditPayloads[0].pressure_focus_escalation_reason, "pressure_band_alert");
   assert.equal(auditPayloads[0].pressure_focus_effective_delta_ratio, 1);
+  assert.equal(auditPayloads[0].selection_prefilter_applied, true);
+  assert.equal(auditPayloads[0].selection_prefilter_dimension, "locale");
+  assert.equal(auditPayloads[0].selection_prefilter_bucket, "tr");
+  assert.equal(auditPayloads[0].selection_prefilter_reason, "prefilter_applied");
+  assert.equal(auditPayloads[0].selection_prefilter_candidates_before, 12);
+  assert.equal(auditPayloads[0].selection_prefilter_candidates_after, 5);
+  assert.equal(auditPayloads[0].selection_prefilter_reduction_count, 7);
+  assert.equal(auditPayloads[0].selection_prefilter_reduction_share, 7 / 12);
 });

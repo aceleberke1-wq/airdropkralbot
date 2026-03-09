@@ -108,6 +108,8 @@ if ($latestPayload -ne $null) {
   $opsAlarm = Get-PropValue -Source $latestPayload -Name "ops_alarm"
   $recommendation = Get-PropValue -Source $scheduler -Name "recipient_cap_recommendation"
   $data = Get-PropValue -Source $latestPayload -Name "data"
+  $selectionSummary = Get-PropValue -Source $latestPayload -Name "selection_summary"
+  $selectionPrefilter = Get-PropValue -Source $selectionSummary -Name "prefilter_summary"
   $latestSummary = [pscustomobject]@{
     ok = [bool](Get-PropValue -Source $latestPayload -Name "ok" -Fallback $false)
     skipped = [bool](Get-PropValue -Source $latestPayload -Name "skipped" -Fallback $false)
@@ -126,6 +128,18 @@ if ($latestPayload -ne $null) {
     targeting_guidance_state = [string](Get-PropValue -Source $targetingGuidance -Name "guidance_state" -Fallback "clear")
     targeting_guidance_reason = [string](Get-PropValue -Source $targetingGuidance -Name "guidance_reason" -Fallback "")
     targeting_guidance_cap = [int](Get-PropValue -Source ((Get-PropValue -Source $targetingGuidance -Name "mode_rows" -Fallback @()) | Where-Object { [string](Get-PropValue -Source $_ -Name "mode_key" -Fallback "") -eq [string](Get-PropValue -Source $targetingGuidance -Name "default_mode" -Fallback "balanced") } | Select-Object -First 1) -Name "suggested_recipient_cap" -Fallback 0)
+    selection_prefilter = [pscustomobject]@{
+      applied = [bool](Get-PropValue -Source $selectionPrefilter -Name "applied" -Fallback $false)
+      dimension = [string](Get-PropValue -Source $selectionPrefilter -Name "dimension" -Fallback "")
+      bucket = [string](Get-PropValue -Source $selectionPrefilter -Name "bucket" -Fallback "")
+      reason = [string](Get-PropValue -Source $selectionPrefilter -Name "reason" -Fallback "")
+      candidates_before = [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0)
+      candidates_after = [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_after" -Fallback 0)
+      reduction_count = [math]::Max(0, [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0) - [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_after" -Fallback 0))
+      reduction_share = if ([int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0) -gt 0) {
+        [math]::Max(0, [double](([int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0) - [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_after" -Fallback 0)) / [double][int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0)))
+      } else { 0 }
+    }
     pressure_focus = [pscustomobject]@{
       pressure_band = [string](Get-PropValue -Source $pressureFocus -Name "pressure_band" -Fallback "clear")
       top_warning_dimension = [string](Get-PropValue -Source ((Get-PropValue -Source $pressureFocus -Name "warning_rows" -Fallback @()) | Select-Object -First 1) -Name "dimension" -Fallback "")
@@ -169,6 +183,14 @@ if ($latestAlertPayload -ne $null) {
     pressure_focus_escalation_bucket = [string](Get-PropValue -Source $evaluation -Name "pressure_focus_escalation_bucket" -Fallback "")
     pressure_focus_escalation_share = [double](Get-PropValue -Source $evaluation -Name "pressure_focus_escalation_share" -Fallback 0)
     pressure_focus_effective_delta_ratio = [double](Get-PropValue -Source $evaluation -Name "pressure_focus_effective_delta_ratio" -Fallback 0)
+    selection_prefilter_applied = [bool](Get-PropValue -Source $evaluation -Name "selection_prefilter_applied" -Fallback $false)
+    selection_prefilter_dimension = [string](Get-PropValue -Source $evaluation -Name "selection_prefilter_dimension" -Fallback "")
+    selection_prefilter_bucket = [string](Get-PropValue -Source $evaluation -Name "selection_prefilter_bucket" -Fallback "")
+    selection_prefilter_reason = [string](Get-PropValue -Source $evaluation -Name "selection_prefilter_reason" -Fallback "")
+    selection_prefilter_candidates_before = [int](Get-PropValue -Source $evaluation -Name "selection_prefilter_candidates_before" -Fallback 0)
+    selection_prefilter_candidates_after = [int](Get-PropValue -Source $evaluation -Name "selection_prefilter_candidates_after" -Fallback 0)
+    selection_prefilter_reduction_count = [int](Get-PropValue -Source $evaluation -Name "selection_prefilter_reduction_count" -Fallback 0)
+    selection_prefilter_reduction_share = [double](Get-PropValue -Source $evaluation -Name "selection_prefilter_reduction_share" -Fallback 0)
     telegram_sent = [bool](Get-PropValue -Source $telegram -Name "sent" -Fallback $false)
     telegram_reason = [string](Get-PropValue -Source $telegram -Name "reason" -Fallback "")
     telegram_sent_at = (Get-PropValue -Source $telegram -Name "sent_at" -Fallback $null)
