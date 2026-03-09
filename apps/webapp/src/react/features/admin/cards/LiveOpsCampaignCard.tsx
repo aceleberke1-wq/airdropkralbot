@@ -748,6 +748,10 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             {asText(taskSelectionQueryStrategy.locale_strategy_reason, "-")} / {asText(taskSelectionQueryStrategy.segment_strategy_reason, "-")}
           </p>
           <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_query_family_label")}: {asText(taskSelectionQueryStrategy.strategy_family, "-")} /{" "}
+            {asText(taskSelectionQueryStrategy.locale_strategy_family, "-")} / {asText(taskSelectionQueryStrategy.segment_strategy_family, "-")}
+          </p>
+          <p className="akrMutedLine">
             {t(props.lang, "admin_live_ops_selection_query_window_label")}: {asText(taskSelectionQueryStrategy.mode_key, "balanced")} /{" "}
             {asText(taskSelectionQueryStrategy.segment_key, "-")} / x{asCount(taskSelectionQueryStrategy.pool_limit_multiplier)} /{" "}
             {asText(taskSelectionQueryStrategy.exclude_locale_prefix, "-")}
@@ -756,6 +760,14 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             {t(props.lang, "admin_live_ops_selection_query_caps_label")}: active {asCount(taskSelectionQueryStrategy.active_within_days_cap)} | inactive{" "}
             {asCount(taskSelectionQueryStrategy.inactive_hours_floor)} | max-age {asCount(taskSelectionQueryStrategy.max_age_days_cap)} | offer{" "}
             {asCount(taskSelectionQueryStrategy.offer_age_days_cap)}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_live_ops_selection_query_risk_label")}: {asText(taskSelectionQueryStrategy.family_risk_state, "-")} /{" "}
+            {asText(taskSelectionQueryStrategy.family_risk_reason, "-")} / {asText(taskSelectionQueryStrategy.family_risk_dimension, "-")} /{" "}
+            {asText(taskSelectionQueryStrategy.family_risk_bucket, "-")} | {t(props.lang, "admin_live_ops_selection_query_risk_weight_label")}:{" "}
+            {asCount(taskSelectionQueryStrategy.family_risk_weight)} / {asCount(taskSelectionQueryStrategy.family_risk_match_days)} |{" "}
+            {t(props.lang, "admin_live_ops_selection_query_risk_tightened_label")}:{" "}
+            {taskSelectionQueryStrategy.family_risk_tightened === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_live_ops_selection_prefilter_focus_label")}: {asText(taskSelectionPrefilter.dimension, "-")} /{" "}

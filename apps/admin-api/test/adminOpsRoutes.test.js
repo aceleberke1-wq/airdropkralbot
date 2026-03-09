@@ -345,6 +345,16 @@ function buildLiveOpsSnapshot() {
           exclude_locale_prefix: "tr",
           locale_strategy_reason: "query_strategy_locale_exclusion",
           segment_strategy_reason: "segment_query_active_window_tight",
+          strategy_family: "locale_and_segment",
+          locale_strategy_family: "locale",
+          segment_strategy_family: "active_window",
+          family_risk_state: "alert",
+          family_risk_reason: "query_strategy_family_streak_alert",
+          family_risk_dimension: "query_family",
+          family_risk_bucket: "locale_and_segment",
+          family_risk_match_days: 4,
+          family_risk_weight: 5,
+          family_risk_tightened: true,
           pool_limit_multiplier: 2,
           active_within_days_cap: 7,
           inactive_hours_floor: 0,
@@ -528,6 +538,14 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.selection_summary.selected_candidates, 4);
   assert.equal(body.data.live_ops_campaign.selection_summary.selected_top_locale_matches, 0);
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.applied, true);
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.strategy_family, "locale_and_segment");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_state, "alert");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_reason, "query_strategy_family_streak_alert");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_dimension, "query_family");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_bucket, "locale_and_segment");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_match_days, 4);
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_weight, 5);
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_tightened, true);
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.pool_limit_multiplier, 2);
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.active_within_days_cap, 7);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.applied, true);

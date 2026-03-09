@@ -588,12 +588,181 @@ function buildLiveOpsCandidateQueryStrategySummary(summary = {}) {
     locale_strategy_family: resolveLiveOpsLocaleStrategyFamily(localeStrategyReason),
     segment_strategy_reason: segmentStrategyReason,
     segment_strategy_family: resolveLiveOpsSegmentStrategyFamily(segmentStrategyReason),
+    family_risk_state: ["clear", "watch", "alert"].includes(String(summary.family_risk_state || "").trim().toLowerCase())
+      ? String(summary.family_risk_state || "").trim().toLowerCase()
+      : "clear",
+    family_risk_reason: String(summary.family_risk_reason || "").trim(),
+    family_risk_dimension: String(summary.family_risk_dimension || "").trim().toLowerCase(),
+    family_risk_bucket: String(summary.family_risk_bucket || "").trim().toLowerCase(),
+    family_risk_match_days: Math.max(0, Math.floor(Number(summary.family_risk_match_days || 0) || 0)),
+    family_risk_weight: Math.max(0, Math.floor(Number(summary.family_risk_weight || 0) || 0)),
+    family_risk_tightened: summary.family_risk_tightened === true,
     pool_limit_multiplier: Math.max(1, Math.min(4, toPositiveInt(summary.pool_limit_multiplier, 4))),
     active_within_days_cap: Math.max(0, Math.floor(Number(summary.active_within_days_cap || 0) || 0)),
     inactive_hours_floor: Math.max(0, Math.floor(Number(summary.inactive_hours_floor || 0) || 0)),
     max_age_days_cap: Math.max(0, Math.floor(Number(summary.max_age_days_cap || 0) || 0)),
     offer_age_days_cap: Math.max(0, Math.floor(Number(summary.offer_age_days_cap || 0) || 0))
   };
+}
+
+function resolveSelectionFamilyRiskDailyWeight(matchDays) {
+  const safeMatchDays = Math.max(0, Number(matchDays || 0));
+  if (safeMatchDays >= 4) {
+    return 2;
+  }
+  if (safeMatchDays >= 2) {
+    return 1;
+  }
+  return 0;
+}
+
+function resolveSelectionQueryFamilyRiskWeight(familyKey) {
+  switch (String(familyKey || "").trim().toLowerCase()) {
+    case "locale_and_segment":
+      return 3;
+    case "locale":
+      return 2;
+    case "segment_only":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function resolveSelectionSegmentFamilyRiskWeight(familyKey) {
+  switch (String(familyKey || "").trim().toLowerCase()) {
+    case "active_window":
+    case "inactive_window":
+      return 2;
+    case "offer_window":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function countSelectionFamilyMatchDays(rows, familyKey) {
+  const safeFamilyKey = String(familyKey || "").trim().toLowerCase();
+  if (!safeFamilyKey) {
+    return 0;
+  }
+  return (Array.isArray(rows) ? rows : []).reduce((count, row) => {
+    const bucketKey = String(row?.bucket_key || "").trim().toLowerCase();
+    return bucketKey === safeFamilyKey ? count + 1 : count;
+  }, 0);
+}
+
+function resolveLiveOpsSelectionFamilyQueryRisk(selectionTrendSummary) {
+  const safeTrend = selectionTrendSummary && typeof selectionTrendSummary === "object" && !Array.isArray(selectionTrendSummary)
+    ? selectionTrendSummary
+    : {};
+  const queryFamily = String(safeTrend.latest_query_strategy_family || "").trim().toLowerCase();
+  const segmentFamily = String(safeTrend.latest_segment_strategy_family || "").trim().toLowerCase();
+  const queryMatchDays = countSelectionFamilyMatchDays(safeTrend.query_strategy_family_daily_breakdown, queryFamily);
+  const segmentMatchDays = countSelectionFamilyMatchDays(safeTrend.segment_strategy_family_daily_breakdown, segmentFamily);
+  const queryWeight = resolveSelectionQueryFamilyRiskWeight(queryFamily) + resolveSelectionFamilyRiskDailyWeight(queryMatchDays);
+  const segmentWeight = resolveSelectionSegmentFamilyRiskWeight(segmentFamily) + resolveSelectionFamilyRiskDailyWeight(segmentMatchDays);
+  const dominantDimension = queryWeight >= segmentWeight ? "query_family" : "segment_family";
+  const dominantBucket = dominantDimension === "query_family" ? queryFamily : segmentFamily;
+  const dominantMatchDays = dominantDimension === "query_family" ? queryMatchDays : segmentMatchDays;
+  const dominantWeight = dominantDimension === "query_family" ? queryWeight : segmentWeight;
+  let state = "clear";
+  let reason = "";
+  if (dominantWeight >= 5) {
+    state = "alert";
+    reason = dominantDimension === "query_family"
+      ? "query_strategy_family_streak_alert"
+      : "segment_strategy_family_streak_alert";
+  } else if (dominantWeight >= 3) {
+    state = "watch";
+    reason = dominantDimension === "query_family"
+      ? "query_strategy_family_streak_watch"
+      : "segment_strategy_family_streak_watch";
+  }
+  return {
+    state,
+    reason,
+    dimension: dominantWeight > 0 ? dominantDimension : "",
+    bucket: dominantWeight > 0 ? dominantBucket : "",
+    match_days: dominantWeight > 0 ? dominantMatchDays : 0,
+    weight: dominantWeight
+  };
+}
+
+function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
+  const strategy = buildLiveOpsCandidateQueryStrategySummary(strategySummary);
+  const targeting = campaign && typeof campaign === "object" && !Array.isArray(campaign) &&
+    campaign.targeting && typeof campaign.targeting === "object" && !Array.isArray(campaign.targeting)
+    ? campaign.targeting
+    : {};
+  const segmentKey = String(targeting.segment_key || LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING).trim().toLowerCase();
+  if (strategy.applied !== true || strategy.family_risk_state === "clear") {
+    return strategy;
+  }
+
+  let poolLimitMultiplier = strategy.pool_limit_multiplier;
+  let activeWithinDaysCap = strategy.active_within_days_cap;
+  let inactiveHoursFloor = strategy.inactive_hours_floor;
+  let maxAgeDaysCap = strategy.max_age_days_cap;
+  let offerAgeDaysCap = strategy.offer_age_days_cap;
+  let tightened = false;
+
+  if (strategy.family_risk_dimension === "query_family") {
+    if (["locale_and_segment", "locale"].includes(strategy.family_risk_bucket)) {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      if (activeWithinDaysCap > 0) {
+        activeWithinDaysCap = Math.max(3, activeWithinDaysCap - (strategy.family_risk_state === "alert" ? 3 : 1));
+      }
+      if (offerAgeDaysCap > 0) {
+        offerAgeDaysCap = Math.max(1, offerAgeDaysCap - 1);
+      }
+      if (inactiveHoursFloor > 0) {
+        inactiveHoursFloor += strategy.family_risk_state === "alert" ? 24 : 12;
+      }
+      if (maxAgeDaysCap > 0) {
+        maxAgeDaysCap = Math.max(7, maxAgeDaysCap - (strategy.family_risk_state === "alert" ? 7 : 3));
+      }
+    }
+  } else if (strategy.family_risk_dimension === "segment_family") {
+    if (strategy.family_risk_bucket === "active_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      if (activeWithinDaysCap > 0) {
+        activeWithinDaysCap = Math.max(3, activeWithinDaysCap - (strategy.family_risk_state === "alert" ? 2 : 1));
+      }
+    } else if (strategy.family_risk_bucket === "inactive_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      inactiveHoursFloor = Math.max(inactiveHoursFloor, strategy.family_risk_state === "alert" ? 120 : 96);
+      if (maxAgeDaysCap > 0) {
+        maxAgeDaysCap = Math.max(7, maxAgeDaysCap - (strategy.family_risk_state === "alert" ? 7 : 3));
+      }
+    } else if (strategy.family_risk_bucket === "offer_window") {
+      poolLimitMultiplier = 1;
+      tightened = true;
+      if (offerAgeDaysCap > 0) {
+        offerAgeDaysCap = Math.max(1, offerAgeDaysCap - 1);
+      }
+      if (activeWithinDaysCap > 0) {
+        activeWithinDaysCap = Math.max(3, activeWithinDaysCap - 1);
+      }
+    }
+  }
+
+  if (segmentKey === LIVE_OPS_SEGMENT_KEY.ALL_ACTIVE && activeWithinDaysCap > 0) {
+    activeWithinDaysCap = Math.max(2, activeWithinDaysCap);
+  }
+
+  return buildLiveOpsCandidateQueryStrategySummary({
+    ...strategy,
+    family_risk_tightened: tightened,
+    pool_limit_multiplier: poolLimitMultiplier,
+    active_within_days_cap: activeWithinDaysCap,
+    inactive_hours_floor: inactiveHoursFloor,
+    max_age_days_cap: maxAgeDaysCap,
+    offer_age_days_cap: offerAgeDaysCap
+  });
 }
 
 function buildLiveOpsCandidateSqlPrefilter(selectionProfile) {
@@ -725,10 +894,11 @@ function buildLiveOpsSegmentQueryStrategy(campaign, selectionProfile) {
   });
 }
 
-function buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile) {
+function buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile, selectionTrendSummary) {
   const prefilter = buildLiveOpsCandidateSqlPrefilter(selectionProfile);
   const localeFilter = normalizeLiveOpsCandidateBucket(campaign?.targeting?.locale_filter || "", "");
   const segmentStrategy = buildLiveOpsSegmentQueryStrategy(campaign, selectionProfile);
+  const familyRisk = resolveLiveOpsSelectionFamilyQueryRisk(selectionTrendSummary);
   let localeStrategy = buildLiveOpsCandidateQueryStrategySummary({
     applied: false,
     mode_key: selectionProfile?.guidance_mode,
@@ -781,7 +951,7 @@ function buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile) {
     reason = segmentStrategy.reason;
   }
 
-  return buildLiveOpsCandidateQueryStrategySummary({
+  return applySelectionFamilyRiskToQueryStrategy({
     applied,
     reason,
     mode_key: selectionProfile?.guidance_mode,
@@ -792,12 +962,18 @@ function buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile) {
     exclude_locale_prefix: localeStrategy.exclude_locale_prefix,
     locale_strategy_reason: localeStrategy.reason,
     segment_strategy_reason: segmentStrategy.reason,
+    family_risk_state: familyRisk.state,
+    family_risk_reason: familyRisk.reason,
+    family_risk_dimension: familyRisk.dimension,
+    family_risk_bucket: familyRisk.bucket,
+    family_risk_match_days: familyRisk.match_days,
+    family_risk_weight: familyRisk.weight,
     pool_limit_multiplier: segmentStrategy.pool_limit_multiplier || 4,
     active_within_days_cap: segmentStrategy.active_within_days_cap,
     inactive_hours_floor: segmentStrategy.inactive_hours_floor,
     max_age_days_cap: segmentStrategy.max_age_days_cap,
     offer_age_days_cap: segmentStrategy.offer_age_days_cap
-  });
+  }, campaign);
 }
 
 async function applyLiveOpsCandidateSqlPrefilter(client, candidates, experimentKey, selectionProfile) {
@@ -3280,7 +3456,7 @@ async function buildCampaignSnapshot(client, current) {
       const reason = String(input.reason || "live_ops_campaign_dispatch").trim().slice(0, 240);
       const dispatchSource = String(input.dispatchSource || "manual").trim().toLowerCase() === "scheduler" ? "scheduler" : "manual";
       const windowKey = String(input.windowKey || buildScheduleWindowKey(campaign) || "");
-      const [sceneRuntimeSummary, schedulerSkipSummary, opsAlertTrendSummary] =
+      const [sceneRuntimeSummary, schedulerSkipSummary, opsAlertTrendSummary, selectionTrendSummary] =
         dispatchSource === "scheduler"
           ? await Promise.all([
               loadSceneRuntimeSummary(client),
@@ -3290,9 +3466,20 @@ async function buildCampaignSnapshot(client, current) {
                   return buildEmptyLiveOpsOpsAlertTrendSummary();
                 }
                 throw err;
+              }),
+              loadSelectionTrendSummary(client, campaign.campaign_key).catch((err) => {
+                if (err?.code === "42P01" || err?.code === "42703") {
+                  return buildEmptyLiveOpsSelectionTrendSummary();
+                }
+                throw err;
               })
             ])
-          : [buildEmptySceneRuntimeSummary(), buildSchedulerSkipAlarmSummary(), buildEmptyLiveOpsOpsAlertTrendSummary()];
+          : [
+              buildEmptySceneRuntimeSummary(),
+              buildSchedulerSkipAlarmSummary(),
+              buildEmptyLiveOpsOpsAlertTrendSummary(),
+              buildEmptyLiveOpsSelectionTrendSummary()
+            ];
       const sceneGate = resolveLiveOpsSceneGate(sceneRuntimeSummary, campaign);
       const recipientCapRecommendation = resolveLiveOpsRecipientCapRecommendation(
         sceneRuntimeSummary,
@@ -3370,7 +3557,7 @@ async function buildCampaignSnapshot(client, current) {
         dispatchSource === "scheduler"
           ? hasExternalCandidateLoader
             ? { applied: false, reason: "query_strategy_external_loader" }
-            : buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile)
+            : buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile, selectionTrendSummary)
           : { applied: false, reason: "query_strategy_not_requested" };
       const candidateResult = await candidateLoader(client, campaign, candidateQueryStrategy);
       const loadedCandidates = Array.isArray(candidateResult) ? candidateResult : [];

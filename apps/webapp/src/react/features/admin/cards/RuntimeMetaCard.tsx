@@ -586,6 +586,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {readText(selectionQueryStrategy, "locale_strategy_family") || "-"} / {readText(selectionQueryStrategy, "segment_strategy_family") || "-"}
           </p>
           <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_selection_query_risk_label")}: {readText(selectionQueryStrategy, "family_risk_state") || "-"} /{" "}
+            {readText(selectionQueryStrategy, "family_risk_reason") || "-"} / {readText(selectionQueryStrategy, "family_risk_dimension") || "-"} /{" "}
+            {readText(selectionQueryStrategy, "family_risk_bucket") || "-"} | {t(props.lang, "admin_runtime_live_ops_selection_query_risk_weight_label")}:{" "}
+            {Math.floor(readNum(selectionQueryStrategy, "family_risk_weight"))} / {Math.floor(readNum(selectionQueryStrategy, "family_risk_match_days"))} |{" "}
+            {t(props.lang, "admin_runtime_live_ops_selection_query_risk_tightened_label")}:{" "}
+            {selectionQueryStrategy?.family_risk_tightened ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
+          </p>
+          <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_selection_query_window_label")}: {readText(selectionQueryStrategy, "mode_key") || "-"} /{" "}
             {readText(selectionQueryStrategy, "segment_key") || "-"} / x{Math.floor(readNum(selectionQueryStrategy, "pool_limit_multiplier") || 0)} /{" "}
             {readText(selectionQueryStrategy, "exclude_locale_prefix") || "-"}
