@@ -116,6 +116,22 @@ function normalizeSelectionFamilyDailyRows(rows) {
     .slice(0, 7);
 }
 
+function normalizeQueryStrategyAdjustmentRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((row) => ({
+      field_key: String(row?.field_key || ""),
+      before_value: Math.max(0, Number(row?.before_value || 0)),
+      after_value: Math.max(0, Number(row?.after_value || 0)),
+      delta_value: Number(row?.delta_value || 0),
+      direction_key: String(row?.direction_key || "same"),
+      reason_code: String(row?.reason_code || "")
+    }))
+    .filter((row) => row.field_key);
+}
+
 function buildLiveOpsCampaignKpiSummary(snapshot) {
   const safeSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
   const campaign = safeSnapshot.campaign && typeof safeSnapshot.campaign === "object" ? safeSnapshot.campaign : {};
@@ -260,7 +276,8 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
         active_within_days_cap: Math.max(0, Number(selectionSummary.query_strategy_summary?.active_within_days_cap || 0)),
         inactive_hours_floor: Math.max(0, Number(selectionSummary.query_strategy_summary?.inactive_hours_floor || 0)),
         max_age_days_cap: Math.max(0, Number(selectionSummary.query_strategy_summary?.max_age_days_cap || 0)),
-        offer_age_days_cap: Math.max(0, Number(selectionSummary.query_strategy_summary?.offer_age_days_cap || 0))
+        offer_age_days_cap: Math.max(0, Number(selectionSummary.query_strategy_summary?.offer_age_days_cap || 0)),
+        adjustment_rows: normalizeQueryStrategyAdjustmentRows(selectionSummary.query_strategy_summary?.adjustment_rows)
       },
       prefilter_summary: {
         applied: selectionSummary.prefilter_summary?.applied === true,
@@ -513,7 +530,8 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
           active_within_days_cap: 0,
           inactive_hours_floor: 0,
           max_age_days_cap: 0,
-          offer_age_days_cap: 0
+          offer_age_days_cap: 0,
+          adjustment_rows: []
         },
         prefilter_summary: {
           applied: false,

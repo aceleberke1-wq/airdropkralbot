@@ -224,6 +224,15 @@ const LiveOpsCampaignSelectionFamilyRiskDailyTrendPointSchema = z.object({
   segment_weight: z.number().int().nonnegative().default(0)
 });
 
+const LiveOpsCampaignQueryStrategyAdjustmentRowSchema = z.object({
+  field_key: z.string().default(""),
+  before_value: z.number().int().nonnegative().default(0),
+  after_value: z.number().int().nonnegative().default(0),
+  delta_value: z.number().int().default(0),
+  direction_key: z.enum(["same", "increase", "decrease"]).default("same"),
+  reason_code: z.string().default("")
+});
+
 const LiveOpsCampaignSkipDailyTrendPointSchema = z.object({
   day: z.string().default(""),
   skip_count: z.number().int().nonnegative().default(0)
@@ -428,7 +437,8 @@ const LiveOpsCampaignSelectionSummarySchema = z.object({
     active_within_days_cap: z.number().int().nonnegative().default(0),
     inactive_hours_floor: z.number().int().nonnegative().default(0),
     max_age_days_cap: z.number().int().nonnegative().default(0),
-    offer_age_days_cap: z.number().int().nonnegative().default(0)
+    offer_age_days_cap: z.number().int().nonnegative().default(0),
+    adjustment_rows: z.array(LiveOpsCampaignQueryStrategyAdjustmentRowSchema).default([])
   }).default({}),
   prefilter_summary: z.object({
     applied: z.boolean().default(false),

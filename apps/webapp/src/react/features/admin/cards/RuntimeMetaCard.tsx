@@ -216,6 +216,30 @@ function SelectionFamilyRiskDailyTrendList(props: { title: string; rows: Array<R
   );
 }
 
+function QueryStrategyAdjustmentList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 7).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.field_key || index)}`}>
+            {String(row.field_key || "-")} | {Math.floor(Number(row.before_value || 0))} {"->"} {Math.floor(Number(row.after_value || 0))} |{" "}
+            {String(row.direction_key || "-")} | {String(row.reason_code || "-")}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const qualityScore = readNum(props.metricsData, "ui_event_quality_score_24h");
   const intent = readNum(props.metricsData, "funnel_intent_24h");
@@ -266,6 +290,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const targetingGuidance = asRecord(liveOpsKpi?.targeting_guidance);
   const selectionSummary = asRecord(liveOpsKpi?.selection_summary);
   const selectionQueryStrategy = asRecord(selectionSummary?.query_strategy_summary);
+  const selectionQueryAdjustments = asRows(selectionQueryStrategy?.adjustment_rows);
   const selectionTrend = asRecord(liveOpsKpi?.selection_trend);
   const selectionPrefilter = asRecord(selectionSummary?.prefilter_summary);
   const schedulerSkipDaily = asRows(schedulerSkip?.daily_breakdown);
@@ -619,6 +644,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_selection_query_risk_tightened_label")}:{" "}
             {selectionQueryStrategy?.family_risk_tightened ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
           </p>
+          <QueryStrategyAdjustmentList
+            title={t(props.lang, "admin_runtime_live_ops_selection_query_adjustments_title")}
+            rows={selectionQueryAdjustments}
+          />
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_selection_query_window_label")}: {readText(selectionQueryStrategy, "mode_key") || "-"} /{" "}
             {readText(selectionQueryStrategy, "segment_key") || "-"} / x{Math.floor(readNum(selectionQueryStrategy, "pool_limit_multiplier") || 0)} /{" "}

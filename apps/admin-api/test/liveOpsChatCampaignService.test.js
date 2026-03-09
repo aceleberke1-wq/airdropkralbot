@@ -1909,6 +1909,9 @@ test("live ops chat campaign service tightens scheduler query windows when selec
   assert.equal(result.data.selection_summary.query_strategy_summary.family_risk_tightened, true);
   assert.equal(result.data.selection_summary.query_strategy_summary.pool_limit_multiplier, 1);
   assert.equal(result.data.selection_summary.query_strategy_summary.active_within_days_cap, 6);
+  const queryAdjustments = result.data.selection_summary.query_strategy_summary.adjustment_rows;
+  assert.equal(queryAdjustments.find((row) => row.field_key === "pool_limit_multiplier")?.after_value, 1);
+  assert.equal(queryAdjustments.find((row) => row.field_key === "active_within_days_cap")?.delta_value, -1);
   assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_shifted_to_query_strategy");
 });
 
@@ -2062,5 +2065,6 @@ test("live ops chat campaign service narrows mission-idle scheduler query window
   assert.equal(result.data.selection_summary.query_strategy_summary.pool_limit_multiplier, 2);
   assert.equal(result.data.selection_summary.query_strategy_summary.active_within_days_cap, 7);
   assert.equal(result.data.selection_summary.query_strategy_summary.offer_age_days_cap, 3);
+  assert.deepEqual(result.data.selection_summary.query_strategy_summary.adjustment_rows, []);
   assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_shifted_to_query_strategy");
 });

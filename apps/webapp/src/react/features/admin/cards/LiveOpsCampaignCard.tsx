@@ -275,6 +275,27 @@ function SelectionFamilyRiskDailyTrendList(props: { title: string; rows: Array<R
   );
 }
 
+function QueryStrategyAdjustmentList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return <p className="akrMuted">{props.title}: -</p>;
+  }
+  return (
+    <section className="akrMiniPanel">
+      <h4>{props.title}</h4>
+      <ul className="akrList">
+        {props.rows.map((row, index) => (
+          <li key={`${asText(row.field_key, "field")}_${index}`}>
+            <span>{formatBucketCode(asText(row.field_key, "-"))}</span>
+            <strong>
+              {asCount(row.before_value)} {"->"} {asCount(row.after_value)} | {asText(row.direction_key, "-")} | {asText(row.reason_code, "-")}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const snapshot = asRecord(props.liveOpsCampaignData);
   const approvalSummary = asRecord(snapshot.approval_summary);
@@ -290,6 +311,7 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
   const taskSummary = asRecord(snapshot.task_summary);
   const taskSelectionSummary = asRecord(taskSummary.selection_summary);
   const taskSelectionQueryStrategy = asRecord(taskSelectionSummary.query_strategy_summary);
+  const taskSelectionQueryAdjustments = asArray(taskSelectionQueryStrategy.adjustment_rows);
   const taskSelectionPrefilter = asRecord(taskSelectionSummary.prefilter_summary);
   const selectionTrendSummary = asRecord(snapshot.selection_trend_summary);
   const opsAlertSummary = asRecord(snapshot.ops_alert_summary);
@@ -792,6 +814,10 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
             {t(props.lang, "admin_live_ops_selection_query_risk_tightened_label")}:{" "}
             {taskSelectionQueryStrategy.family_risk_tightened === true ? t(props.lang, "admin_live_ops_bool_yes") : t(props.lang, "admin_live_ops_bool_no")}
           </p>
+          <QueryStrategyAdjustmentList
+            title={t(props.lang, "admin_live_ops_selection_query_adjustments_title")}
+            rows={taskSelectionQueryAdjustments}
+          />
           <p className="akrMutedLine">
             {t(props.lang, "admin_live_ops_selection_prefilter_focus_label")}: {asText(taskSelectionPrefilter.dimension, "-")} /{" "}
             {asText(taskSelectionPrefilter.bucket, "-")} | {t(props.lang, "admin_live_ops_selection_prefilter_count_label")}:{" "}

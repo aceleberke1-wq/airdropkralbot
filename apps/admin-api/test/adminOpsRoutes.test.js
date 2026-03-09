@@ -359,7 +359,25 @@ function buildLiveOpsSnapshot() {
           active_within_days_cap: 7,
           inactive_hours_floor: 0,
           max_age_days_cap: 0,
-          offer_age_days_cap: 0
+          offer_age_days_cap: 0,
+          adjustment_rows: [
+            {
+              field_key: "pool_limit_multiplier",
+              before_value: 4,
+              after_value: 2,
+              delta_value: -2,
+              direction_key: "decrease",
+              reason_code: "query_strategy_family_streak_alert"
+            },
+            {
+              field_key: "active_within_days_cap",
+              before_value: 10,
+              after_value: 7,
+              delta_value: -3,
+              direction_key: "decrease",
+              reason_code: "query_strategy_family_streak_alert"
+            }
+          ]
         },
         prefilter_summary: {
           applied: true,
@@ -558,6 +576,10 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.family_risk_tightened, true);
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.pool_limit_multiplier, 2);
   assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.active_within_days_cap, 7);
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.adjustment_rows[0].field_key, "pool_limit_multiplier");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.adjustment_rows[0].after_value, 2);
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.adjustment_rows[1].field_key, "active_within_days_cap");
+  assert.equal(body.data.live_ops_campaign.selection_summary.query_strategy_summary.adjustment_rows[1].delta_value, -3);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.applied, true);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.candidates_after, 5);
   assert.equal(body.data.live_ops_campaign.selection_trend.dispatches_7d, 5);

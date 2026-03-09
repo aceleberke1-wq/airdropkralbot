@@ -574,6 +574,27 @@ function buildLiveOpsCandidateQueryStrategySummary(summary = {}) {
   const reason = String(summary.reason || "").trim();
   const localeStrategyReason = String(summary.locale_strategy_reason || "").trim();
   const segmentStrategyReason = String(summary.segment_strategy_reason || "").trim();
+  const adjustmentRows = Array.isArray(summary.adjustment_rows)
+    ? summary.adjustment_rows
+        .filter((row) => row && typeof row === "object" && !Array.isArray(row))
+        .map((row) => {
+          const beforeValue = Math.max(0, Math.floor(Number(row.before_value || 0) || 0));
+          const afterValue = Math.max(0, Math.floor(Number(row.after_value || 0) || 0));
+          const deltaValue = Math.floor(Number(row.delta_value ?? afterValue - beforeValue) || 0);
+          const directionKey = String(row.direction_key || (deltaValue === 0 ? "same" : deltaValue > 0 ? "increase" : "decrease"))
+            .trim()
+            .toLowerCase();
+          return {
+            field_key: String(row.field_key || "").trim().toLowerCase(),
+            before_value: beforeValue,
+            after_value: afterValue,
+            delta_value: deltaValue,
+            direction_key: ["same", "increase", "decrease"].includes(directionKey) ? directionKey : "same",
+            reason_code: String(row.reason_code || "").trim()
+          };
+        })
+        .filter((row) => row.field_key)
+    : [];
   return {
     applied: summary.applied === true,
     reason,
@@ -601,8 +622,41 @@ function buildLiveOpsCandidateQueryStrategySummary(summary = {}) {
     active_within_days_cap: Math.max(0, Math.floor(Number(summary.active_within_days_cap || 0) || 0)),
     inactive_hours_floor: Math.max(0, Math.floor(Number(summary.inactive_hours_floor || 0) || 0)),
     max_age_days_cap: Math.max(0, Math.floor(Number(summary.max_age_days_cap || 0) || 0)),
-    offer_age_days_cap: Math.max(0, Math.floor(Number(summary.offer_age_days_cap || 0) || 0))
+    offer_age_days_cap: Math.max(0, Math.floor(Number(summary.offer_age_days_cap || 0) || 0)),
+    adjustment_rows: adjustmentRows
   };
+}
+
+function buildLiveOpsQueryStrategyAdjustmentRows(beforeStrategy, nextValues, reasonCode) {
+  const safeBefore = beforeStrategy && typeof beforeStrategy === "object" && !Array.isArray(beforeStrategy)
+    ? beforeStrategy
+    : {};
+  const safeNext = nextValues && typeof nextValues === "object" && !Array.isArray(nextValues)
+    ? nextValues
+    : {};
+  return [
+    "pool_limit_multiplier",
+    "active_within_days_cap",
+    "inactive_hours_floor",
+    "max_age_days_cap",
+    "offer_age_days_cap"
+  ].reduce((rows, fieldKey) => {
+    const beforeValue = Math.max(0, Math.floor(Number(safeBefore[fieldKey] || 0) || 0));
+    const afterValue = Math.max(0, Math.floor(Number(safeNext[fieldKey] ?? beforeValue) || 0));
+    if (beforeValue === afterValue) {
+      return rows;
+    }
+    const deltaValue = afterValue - beforeValue;
+    rows.push({
+      field_key: fieldKey,
+      before_value: beforeValue,
+      after_value: afterValue,
+      delta_value: deltaValue,
+      direction_key: deltaValue > 0 ? "increase" : "decrease",
+      reason_code: String(reasonCode || "").trim()
+    });
+    return rows;
+  }, []);
 }
 
 function resolveSelectionFamilyRiskDailyWeight(matchDays) {
@@ -758,6 +812,20 @@ function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
     activeWithinDaysCap = Math.max(2, activeWithinDaysCap);
   }
 
+  const adjustmentRows = tightened
+    ? buildLiveOpsQueryStrategyAdjustmentRows(
+        strategy,
+        {
+          pool_limit_multiplier: poolLimitMultiplier,
+          active_within_days_cap: activeWithinDaysCap,
+          inactive_hours_floor: inactiveHoursFloor,
+          max_age_days_cap: maxAgeDaysCap,
+          offer_age_days_cap: offerAgeDaysCap
+        },
+        strategy.family_risk_reason || "family_risk_tightened"
+      )
+    : [];
+
   return buildLiveOpsCandidateQueryStrategySummary({
     ...strategy,
     family_risk_tightened: tightened,
@@ -765,7 +833,8 @@ function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
     active_within_days_cap: activeWithinDaysCap,
     inactive_hours_floor: inactiveHoursFloor,
     max_age_days_cap: maxAgeDaysCap,
-    offer_age_days_cap: offerAgeDaysCap
+    offer_age_days_cap: offerAgeDaysCap,
+    adjustment_rows: adjustmentRows
   });
 }
 
