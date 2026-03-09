@@ -193,6 +193,15 @@ const LiveOpsCampaignOpsAlertDailyTrendPointSchema = z.object({
   effective_cap_delta_max: z.number().int().nonnegative().default(0)
 });
 
+const LiveOpsCampaignSelectionDailyTrendPointSchema = z.object({
+  day: z.string().default(""),
+  dispatch_count: z.number().int().nonnegative().default(0),
+  prefilter_applied_count: z.number().int().nonnegative().default(0),
+  prefilter_delta_sum: z.number().int().nonnegative().default(0),
+  prioritized_focus_matches: z.number().int().nonnegative().default(0),
+  selected_focus_matches: z.number().int().nonnegative().default(0)
+});
+
 const LiveOpsCampaignSkipDailyTrendPointSchema = z.object({
   day: z.string().default(""),
   skip_count: z.number().int().nonnegative().default(0)
@@ -360,6 +369,26 @@ const LiveOpsCampaignSelectionSummarySchema = z.object({
   }).default({})
 });
 
+const LiveOpsCampaignSelectionTrendSummarySchema = z.object({
+  dispatches_24h: z.number().int().nonnegative().default(0),
+  dispatches_7d: z.number().int().nonnegative().default(0),
+  prefilter_applied_24h: z.number().int().nonnegative().default(0),
+  prefilter_applied_7d: z.number().int().nonnegative().default(0),
+  prefilter_delta_24h: z.number().int().nonnegative().default(0),
+  prefilter_delta_7d: z.number().int().nonnegative().default(0),
+  prioritized_focus_matches_24h: z.number().int().nonnegative().default(0),
+  prioritized_focus_matches_7d: z.number().int().nonnegative().default(0),
+  selected_focus_matches_24h: z.number().int().nonnegative().default(0),
+  selected_focus_matches_7d: z.number().int().nonnegative().default(0),
+  latest_selection_at: z.string().nullable().default(null),
+  latest_guidance_mode: z.enum(["protective", "balanced", "aggressive"]).default("balanced"),
+  latest_focus_dimension: z.string().default(""),
+  latest_focus_bucket: z.string().default(""),
+  latest_prefilter_reason: z.string().default(""),
+  daily_breakdown: z.array(LiveOpsCampaignSelectionDailyTrendPointSchema).default([]),
+  prefilter_reason_breakdown: z.array(KpiLiveOpsCampaignBreakdownSchema).default([])
+});
+
 const KpiLiveOpsCampaignSummarySchema = z.object({
   available: z.boolean().default(false),
   error_code: z.string().default(""),
@@ -392,6 +421,7 @@ const KpiLiveOpsCampaignSummarySchema = z.object({
   recipient_cap_recommendation: LiveOpsCampaignRecipientCapRecommendationSchema.default({}),
   targeting_guidance: LiveOpsCampaignTargetingGuidanceSchema.default({}),
   selection_summary: LiveOpsCampaignSelectionSummarySchema.default({}),
+  selection_trend: LiveOpsCampaignSelectionTrendSummarySchema.default({}),
   scheduler_skip: LiveOpsCampaignSchedulerSkipSummarySchema.default({}),
   ops_alert: LiveOpsCampaignOpsAlertSummarySchema.default({}),
   ops_alert_trend: LiveOpsCampaignOpsAlertTrendSummarySchema.default({}),
@@ -973,6 +1003,7 @@ const LiveOpsCampaignSnapshotSchema = z.object({
   task_summary: LiveOpsCampaignTaskSummarySchema.default({}),
   ops_alert_summary: LiveOpsCampaignOpsAlertSummarySchema.default({}),
   ops_alert_trend_summary: LiveOpsCampaignOpsAlertTrendSummarySchema.default({}),
+  selection_trend_summary: LiveOpsCampaignSelectionTrendSummarySchema.default({}),
   latest_dispatch: z
     .object({
       event_type: z.string().default("live_ops_campaign_sent"),
@@ -1070,6 +1101,8 @@ module.exports = {
   LiveOpsCampaignSnapshotSchema,
   LiveOpsCampaignSurfaceSchema,
   LiveOpsCampaignTargetingSchema,
+  LiveOpsCampaignSelectionDailyTrendPointSchema,
+  LiveOpsCampaignSelectionTrendSummarySchema,
   LiveOpsCampaignVersionHistoryRowSchema,
   LiveOpsCampaignUpsertRequestSchema,
   HomeFeedV2Schema,

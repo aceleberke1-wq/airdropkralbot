@@ -384,6 +384,54 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                 ]
               };
             }
+            if (text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("dispatches_24h")) {
+              return {
+                rows: [
+                  {
+                    dispatches_24h: 1,
+                    dispatches_7d: 3,
+                    prefilter_applied_24h: 1,
+                    prefilter_applied_7d: 2,
+                    prefilter_delta_24h: 4,
+                    prefilter_delta_7d: 6,
+                    prioritized_focus_matches_24h: 5,
+                    prioritized_focus_matches_7d: 11,
+                    selected_focus_matches_24h: 0,
+                    selected_focus_matches_7d: 1
+                  }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("prefilter_applied_count")) {
+              return {
+                rows: [
+                  {
+                    day: "2026-03-08",
+                    dispatch_count: 1,
+                    prefilter_applied_count: 1,
+                    prefilter_delta_sum: 4,
+                    prioritized_focus_matches: 5,
+                    selected_focus_matches: 0
+                  },
+                  {
+                    day: "2026-03-07",
+                    dispatch_count: 2,
+                    prefilter_applied_count: 1,
+                    prefilter_delta_sum: 2,
+                    prioritized_focus_matches: 6,
+                    selected_focus_matches: 1
+                  }
+                ]
+              };
+            }
+            if (text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("targeting_selection_summary,prefilter_summary,reason")) {
+              return {
+                rows: [
+                  { bucket_key: "prefilter_applied", item_count: 2 },
+                  { bucket_key: "prefilter_shifted_to_query_strategy", item_count: 1 }
+                ]
+              };
+            }
             if (text.includes("lower(a.variant_key)")) {
               return { rows: [{ bucket_key: "treatment", item_count: 2 }, { bucket_key: "control", item_count: 1 }] };
             }
@@ -450,7 +498,15 @@ test("live ops chat campaign service snapshot includes approval summary schedule
                       campaign_key: "wallet_reconnect",
                       dispatch_ref: "wallet_reconnect_scheduler_ref",
                       reason: "scheduled_window_dispatch",
-                      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z"
+                      window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z",
+                      targeting_selection_summary: {
+                        guidance_mode: "protective",
+                        focus_dimension: "locale",
+                        focus_bucket: "tr",
+                        prefilter_summary: {
+                          reason: "prefilter_applied"
+                        }
+                      }
                     }
                   }
                 ]
@@ -621,6 +677,15 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.selection_summary.prefilter_summary.candidates_after, 5);
   assert.equal(snapshot.task_summary.scheduler_skip_alarm_state, "alert");
   assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
+  assert.equal(snapshot.selection_trend_summary.dispatches_24h, 1);
+  assert.equal(snapshot.selection_trend_summary.dispatches_7d, 3);
+  assert.equal(snapshot.selection_trend_summary.prefilter_applied_7d, 2);
+  assert.equal(snapshot.selection_trend_summary.prefilter_delta_7d, 6);
+  assert.equal(snapshot.selection_trend_summary.latest_guidance_mode, "protective");
+  assert.equal(snapshot.selection_trend_summary.latest_focus_bucket, "tr");
+  assert.equal(snapshot.selection_trend_summary.latest_prefilter_reason, "prefilter_applied");
+  assert.equal(snapshot.selection_trend_summary.daily_breakdown[0].prefilter_delta_sum, 4);
+  assert.equal(snapshot.selection_trend_summary.prefilter_reason_breakdown[0].bucket_key, "prefilter_applied");
   assert.equal(snapshot.ops_alert_summary.artifact_found, true);
   assert.equal(snapshot.ops_alert_summary.alarm_state, "alert");
   assert.equal(snapshot.ops_alert_summary.telegram_sent, true);
@@ -1231,9 +1296,153 @@ test("live ops chat campaign service scheduler prioritizes away from pressured l
   assert.deepEqual(sentChatIds, [8103, 8104]);
   assert.equal(result.data.selection_summary.guidance_mode, "protective");
   assert.equal(result.data.selection_summary.prefilter_summary.applied, true);
+  assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_applied");
   assert.equal(result.data.selection_summary.prefilter_summary.candidates_before, 5);
   assert.equal(result.data.selection_summary.prefilter_summary.candidates_after, 3);
   assert.equal(result.data.selection_summary.selected_top_locale_matches, 0);
   assert.equal(result.data.selection_summary.selected_top_variant_matches, 0);
   assert.equal(result.data.selection_summary.prioritized_top_locale_matches, 0);
+});
+
+test("live ops chat campaign service applies locale-aware query strategy before scheduler selection", async () => {
+  const sentChatIds = [];
+  const { pool, recordedQueries } = createQueryRecorder((text) => {
+    if (text.includes("FROM config_versions") && text.includes("LIMIT 1")) {
+      return { rows: [{ version: 8, created_at: "2026-03-08T12:00:00.000Z", created_by: 7001, config_json: buildCampaign() }] };
+    }
+    if (text.includes("COUNT(*)::int AS sent_total") && text.includes("interval '72 hours'")) {
+      return { rows: [{ sent_total: 0, sent_72h: 0, last_sent_at: null, last_segment_key: "", last_dispatch_ref: "" }] };
+    }
+    if (text.includes("event_key IN ('runtime.scene.ready', 'runtime.scene.failed')")) {
+      return {
+        rows: [
+          {
+            ready_24h: 10,
+            failed_24h: 0,
+            low_end_24h: 1,
+            avg_loaded_bundles_24h: 3.2,
+            daily_breakdown_7d: [{ day: "2026-03-08", total_count: 10, ready_count: 10, failed_count: 0, low_end_count: 1 }],
+            quality_breakdown_24h: [],
+            perf_breakdown_24h: []
+          }
+        ]
+      };
+    }
+    if (text.includes("COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS raised_24h")) {
+      return {
+        rows: [
+          {
+            raised_24h: 2,
+            raised_7d: 4,
+            telegram_sent_24h: 1,
+            telegram_sent_7d: 2,
+            effective_cap_delta_24h: 6,
+            effective_cap_delta_7d: 12,
+            max_effective_cap_delta_7d: 6
+          }
+        ]
+      };
+    }
+    if (text.includes("FROM admin_audit") && text.includes("ORDER BY created_at DESC") && text.includes("live_ops_campaign_ops_alert")) {
+      return {
+        rows: [
+          {
+            created_at: "2026-03-08T12:20:00.000Z",
+            payload_json: {
+              alarm_state: "alert",
+              notification_reason: "alert_state",
+              telegram_sent: true,
+              telegram_sent_at: "2026-03-08T12:20:00.000Z",
+              effective_cap_delta: 6
+            }
+          }
+        ]
+      };
+    }
+    if (text.includes("payload_json->>'notification_reason'")) {
+      return { rows: [{ bucket_key: "alert_state", item_count: 4 }] };
+    }
+    if (text.includes("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')")) {
+      return {
+        rows: [{ day: "2026-03-08", alert_count: 4, telegram_sent_count: 1, effective_cap_delta_sum: 6, effective_cap_delta_max: 6 }]
+      };
+    }
+    if (text.includes("payload_json->>'locale_bucket'")) {
+      return { rows: [{ bucket_key: "tr", item_count: 7 }, { bucket_key: "en", item_count: 1 }] };
+    }
+    if (text.includes("payload_json->>'segment_key'")) {
+      return { rows: [{ bucket_key: "wallet_unlinked", item_count: 4 }] };
+    }
+    if (text.includes("payload_json->>'surface_bucket'")) {
+      return { rows: [{ bucket_key: "wallet_panel", item_count: 4 }] };
+    }
+    if (text.includes("payload_json->>'variant_bucket'")) {
+      return { rows: [{ bucket_key: "treatment", item_count: 6 }, { bucket_key: "control", item_count: 2 }] };
+    }
+    if (text.includes("payload_json->>'cohort_bucket'")) {
+      return { rows: [{ bucket_key: "17", item_count: 5 }, { bucket_key: "42", item_count: 1 }] };
+    }
+    if (text.includes("FROM users u") && text.includes("FROM v5_wallet_links wl") && text.includes("NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%'))")) {
+      return {
+        rows: [
+          { user_id: 3, telegram_id: 8203, locale: "en", last_seen_at: "2026-03-08T10:00:00.000Z", public_name: "e3", prefs_json: {} },
+          { user_id: 4, telegram_id: 8204, locale: "en", last_seen_at: "2026-03-08T10:00:00.000Z", public_name: "e4", prefs_json: {} },
+          { user_id: 5, telegram_id: 8205, locale: "en", last_seen_at: "2026-03-08T10:00:00.000Z", public_name: "e5", prefs_json: {} }
+        ]
+      };
+    }
+    if (text.includes("FROM v5_webapp_experiment_assignments")) {
+      return {
+        rows: [
+          { uid: 3, variant_key: "control", cohort_bucket: 42 },
+          { uid: 4, variant_key: "control", cohort_bucket: 42 },
+          { uid: 5, variant_key: "control", cohort_bucket: 42 }
+        ]
+      };
+    }
+    if (text.includes("INSERT INTO behavior_events") || text.includes("INSERT INTO admin_audit")) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  const service = createLiveOpsChatCampaignService({
+    pool,
+    fetchImpl: async (_url, options) => {
+      const payload = JSON.parse(String(options.body || "{}"));
+      sentChatIds.push(Number(payload.chat_id || 0));
+      return { ok: true };
+    },
+    botToken: "bot_token",
+    botUsername: "airdropkral_2026_bot",
+    webappPublicUrl: "https://example.com/app",
+    webappHmacSecret: "secret",
+    resolveWebappVersion: async () => ({ version: "abc123" }),
+    nowFactory: () => new Date("2026-03-08T12:30:00.000Z"),
+    logger: () => {}
+  });
+
+  const result = await service.dispatchCampaign({
+    adminId: 7010,
+    dryRun: false,
+    reason: "scheduled_window_dispatch",
+    dispatchSource: "scheduler",
+    campaign: buildCampaign({
+      targeting: {
+        max_recipients: 2
+      }
+    })
+  });
+
+  const candidateQuery = recordedQueries.find((entry) =>
+    entry.sql.includes("FROM users u") &&
+    entry.sql.includes("NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%'))")
+  );
+  assert.ok(candidateQuery);
+  assert.equal(candidateQuery.params[2], "tr");
+  assert.equal(result.ok, true);
+  assert.deepEqual(sentChatIds, [8203]);
+  assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_shifted_to_query_strategy");
+  assert.equal(result.data.selection_summary.prefilter_summary.candidates_before, 3);
+  assert.equal(result.data.selection_summary.prefilter_summary.candidates_after, 3);
 });

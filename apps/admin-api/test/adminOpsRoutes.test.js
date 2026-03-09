@@ -335,6 +335,28 @@ function buildLiveOpsSnapshot() {
       scheduler_skip_alarm_state: "watch",
       scheduler_skip_alarm_reason: "scene_runtime_watch_capped_repeated"
     },
+    selection_trend_summary: {
+      dispatches_24h: 2,
+      dispatches_7d: 5,
+      prefilter_applied_24h: 2,
+      prefilter_applied_7d: 4,
+      prefilter_delta_24h: 7,
+      prefilter_delta_7d: 15,
+      prioritized_focus_matches_24h: 5,
+      prioritized_focus_matches_7d: 13,
+      selected_focus_matches_24h: 0,
+      selected_focus_matches_7d: 1,
+      latest_selection_at: "2026-03-08T02:05:00.000Z",
+      latest_guidance_mode: "protective",
+      latest_focus_dimension: "locale",
+      latest_focus_bucket: "tr",
+      latest_prefilter_reason: "prefilter_applied",
+      daily_breakdown: [
+        { day: "2026-03-08", dispatch_count: 2, prefilter_applied_count: 2, prefilter_delta_sum: 7, prioritized_focus_matches: 5, selected_focus_matches: 0 },
+        { day: "2026-03-07", dispatch_count: 3, prefilter_applied_count: 2, prefilter_delta_sum: 8, prioritized_focus_matches: 8, selected_focus_matches: 1 }
+      ],
+      prefilter_reason_breakdown: [{ bucket_key: "prefilter_applied", item_count: 4 }]
+    },
     latest_dispatch: {
       event_type: "live_ops_campaign_sent",
       sent_total: 33,
@@ -452,6 +474,11 @@ test("v2 admin ops kpi latest includes live ops campaign breakdowns", async () =
   assert.equal(body.data.live_ops_campaign.selection_summary.selected_top_locale_matches, 0);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.applied, true);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.candidates_after, 5);
+  assert.equal(body.data.live_ops_campaign.selection_trend.dispatches_7d, 5);
+  assert.equal(body.data.live_ops_campaign.selection_trend.prefilter_applied_7d, 4);
+  assert.equal(body.data.live_ops_campaign.selection_trend.prefilter_delta_7d, 15);
+  assert.equal(body.data.live_ops_campaign.selection_trend.daily_breakdown[0].prefilter_delta_sum, 7);
+  assert.equal(body.data.live_ops_campaign.selection_trend.prefilter_reason_breakdown[0].bucket_key, "prefilter_applied");
   assert.equal(body.data.live_ops_campaign.scene_gate_effect, "capped");
   assert.equal(body.data.live_ops_campaign.scene_runtime.health_band_24h, "yellow");
   assert.equal(body.data.live_ops_campaign.scene_runtime.alarm_state_7d, "watch");
@@ -539,6 +566,8 @@ test("v2 admin ops kpi run includes live ops campaign summary", async () => {
   assert.equal(body.data.live_ops_campaign.selection_summary.focus_dimension, "locale");
   assert.equal(body.data.live_ops_campaign.selection_summary.prioritized_top_variant_matches, 6);
   assert.equal(body.data.live_ops_campaign.selection_summary.prefilter_summary.reason, "prefilter_applied");
+  assert.equal(body.data.live_ops_campaign.selection_trend.latest_prefilter_reason, "prefilter_applied");
+  assert.equal(body.data.live_ops_campaign.selection_trend.latest_focus_bucket, "tr");
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.telegram_sent_7d, 1);
   assert.equal(body.data.live_ops_campaign.ops_alert_trend.variant_breakdown[0].bucket_key, "treatment");
   assert.equal(body.data.live_ops_campaign.scene_runtime.trend_direction_7d, "stable");

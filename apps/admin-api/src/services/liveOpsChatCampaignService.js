@@ -216,12 +216,13 @@ function buildPersistedCampaign(currentCampaign, nextCampaignInput) {
   return next;
 }
 
-async function queryInactiveReturningCandidates(client, campaign) {
+async function queryInactiveReturningCandidates(client, campaign, queryStrategy = {}) {
   const targeting = campaign.targeting || {};
   const limit = Math.max(1, toPositiveInt(targeting.max_recipients, 50));
   const inactiveHours = Math.max(24, toPositiveInt(targeting.inactive_hours, 72));
   const maxAgeDays = Math.max(3, toPositiveInt(targeting.max_age_days, 30));
   const localeFilter = String(targeting.locale_filter || "").trim().toLowerCase();
+  const excludeLocalePrefix = String(queryStrategy?.exclude_locale_prefix || "").trim().toLowerCase();
   const result = await client.query(
     `SELECT
        u.id AS user_id,
@@ -238,26 +239,28 @@ async function queryInactiveReturningCandidates(client, campaign) {
        AND u.last_seen_at <= now() - make_interval(hours => $1::int)
        AND u.last_seen_at >= now() - make_interval(days => $2::int)
        AND ($3 = '' OR lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%'))
+       AND ($4 = '' OR NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($4, '%')))
        AND NOT EXISTS (
          SELECT 1
          FROM behavior_events be
          WHERE be.user_id = u.id
-           AND be.event_type = $4
-           AND COALESCE(be.meta_json->>'campaign_key', '') = $5
-           AND be.event_at >= now() - make_interval(hours => $6::int)
+           AND be.event_type = $5
+           AND COALESCE(be.meta_json->>'campaign_key', '') = $6
+           AND be.event_at >= now() - make_interval(hours => $7::int)
        )
      ORDER BY u.last_seen_at ASC
-     LIMIT $7;`,
-    [inactiveHours, maxAgeDays, localeFilter, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
+     LIMIT $8;`,
+    [inactiveHours, maxAgeDays, localeFilter, excludeLocalePrefix, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
   );
   return result.rows;
 }
 
-async function queryWalletUnlinkedCandidates(client, campaign) {
+async function queryWalletUnlinkedCandidates(client, campaign, queryStrategy = {}) {
   const targeting = campaign.targeting || {};
   const limit = Math.max(1, toPositiveInt(targeting.max_recipients, 50));
   const activeWithinDays = Math.max(1, toPositiveInt(targeting.active_within_days, 14));
   const localeFilter = String(targeting.locale_filter || "").trim().toLowerCase();
+  const excludeLocalePrefix = String(queryStrategy?.exclude_locale_prefix || "").trim().toLowerCase();
   const result = await client.query(
     `SELECT
        u.id AS user_id,
@@ -273,6 +276,7 @@ async function queryWalletUnlinkedCandidates(client, campaign) {
        AND COALESCE(u.status, 'active') = 'active'
        AND u.last_seen_at >= now() - make_interval(days => $1::int)
        AND ($2 = '' OR lower(COALESCE(u.locale, '')) LIKE CONCAT($2, '%'))
+       AND ($3 = '' OR NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%')))
        AND NOT EXISTS (
          SELECT 1
          FROM v5_wallet_links wl
@@ -283,22 +287,23 @@ async function queryWalletUnlinkedCandidates(client, campaign) {
          SELECT 1
          FROM behavior_events be
          WHERE be.user_id = u.id
-           AND be.event_type = $3
-           AND COALESCE(be.meta_json->>'campaign_key', '') = $4
-           AND be.event_at >= now() - make_interval(hours => $5::int)
+           AND be.event_type = $4
+           AND COALESCE(be.meta_json->>'campaign_key', '') = $5
+           AND be.event_at >= now() - make_interval(hours => $6::int)
        )
      ORDER BY u.last_seen_at DESC
-     LIMIT $6;`,
-    [activeWithinDays, localeFilter, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
+     LIMIT $7;`,
+    [activeWithinDays, localeFilter, excludeLocalePrefix, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
   );
   return result.rows;
 }
 
-async function queryMissionIdleCandidates(client, campaign) {
+async function queryMissionIdleCandidates(client, campaign, queryStrategy = {}) {
   const targeting = campaign.targeting || {};
   const limit = Math.max(1, toPositiveInt(targeting.max_recipients, 50));
   const activeWithinDays = Math.max(1, toPositiveInt(targeting.active_within_days, 14));
   const localeFilter = String(targeting.locale_filter || "").trim().toLowerCase();
+  const excludeLocalePrefix = String(queryStrategy?.exclude_locale_prefix || "").trim().toLowerCase();
   const result = await client.query(
     `WITH mission_windows AS (
        SELECT
@@ -329,6 +334,7 @@ async function queryMissionIdleCandidates(client, campaign) {
        AND COALESCE(u.status, 'active') = 'active'
        AND u.last_seen_at >= now() - make_interval(days => $1::int)
        AND ($2 = '' OR lower(COALESCE(u.locale, '')) LIKE CONCAT($2, '%'))
+       AND ($3 = '' OR NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%')))
        AND NOT EXISTS (
          SELECT 1
          FROM task_attempts a
@@ -339,22 +345,23 @@ async function queryMissionIdleCandidates(client, campaign) {
          SELECT 1
          FROM behavior_events be
          WHERE be.user_id = u.id
-           AND be.event_type = $3
-           AND COALESCE(be.meta_json->>'campaign_key', '') = $4
-           AND be.event_at >= now() - make_interval(hours => $5::int)
+           AND be.event_type = $4
+           AND COALESCE(be.meta_json->>'campaign_key', '') = $5
+           AND be.event_at >= now() - make_interval(hours => $6::int)
        )
      ORDER BY mw.latest_offer_created_at DESC
-     LIMIT $6;`,
-    [activeWithinDays, localeFilter, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
+     LIMIT $7;`,
+    [activeWithinDays, localeFilter, excludeLocalePrefix, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
   );
   return result.rows;
 }
 
-async function queryAllActiveCandidates(client, campaign) {
+async function queryAllActiveCandidates(client, campaign, queryStrategy = {}) {
   const targeting = campaign.targeting || {};
   const limit = Math.max(1, toPositiveInt(targeting.max_recipients, 50));
   const activeWithinDays = Math.max(1, toPositiveInt(targeting.active_within_days, 14));
   const localeFilter = String(targeting.locale_filter || "").trim().toLowerCase();
+  const excludeLocalePrefix = String(queryStrategy?.exclude_locale_prefix || "").trim().toLowerCase();
   const result = await client.query(
     `SELECT
        u.id AS user_id,
@@ -370,17 +377,18 @@ async function queryAllActiveCandidates(client, campaign) {
        AND COALESCE(u.status, 'active') = 'active'
        AND u.last_seen_at >= now() - make_interval(days => $1::int)
        AND ($2 = '' OR lower(COALESCE(u.locale, '')) LIKE CONCAT($2, '%'))
+       AND ($3 = '' OR NOT (lower(COALESCE(u.locale, '')) LIKE CONCAT($3, '%')))
        AND NOT EXISTS (
          SELECT 1
          FROM behavior_events be
          WHERE be.user_id = u.id
-           AND be.event_type = $3
-           AND COALESCE(be.meta_json->>'campaign_key', '') = $4
-           AND be.event_at >= now() - make_interval(hours => $5::int)
+           AND be.event_type = $4
+           AND COALESCE(be.meta_json->>'campaign_key', '') = $5
+           AND be.event_at >= now() - make_interval(hours => $6::int)
        )
      ORDER BY u.last_seen_at DESC
-     LIMIT $6;`,
-    [activeWithinDays, localeFilter, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
+     LIMIT $7;`,
+    [activeWithinDays, localeFilter, excludeLocalePrefix, LIVE_OPS_CAMPAIGN_EVENT_TYPE, campaign.campaign_key, campaign.targeting.dedupe_hours, limit * 4]
   );
   return result.rows;
 }
@@ -524,6 +532,42 @@ function buildLiveOpsCandidateSqlPrefilter(selectionProfile) {
     bucket: focusBucket,
     reason: "prefilter_ready"
   });
+}
+
+function buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile) {
+  const prefilter = buildLiveOpsCandidateSqlPrefilter(selectionProfile);
+  const localeFilter = normalizeLiveOpsCandidateBucket(campaign?.targeting?.locale_filter || "", "");
+  if (prefilter.reason !== "prefilter_ready") {
+    return {
+      applied: false,
+      dimension: prefilter.dimension,
+      bucket: prefilter.bucket,
+      reason: prefilter.reason
+    };
+  }
+  if (prefilter.dimension !== "locale") {
+    return {
+      applied: false,
+      dimension: prefilter.dimension,
+      bucket: prefilter.bucket,
+      reason: "query_strategy_prefilter_only"
+    };
+  }
+  if (localeFilter && localeFilter === prefilter.bucket) {
+    return {
+      applied: false,
+      dimension: prefilter.dimension,
+      bucket: prefilter.bucket,
+      reason: "query_strategy_locale_conflict"
+    };
+  }
+  return {
+    applied: true,
+    dimension: "locale",
+    bucket: prefilter.bucket,
+    reason: "query_strategy_locale_exclusion",
+    exclude_locale_prefix: prefilter.bucket
+  };
 }
 
 async function applyLiveOpsCandidateSqlPrefilter(client, candidates, experimentKey, selectionProfile) {
@@ -1449,6 +1493,238 @@ function normalizeOpsAlertDailyRows(rows) {
     .slice(0, 7);
 }
 
+function normalizeSelectionTrendDailyRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      day: String(row?.day || "").trim(),
+      dispatch_count: Math.max(0, Number(row?.dispatch_count || 0)),
+      prefilter_applied_count: Math.max(0, Number(row?.prefilter_applied_count || 0)),
+      prefilter_delta_sum: Math.max(0, Number(row?.prefilter_delta_sum || 0)),
+      prioritized_focus_matches: Math.max(0, Number(row?.prioritized_focus_matches || 0)),
+      selected_focus_matches: Math.max(0, Number(row?.selected_focus_matches || 0))
+    }))
+    .filter((row) => row.day)
+    .slice(0, 7);
+}
+
+async function loadSelectionTrendSummary(client, campaignKey) {
+  const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
+  const key = String(campaignKey || "");
+  const [totalsResult, latestResult, dailyResult, reasonResult] = await Promise.all([
+    client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS dispatches_24h,
+         COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days')::bigint AS dispatches_7d,
+         COUNT(*) FILTER (
+           WHERE created_at >= now() - interval '24 hours'
+             AND COALESCE(lower(payload_json#>>'{targeting_selection_summary,prefilter_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS prefilter_applied_24h,
+         COUNT(*) FILTER (
+           WHERE created_at >= now() - interval '7 days'
+             AND COALESCE(lower(payload_json#>>'{targeting_selection_summary,prefilter_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS prefilter_applied_7d,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '24 hours'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}', '') IS NOT NULL
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}', '') IS NOT NULL
+                 THEN GREATEST(
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}')::int -
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}')::int,
+                   0
+                 )
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prefilter_delta_24h,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '7 days'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}', '') IS NOT NULL
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}', '') IS NOT NULL
+                 THEN GREATEST(
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}')::int -
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}')::int,
+                   0
+                 )
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prefilter_delta_7d,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '24 hours'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prioritized_focus_matches_24h,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '7 days'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prioritized_focus_matches_7d,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '24 hours'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,selected_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,selected_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS selected_focus_matches_24h,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN created_at >= now() - interval '7 days'
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,selected_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,selected_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS selected_focus_matches_7d
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler';`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT created_at, payload_json
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+       ORDER BY created_at DESC
+       LIMIT 1;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+         COUNT(*)::bigint AS dispatch_count,
+         COUNT(*) FILTER (
+           WHERE COALESCE(lower(payload_json#>>'{targeting_selection_summary,prefilter_summary,applied}'), 'false') IN ('true', '1', 'yes', 'on')
+         )::bigint AS prefilter_applied_count,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}', '') IS NOT NULL
+                AND NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}', '') IS NOT NULL
+                 THEN GREATEST(
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_before}')::int -
+                   (payload_json#>>'{targeting_selection_summary,prefilter_summary,candidates_after}')::int,
+                   0
+                 )
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prefilter_delta_sum,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN NULLIF(payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,prioritized_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS prioritized_focus_matches,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN NULLIF(payload_json#>>'{targeting_selection_summary,selected_focus_matches}', '') IS NOT NULL
+                 THEN (payload_json#>>'{targeting_selection_summary,selected_focus_matches}')::int
+               ELSE 0
+             END
+           ),
+           0
+         )::bigint AS selected_focus_matches
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY day DESC
+       LIMIT 7;`,
+      [target, key]
+    ),
+    client.query(
+      `SELECT
+         COALESCE(NULLIF(payload_json#>>'{targeting_selection_summary,prefilter_summary,reason}', ''), 'unknown') AS bucket_key,
+         COUNT(*)::bigint AS item_count
+       FROM admin_audit
+       WHERE target = $1
+         AND action = 'live_ops_campaign_dispatch'
+         AND COALESCE(payload_json->>'campaign_key', '') = $2
+         AND COALESCE(payload_json->>'dispatch_source', 'manual') = 'scheduler'
+         AND created_at >= now() - interval '7 days'
+       GROUP BY 1
+       ORDER BY item_count DESC, bucket_key ASC
+       LIMIT 8;`,
+      [target, key]
+    )
+  ]);
+
+  const totals = totalsResult.rows[0] || {};
+  const latest = latestResult.rows[0] || {};
+  const latestPayload = latest.payload_json && typeof latest.payload_json === "object" && !Array.isArray(latest.payload_json)
+    ? latest.payload_json
+    : {};
+  const latestSelection =
+    latestPayload.targeting_selection_summary &&
+    typeof latestPayload.targeting_selection_summary === "object" &&
+    !Array.isArray(latestPayload.targeting_selection_summary)
+      ? latestPayload.targeting_selection_summary
+      : {};
+  const latestPrefilter =
+    latestSelection.prefilter_summary &&
+    typeof latestSelection.prefilter_summary === "object" &&
+    !Array.isArray(latestSelection.prefilter_summary)
+      ? latestSelection.prefilter_summary
+      : {};
+  return {
+    dispatches_24h: Math.max(0, Number(totals.dispatches_24h || 0)),
+    dispatches_7d: Math.max(0, Number(totals.dispatches_7d || 0)),
+    prefilter_applied_24h: Math.max(0, Number(totals.prefilter_applied_24h || 0)),
+    prefilter_applied_7d: Math.max(0, Number(totals.prefilter_applied_7d || 0)),
+    prefilter_delta_24h: Math.max(0, Number(totals.prefilter_delta_24h || 0)),
+    prefilter_delta_7d: Math.max(0, Number(totals.prefilter_delta_7d || 0)),
+    prioritized_focus_matches_24h: Math.max(0, Number(totals.prioritized_focus_matches_24h || 0)),
+    prioritized_focus_matches_7d: Math.max(0, Number(totals.prioritized_focus_matches_7d || 0)),
+    selected_focus_matches_24h: Math.max(0, Number(totals.selected_focus_matches_24h || 0)),
+    selected_focus_matches_7d: Math.max(0, Number(totals.selected_focus_matches_7d || 0)),
+    latest_selection_at: latest.created_at || null,
+    latest_guidance_mode: String(latestSelection.guidance_mode || "balanced"),
+    latest_focus_dimension: String(latestSelection.focus_dimension || ""),
+    latest_focus_bucket: String(latestSelection.focus_bucket || ""),
+    latest_prefilter_reason: String(latestPrefilter.reason || ""),
+    daily_breakdown: normalizeSelectionTrendDailyRows(dailyResult.rows),
+    prefilter_reason_breakdown: normalizeBreakdownRows(reasonResult.rows)
+  };
+}
+
 async function loadOpsAlertTrendSummary(client, campaignKey) {
   const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
   const key = String(campaignKey || "");
@@ -1888,6 +2164,28 @@ function buildEmptyLiveOpsOpsAlertTrendSummary() {
   };
 }
 
+function buildEmptyLiveOpsSelectionTrendSummary() {
+  return {
+    dispatches_24h: 0,
+    dispatches_7d: 0,
+    prefilter_applied_24h: 0,
+    prefilter_applied_7d: 0,
+    prefilter_delta_24h: 0,
+    prefilter_delta_7d: 0,
+    prioritized_focus_matches_24h: 0,
+    prioritized_focus_matches_7d: 0,
+    selected_focus_matches_24h: 0,
+    selected_focus_matches_7d: 0,
+    latest_selection_at: null,
+    latest_guidance_mode: "balanced",
+    latest_focus_dimension: "",
+    latest_focus_bucket: "",
+    latest_prefilter_reason: "",
+    daily_breakdown: [],
+    prefilter_reason_breakdown: []
+  };
+}
+
 function toTaskAgeMinutes(now, stat) {
   if (!stat?.mtime) {
     return null;
@@ -2261,7 +2559,20 @@ async function buildCampaignSnapshot(client, current) {
     last_dispatch_at: latestDispatch.last_sent_at || null
   });
   const currentWindowKey = buildScheduleWindowKey(snapshotState.campaign);
-  const [versionHistory, dispatchHistory, operatorTimeline, deliverySummary, schedulerSkipSummary, latestSchedulerDispatch, schedulerWindowDispatch, sceneRuntimeSummary, taskSummary, opsAlertSummary, opsAlertTrendSummary] = await Promise.all([
+  const [
+    versionHistory,
+    dispatchHistory,
+    operatorTimeline,
+    deliverySummary,
+    schedulerSkipSummary,
+    latestSchedulerDispatch,
+    schedulerWindowDispatch,
+    sceneRuntimeSummary,
+    taskSummary,
+    opsAlertSummary,
+    opsAlertTrendSummary,
+    selectionTrendSummary
+  ] = await Promise.all([
     loadVersionHistory(client),
     loadDispatchHistory(client, snapshotState.campaign.campaign_key),
     loadOperatorTimeline(client, snapshotState.campaign.campaign_key),
@@ -2275,6 +2586,12 @@ async function buildCampaignSnapshot(client, current) {
     loadOpsAlertTrendSummary(client, snapshotState.campaign.campaign_key).catch((err) => {
       if (err?.code === "42P01" || err?.code === "42703") {
         return buildEmptyLiveOpsOpsAlertTrendSummary();
+      }
+      throw err;
+    }),
+    loadSelectionTrendSummary(client, snapshotState.campaign.campaign_key).catch((err) => {
+      if (err?.code === "42P01" || err?.code === "42703") {
+        return buildEmptyLiveOpsSelectionTrendSummary();
       }
       throw err;
     })
@@ -2305,6 +2622,7 @@ async function buildCampaignSnapshot(client, current) {
     task_summary: taskSummary,
     ops_alert_summary: opsAlertSummary,
     ops_alert_trend_summary: opsAlertTrendSummary,
+    selection_trend_summary: selectionTrendSummary,
     latest_dispatch: latestDispatch
   };
 }
@@ -2546,22 +2864,41 @@ async function buildCampaignSnapshot(client, current) {
         }
       }
 
-      const candidateLoader = loadCandidates || selectCandidateLoader(campaign);
-      const candidateResult = await candidateLoader(client, campaign);
-      const loadedCandidates = Array.isArray(candidateResult) ? candidateResult : [];
       const selectionProfile = buildLiveOpsCandidateSelectionProfile(
         targetingGuidance,
         pressureFocus,
         pressureEscalation
       );
+      const hasExternalCandidateLoader = typeof loadCandidates === "function";
+      const candidateLoader = loadCandidates || selectCandidateLoader(campaign);
+      const candidateQueryStrategy =
+        dispatchSource === "scheduler"
+          ? hasExternalCandidateLoader
+            ? { applied: false, reason: "query_strategy_external_loader" }
+            : buildLiveOpsCandidateQueryStrategy(campaign, selectionProfile)
+          : { applied: false, reason: "query_strategy_not_requested" };
+      const candidateResult = await candidateLoader(client, campaign, candidateQueryStrategy);
+      const loadedCandidates = Array.isArray(candidateResult) ? candidateResult : [];
       const prefilterResult =
         dispatchSource === "scheduler"
-          ? await applyLiveOpsCandidateSqlPrefilter(
-              client,
-              loadedCandidates,
-              recipientCapRecommendation.experiment_key || DEFAULT_EXPERIMENT_KEY,
-              selectionProfile
-            )
+          ? candidateQueryStrategy.applied === true
+            ? {
+                candidates: loadedCandidates,
+                prefilter_summary: buildLiveOpsCandidatePrefilterSummary({
+                  applied: false,
+                  dimension: String(candidateQueryStrategy.dimension || "").trim(),
+                  bucket: String(candidateQueryStrategy.bucket || "").trim(),
+                  reason: "prefilter_shifted_to_query_strategy",
+                  candidates_before: loadedCandidates.length,
+                  candidates_after: loadedCandidates.length
+                })
+              }
+            : await applyLiveOpsCandidateSqlPrefilter(
+                client,
+                loadedCandidates,
+                recipientCapRecommendation.experiment_key || DEFAULT_EXPERIMENT_KEY,
+                selectionProfile
+              )
           : {
               candidates: loadedCandidates,
               prefilter_summary: buildLiveOpsCandidatePrefilterSummary({

@@ -84,6 +84,23 @@ function normalizeOpsAlertDailyRows(rows) {
     .slice(0, 7);
 }
 
+function normalizeSelectionTrendDailyRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((row) => ({
+      day: String(row?.day || ""),
+      dispatch_count: Math.max(0, Number(row?.dispatch_count || 0)),
+      prefilter_applied_count: Math.max(0, Number(row?.prefilter_applied_count || 0)),
+      prefilter_delta_sum: Math.max(0, Number(row?.prefilter_delta_sum || 0)),
+      prioritized_focus_matches: Math.max(0, Number(row?.prioritized_focus_matches || 0)),
+      selected_focus_matches: Math.max(0, Number(row?.selected_focus_matches || 0))
+    }))
+    .filter((row) => row.day)
+    .slice(0, 7);
+}
+
 function buildLiveOpsCampaignKpiSummary(snapshot) {
   const safeSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
   const campaign = safeSnapshot.campaign && typeof safeSnapshot.campaign === "object" ? safeSnapshot.campaign : {};
@@ -101,6 +118,9 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
     : {};
   const sceneRuntime = safeSnapshot.scene_runtime_summary && typeof safeSnapshot.scene_runtime_summary === "object"
     ? safeSnapshot.scene_runtime_summary
+    : {};
+  const selectionTrend = safeSnapshot.selection_trend_summary && typeof safeSnapshot.selection_trend_summary === "object"
+    ? safeSnapshot.selection_trend_summary
     : {};
   const taskSummary = safeSnapshot.task_summary && typeof safeSnapshot.task_summary === "object"
     ? safeSnapshot.task_summary
@@ -262,6 +282,25 @@ function buildLiveOpsCampaignKpiSummary(snapshot) {
       variant_breakdown: normalizeBreakdownRows(opsAlertTrend.variant_breakdown),
       cohort_breakdown: normalizeBreakdownRows(opsAlertTrend.cohort_breakdown)
     },
+    selection_trend: {
+      dispatches_24h: Math.max(0, Number(selectionTrend.dispatches_24h || 0)),
+      dispatches_7d: Math.max(0, Number(selectionTrend.dispatches_7d || 0)),
+      prefilter_applied_24h: Math.max(0, Number(selectionTrend.prefilter_applied_24h || 0)),
+      prefilter_applied_7d: Math.max(0, Number(selectionTrend.prefilter_applied_7d || 0)),
+      prefilter_delta_24h: Math.max(0, Number(selectionTrend.prefilter_delta_24h || 0)),
+      prefilter_delta_7d: Math.max(0, Number(selectionTrend.prefilter_delta_7d || 0)),
+      prioritized_focus_matches_24h: Math.max(0, Number(selectionTrend.prioritized_focus_matches_24h || 0)),
+      prioritized_focus_matches_7d: Math.max(0, Number(selectionTrend.prioritized_focus_matches_7d || 0)),
+      selected_focus_matches_24h: Math.max(0, Number(selectionTrend.selected_focus_matches_24h || 0)),
+      selected_focus_matches_7d: Math.max(0, Number(selectionTrend.selected_focus_matches_7d || 0)),
+      latest_selection_at: selectionTrend.latest_selection_at || null,
+      latest_guidance_mode: String(selectionTrend.latest_guidance_mode || "balanced"),
+      latest_focus_dimension: String(selectionTrend.latest_focus_dimension || ""),
+      latest_focus_bucket: String(selectionTrend.latest_focus_bucket || ""),
+      latest_prefilter_reason: String(selectionTrend.latest_prefilter_reason || ""),
+      daily_breakdown: normalizeSelectionTrendDailyRows(selectionTrend.daily_breakdown),
+      prefilter_reason_breakdown: normalizeBreakdownRows(selectionTrend.prefilter_reason_breakdown)
+    },
     scene_runtime: sceneRuntime
   };
 }
@@ -409,6 +448,25 @@ async function getLiveOpsCampaignKpiSummary(service, logger) {
         surface_breakdown: [],
         variant_breakdown: [],
         cohort_breakdown: []
+      },
+      selection_trend: {
+        dispatches_24h: 0,
+        dispatches_7d: 0,
+        prefilter_applied_24h: 0,
+        prefilter_applied_7d: 0,
+        prefilter_delta_24h: 0,
+        prefilter_delta_7d: 0,
+        prioritized_focus_matches_24h: 0,
+        prioritized_focus_matches_7d: 0,
+        selected_focus_matches_24h: 0,
+        selected_focus_matches_7d: 0,
+        latest_selection_at: null,
+        latest_guidance_mode: "balanced",
+        latest_focus_dimension: "",
+        latest_focus_bucket: "",
+        latest_prefilter_reason: "",
+        daily_breakdown: [],
+        prefilter_reason_breakdown: []
       },
       scene_runtime: {}
     };
