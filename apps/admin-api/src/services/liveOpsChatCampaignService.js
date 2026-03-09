@@ -1665,6 +1665,35 @@ function normalizeSelectionTrendDailyRows(rows) {
     .slice(0, 7);
 }
 
+function normalizeSelectionTrendSummary(summary) {
+  const safeSummary = summary && typeof summary === "object" && !Array.isArray(summary) ? summary : {};
+  return {
+    dispatches_24h: Math.max(0, Number(safeSummary.dispatches_24h || 0)),
+    dispatches_7d: Math.max(0, Number(safeSummary.dispatches_7d || 0)),
+    query_strategy_applied_24h: Math.max(0, Number(safeSummary.query_strategy_applied_24h || 0)),
+    query_strategy_applied_7d: Math.max(0, Number(safeSummary.query_strategy_applied_7d || 0)),
+    prefilter_applied_24h: Math.max(0, Number(safeSummary.prefilter_applied_24h || 0)),
+    prefilter_applied_7d: Math.max(0, Number(safeSummary.prefilter_applied_7d || 0)),
+    prefilter_delta_24h: Math.max(0, Number(safeSummary.prefilter_delta_24h || 0)),
+    prefilter_delta_7d: Math.max(0, Number(safeSummary.prefilter_delta_7d || 0)),
+    prioritized_focus_matches_24h: Math.max(0, Number(safeSummary.prioritized_focus_matches_24h || 0)),
+    prioritized_focus_matches_7d: Math.max(0, Number(safeSummary.prioritized_focus_matches_7d || 0)),
+    selected_focus_matches_24h: Math.max(0, Number(safeSummary.selected_focus_matches_24h || 0)),
+    selected_focus_matches_7d: Math.max(0, Number(safeSummary.selected_focus_matches_7d || 0)),
+    latest_selection_at: safeSummary.latest_selection_at || null,
+    latest_guidance_mode: String(safeSummary.latest_guidance_mode || "balanced").trim() || "balanced",
+    latest_focus_dimension: String(safeSummary.latest_focus_dimension || "").trim(),
+    latest_focus_bucket: String(safeSummary.latest_focus_bucket || "").trim(),
+    latest_query_strategy_reason: String(safeSummary.latest_query_strategy_reason || "").trim(),
+    latest_segment_strategy_reason: String(safeSummary.latest_segment_strategy_reason || "").trim(),
+    latest_prefilter_reason: String(safeSummary.latest_prefilter_reason || "").trim(),
+    daily_breakdown: normalizeSelectionTrendDailyRows(safeSummary.daily_breakdown),
+    query_strategy_reason_breakdown: normalizeBreakdownRows(safeSummary.query_strategy_reason_breakdown),
+    segment_strategy_reason_breakdown: normalizeBreakdownRows(safeSummary.segment_strategy_reason_breakdown),
+    prefilter_reason_breakdown: normalizeBreakdownRows(safeSummary.prefilter_reason_breakdown)
+  };
+}
+
 async function loadSelectionTrendSummary(client, campaignKey) {
   const target = `config:${LIVE_OPS_CAMPAIGN_CONFIG_KEY}`;
   const key = String(campaignKey || "");
@@ -2315,6 +2344,7 @@ function buildEmptyLiveOpsTaskSummary() {
       query_strategy_summary: buildLiveOpsCandidateQueryStrategySummary(),
       prefilter_summary: buildLiveOpsCandidatePrefilterSummary()
     },
+    selection_trend: buildEmptyLiveOpsSelectionTrendSummary(),
     window_key: "",
     scheduler_skip_24h: 0,
     scheduler_skip_7d: 0,
@@ -2345,6 +2375,14 @@ function buildEmptyLiveOpsOpsAlertSummary() {
     pressure_focus_escalation_bucket: "",
     pressure_focus_escalation_share: 0,
     pressure_focus_effective_delta_ratio: 0,
+    selection_query_strategy_applied_24h: 0,
+    selection_query_strategy_applied_7d: 0,
+    selection_latest_query_strategy_reason: "",
+    selection_latest_segment_strategy_reason: "",
+    selection_top_query_strategy_reason: "",
+    selection_top_query_strategy_reason_count: 0,
+    selection_top_segment_strategy_reason: "",
+    selection_top_segment_strategy_reason_count: 0,
     telegram_sent: false,
     telegram_reason: "",
     telegram_sent_at: null
@@ -2380,6 +2418,8 @@ function buildEmptyLiveOpsSelectionTrendSummary() {
   return {
     dispatches_24h: 0,
     dispatches_7d: 0,
+    query_strategy_applied_24h: 0,
+    query_strategy_applied_7d: 0,
     prefilter_applied_24h: 0,
     prefilter_applied_7d: 0,
     prefilter_delta_24h: 0,
@@ -2392,8 +2432,12 @@ function buildEmptyLiveOpsSelectionTrendSummary() {
     latest_guidance_mode: "balanced",
     latest_focus_dimension: "",
     latest_focus_bucket: "",
+    latest_query_strategy_reason: "",
+    latest_segment_strategy_reason: "",
     latest_prefilter_reason: "",
     daily_breakdown: [],
+    query_strategy_reason_breakdown: [],
+    segment_strategy_reason_breakdown: [],
     prefilter_reason_breakdown: []
   };
 }
@@ -2435,6 +2479,12 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
         ? payload.selection_summary
         : data && typeof data.selection_summary === "object" && !Array.isArray(data.selection_summary)
           ? data.selection_summary
+          : {};
+    const selectionTrendSummary =
+      payload && typeof payload.selection_trend_summary === "object" && !Array.isArray(payload.selection_trend_summary)
+        ? payload.selection_trend_summary
+        : payload && typeof payload.selection_trend === "object" && !Array.isArray(payload.selection_trend)
+          ? payload.selection_trend
           : {};
     const selectedMode = String(targetingGuidance?.default_mode || data?.recommendation_mode || "balanced").trim() || "balanced";
     const selectedModeRow = findGuidanceModeRow(targetingGuidance, selectedMode);
@@ -2488,6 +2538,7 @@ function readLatestTaskArtifactSummaryFromDisk(now, repoRootDir) {
         query_strategy_summary: buildLiveOpsCandidateQueryStrategySummary(selectionSummary.query_strategy_summary),
         prefilter_summary: buildLiveOpsCandidatePrefilterSummary(selectionSummary.prefilter_summary)
       },
+      selection_trend: normalizeSelectionTrendSummary(selectionTrendSummary),
       window_key: String(scheduler?.window_key || data?.window_key || "").trim(),
       scheduler_skip_24h: Math.max(0, Number(schedulerSkip?.skipped_24h || 0) || 0),
       scheduler_skip_7d: Math.max(0, Number(schedulerSkip?.skipped_7d || 0) || 0),
@@ -2531,6 +2582,14 @@ function readLatestOpsAlertArtifactSummaryFromDisk(now, repoRootDir) {
       pressure_focus_escalation_bucket: String(evaluation.pressure_focus_escalation_bucket || "").trim(),
       pressure_focus_escalation_share: Math.max(0, Number(evaluation.pressure_focus_escalation_share || 0)),
       pressure_focus_effective_delta_ratio: Math.max(0, Number(evaluation.pressure_focus_effective_delta_ratio || 0)),
+      selection_query_strategy_applied_24h: Math.max(0, Number(evaluation.selection_query_strategy_applied_24h || 0)),
+      selection_query_strategy_applied_7d: Math.max(0, Number(evaluation.selection_query_strategy_applied_7d || 0)),
+      selection_latest_query_strategy_reason: String(evaluation.selection_latest_query_strategy_reason || "").trim(),
+      selection_latest_segment_strategy_reason: String(evaluation.selection_latest_segment_strategy_reason || "").trim(),
+      selection_top_query_strategy_reason: String(evaluation.selection_top_query_strategy_reason || "").trim(),
+      selection_top_query_strategy_reason_count: Math.max(0, Number(evaluation.selection_top_query_strategy_reason_count || 0)),
+      selection_top_segment_strategy_reason: String(evaluation.selection_top_segment_strategy_reason || "").trim(),
+      selection_top_segment_strategy_reason_count: Math.max(0, Number(evaluation.selection_top_segment_strategy_reason_count || 0)),
       telegram_sent: telegram.sent === true,
       telegram_reason: String(telegram.reason || "").trim(),
       telegram_sent_at: String(telegram.sent_at || "").trim() || null

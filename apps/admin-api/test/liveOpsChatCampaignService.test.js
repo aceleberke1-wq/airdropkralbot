@@ -635,6 +635,47 @@ test("live ops chat campaign service snapshot includes approval summary schedule
           candidates_after: 5
         }
       },
+      selection_trend: {
+        dispatches_24h: 1,
+        dispatches_7d: 3,
+        query_strategy_applied_24h: 1,
+        query_strategy_applied_7d: 3,
+        prefilter_applied_24h: 1,
+        prefilter_applied_7d: 2,
+        prefilter_delta_24h: 4,
+        prefilter_delta_7d: 6,
+        prioritized_focus_matches_24h: 5,
+        prioritized_focus_matches_7d: 11,
+        selected_focus_matches_24h: 0,
+        selected_focus_matches_7d: 1,
+        latest_selection_at: "2026-03-08T12:25:00.000Z",
+        latest_guidance_mode: "protective",
+        latest_focus_dimension: "locale",
+        latest_focus_bucket: "tr",
+        latest_query_strategy_reason: "query_strategy_locale_and_segment",
+        latest_segment_strategy_reason: "segment_query_active_window_tight",
+        latest_prefilter_reason: "prefilter_applied",
+        daily_breakdown: [
+          {
+            day: "2026-03-08",
+            dispatch_count: 1,
+            query_strategy_applied_count: 1,
+            prefilter_applied_count: 1,
+            prefilter_delta_sum: 4,
+            prioritized_focus_matches: 5,
+            selected_focus_matches: 0
+          }
+        ],
+        query_strategy_reason_breakdown: [
+          { bucket_key: "query_strategy_locale_and_segment", item_count: 3 }
+        ],
+        segment_strategy_reason_breakdown: [
+          { bucket_key: "segment_query_active_window_tight", item_count: 2 }
+        ],
+        prefilter_reason_breakdown: [
+          { bucket_key: "prefilter_applied", item_count: 2 }
+        ]
+      },
       window_key: "wallet_reconnect:2020-01-01T00:00:00.000Z:2035-01-01T00:00:00.000Z",
       scheduler_skip_24h: 2,
       scheduler_skip_7d: 4,
@@ -656,6 +697,14 @@ test("live ops chat campaign service snapshot includes approval summary schedule
       pressure_focus_escalation_bucket: "tr",
       pressure_focus_escalation_share: 0.875,
       pressure_focus_effective_delta_ratio: 0.8,
+      selection_query_strategy_applied_24h: 1,
+      selection_query_strategy_applied_7d: 3,
+      selection_latest_query_strategy_reason: "query_strategy_locale_and_segment",
+      selection_latest_segment_strategy_reason: "segment_query_active_window_tight",
+      selection_top_query_strategy_reason: "query_strategy_locale_and_segment",
+      selection_top_query_strategy_reason_count: 3,
+      selection_top_segment_strategy_reason: "segment_query_active_window_tight",
+      selection_top_segment_strategy_reason_count: 2,
       telegram_sent: true,
       telegram_reason: "",
       telegram_sent_at: "2026-03-08T12:26:30.000Z"
@@ -718,6 +767,10 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.task_summary.selection_summary.query_strategy_summary.active_within_days_cap, 7);
   assert.equal(snapshot.task_summary.selection_summary.prefilter_summary.applied, true);
   assert.equal(snapshot.task_summary.selection_summary.prefilter_summary.candidates_after, 5);
+  assert.equal(snapshot.task_summary.selection_trend.query_strategy_applied_7d, 3);
+  assert.equal(snapshot.task_summary.selection_trend.latest_query_strategy_reason, "query_strategy_locale_and_segment");
+  assert.equal(snapshot.task_summary.selection_trend.latest_segment_strategy_reason, "segment_query_active_window_tight");
+  assert.equal(snapshot.task_summary.selection_trend.query_strategy_reason_breakdown[0].bucket_key, "query_strategy_locale_and_segment");
   assert.equal(snapshot.task_summary.scheduler_skip_alarm_state, "alert");
   assert.equal(snapshot.task_summary.scheduler_skip_24h, 2);
   assert.equal(snapshot.selection_trend_summary.dispatches_24h, 1);
@@ -744,6 +797,9 @@ test("live ops chat campaign service snapshot includes approval summary schedule
   assert.equal(snapshot.ops_alert_summary.pressure_focus_escalation_reason, "watch_state_locale_pressure");
   assert.equal(snapshot.ops_alert_summary.pressure_focus_escalation_dimension, "locale");
   assert.equal(snapshot.ops_alert_summary.pressure_focus_escalation_bucket, "tr");
+  assert.equal(snapshot.ops_alert_summary.selection_query_strategy_applied_7d, 3);
+  assert.equal(snapshot.ops_alert_summary.selection_latest_query_strategy_reason, "query_strategy_locale_and_segment");
+  assert.equal(snapshot.ops_alert_summary.selection_top_segment_strategy_reason, "segment_query_active_window_tight");
   assert.equal(snapshot.ops_alert_trend_summary.raised_24h, 1);
   assert.equal(snapshot.ops_alert_trend_summary.raised_7d, 3);
   assert.equal(snapshot.ops_alert_trend_summary.experiment_key, "webapp_react_v1");

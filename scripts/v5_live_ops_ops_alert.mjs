@@ -104,6 +104,12 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     dispatchArtifact?.selection_summary && typeof dispatchArtifact.selection_summary === "object"
       ? dispatchArtifact.selection_summary
       : {};
+  const selectionTrend =
+    dispatchArtifact?.selection_trend_summary && typeof dispatchArtifact.selection_trend_summary === "object"
+      ? dispatchArtifact.selection_trend_summary
+      : dispatchArtifact?.selection_trend && typeof dispatchArtifact.selection_trend === "object"
+        ? dispatchArtifact.selection_trend
+        : {};
   const selectionPrefilter =
     selectionSummary?.prefilter_summary && typeof selectionSummary.prefilter_summary === "object"
       ? selectionSummary.prefilter_summary
@@ -120,10 +126,22 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
   const localeCapSplit = Array.isArray(pressureFocusSummary.locale_cap_split) ? pressureFocusSummary.locale_cap_split : [];
   const variantCapSplit = Array.isArray(pressureFocusSummary.variant_cap_split) ? pressureFocusSummary.variant_cap_split : [];
   const cohortCapSplit = Array.isArray(pressureFocusSummary.cohort_cap_split) ? pressureFocusSummary.cohort_cap_split : [];
+  const queryStrategyReasonBreakdown = Array.isArray(selectionTrend.query_strategy_reason_breakdown)
+    ? selectionTrend.query_strategy_reason_breakdown
+    : [];
+  const segmentStrategyReasonBreakdown = Array.isArray(selectionTrend.segment_strategy_reason_breakdown)
+    ? selectionTrend.segment_strategy_reason_breakdown
+    : [];
   const topWarning = warningRows[0] && typeof warningRows[0] === "object" ? warningRows[0] : {};
   const topLocaleSplit = localeCapSplit[0] && typeof localeCapSplit[0] === "object" ? localeCapSplit[0] : {};
   const topVariantSplit = variantCapSplit[0] && typeof variantCapSplit[0] === "object" ? variantCapSplit[0] : {};
   const topCohortSplit = cohortCapSplit[0] && typeof cohortCapSplit[0] === "object" ? cohortCapSplit[0] : {};
+  const topQueryStrategyReason = queryStrategyReasonBreakdown[0] && typeof queryStrategyReasonBreakdown[0] === "object"
+    ? queryStrategyReasonBreakdown[0]
+    : {};
+  const topSegmentStrategyReason = segmentStrategyReasonBreakdown[0] && typeof segmentStrategyReasonBreakdown[0] === "object"
+    ? segmentStrategyReasonBreakdown[0]
+    : {};
   const previous = previousAlertArtifact && typeof previousAlertArtifact === "object" ? previousAlertArtifact : {};
   const previousEvaluation = previous.evaluation && typeof previous.evaluation === "object" ? previous.evaluation : {};
   const previousFingerprint = String(previousEvaluation.fingerprint || "").trim();
@@ -215,6 +233,14 @@ function evaluateOpsAlert(dispatchArtifact, previousAlertArtifact, options = {})
     selection_focus_bucket: String(selectionSummary.focus_bucket || "").trim(),
     selection_focus_selected_matches: Math.max(0, Number(selectionSummary.selected_focus_matches || 0)),
     selection_prioritized_focus_matches: Math.max(0, Number(selectionSummary.prioritized_focus_matches || 0)),
+    selection_query_strategy_applied_24h: Math.max(0, Number(selectionTrend.query_strategy_applied_24h || 0)),
+    selection_query_strategy_applied_7d: Math.max(0, Number(selectionTrend.query_strategy_applied_7d || 0)),
+    selection_latest_query_strategy_reason: String(selectionTrend.latest_query_strategy_reason || "").trim(),
+    selection_latest_segment_strategy_reason: String(selectionTrend.latest_segment_strategy_reason || "").trim(),
+    selection_top_query_strategy_reason: String(topQueryStrategyReason.bucket_key || "").trim(),
+    selection_top_query_strategy_reason_count: Math.max(0, Number(topQueryStrategyReason.item_count || 0)),
+    selection_top_segment_strategy_reason: String(topSegmentStrategyReason.bucket_key || "").trim(),
+    selection_top_segment_strategy_reason_count: Math.max(0, Number(topSegmentStrategyReason.item_count || 0)),
     selection_prefilter_applied: selectionPrefilter.applied === true,
     selection_prefilter_dimension: String(selectionPrefilter.dimension || "").trim(),
     selection_prefilter_bucket: String(selectionPrefilter.bucket || "").trim(),
@@ -272,6 +298,16 @@ function formatOpsAlertMessage(dispatchArtifact = {}, evaluation = {}) {
       0,
       Number(evaluation.selection_focus_selected_matches || 0)
     )}/${Math.max(0, Number(evaluation.selection_prioritized_focus_matches || 0))}`,
+    `selection_query_trend=${Math.max(0, Number(evaluation.selection_query_strategy_applied_24h || 0))}/${Math.max(
+      0,
+      Number(evaluation.selection_query_strategy_applied_7d || 0)
+    )}`,
+    `selection_query_reason=${String(evaluation.selection_latest_query_strategy_reason || "-")}/${String(
+      evaluation.selection_top_query_strategy_reason || "-"
+    )}:${Math.max(0, Number(evaluation.selection_top_query_strategy_reason_count || 0))}`,
+    `selection_segment_reason=${String(evaluation.selection_latest_segment_strategy_reason || "-")}/${String(
+      evaluation.selection_top_segment_strategy_reason || "-"
+    )}:${Math.max(0, Number(evaluation.selection_top_segment_strategy_reason_count || 0))}`,
     `selection_prefilter=${String(evaluation.selection_prefilter_applied === true ? "on" : "off")}/${String(
       evaluation.selection_prefilter_dimension || "-"
     )}/${String(evaluation.selection_prefilter_bucket || "-")}:${Math.max(0, Number(evaluation.selection_prefilter_candidates_after || 0))}/${Math.max(
@@ -493,6 +529,14 @@ async function runLiveOpsOpsAlert(args = {}, deps = {}) {
       selection_focus_bucket: String(evaluation.selection_focus_bucket || "").trim(),
       selection_focus_selected_matches: Math.max(0, Number(evaluation.selection_focus_selected_matches || 0)),
       selection_prioritized_focus_matches: Math.max(0, Number(evaluation.selection_prioritized_focus_matches || 0)),
+      selection_query_strategy_applied_24h: Math.max(0, Number(evaluation.selection_query_strategy_applied_24h || 0)),
+      selection_query_strategy_applied_7d: Math.max(0, Number(evaluation.selection_query_strategy_applied_7d || 0)),
+      selection_latest_query_strategy_reason: String(evaluation.selection_latest_query_strategy_reason || "").trim(),
+      selection_latest_segment_strategy_reason: String(evaluation.selection_latest_segment_strategy_reason || "").trim(),
+      selection_top_query_strategy_reason: String(evaluation.selection_top_query_strategy_reason || "").trim(),
+      selection_top_query_strategy_reason_count: Math.max(0, Number(evaluation.selection_top_query_strategy_reason_count || 0)),
+      selection_top_segment_strategy_reason: String(evaluation.selection_top_segment_strategy_reason || "").trim(),
+      selection_top_segment_strategy_reason_count: Math.max(0, Number(evaluation.selection_top_segment_strategy_reason_count || 0)),
       selection_prefilter_applied: evaluation.selection_prefilter_applied === true,
       selection_prefilter_dimension: String(evaluation.selection_prefilter_dimension || "").trim(),
       selection_prefilter_bucket: String(evaluation.selection_prefilter_bucket || "").trim(),

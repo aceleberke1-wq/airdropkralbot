@@ -408,6 +408,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {t(props.lang, "admin_runtime_live_ops_ops_alert_delta_7d_label")}: {Math.floor(readNum(opsAlertTrend, "effective_cap_delta_7d"))}
           </span>
           <span className="akrChip">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_query_trend_label")}: {Math.floor(readNum(opsAlert, "selection_query_strategy_applied_24h"))} /{" "}
+            {Math.floor(readNum(opsAlert, "selection_query_strategy_applied_7d"))}
+          </span>
+          <span className="akrChip">
             {t(props.lang, "admin_runtime_live_ops_recommend_cap_label")}: {Math.floor(readNum(recipientCapRecommendation, "recommended_recipient_cap"))}
           </span>
           <span className="akrChip">
@@ -492,6 +496,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_ops_alert_focus_share_label")}: {toPct(readNum(opsAlert, "pressure_focus_escalation_share"))} |{" "}
             {t(props.lang, "admin_runtime_live_ops_ops_alert_focus_delta_ratio_label")}: {toPct(readNum(opsAlert, "pressure_focus_effective_delta_ratio"))}
+          </p>
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_query_reason_label")}: {readText(opsAlert, "selection_latest_query_strategy_reason") || "-"} /{" "}
+            {readText(opsAlert, "selection_top_query_strategy_reason") || "-"} ({Math.floor(readNum(opsAlert, "selection_top_query_strategy_reason_count"))}) |{" "}
+            {t(props.lang, "admin_runtime_live_ops_ops_alert_segment_reason_label")}: {readText(opsAlert, "selection_latest_segment_strategy_reason") || "-"} /{" "}
+            {readText(opsAlert, "selection_top_segment_strategy_reason") || "-"} ({Math.floor(readNum(opsAlert, "selection_top_segment_strategy_reason_count"))})
           </p>
           <p className="akrMutedLine">
             {t(props.lang, "admin_runtime_live_ops_recommend_reason_label")}: {readText(recipientCapRecommendation, "reason") || "-"} |{" "}

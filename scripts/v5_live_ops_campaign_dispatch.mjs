@@ -153,6 +153,10 @@ async function main() {
         snapshot && snapshot.ops_alert_trend_summary && typeof snapshot.ops_alert_trend_summary === "object"
           ? snapshot.ops_alert_trend_summary
           : {};
+      const selectionTrendSummary =
+        snapshot && snapshot.selection_trend_summary && typeof snapshot.selection_trend_summary === "object"
+          ? snapshot.selection_trend_summary
+          : {};
       const sceneRuntimeSummary =
         snapshot && snapshot.scene_runtime_summary && typeof snapshot.scene_runtime_summary === "object"
           ? {
@@ -200,6 +204,7 @@ async function main() {
           result && result.data && result.data.selection_summary && typeof result.data.selection_summary === "object"
             ? result.data.selection_summary
             : {},
+        selection_trend_summary: selectionTrendSummary,
         scheduler_summary: schedulerSummary,
         scheduler_skip_summary: schedulerSkipSummary,
         pressure_focus_summary: pressureFocusSummary,

@@ -109,6 +109,7 @@ if ($latestPayload -ne $null) {
   $recommendation = Get-PropValue -Source $scheduler -Name "recipient_cap_recommendation"
   $data = Get-PropValue -Source $latestPayload -Name "data"
   $selectionSummary = Get-PropValue -Source $latestPayload -Name "selection_summary"
+  $selectionTrend = Get-PropValue -Source $latestPayload -Name "selection_trend_summary"
   $selectionPrefilter = Get-PropValue -Source $selectionSummary -Name "prefilter_summary"
   $latestSummary = [pscustomobject]@{
     ok = [bool](Get-PropValue -Source $latestPayload -Name "ok" -Fallback $false)
@@ -139,6 +140,16 @@ if ($latestPayload -ne $null) {
       reduction_share = if ([int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0) -gt 0) {
         [math]::Max(0, [double](([int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0) - [int](Get-PropValue -Source $selectionPrefilter -Name "candidates_after" -Fallback 0)) / [double][int](Get-PropValue -Source $selectionPrefilter -Name "candidates_before" -Fallback 0)))
       } else { 0 }
+    }
+    selection_trend = [pscustomobject]@{
+      query_strategy_applied_24h = [int](Get-PropValue -Source $selectionTrend -Name "query_strategy_applied_24h" -Fallback 0)
+      query_strategy_applied_7d = [int](Get-PropValue -Source $selectionTrend -Name "query_strategy_applied_7d" -Fallback 0)
+      latest_query_strategy_reason = [string](Get-PropValue -Source $selectionTrend -Name "latest_query_strategy_reason" -Fallback "")
+      latest_segment_strategy_reason = [string](Get-PropValue -Source $selectionTrend -Name "latest_segment_strategy_reason" -Fallback "")
+      top_query_strategy_reason = [string](Get-PropValue -Source ((Get-PropValue -Source $selectionTrend -Name "query_strategy_reason_breakdown" -Fallback @()) | Select-Object -First 1) -Name "bucket_key" -Fallback "")
+      top_query_strategy_reason_count = [int](Get-PropValue -Source ((Get-PropValue -Source $selectionTrend -Name "query_strategy_reason_breakdown" -Fallback @()) | Select-Object -First 1) -Name "item_count" -Fallback 0)
+      top_segment_strategy_reason = [string](Get-PropValue -Source ((Get-PropValue -Source $selectionTrend -Name "segment_strategy_reason_breakdown" -Fallback @()) | Select-Object -First 1) -Name "bucket_key" -Fallback "")
+      top_segment_strategy_reason_count = [int](Get-PropValue -Source ((Get-PropValue -Source $selectionTrend -Name "segment_strategy_reason_breakdown" -Fallback @()) | Select-Object -First 1) -Name "item_count" -Fallback 0)
     }
     pressure_focus = [pscustomobject]@{
       pressure_band = [string](Get-PropValue -Source $pressureFocus -Name "pressure_band" -Fallback "clear")
@@ -183,6 +194,14 @@ if ($latestAlertPayload -ne $null) {
     pressure_focus_escalation_bucket = [string](Get-PropValue -Source $evaluation -Name "pressure_focus_escalation_bucket" -Fallback "")
     pressure_focus_escalation_share = [double](Get-PropValue -Source $evaluation -Name "pressure_focus_escalation_share" -Fallback 0)
     pressure_focus_effective_delta_ratio = [double](Get-PropValue -Source $evaluation -Name "pressure_focus_effective_delta_ratio" -Fallback 0)
+    selection_query_strategy_applied_24h = [int](Get-PropValue -Source $evaluation -Name "selection_query_strategy_applied_24h" -Fallback 0)
+    selection_query_strategy_applied_7d = [int](Get-PropValue -Source $evaluation -Name "selection_query_strategy_applied_7d" -Fallback 0)
+    selection_latest_query_strategy_reason = [string](Get-PropValue -Source $evaluation -Name "selection_latest_query_strategy_reason" -Fallback "")
+    selection_latest_segment_strategy_reason = [string](Get-PropValue -Source $evaluation -Name "selection_latest_segment_strategy_reason" -Fallback "")
+    selection_top_query_strategy_reason = [string](Get-PropValue -Source $evaluation -Name "selection_top_query_strategy_reason" -Fallback "")
+    selection_top_query_strategy_reason_count = [int](Get-PropValue -Source $evaluation -Name "selection_top_query_strategy_reason_count" -Fallback 0)
+    selection_top_segment_strategy_reason = [string](Get-PropValue -Source $evaluation -Name "selection_top_segment_strategy_reason" -Fallback "")
+    selection_top_segment_strategy_reason_count = [int](Get-PropValue -Source $evaluation -Name "selection_top_segment_strategy_reason_count" -Fallback 0)
     selection_prefilter_applied = [bool](Get-PropValue -Source $evaluation -Name "selection_prefilter_applied" -Fallback $false)
     selection_prefilter_dimension = [string](Get-PropValue -Source $evaluation -Name "selection_prefilter_dimension" -Fallback "")
     selection_prefilter_bucket = [string](Get-PropValue -Source $evaluation -Name "selection_prefilter_bucket" -Fallback "")

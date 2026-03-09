@@ -823,6 +823,10 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           <span className="akrChip">
             {t(props.lang, "admin_live_ops_ops_alert_delta_max_label")}: {asCount(opsAlertTrendSummary.max_effective_cap_delta_7d)}
           </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_live_ops_ops_alert_query_trend_label")}: {asCount(opsAlertSummary.selection_query_strategy_applied_24h)} /{" "}
+            {asCount(opsAlertSummary.selection_query_strategy_applied_7d)}
+          </span>
         </div>
         <p className="akrMutedLine">
           {t(props.lang, "admin_live_ops_ops_alert_latest_label")}: {asText(opsAlertTrendSummary.latest_alert_at)} |{" "}
@@ -834,6 +838,12 @@ export function LiveOpsCampaignCard(props: LiveOpsCampaignCardProps) {
           {asText(opsAlertSummary.pressure_focus_escalation_reason)} | {t(props.lang, "admin_live_ops_ops_alert_focus_share_label")}:{" "}
           {toPct(opsAlertSummary.pressure_focus_escalation_share)} | {t(props.lang, "admin_live_ops_ops_alert_focus_delta_ratio_label")}:{" "}
           {toPct(opsAlertSummary.pressure_focus_effective_delta_ratio)}
+        </p>
+        <p className="akrMutedLine">
+          {t(props.lang, "admin_live_ops_ops_alert_query_reason_label")}: {asText(opsAlertSummary.selection_latest_query_strategy_reason, "-")} /{" "}
+          {asText(opsAlertSummary.selection_top_query_strategy_reason, "-")} ({asCount(opsAlertSummary.selection_top_query_strategy_reason_count)}) |{" "}
+          {t(props.lang, "admin_live_ops_ops_alert_segment_reason_label")}: {asText(opsAlertSummary.selection_latest_segment_strategy_reason, "-")} /{" "}
+          {asText(opsAlertSummary.selection_top_segment_strategy_reason, "-")} ({asCount(opsAlertSummary.selection_top_segment_strategy_reason_count)})
         </p>
         <div className="akrSplit">
           <OpsAlertDailyTrendList title={t(props.lang, "admin_live_ops_ops_alert_daily_title")} rows={opsAlertTrendDailyBreakdown} />

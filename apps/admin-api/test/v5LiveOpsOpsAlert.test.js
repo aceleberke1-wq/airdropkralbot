@@ -96,6 +96,18 @@ test("evaluateOpsAlert escalates watch state when recipient cap pressure is aler
             suggested_recipient_cap: 4
           }
         ]
+      },
+      selection_trend_summary: {
+        query_strategy_applied_24h: 1,
+        query_strategy_applied_7d: 4,
+        latest_query_strategy_reason: "query_strategy_locale_and_segment",
+        latest_segment_strategy_reason: "segment_query_active_window_tight",
+        query_strategy_reason_breakdown: [
+          { bucket_key: "query_strategy_locale_and_segment", item_count: 4 }
+        ],
+        segment_strategy_reason_breakdown: [
+          { bucket_key: "segment_query_active_window_tight", item_count: 3 }
+        ]
       }
     },
     null,
@@ -120,6 +132,14 @@ test("evaluateOpsAlert escalates watch state when recipient cap pressure is aler
   assert.equal(result.pressure_focus_variant_cap, 5);
   assert.equal(result.pressure_focus_cohort_bucket, "17");
   assert.equal(result.pressure_focus_cohort_cap, 4);
+  assert.equal(result.selection_query_strategy_applied_24h, 1);
+  assert.equal(result.selection_query_strategy_applied_7d, 4);
+  assert.equal(result.selection_latest_query_strategy_reason, "query_strategy_locale_and_segment");
+  assert.equal(result.selection_latest_segment_strategy_reason, "segment_query_active_window_tight");
+  assert.equal(result.selection_top_query_strategy_reason, "query_strategy_locale_and_segment");
+  assert.equal(result.selection_top_query_strategy_reason_count, 4);
+  assert.equal(result.selection_top_segment_strategy_reason, "segment_query_active_window_tight");
+  assert.equal(result.selection_top_segment_strategy_reason_count, 3);
 });
 
 test("evaluateOpsAlert escalates watch state on concentrated locale pressure focus", async () => {
