@@ -107,6 +107,17 @@ type ProtocolCardFlowPod = {
   signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   flow_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   sequence_rows?: Array<{ label_key: string; value: string; status_key: string }>;
+  microflow_cards?: Array<{
+    microflow_key: string;
+    label_key: string;
+    value: string;
+    status_key: string;
+    tone_key?: string;
+    action_key?: string;
+    action_label_key?: string;
+    hint_label_key?: string;
+    rows?: Array<{ label_key: string; value: string; status_key: string }>;
+  }>;
   action_items?: ProtocolCardActionItem[];
 };
 
@@ -1753,6 +1764,62 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                 <span>{t(props.lang, row.label_key as never)}</span>
                                 <strong>{row.value}</strong>
                               </div>
+                            ))}
+                          </div>
+                        </section>
+                      ) : null}
+                      {selectedProtocolPod.microflow_cards?.length ? (
+                        <section className="akrSceneInteractionModalSection">
+                          <div className="akrSceneInteractionModalSectionHeader">
+                            <span>{t(props.lang, "world_modal_section_microflows" as never)}</span>
+                            <strong>{selectedProtocolPod.microflow_cards.length}</strong>
+                          </div>
+                          <div className="akrSceneInteractionModalMicroGrid">
+                            {selectedProtocolPod.microflow_cards.map((item) => (
+                              <button
+                                key={`${selectedProtocolPod.pod_key}:microflow:${item.microflow_key}`}
+                                type="button"
+                                className={`akrSceneInteractionModalMicroflow is-${item.status_key}`}
+                                onClick={() => {
+                                  if (!item.action_key) {
+                                    return;
+                                  }
+                                  triggerSceneAction({
+                                    actionKey: item.action_key,
+                                    nodeKey: item.microflow_key,
+                                    laneKey: "modal_protocol_microflow",
+                                    label: item.value || selectedProtocolPod.value,
+                                    labelKey: item.label_key,
+                                    sourceType: "district_scene_protocol_microflow",
+                                    actorKey: worldState.active_hotspot_key,
+                                    interactionKind: "protocol_microflow",
+                                    clusterKey: worldState.active_cluster_key,
+                                    workspace: props.workspace,
+                                    tab: props.tab,
+                                    districtKey: worldState.district_key
+                                  });
+                                }}
+                                disabled={!item.action_key}
+                              >
+                                <div className="akrSceneInteractionModalMicroflowHeader">
+                                  <span>{t(props.lang, item.label_key as never)}</span>
+                                  <strong>{item.value}</strong>
+                                </div>
+                                {item.tone_key ? <em>{t(props.lang, item.tone_key as never)}</em> : null}
+                                {item.rows?.length ? (
+                                  <div className="akrSceneInteractionModalRows">
+                                    {item.rows.slice(0, 2).map((row) => (
+                                      <div key={`${item.microflow_key}:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                        <span>{t(props.lang, row.label_key as never)}</span>
+                                        <strong>{row.value}</strong>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {item.action_label_key ? (
+                                  <b>{t(props.lang, item.action_label_key as never)}</b>
+                                ) : null}
+                              </button>
                             ))}
                           </div>
                         </section>

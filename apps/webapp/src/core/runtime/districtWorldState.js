@@ -2724,6 +2724,113 @@ function resolveProtocolPodFocusMeta(labelKey) {
   }
 }
 
+function buildProtocolPodMicroFlowCards(labelKey, statusKey, toneKey, sequenceRows, actionItems) {
+  const primaryAction = actionItems[0] || null;
+  const secondaryAction = actionItems[1] || primaryAction || null;
+  const primaryRow = sequenceRows[0] || null;
+  const secondaryRow = sequenceRows[1] || primaryRow || null;
+  const tertiaryRow = sequenceRows[2] || secondaryRow || primaryRow || null;
+
+  const buildCard = (cardKey, labelKeyValue, row, actionItem, cardToneKey = toneKey) => {
+    if (!row?.value && !actionItem?.action_key) {
+      return null;
+    }
+    return {
+      microflow_key: `${labelKey}:${cardKey}`,
+      label_key: labelKeyValue,
+      value: row?.value || "",
+      status_key: row?.status_key || statusKey,
+      tone_key: toText(cardToneKey, ""),
+      action_key: toText(actionItem?.action_key, ""),
+      action_label_key: toText(actionItem?.label_key, ""),
+      hint_label_key: toText(actionItem?.hint_label_key, ""),
+      rows: [row, secondaryRow, tertiaryRow].filter(Boolean).slice(0, 3)
+    };
+  };
+
+  switch (labelKey) {
+    case "world_modal_lane_duel_sync":
+      return [
+        buildCard("duel", "world_modal_kind_duel_sequence", primaryRow, primaryAction, "world_intent_tone_compete"),
+        buildCard("telemetry", "world_modal_kind_telemetry_scan", secondaryRow, secondaryAction, "world_intent_tone_track")
+      ].filter(Boolean);
+    case "world_modal_lane_ladder_charge":
+      return [
+        buildCard("ladder", "world_modal_kind_ladder_sequence", primaryRow, primaryAction, "world_intent_tone_climb"),
+        buildCard("scan", "world_modal_kind_telemetry_scan", secondaryRow, secondaryAction, "world_intent_tone_track")
+      ].filter(Boolean);
+    case "world_modal_lane_tick_window":
+    case "world_modal_lane_telemetry_scan":
+    case "world_modal_lane_risk_watch":
+      return [
+        buildCard("scan", "world_modal_kind_telemetry_scan", primaryRow, primaryAction, "world_intent_tone_track"),
+        buildCard("sequence", "world_modal_kind_duel_sequence", secondaryRow, secondaryAction, "world_intent_tone_compete")
+      ].filter(Boolean);
+    case "world_modal_lane_offer_stack":
+      return [
+        buildCard("mission", "world_modal_kind_mission_terminal", primaryRow, primaryAction, "world_intent_tone_launch"),
+        buildCard("contract", "world_modal_kind_contract_sequence", secondaryRow, secondaryAction, "world_intent_tone_launch")
+      ].filter(Boolean);
+    case "world_modal_lane_claim_lane":
+    case "world_modal_lane_contract_pulse":
+      return [
+        buildCard("claim", "world_modal_kind_contract_sequence", primaryRow, primaryAction, "world_intent_tone_claim"),
+        buildCard("stack", "world_modal_kind_mission_terminal", secondaryRow, secondaryAction, "world_intent_tone_launch")
+      ].filter(Boolean);
+    case "world_modal_lane_streak_pulse":
+      return [
+        buildCard("streak", "world_modal_kind_streak_sync", primaryRow, primaryAction, "world_intent_tone_claim"),
+        buildCard("claim", "world_modal_kind_contract_sequence", secondaryRow, secondaryAction, "world_intent_tone_claim")
+      ].filter(Boolean);
+    case "world_modal_lane_wallet_link":
+      return [
+        buildCard("wallet", "world_modal_kind_wallet_terminal", primaryRow, primaryAction, "world_intent_tone_connect"),
+        buildCard("route", "world_modal_kind_payout_route", secondaryRow, secondaryAction, "world_intent_tone_track")
+      ].filter(Boolean);
+    case "world_modal_lane_payout_lane":
+      return [
+        buildCard("payout", "world_modal_kind_payout_route", primaryRow, primaryAction, "world_intent_tone_payout"),
+        buildCard("wallet", "world_modal_kind_wallet_terminal", secondaryRow, secondaryAction, "world_intent_tone_connect")
+      ].filter(Boolean);
+    case "world_modal_lane_premium_lane":
+      return [
+        buildCard("premium", "world_modal_kind_premium_unlock", primaryRow, primaryAction, "world_intent_tone_upgrade"),
+        buildCard("route", "world_modal_kind_payout_route", secondaryRow, secondaryAction, "world_intent_tone_track")
+      ].filter(Boolean);
+    case "world_modal_lane_route_matrix":
+      return [
+        buildCard("route", "world_modal_kind_payout_route", primaryRow, primaryAction, "world_intent_tone_track"),
+        buildCard("wallet", "world_modal_kind_wallet_terminal", secondaryRow, secondaryAction, "world_intent_tone_connect")
+      ].filter(Boolean);
+    case "world_modal_lane_queue_review":
+      return [
+        buildCard("queue", "world_modal_kind_queue_review", primaryRow, primaryAction, "world_intent_tone_review"),
+        buildCard("runtime", "world_modal_kind_runtime_scan", secondaryRow, secondaryAction, "world_intent_tone_monitor")
+      ].filter(Boolean);
+    case "world_modal_lane_runtime_watch":
+      return [
+        buildCard("runtime", "world_modal_kind_runtime_scan", primaryRow, primaryAction, "world_intent_tone_monitor"),
+        buildCard("dispatch", "world_modal_kind_dispatch_sequence", secondaryRow, secondaryAction, "world_intent_tone_dispatch")
+      ].filter(Boolean);
+    case "world_modal_lane_dispatch_gate":
+      return [
+        buildCard("dispatch", "world_modal_kind_dispatch_sequence", primaryRow, primaryAction, "world_intent_tone_dispatch"),
+        buildCard("runtime", "world_modal_kind_runtime_scan", secondaryRow, secondaryAction, "world_intent_tone_monitor")
+      ].filter(Boolean);
+    case "world_modal_lane_mission_queue":
+      return [
+        buildCard("travel", "world_modal_kind_travel_gate", primaryRow, primaryAction, "world_intent_tone_travel"),
+        buildCard("mission", "world_modal_kind_mission_terminal", secondaryRow, secondaryAction, "world_intent_tone_launch")
+      ].filter(Boolean);
+    case "world_modal_lane_season_arc":
+    default:
+      return [
+        buildCard("travel", "world_modal_kind_travel_gate", primaryRow, primaryAction, "world_intent_tone_travel"),
+        buildCard("watch", "world_modal_kind_telemetry_scan", secondaryRow, secondaryAction, "world_intent_tone_track")
+      ].filter(Boolean);
+  }
+}
+
 function buildModalProtocolPod(labelKey, value, statusKey = "ready", toneKey = "", options = {}) {
   const text = toText(value, "");
   if (!text) {
@@ -2741,6 +2848,7 @@ function buildModalProtocolPod(labelKey, value, statusKey = "ready", toneKey = "
     .filter(Boolean)
     .slice(0, 4);
   const primarySequenceRow = sequenceRows[0] || buildFlowStep(labelKey, text, statusKey);
+  const microflowCards = buildProtocolPodMicroFlowCards(labelKey, statusKey, toneKey, sequenceRows, actionItems);
   return {
     pod_key: `${labelKey}:${statusKey}:${toneKey || "pod"}`,
     label_key: labelKey,
@@ -2767,7 +2875,8 @@ function buildModalProtocolPod(labelKey, value, statusKey = "ready", toneKey = "
     stage_label_key: primarySequenceRow?.label_key || labelKey,
     stage_value: primarySequenceRow?.value || text,
     stage_status_key: primarySequenceRow?.status_key || statusKey,
-    sequence_rows: sequenceRows
+    sequence_rows: sequenceRows,
+    microflow_cards: microflowCards
   };
 }
 

@@ -82,6 +82,7 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].sequence_kind_key, "world_modal_kind_travel_gate");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].tempo_label_key, "world_sequence_tempo_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].sequence_rows[0].label_key, "world_sheet_metric_progress");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].label_key, "world_modal_kind_travel_gate");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].action_key, SHELL_ACTION_KEY.PLAYER_TASKS_BOARD);
   assert.equal(state.active_cluster_key, "hub_gate_north");
   assert.equal(state.interaction_cluster_count, 3);
@@ -175,6 +176,7 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].sequence_kind_key, "world_modal_kind_duel_sequence");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].tempo_label_key, "world_sequence_tempo_burst");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].camera_profile_label_key, "world_camera_focus_scan");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].label_key, "world_modal_kind_duel_sequence");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].action_key, SHELL_ACTION_KEY.PLAYER_PVP_LEADERBOARD);
   assert.equal(state.hud_profile.compact_mode, true);
   assert.equal(state.interaction_cluster_count, 3);
@@ -246,6 +248,7 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].entry_kind_key, "world_entry_kind_queue_console");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].sequence_kind_key, "world_modal_kind_dispatch_sequence");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].tempo_label_key, "world_sequence_tempo_dispatch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].label_key, "world_modal_kind_dispatch_sequence");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].action_key, SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS);
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
@@ -315,6 +318,7 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].entry_kind_key, "world_entry_kind_wallet_terminal");
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].sequence_kind_key, "world_modal_kind_payout_route");
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].tempo_label_key, "world_sequence_tempo_route");
+  assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].label_key, "world_modal_kind_payout_route");
   assert.equal(state.interaction_modal.protocol_cards[2].action_items[1].action_key, SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST);
   assert.equal(state.camera_profile.radius, state.camera_radius);
   assert.equal(state.nodes.find((node) => node.key === "payout_lift")?.is_active, true);
