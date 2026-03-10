@@ -45,6 +45,15 @@ type BabylonSceneHandle = {
   dispose: () => void;
 };
 
+type HoverPreview = {
+  key: string;
+  label: string;
+  labelKey: string;
+  hintLabelKey: string;
+  interactionKind: string;
+  sourceType: string;
+};
+
 async function loadBabylonSceneModules() {
   const [
     { Engine },
@@ -99,6 +108,7 @@ async function loadBabylonSceneModules() {
 export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState<"idle" | "ready" | "failed">("idle");
+  const [hoverPreview, setHoverPreview] = useState<HoverPreview | null>(null);
   const worldState = useMemo(
     () =>
       buildDistrictWorldState({
@@ -174,6 +184,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   useEffect(() => {
     let disposed = false;
     let handle: BabylonSceneHandle | null = null;
+    let hoveredHotspotKey = "";
 
     const buildScene = async () => {
       const canvas = canvasRef.current;
@@ -416,6 +427,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             laneKey: hotspot.actor_key,
             label: hotspot.label,
             labelKey: hotspot.label_key,
+            hintLabelKey: hotspot.hint_label_key,
             sourceType: hotspot.source_type,
             actorKey: hotspot.actor_key,
             interactionKind: hotspot.interaction_kind,
@@ -431,12 +443,14 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             animate: (now: number, motionScalar: number) => {
               ring.rotation.z = now * (0.25 + index * 0.03) * motionScalar;
               beacon.position.y = hotspot.y + 0.28 + Math.sin(now * (1.1 + index * 0.17)) * 0.06 * motionScalar;
+              const isHovered = hoveredHotspotKey === hotspot.key;
               const pulse =
                 1 +
                 Math.sin(now * (1.3 + index * 0.14)) * (hotspot.is_secondary ? 0.05 : 0.08) * motionScalar +
-                (hotspot.is_active ? 0.12 : 0);
+                (hotspot.is_active ? 0.12 : 0) +
+                (isHovered ? 0.08 : 0);
               beacon.scaling.setAll(pulse);
-              pad.scaling.setAll(1 + Math.sin(now * (0.9 + index * 0.13)) * 0.04 * motionScalar);
+              pad.scaling.setAll(1 + Math.sin(now * (0.9 + index * 0.13)) * 0.04 * motionScalar + (isHovered ? 0.06 : 0));
             }
           };
         });
@@ -498,6 +512,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             laneKey: node.laneKey,
             label: node.label,
             labelKey: node.label_key,
+            hintLabelKey: "world_hotspot_hint_open",
             sourceType: "district_scene_node",
             actorKey: "",
             interactionKind: "open",
@@ -514,8 +529,43 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
 
         scene.hoverCursor = "pointer";
         scene.onPointerMove = (_event, pickInfo) => {
-          const actionKey = String(pickInfo?.pickedMesh?.metadata?.actionKey || "").trim();
+          const metadata = pickInfo?.pickedMesh?.metadata || null;
+          const actionKey = String(metadata?.actionKey || "").trim();
           canvas.style.cursor = actionKey ? "pointer" : "default";
+          if (!actionKey) {
+            hoveredHotspotKey = "";
+            setHoverPreview((prev) => (prev ? null : prev));
+            return;
+          }
+          const nextHotspotKey =
+            String(metadata?.sourceType || "") === "district_scene_hotspot"
+              ? String(metadata?.nodeKey || "")
+              : String(
+                  worldState.hotspots.find((hotspot) => hotspot.action_key === actionKey)?.key ||
+                    metadata?.nodeKey ||
+                    ""
+                );
+          hoveredHotspotKey = nextHotspotKey;
+          setHoverPreview((prev) => {
+            const next = {
+              key: String(metadata?.nodeKey || ""),
+              label: String(metadata?.label || ""),
+              labelKey: String(metadata?.labelKey || ""),
+              hintLabelKey: String(metadata?.hintLabelKey || "world_hotspot_hint_open"),
+              interactionKind: String(metadata?.interactionKind || "open"),
+              sourceType: String(metadata?.sourceType || "district_scene_node")
+            };
+            if (
+              prev &&
+              prev.key === next.key &&
+              prev.labelKey === next.labelKey &&
+              prev.hintLabelKey === next.hintLabelKey &&
+              prev.sourceType === next.sourceType
+            ) {
+              return prev;
+            }
+            return next;
+          });
         };
         scene.onPointerDown = (_event, pickInfo) => {
           const metadata = pickInfo?.pickedMesh?.metadata || null;
@@ -546,6 +596,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         engine.runRenderLoop(() => {
           const now = performance.now() * 0.001;
           const motionScalar = worldState.reduced_motion ? 0.22 : 1;
+          const focusHotspot =
+            worldState.hotspots.find((hotspot) => hotspot.key === hoveredHotspotKey) || activeHotspot;
           ring.rotation.z = now * worldState.orbit_speed * 22;
           if (outerRing) {
             outerRing.rotation.y = now * worldState.orbit_speed * 14;
@@ -557,18 +609,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const targetAlpha =
             cameraProfile.alpha_base +
             now * worldState.orbit_speed * cameraProfile.orbit_scalar +
-            (activeHotspot?.camera_alpha_offset || 0);
+            (focusHotspot?.camera_alpha_offset || 0);
           const targetBeta =
             cameraProfile.beta_base +
             Math.sin(now * 0.32) * 0.03 * cameraProfile.sway_scalar * motionScalar +
-            (activeHotspot?.camera_beta_offset || 0);
+            (focusHotspot?.camera_beta_offset || 0);
           camera.alpha += (targetAlpha - camera.alpha) * cameraProfile.alpha_lerp;
           camera.beta += (targetBeta - camera.beta) * cameraProfile.beta_lerp;
-          if (activeHotspot) {
-            camera.target.x += (activeHotspot.x - camera.target.x) * cameraProfile.focus_lerp;
-            camera.target.y += (activeHotspot.focus_y - camera.target.y) * cameraProfile.focus_lerp;
-            camera.target.z += (activeHotspot.z - camera.target.z) * cameraProfile.focus_lerp;
-            const desiredRadius = cameraProfile.radius * activeHotspot.camera_radius_scale;
+          if (focusHotspot) {
+            camera.target.x += (focusHotspot.x - camera.target.x) * cameraProfile.focus_lerp;
+            camera.target.y += (focusHotspot.focus_y - camera.target.y) * cameraProfile.focus_lerp;
+            camera.target.z += (focusHotspot.z - camera.target.z) * cameraProfile.focus_lerp;
+            const desiredRadius = cameraProfile.radius * focusHotspot.camera_radius_scale;
             camera.radius += (desiredRadius - camera.radius) * cameraProfile.radius_lerp;
           }
           satellites.forEach((entry, index) => {
@@ -646,14 +698,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         ) : null}
         {worldState.active_hotspot_label ? (
           <span className="akrSceneWorldFocus">
-            {worldState.active_hotspot_label_key
-              ? t(props.lang, worldState.active_hotspot_label_key as never)
-              : worldState.active_hotspot_label}
+            {hoverPreview?.labelKey
+              ? t(props.lang, hoverPreview.labelKey as never)
+              : hoverPreview?.label || (worldState.active_hotspot_label_key
+                  ? t(props.lang, worldState.active_hotspot_label_key as never)
+                  : worldState.active_hotspot_label)}
           </span>
         ) : null}
-        {worldState.active_hotspot_hint_key ? (
+        {worldState.active_hotspot_hint_key || hoverPreview?.hintLabelKey ? (
           <span className="akrSceneWorldFocus">
-            {t(props.lang, worldState.active_hotspot_hint_key as never)}
+            {t(props.lang, (hoverPreview?.hintLabelKey || worldState.active_hotspot_hint_key) as never)}
           </span>
         ) : null}
         {worldState.hud_profile.show_node_label && worldState.active_node_label ? (
