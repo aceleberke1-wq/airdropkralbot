@@ -1,3 +1,5 @@
+import { SHELL_ACTION_KEY } from "../navigation/shellActions.js";
+
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -131,6 +133,7 @@ function buildNode(input) {
     laneKey: toText(input.laneKey, "lane"),
     label: toText(input.label, "Node"),
     metric: toText(input.metric, "--"),
+    action_key: toText(input.actionKey, ""),
     energy,
     status_key: statusKey,
     accent_hex: statusColor(statusKey)
@@ -180,6 +183,7 @@ function buildPlayerHomeNodes(input) {
       laneKey: "season",
       label: "Season Arc",
       metric: `${Math.round(seasonEnergy * 100)}%`,
+      actionKey: SHELL_ACTION_KEY.PLAYER_SEASON_HALL,
       energy: seasonEnergy
     }),
     buildNode({
@@ -187,6 +191,7 @@ function buildPlayerHomeNodes(input) {
       laneKey: "tasks",
       label: "Mission Lane",
       metric: `${Math.round(missionEnergy * 100)}%`,
+      actionKey: SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
       energy: missionEnergy
     }),
     buildNode({
@@ -194,6 +199,7 @@ function buildPlayerHomeNodes(input) {
       laneKey: "vault",
       label: "Wallet Lane",
       metric: pickTruthy(walletQuick, ["linked", "wallet_linked", "active"]) ? "LIVE" : "LOCKED",
+      actionKey: SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT,
       energy: walletEnergy
     }),
     buildNode({
@@ -201,6 +207,7 @@ function buildPlayerHomeNodes(input) {
       laneKey: "risk",
       label: "Risk Pulse",
       metric: toText(risk.band || risk.state || "stable").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_SUPPORT_STATUS,
       energy: riskEnergy,
       statusKey: riskEnergy >= 0.7 ? "warn" : "good"
     })
@@ -222,6 +229,7 @@ function buildPlayerPvpNodes(input) {
       laneKey: "pvp_daily_duel",
       label: "Daily Duel",
       metric: toText(session.phase || dailyDuel.phase || "idle").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL,
       energy: clamp(Math.max(pickNumber(session, ["tempo_pct", "pressure_pct"], 0) / 100, 0.44), 0.18, 1)
     }),
     buildNode({
@@ -229,6 +237,7 @@ function buildPlayerPvpNodes(input) {
       laneKey: "pvp_weekly_ladder",
       label: "Weekly Ladder",
       metric: `${Math.round(clamp(pickNumber(weeklyLadder, ["completion_pct", "rank_progress_pct"], 36) / 100, 0.18, 1) * 100)}%`,
+      actionKey: SHELL_ACTION_KEY.PLAYER_PVP_WEEKLY_LADDER,
       energy: clamp(Math.max(pickNumber(weeklyLadder, ["completion_pct", "rank_progress_pct"], 0) / 100, 0.36), 0.18, 1)
     }),
     buildNode({
@@ -236,6 +245,7 @@ function buildPlayerPvpNodes(input) {
       laneKey: "pvp_diagnostics",
       label: "Diagnostics",
       metric: toText(diagnostics.category || diagnostics.state || "clean").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_PVP_LEADERBOARD,
       energy: clamp(Math.max(pickNumber(diagnostics, ["risk_pct", "reject_pct"], 0) / 100, 0.24), 0.12, 1),
       statusKey: toText(diagnostics.category || diagnostics.state || "").toLowerCase().includes("clean") ? "good" : ""
     }),
@@ -244,6 +254,7 @@ function buildPlayerPvpNodes(input) {
       laneKey: "pvp_tick",
       label: "Tick Theater",
       metric: `${Math.max(0, Math.round(pickNumber(tick, ["tempo_ms", "tick_ms"], 0)))}ms`,
+      actionKey: SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL,
       energy: clamp(Math.max(1 - pickNumber(tick, ["tempo_ms", "tick_ms"], 1000) / 1400, 0.22), 0.12, 1)
     })
   ];
@@ -261,6 +272,7 @@ function buildPlayerTasksNodes(input) {
       laneKey: "tasks_offers",
       label: "Offer Grid",
       metric: String(Math.max(0, pickNumber(taskResult, ["offer_count", "offers_count"], pickNumber(mission, ["offer_count", "active_count"], 0)))),
+      actionKey: SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
       energy: clamp(Math.max(pickNumber(taskResult, ["offer_count", "offers_count"], pickNumber(mission, ["offer_count", "active_count"], 0)) / 4, 0.24), 0.12, 1)
     }),
     buildNode({
@@ -268,6 +280,7 @@ function buildPlayerTasksNodes(input) {
       laneKey: "daily_streak",
       label: "Streak Tower",
       metric: `${Math.max(0, Math.round(pickNumber(daily, ["streak_days", "streak"], 0)))}d`,
+      actionKey: SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
       energy: clamp(Math.max(pickNumber(daily, ["streak_days", "streak"], 0) / 7, 0.18), 0.12, 1)
     }),
     buildNode({
@@ -275,6 +288,7 @@ function buildPlayerTasksNodes(input) {
       laneKey: "mission_claim",
       label: "Claim Bridge",
       metric: String(Math.max(0, pickNumber(taskResult, ["claimable_count"], pickNumber(mission, ["claimable_count"], 0)))),
+      actionKey: SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
       energy: clamp(Math.max(pickNumber(taskResult, ["claimable_count"], pickNumber(mission, ["claimable_count"], 0)) / 3, 0.18), 0.12, 1)
     }),
     buildNode({
@@ -282,6 +296,7 @@ function buildPlayerTasksNodes(input) {
       laneKey: "contract",
       label: "Contract Pulse",
       metric: toText(contract.band || contract.state || "open").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
       energy: clamp(Math.max(pickNumber(contract, ["completion_pct", "heat_pct"], 0) / 100, 0.28), 0.12, 1)
     })
   ];
@@ -299,6 +314,7 @@ function buildPlayerVaultNodes(input) {
       laneKey: "wallet",
       label: "Wallet Gate",
       metric: pickTruthy(walletSession, ["active", "linked"]) ? "LIVE" : "OPEN",
+      actionKey: SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT,
       energy: pickTruthy(walletSession, ["active", "linked"]) ? 0.78 : 0.32
     }),
     buildNode({
@@ -306,6 +322,7 @@ function buildPlayerVaultNodes(input) {
       laneKey: "payout",
       label: "Payout Lift",
       metric: toText(payoutStatus.state || payoutStatus.status || "idle").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST,
       energy: clamp(Math.max(pickNumber(payoutStatus, ["readiness_pct", "eligible_pct"], 0) / 100, 0.24), 0.12, 1)
     }),
     buildNode({
@@ -313,6 +330,7 @@ function buildPlayerVaultNodes(input) {
       laneKey: "premium",
       label: "Premium Pass",
       metric: pickTruthy(monetization, ["pass_active", "active", "premium_active"]) ? "ACTIVE" : "READY",
+      actionKey: SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL,
       energy: pickTruthy(monetization, ["pass_active", "active", "premium_active"]) ? 0.7 : 0.3
     }),
     buildNode({
@@ -320,6 +338,7 @@ function buildPlayerVaultNodes(input) {
       laneKey: "route",
       label: "Route Engine",
       metric: toText(routeStatus.state || routeStatus.health || "ready").toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL,
       energy: clamp(Math.max(pickNumber(routeStatus, ["coverage_pct", "completion_pct"], 0) / 100, 0.26), 0.12, 1)
     })
   ];
@@ -338,6 +357,7 @@ function buildAdminNodes(input) {
       laneKey: "admin_queue",
       label: "Queue Bastion",
       metric: String(queueCount),
+      actionKey: SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,
       energy: clamp(Math.max(queueCount / 8, 0.22), 0.12, 1),
       statusKey: queueCount >= 6 ? "warn" : ""
     }),
@@ -346,6 +366,7 @@ function buildAdminNodes(input) {
       laneKey: "admin_runtime",
       label: "Runtime Core",
       metric: sceneHealth.toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
       energy: clamp(Math.max(pickNumber(summary, ["scene_runtime_ready_rate_24h"], 0) / 100, 0.34), 0.12, 1),
       statusKey: sceneHealth === "alert" ? "hot" : sceneHealth === "watch" ? "warn" : "good"
     }),
@@ -354,6 +375,7 @@ function buildAdminNodes(input) {
       laneKey: "admin_liveops",
       label: "LiveOps Spine",
       metric: schedulerState.toUpperCase(),
+      actionKey: SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL,
       energy: clamp(Math.max(pickNumber(summary, ["live_ops_sent_24h", "sent_24h"], 0) / 20, 0.24), 0.12, 1)
     }),
     buildNode({
@@ -361,6 +383,7 @@ function buildAdminNodes(input) {
       laneKey: "admin_audit",
       label: "Audit Orbit",
       metric: String(Math.max(0, pickNumber(summary, ["ops_alert_raised_24h", "alerts_24h"], 0))),
+      actionKey: SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
       energy: clamp(Math.max(pickNumber(summary, ["ops_alert_raised_24h", "alerts_24h"], 0) / 5, 0.18), 0.12, 1),
       statusKey: pickNumber(summary, ["ops_alert_raised_24h", "alerts_24h"], 0) > 0 ? "warn" : "good"
     })

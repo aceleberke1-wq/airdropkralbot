@@ -1,13 +1,18 @@
-import { Suspense, lazy, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
+import { resolveAdminRouteHandoff } from "../core/admin/adminRouteHandoff.js";
+import { resolveShellActionTarget } from "../core/navigation/shellActions.js";
+import { resolvePlayerRouteHandoff } from "../core/player/playerRouteHandoff.js";
 import { buildPvpSessionMachine } from "../core/player/pvpSessionMachine";
 import {
   UI_EVENT_KEY,
   UI_FUNNEL_KEY,
   UI_SURFACE_KEY
 } from "../core/telemetry/uiEventTaxonomy";
+import { useAppDispatch } from "./redux/hooks";
 import { useReactShellStore } from "./store";
 import type {
   BootstrapV2Payload,
+  LaunchContext,
   TabKey,
   WebAppApiResponse,
   WebAppAuth
@@ -89,6 +94,7 @@ import {
   useWalletVerifyV2Mutation,
   useVaultOverviewV2Query
 } from "./redux/api/webappApi";
+import { navigationActions } from "./redux/slices/shellSlices";
 import "./styles.css";
 
 const PlayerWorkspace = lazy(async () => {
@@ -129,6 +135,22 @@ function asError(payload: WebAppApiResponse | null | undefined, fallback = "requ
   return String(payload?.error || payload?.message || fallback);
 }
 
+function resolveWorkspaceFunnelKey(workspace: "player" | "admin", tab: TabKey) {
+  if (workspace === "admin") {
+    return UI_FUNNEL_KEY.ADMIN_OPS;
+  }
+  if (tab === "pvp") {
+    return UI_FUNNEL_KEY.PVP_LOOP;
+  }
+  if (tab === "tasks") {
+    return UI_FUNNEL_KEY.TASKS_LOOP;
+  }
+  if (tab === "vault") {
+    return UI_FUNNEL_KEY.VAULT_LOOP;
+  }
+  return UI_FUNNEL_KEY.PLAYER_LOOP;
+}
+
 function WorkspaceLoadingFallback() {
   return (
     <main className="akrPanelGrid">
@@ -142,6 +164,7 @@ function WorkspaceLoadingFallback() {
 }
 
 export function ReactWebAppV1(props: ReactWebAppV1Props) {
+  const dispatch = useAppDispatch();
   const pvpLiveRefreshInFlightRef = useRef(false);
   const {
     auth,
@@ -541,6 +564,79 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       capabilityProfile
     }
   });
+  const handleDistrictNodeAction = useCallback(
+    (payload: {
+      actionKey: string;
+      nodeKey: string;
+      laneKey: string;
+      label: string;
+      workspace: "player" | "admin";
+      tab: TabKey;
+      districtKey: string;
+    }) => {
+      const actionKey = String(payload.actionKey || "").trim();
+      const target = resolveShellActionTarget(actionKey);
+      if (!target) {
+        return;
+      }
+      if (target.workspace === "admin" && !isAdmin) {
+        return;
+      }
+
+      let launchContext: LaunchContext;
+      let nextTab: TabKey = tab;
+
+      if (target.workspace === "admin") {
+        setWorkspace("admin");
+        launchContext = resolveAdminRouteHandoff({
+          routeKey: target.route_key,
+          panelKey: target.panel_key,
+          focusKey: target.focus_key,
+          actionKey: target.action_key
+        }) as LaunchContext;
+      } else {
+        launchContext = resolvePlayerRouteHandoff({
+          routeKey: target.route_key,
+          panelKey: target.panel_key,
+          focusKey: target.focus_key,
+          actionKey: target.action_key
+        }) as LaunchContext;
+        nextTab = (launchContext.tab || "home") as TabKey;
+        setWorkspace("player");
+        if (nextTab !== tab) {
+          setTab(nextTab);
+        }
+      }
+
+      dispatch(navigationActions.routeLaunchContext(launchContext));
+      trackUiEvent({
+        event_key: UI_EVENT_KEY.PANEL_OPEN,
+        tab_key: nextTab,
+        panel_key: String(launchContext.panel_key || UI_SURFACE_KEY.SHELL),
+        route_key: String(launchContext.route_key || ""),
+        focus_key: String(launchContext.focus_key || ""),
+        funnel_key: resolveWorkspaceFunnelKey(target.workspace as "player" | "admin", nextTab),
+        surface_key: UI_SURFACE_KEY.SHELL,
+        payload_json: {
+          source: "district_scene_node",
+          source_panel_key: "scene_world",
+          shell_action_key: String(launchContext.shell_action_key || actionKey),
+          action_key: String(launchContext.shell_action_key || actionKey),
+          source_workspace: payload.workspace,
+          source_tab: payload.tab,
+          source_district_key: payload.districtKey,
+          node_key: payload.nodeKey,
+          lane_key: payload.laneKey,
+          node_label: payload.label,
+          target_workspace: target.workspace,
+          target_tab: nextTab,
+          target_panel_key: String(launchContext.panel_key || ""),
+          target_focus_key: String(launchContext.focus_key || "")
+        }
+      });
+    },
+    [dispatch, isAdmin, setTab, setWorkspace, tab, trackUiEvent]
+  );
   const pvpLiveState = useMemo(
     () => ({
       leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
@@ -673,6 +769,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           pvpLive={pvpLiveState}
           vaultData={(vaultData as Record<string, unknown> | null) || null}
           adminRuntime={adminRuntimeState}
+          onNodeAction={handleDistrictNodeAction}
         />
       </Suspense>
       <TopBar

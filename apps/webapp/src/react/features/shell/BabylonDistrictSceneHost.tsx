@@ -23,6 +23,15 @@ type BabylonDistrictSceneHostProps = {
     summary: Record<string, unknown> | null;
     queue: Array<Record<string, unknown>>;
   };
+  onNodeAction?: (payload: {
+    actionKey: string;
+    nodeKey: string;
+    laneKey: string;
+    label: string;
+    workspace: "player" | "admin";
+    tab: "home" | "pvp" | "tasks" | "vault";
+    districtKey: string;
+  }) => void;
 };
 
 type BabylonSceneHandle = {
@@ -121,6 +130,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         ambient_energy: worldState.ambient_energy,
         nodes: worldState.nodes.map((node) => ({
           key: node.key,
+          action_key: node.action_key,
           energy: node.energy,
           status_key: node.status_key,
           metric: node.metric
@@ -304,8 +314,42 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             halo.material = haloMaterial;
           }
 
+          const interactiveMeshes = [pillar, orb, halo].filter(Boolean);
+          const metadata = {
+            actionKey: node.action_key,
+            nodeKey: node.key,
+            laneKey: node.laneKey,
+            label: node.label
+          };
+          interactiveMeshes.forEach((mesh) => {
+            mesh.isPickable = Boolean(node.action_key);
+            mesh.metadata = metadata;
+          });
+
           return { node, pillar, orb, halo, angle };
         });
+
+        scene.hoverCursor = "pointer";
+        scene.onPointerMove = (_event, pickInfo) => {
+          const actionKey = String(pickInfo?.pickedMesh?.metadata?.actionKey || "").trim();
+          canvas.style.cursor = actionKey ? "pointer" : "default";
+        };
+        scene.onPointerDown = (_event, pickInfo) => {
+          const metadata = pickInfo?.pickedMesh?.metadata || null;
+          const actionKey = String(metadata?.actionKey || "").trim();
+          if (!actionKey) {
+            return;
+          }
+          props.onNodeAction?.({
+            actionKey,
+            nodeKey: String(metadata?.nodeKey || ""),
+            laneKey: String(metadata?.laneKey || ""),
+            label: String(metadata?.label || ""),
+            workspace: props.workspace,
+            tab: props.tab,
+            districtKey: worldState.district_key
+          });
+        };
 
         const resize = () => engine.resize();
         window.addEventListener("resize", resize);
@@ -332,6 +376,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         handle = {
           dispose: () => {
             window.removeEventListener("resize", resize);
+            canvas.style.cursor = "default";
+            scene.onPointerMove = null;
+            scene.onPointerDown = null;
             scene.dispose();
             engine.dispose();
           }

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildDistrictWorldState } from "../src/core/runtime/districtWorldState.js";
+import { SHELL_ACTION_KEY } from "../../../packages/shared/src/shellActionCatalog.js";
 
 test("buildDistrictWorldState maps player home into central hub beacons", () => {
   const state = buildDistrictWorldState({
@@ -25,8 +26,10 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.mode_label_key, "world_scene_mode_cinematic");
   assert.equal(state.beacon_count, 4);
   assert.equal(state.nodes[0].key, "season_arc");
+  assert.equal(state.nodes[0].action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
   assert.equal(state.nodes[1].key, "mission_lane");
   assert.equal(state.nodes[2].metric, "LIVE");
+  assert.equal(state.nodes[2].action_key, SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT);
 });
 
 test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
@@ -60,6 +63,7 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.beacon_count, 3);
   assert.equal(state.mode_label_key, "world_scene_mode_lite");
   assert.equal(state.nodes[0].key, "duel_core");
+  assert.equal(state.nodes[0].action_key, SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL);
 });
 
 test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
@@ -85,5 +89,6 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.district_key, "ops_citadel");
   assert.equal(state.beacon_count, 4);
   assert.equal(state.nodes[0].metric, "3");
+  assert.equal(state.nodes[0].action_key, SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL);
   assert.equal(state.nodes[1].status_key, "warn");
 });
