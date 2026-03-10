@@ -116,6 +116,17 @@ type ProtocolCardFlowPod = {
     action_key?: string;
     action_label_key?: string;
     hint_label_key?: string;
+    entry_kind_key?: string;
+    sequence_kind_key?: string;
+    tempo_label_key?: string;
+    camera_profile_label_key?: string;
+    camera_radius_scale?: number;
+    camera_focus_y_offset?: number;
+    motion_scalar?: number;
+    stage_label_key?: string;
+    stage_value?: string;
+    stage_status_key?: string;
+    sequence_rows?: Array<{ label_key: string; value: string; status_key: string }>;
     rows?: Array<{ label_key: string; value: string; status_key: string }>;
   }>;
   action_items?: ProtocolCardActionItem[];
@@ -194,6 +205,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const modalOpenRef = useRef(false);
   const selectedProtocolPodRef = useRef<ProtocolCardFlowPod | null>(null);
+  const selectedMicroflowRef = useRef<NonNullable<ProtocolCardFlowPod["microflow_cards"]>[number] | null>(null);
   const [status, setStatus] = useState<"idle" | "ready" | "failed">("idle");
   const [hoverPreview, setHoverPreview] = useState<HoverPreview | null>(null);
   const [hoveredClusterKeyState, setHoveredClusterKeyState] = useState("");
@@ -201,6 +213,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeProtocolCardKey, setActiveProtocolCardKey] = useState("");
   const [activeProtocolPodKey, setActiveProtocolPodKey] = useState("");
+  const [activeMicroflowKey, setActiveMicroflowKey] = useState("");
   const worldState = useMemo(
     () =>
       buildDistrictWorldState({
@@ -317,6 +330,13 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     }
     return pods.find((pod) => pod.pod_key === activeProtocolPodKey) || pods[0] || null;
   }, [activeProtocolPodKey, selectedProtocolCard]);
+  const selectedMicroflow = useMemo(() => {
+    const flows = selectedProtocolPod?.microflow_cards || [];
+    if (!flows.length) {
+      return null;
+    }
+    return flows.find((flow) => flow.microflow_key === activeMicroflowKey) || flows[0] || null;
+  }, [activeMicroflowKey, selectedProtocolPod]);
 
   useEffect(() => {
     setTerminalOpen(false);
@@ -352,9 +372,23 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   }, [activeProtocolPodKey, selectedProtocolCard]);
 
   useEffect(() => {
+    const flows = selectedProtocolPod?.microflow_cards || [];
+    if (!flows.length) {
+      if (activeMicroflowKey) {
+        setActiveMicroflowKey("");
+      }
+      return;
+    }
+    if (!flows.some((flow) => flow.microflow_key === activeMicroflowKey)) {
+      setActiveMicroflowKey(flows[0].microflow_key);
+    }
+  }, [activeMicroflowKey, selectedProtocolPod]);
+
+  useEffect(() => {
     modalOpenRef.current = modalOpen;
     selectedProtocolPodRef.current = selectedProtocolPod;
-  }, [modalOpen, selectedProtocolPod]);
+    selectedMicroflowRef.current = selectedMicroflow;
+  }, [modalOpen, selectedProtocolPod, selectedMicroflow]);
 
   const triggerSceneAction = useCallback(
     (payload: {
@@ -968,12 +1002,24 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         engine.runRenderLoop(() => {
           const now = performance.now() * 0.001;
           const podFocus = modalOpenRef.current ? selectedProtocolPodRef.current : null;
+          const microflowFocus = modalOpenRef.current ? selectedMicroflowRef.current : null;
           const podMotionScalar = Number.isFinite(Number(podFocus?.motion_scalar)) ? Number(podFocus?.motion_scalar) : 1;
           const podRadiusScale = Number.isFinite(Number(podFocus?.camera_radius_scale)) ? Number(podFocus?.camera_radius_scale) : 1;
           const podFocusYOffset = Number.isFinite(Number(podFocus?.camera_focus_y_offset))
             ? Number(podFocus?.camera_focus_y_offset)
             : 0;
-          const motionScalar = (worldState.reduced_motion ? 0.22 : 1) * directorProfile.motion_scalar * podMotionScalar;
+          const microflowMotionScalar = Number.isFinite(Number(microflowFocus?.motion_scalar)) ? Number(microflowFocus?.motion_scalar) : 1;
+          const microflowRadiusScale = Number.isFinite(Number(microflowFocus?.camera_radius_scale))
+            ? Number(microflowFocus?.camera_radius_scale)
+            : 1;
+          const microflowFocusYOffset = Number.isFinite(Number(microflowFocus?.camera_focus_y_offset))
+            ? Number(microflowFocus?.camera_focus_y_offset)
+            : 0;
+          const motionScalar =
+            (worldState.reduced_motion ? 0.22 : 1) *
+            directorProfile.motion_scalar *
+            podMotionScalar *
+            microflowMotionScalar;
           const focusHotspot =
             worldState.hotspots.find((hotspot) => hotspot.key === hoveredHotspotKey) || activeHotspot;
           ring.rotation.z = now * worldState.orbit_speed * 22 * directorProfile.orbit_spin_scalar;
@@ -997,9 +1043,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           camera.beta += (targetBeta - camera.beta) * cameraProfile.beta_lerp;
           if (focusHotspot) {
             camera.target.x += (focusHotspot.x - camera.target.x) * cameraProfile.focus_lerp;
-            camera.target.y += (focusHotspot.focus_y + podFocusYOffset - camera.target.y) * cameraProfile.focus_lerp;
+            camera.target.y += (focusHotspot.focus_y + podFocusYOffset + microflowFocusYOffset - camera.target.y) * cameraProfile.focus_lerp;
             camera.target.z += (focusHotspot.z - camera.target.z) * cameraProfile.focus_lerp;
-            const desiredRadius = cameraProfile.radius * focusHotspot.camera_radius_scale * podRadiusScale;
+            const desiredRadius =
+              cameraProfile.radius * focusHotspot.camera_radius_scale * podRadiusScale * microflowRadiusScale;
             camera.radius += (desiredRadius - camera.radius) * cameraProfile.radius_lerp;
           }
           satellites.forEach((entry, index) => {
@@ -1118,6 +1165,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         ) : null}
         {modalOpen && selectedProtocolPod?.tempo_label_key ? (
           <span className="akrSceneWorldFocus">{t(props.lang, selectedProtocolPod.tempo_label_key as never)}</span>
+        ) : null}
+        {modalOpen && selectedMicroflow?.sequence_kind_key ? (
+          <span className="akrSceneWorldFocus">{t(props.lang, selectedMicroflow.sequence_kind_key as never)}</span>
+        ) : null}
+        {modalOpen && selectedMicroflow?.tempo_label_key ? (
+          <span className="akrSceneWorldFocus">{t(props.lang, selectedMicroflow.tempo_label_key as never)}</span>
         ) : null}
         {worldState.hud_profile.show_node_label && worldState.active_node_label ? (
           <span className="akrSceneWorldFocus">
@@ -1779,27 +1832,11 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                               <button
                                 key={`${selectedProtocolPod.pod_key}:microflow:${item.microflow_key}`}
                                 type="button"
-                                className={`akrSceneInteractionModalMicroflow is-${item.status_key}`}
-                                onClick={() => {
-                                  if (!item.action_key) {
-                                    return;
-                                  }
-                                  triggerSceneAction({
-                                    actionKey: item.action_key,
-                                    nodeKey: item.microflow_key,
-                                    laneKey: "modal_protocol_microflow",
-                                    label: item.value || selectedProtocolPod.value,
-                                    labelKey: item.label_key,
-                                    sourceType: "district_scene_protocol_microflow",
-                                    actorKey: worldState.active_hotspot_key,
-                                    interactionKind: "protocol_microflow",
-                                    clusterKey: worldState.active_cluster_key,
-                                    workspace: props.workspace,
-                                    tab: props.tab,
-                                    districtKey: worldState.district_key
-                                  });
-                                }}
-                                disabled={!item.action_key}
+                                className={`akrSceneInteractionModalMicroflow is-${item.status_key} ${selectedMicroflow?.microflow_key === item.microflow_key ? "is-selected" : ""}`}
+                                onMouseEnter={() => setActiveMicroflowKey(item.microflow_key)}
+                                onFocus={() => setActiveMicroflowKey(item.microflow_key)}
+                                onClick={() => setActiveMicroflowKey(item.microflow_key)}
+                                aria-pressed={selectedMicroflow?.microflow_key === item.microflow_key}
                               >
                                 <div className="akrSceneInteractionModalMicroflowHeader">
                                   <span>{t(props.lang, item.label_key as never)}</span>
@@ -1822,6 +1859,95 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                               </button>
                             ))}
                           </div>
+                        </section>
+                      ) : null}
+                      {selectedMicroflow ? (
+                        <section className="akrSceneInteractionModalSection">
+                          <div className="akrSceneInteractionModalSectionHeader">
+                            <span>{t(props.lang, "world_modal_section_microflow_focus" as never)}</span>
+                            <strong>
+                              {selectedMicroflow.sequence_kind_key
+                                ? t(props.lang, selectedMicroflow.sequence_kind_key as never)
+                                : selectedMicroflow.stage_value || selectedMicroflow.value}
+                            </strong>
+                          </div>
+                          <div className="akrSceneInteractionModalChips">
+                            {selectedMicroflow.entry_kind_key ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.status_key}`}>
+                                <span>{t(props.lang, "world_modal_chip_entry_kind" as never)}</span>
+                                <strong>{t(props.lang, selectedMicroflow.entry_kind_key as never)}</strong>
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.tempo_label_key ? (
+                              <div className="akrSceneInteractionModalChip is-tempo">
+                                <span>{t(props.lang, "world_modal_chip_tempo" as never)}</span>
+                                <strong>{t(props.lang, selectedMicroflow.tempo_label_key as never)}</strong>
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.camera_profile_label_key ? (
+                              <div className="akrSceneInteractionModalChip is-tempo">
+                                <span>{t(props.lang, "world_modal_chip_camera" as never)}</span>
+                                <strong>{t(props.lang, selectedMicroflow.camera_profile_label_key as never)}</strong>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="akrSceneInteractionModalGrid">
+                            {selectedMicroflow.sequence_rows?.length ? (
+                              <div className="akrSceneInteractionModalRows">
+                                {selectedMicroflow.sequence_rows.map((row) => (
+                                  <div key={`${selectedMicroflow.microflow_key}:sequence:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                    <span>{t(props.lang, row.label_key as never)}</span>
+                                    <strong>{row.value}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.rows?.length ? (
+                              <div className="akrSceneInteractionModalRows">
+                                {selectedMicroflow.rows.map((row) => (
+                                  <div key={`${selectedMicroflow.microflow_key}:row:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                    <span>{t(props.lang, row.label_key as never)}</span>
+                                    <strong>{row.value}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          {selectedMicroflow.action_key ? (
+                            <div className="akrSceneInteractionModalActionGrid">
+                              <button
+                                type="button"
+                                className="akrSceneInteractionModalAction"
+                                onClick={() =>
+                                  triggerSceneAction({
+                                    actionKey: selectedMicroflow.action_key || "",
+                                    nodeKey: selectedMicroflow.microflow_key,
+                                    laneKey: "modal_protocol_microflow_focus",
+                                    label: selectedMicroflow.value || selectedProtocolPod.value,
+                                    labelKey: selectedMicroflow.label_key,
+                                    sourceType: "district_scene_protocol_microflow_focus",
+                                    actorKey: worldState.active_hotspot_key,
+                                    interactionKind: "protocol_microflow_focus",
+                                    clusterKey: worldState.active_cluster_key,
+                                    workspace: props.workspace,
+                                    tab: props.tab,
+                                    districtKey: worldState.district_key
+                                  })
+                                }
+                              >
+                                <span>
+                                  {selectedMicroflow.hint_label_key
+                                    ? t(props.lang, selectedMicroflow.hint_label_key as never)
+                                    : t(props.lang, selectedMicroflow.label_key as never)}
+                                </span>
+                                <strong>
+                                  {selectedMicroflow.action_label_key
+                                    ? t(props.lang, selectedMicroflow.action_label_key as never)
+                                    : t(props.lang, selectedMicroflow.label_key as never)}
+                                </strong>
+                              </button>
+                            </div>
+                          ) : null}
                         </section>
                       ) : null}
                       {selectedProtocolPod.rows?.length ? (
