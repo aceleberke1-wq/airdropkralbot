@@ -2527,7 +2527,132 @@ function buildDistrictInteractionTerminal(
   };
 }
 
-function buildDistrictInteractionModal(districtKey, activeHotspot, interactionTerminal) {
+function buildModalCard(labelKey, value, statusKey = "ready", toneKey = "") {
+  const text = toText(value, "");
+  if (!text) {
+    return null;
+  }
+  return {
+    card_key: `${labelKey}:${statusKey}:${toneKey || "tone"}`,
+    label_key: labelKey,
+    value: text,
+    status_key: statusKey,
+    tone_key: toneKey
+  };
+}
+
+function buildDistrictInteractionModalCards(input, districtKey, activeHotspot) {
+  if (!activeHotspot) {
+    return [];
+  }
+
+  const homeFeed = asRecord(input.homeFeed);
+  const season = asRecord(homeFeed.season);
+  const mission = asRecord(homeFeed.mission);
+  const walletQuick = asRecord(homeFeed.wallet_quick);
+  const risk = asRecord(homeFeed.risk);
+  const daily = asRecord(homeFeed.daily);
+  const contract = asRecord(homeFeed.contract);
+  const taskResult = asRecord(input.taskResult);
+  const pvpRuntime = asRecord(input.pvpRuntime);
+  const leagueOverview = asRecord(input.leagueOverview);
+  const dailyDuel = asRecord(leagueOverview.daily_duel);
+  const weeklyLadder = asRecord(leagueOverview.weekly_ladder);
+  const pvpLive = asRecord(input.pvpLive);
+  const diagnostics = asRecord(pvpLive.diagnostics);
+  const tick = asRecord(pvpLive.tick);
+  const vaultData = asRecord(input.vaultData);
+  const walletSession = asRecord(vaultData.wallet_session);
+  const payoutStatus = asRecord(vaultData.payout_status);
+  const monetization = asRecord(vaultData.monetization_status);
+  const routeStatus = asRecord(vaultData.route_status);
+  const adminRuntime = asRecord(input.adminRuntime);
+  const summary = asRecord(adminRuntime.summary);
+  const queue = asList(adminRuntime.queue);
+  const hotspotKey = toText(activeHotspot.key, "");
+
+  switch (districtKey) {
+    case "arena_prime": {
+      const duelPhase = upperText(pvpRuntime.phase || dailyDuel.phase || "idle");
+      const ladderCharge = percentText(weeklyLadder.completion_pct || weeklyLadder.rank_progress_pct);
+      const diagnosticsBand = upperText(diagnostics.category || diagnostics.state || "clean");
+      const tickTempo = toNum(tick.tempo_ms || tick.tick_ms, Number.NaN);
+      return [
+        buildModalCard("world_modal_lane_duel_sync", duelPhase, resolveFlowStatusKey(duelPhase, "live"), "world_intent_tone_compete"),
+        buildModalCard("world_modal_lane_ladder_charge", ladderCharge, "ready", "world_intent_tone_climb"),
+        buildModalCard(
+          hotspotKey === "diagnostics_rail" || hotspotKey === "tick_chamber" ? "world_modal_lane_telemetry_scan" : "world_modal_lane_tick_window",
+          Number.isFinite(tickTempo) ? `${Math.round(tickTempo)}ms` : diagnosticsBand,
+          resolveFlowStatusKey(diagnosticsBand, "ready"),
+          "world_intent_tone_track"
+        )
+      ].filter(Boolean);
+    }
+    case "mission_quarter": {
+      const offerCount = countText(taskResult.offer_count || taskResult.offers_count || mission.offer_count || mission.active_count);
+      const claimableCount = countText(taskResult.claimable_count || mission.claimable_count);
+      const streakValue = countText(daily.streak_days || daily.streak);
+      return [
+        buildModalCard("world_modal_lane_offer_stack", offerCount, toNum(offerCount, 0) > 0 ? "live" : "idle", "world_intent_tone_launch"),
+        buildModalCard(
+          hotspotKey === "claim_dais" ? "world_modal_lane_claim_lane" : "world_modal_lane_contract_pulse",
+          claimableCount || upperText(contract.band || contract.state || "open"),
+          claimableCount ? "ready" : resolveFlowStatusKey(contract.band || contract.state, "watch"),
+          hotspotKey === "claim_dais" ? "world_intent_tone_claim" : "world_intent_tone_launch"
+        ),
+        buildModalCard(
+          "world_modal_lane_streak_pulse",
+          streakValue ? `${streakValue}d` : "0d",
+          toNum(streakValue, 0) > 0 ? "live" : "idle",
+          "world_intent_tone_claim"
+        )
+      ].filter(Boolean);
+    }
+    case "exchange_district": {
+      const walletLive = pickTruthy(walletSession, ["active", "linked"]);
+      const payoutState = upperText(payoutStatus.state || payoutStatus.status || "ready");
+      const routeState = upperText(routeStatus.state || routeStatus.health || "ready");
+      const premiumState = pickTruthy(monetization, ["pass_active", "active", "premium_active"]) ? "ACTIVE" : "READY";
+      return [
+        buildModalCard("world_modal_lane_wallet_link", walletLive ? "LIVE" : "OPEN", walletLive ? "ready" : "watch", "world_intent_tone_connect"),
+        buildModalCard(
+          hotspotKey === "premium_lane" ? "world_modal_lane_premium_lane" : "world_modal_lane_payout_lane",
+          hotspotKey === "premium_lane" ? premiumState : payoutState,
+          resolveFlowStatusKey(hotspotKey === "premium_lane" ? premiumState : payoutState, "ready"),
+          hotspotKey === "premium_lane" ? "world_intent_tone_upgrade" : "world_intent_tone_payout"
+        ),
+        buildModalCard("world_modal_lane_route_matrix", routeState, resolveFlowStatusKey(routeState, "ready"), "world_intent_tone_track")
+      ].filter(Boolean);
+    }
+    case "ops_citadel": {
+      const queueDepth = countText(queue.length);
+      const sceneHealth = upperText(summary.scene_runtime_health_band_24h || summary.scene_health_band || "clear");
+      const dispatchState = upperText(summary.live_ops_scheduler_state || summary.scheduler_state || "ready");
+      return [
+        buildModalCard("world_modal_lane_queue_review", queueDepth, toNum(queueDepth, 0) > 0 ? "live" : "ready", "world_intent_tone_review"),
+        buildModalCard("world_modal_lane_runtime_watch", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch"), "world_intent_tone_monitor"),
+        buildModalCard("world_modal_lane_dispatch_gate", dispatchState, resolveFlowStatusKey(dispatchState, "ready"), "world_intent_tone_dispatch")
+      ].filter(Boolean);
+    }
+    default: {
+      const missionCount = countText(mission.active_count || mission.offer_count);
+      const progress = percentText(season.progress_pct || season.progress || season.completion_pct);
+      const walletState = pickTruthy(walletQuick, ["linked", "wallet_linked", "active"]) ? "LIVE" : "OPEN";
+      return [
+        buildModalCard("world_modal_lane_season_arc", progress, progress ? "live" : "ready", "world_intent_tone_travel"),
+        buildModalCard(
+          hotspotKey === "wallet_port" ? "world_modal_lane_wallet_link" : "world_modal_lane_mission_queue",
+          hotspotKey === "wallet_port" ? walletState : missionCount,
+          hotspotKey === "wallet_port" ? resolveFlowStatusKey(walletState, "watch") : toNum(missionCount, 0) > 0 ? "live" : "idle",
+          hotspotKey === "wallet_port" ? "world_intent_tone_connect" : "world_intent_tone_launch"
+        ),
+        buildModalCard("world_modal_lane_risk_watch", upperText(risk.band || risk.state || "stable"), resolveFlowStatusKey(risk.band || risk.state, "ready"), "world_intent_tone_track")
+      ].filter(Boolean);
+    }
+  }
+}
+
+function buildDistrictInteractionModal(input, districtKey, activeHotspot, interactionTerminal) {
   if (!activeHotspot || !interactionTerminal) {
     return null;
   }
@@ -2602,6 +2727,8 @@ function buildDistrictInteractionModal(districtKey, activeHotspot, interactionTe
       break;
   }
 
+  const modalCards = buildDistrictInteractionModalCards(input, districtKey, activeHotspot);
+
   return {
     modal_key: `${districtKey}:${hotspotKey || "modal"}`,
     modal_kind_key: modalKindKey,
@@ -2622,6 +2749,7 @@ function buildDistrictInteractionModal(districtKey, activeHotspot, interactionTe
     preview_rows: asList(interactionTerminal.preview_rows).slice(0, 3),
     flow_rows: asList(interactionTerminal.flow_rows).slice(0, 3),
     signal_rows: asList(interactionTerminal.signal_rows).slice(0, 4),
+    modal_cards: modalCards,
     action_items: asList(interactionTerminal.action_items).slice(0, 3),
     action_count: toNum(interactionTerminal.action_count, 0)
   };
@@ -2688,7 +2816,7 @@ export function buildDistrictWorldState(input = {}) {
     interactionFlow,
     interactionEntry
   );
-  const interactionModal = buildDistrictInteractionModal(districtKey, activeHotspot, interactionTerminal);
+  const interactionModal = buildDistrictInteractionModal(input, districtKey, activeHotspot, interactionTerminal);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,

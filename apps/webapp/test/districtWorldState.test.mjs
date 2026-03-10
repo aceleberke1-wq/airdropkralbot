@@ -65,6 +65,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.modal_kind_key, "world_modal_kind_travel_gate");
   assert.equal(state.interaction_modal.modal_class_key, "travel_gate");
   assert.equal(state.interaction_modal.signal_rows[2].label_key, "world_terminal_signal_actions");
+  assert.equal(state.interaction_modal.modal_cards[0].label_key, "world_modal_lane_season_arc");
+  assert.equal(state.interaction_modal.modal_cards[1].label_key, "world_modal_lane_mission_queue");
   assert.equal(state.active_cluster_key, "hub_gate_north");
   assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.active_cluster_slot_count, 2);
@@ -140,6 +142,8 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.interaction_terminal.flow_rows[0].label_key, "world_sheet_metric_duel_phase");
   assert.equal(state.interaction_modal.modal_kind_key, "world_modal_kind_duel_sequence");
   assert.equal(state.interaction_modal.modal_class_key, "duel_sequence");
+  assert.equal(state.interaction_modal.modal_cards[0].label_key, "world_modal_lane_duel_sync");
+  assert.equal(state.interaction_modal.modal_cards[2].label_key, "world_modal_lane_tick_window");
   assert.equal(state.hud_profile.compact_mode, true);
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
@@ -195,6 +199,8 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_terminal.signal_rows[1].label_key, "world_sheet_metric_scene_health");
   assert.equal(state.interaction_modal.modal_kind_key, "world_modal_kind_queue_review");
   assert.equal(state.interaction_modal.modal_class_key, "queue_review");
+  assert.equal(state.interaction_modal.modal_cards[0].label_key, "world_modal_lane_queue_review");
+  assert.equal(state.interaction_modal.modal_cards[2].label_key, "world_modal_lane_dispatch_gate");
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
@@ -247,6 +253,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_terminal.signal_rows[1].label_key, "world_sheet_metric_payout_state");
   assert.equal(state.interaction_modal.modal_kind_key, "world_modal_kind_payout_route");
   assert.equal(state.interaction_modal.modal_class_key, "payout_route");
+  assert.equal(state.interaction_modal.modal_cards[0].label_key, "world_modal_lane_wallet_link");
+  assert.equal(state.interaction_modal.modal_cards[1].label_key, "world_modal_lane_payout_lane");
   assert.equal(state.camera_profile.radius, state.camera_radius);
   assert.equal(state.nodes.find((node) => node.key === "payout_lift")?.is_active, true);
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "payout_bay")?.is_active, true);

@@ -1384,6 +1384,25 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               </div>
             </section>
           </div>
+          {worldState.interaction_modal.modal_cards?.length ? (
+            <div className="akrSceneInteractionModalLanes">
+              <div className="akrSceneInteractionModalSectionHeader">
+                <span>{t(props.lang, "world_modal_section_lanes" as never)}</span>
+                <strong>{worldState.interaction_modal.modal_cards.length}</strong>
+              </div>
+              <div className="akrSceneInteractionModalLaneGrid">
+                {worldState.interaction_modal.modal_cards.map(
+                  (card: { card_key: string; label_key: string; value: string; status_key: string; tone_key?: string }) => (
+                    <div key={`${worldState.interaction_modal.modal_key}:${card.card_key}`} className={`akrSceneInteractionModalLane is-${card.status_key}`}>
+                      <span>{t(props.lang, card.label_key as never)}</span>
+                      <strong>{card.value}</strong>
+                      {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          ) : null}
           <div className="akrSceneInteractionModalFlow">
             <div className="akrSceneInteractionModalSectionHeader">
               <span>{t(props.lang, "world_modal_section_flow" as never)}</span>

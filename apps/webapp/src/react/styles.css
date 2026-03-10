@@ -860,6 +860,49 @@ body {
   gap: 10px;
 }
 
+.akrSceneInteractionModalLanes {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 181, 225, 0.2);
+  background: rgba(8, 22, 44, 0.5);
+}
+
+.akrSceneInteractionModalLaneGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.akrSceneInteractionModalLane {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  background: rgba(6, 20, 41, 0.38);
+}
+
+.akrSceneInteractionModalLane span,
+.akrSceneInteractionModalLane em {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64rem;
+  color: #9fc7df;
+}
+
+.akrSceneInteractionModalLane strong {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 0.92rem;
+  color: #f2fbff;
+}
+
+.akrSceneInteractionModalLane em {
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .akrSceneInteractionModalSection,
 .akrSceneInteractionModalFlow,
 .akrSceneInteractionModalActions {
@@ -980,6 +1023,26 @@ body {
 
 .akrSceneInteractionModalRow.is-locked,
 .akrSceneInteractionModalChip.is-locked {
+  border-color: rgba(158, 178, 196, 0.24);
+}
+
+.akrSceneInteractionModalLane.is-live {
+  border-color: rgba(47, 255, 181, 0.26);
+}
+
+.akrSceneInteractionModalLane.is-ready {
+  border-color: rgba(123, 230, 255, 0.26);
+}
+
+.akrSceneInteractionModalLane.is-watch {
+  border-color: rgba(255, 180, 93, 0.28);
+}
+
+.akrSceneInteractionModalLane.is-alert {
+  border-color: rgba(255, 111, 145, 0.3);
+}
+
+.akrSceneInteractionModalLane.is-locked {
   border-color: rgba(158, 178, 196, 0.24);
 }
 
@@ -2209,6 +2272,7 @@ body {
   .akrSceneTerminalConsoleChips,
   .akrSceneInteractionModalGrid,
   .akrSceneInteractionModalChips,
+  .akrSceneInteractionModalLaneGrid,
   .akrSceneEntrySurfaceConsoleBar {
     grid-template-columns: 1fr;
   }
