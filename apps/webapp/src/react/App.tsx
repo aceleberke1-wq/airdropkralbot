@@ -570,6 +570,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       nodeKey: string;
       laneKey: string;
       label: string;
+      labelKey?: string;
+      sourceType?: string;
+      actorKey?: string;
+      interactionKind?: string;
       workspace: "player" | "admin";
       tab: TabKey;
       districtKey: string;
@@ -618,7 +622,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         funnel_key: resolveWorkspaceFunnelKey(target.workspace as "player" | "admin", nextTab),
         surface_key: UI_SURFACE_KEY.SHELL,
         payload_json: {
-          source: "district_scene_node",
+          source: String(payload.sourceType || "district_scene_node"),
           source_panel_key: "scene_world",
           shell_action_key: String(launchContext.shell_action_key || actionKey),
           action_key: String(launchContext.shell_action_key || actionKey),
@@ -627,7 +631,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           source_district_key: payload.districtKey,
           node_key: payload.nodeKey,
           lane_key: payload.laneKey,
+          actor_key: String(payload.actorKey || ""),
+          interaction_kind: String(payload.interactionKind || "open"),
           node_label: payload.label,
+          node_label_key: String(payload.labelKey || ""),
           target_workspace: target.workspace,
           target_tab: nextTab,
           target_panel_key: String(launchContext.panel_key || ""),

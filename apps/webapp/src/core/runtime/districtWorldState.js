@@ -165,7 +165,9 @@ function resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality)
         lower_radius_delta: 0.9,
         upper_radius_delta: 1.25,
         orbit_scalar: compact ? 14 : 22,
-        sway_scalar: compact ? 0.7 : 1.05
+        sway_scalar: compact ? 0.7 : 1.05,
+        focus_lerp: compact ? 0.04 : 0.07,
+        radius_lerp: compact ? 0.03 : 0.06
       };
     case "mission_quarter":
       return {
@@ -177,7 +179,9 @@ function resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality)
         lower_radius_delta: 1,
         upper_radius_delta: 1.3,
         orbit_scalar: compact ? 10 : 16,
-        sway_scalar: compact ? 0.55 : 0.82
+        sway_scalar: compact ? 0.55 : 0.82,
+        focus_lerp: compact ? 0.035 : 0.06,
+        radius_lerp: compact ? 0.028 : 0.05
       };
     case "exchange_district":
       return {
@@ -189,7 +193,9 @@ function resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality)
         lower_radius_delta: 1,
         upper_radius_delta: 1.35,
         orbit_scalar: compact ? 12 : 18,
-        sway_scalar: compact ? 0.6 : 0.9
+        sway_scalar: compact ? 0.6 : 0.9,
+        focus_lerp: compact ? 0.038 : 0.065,
+        radius_lerp: compact ? 0.03 : 0.055
       };
     case "ops_citadel":
       return {
@@ -201,7 +207,9 @@ function resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality)
         lower_radius_delta: 0.95,
         upper_radius_delta: 1.2,
         orbit_scalar: compact ? 8 : 12,
-        sway_scalar: compact ? 0.42 : 0.66
+        sway_scalar: compact ? 0.42 : 0.66,
+        focus_lerp: compact ? 0.03 : 0.05,
+        radius_lerp: compact ? 0.024 : 0.04
       };
     default:
       return {
@@ -213,7 +221,44 @@ function resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality)
         lower_radius_delta: 1.05,
         upper_radius_delta: 1.2,
         orbit_scalar: compact ? 12 : 18,
-        sway_scalar: compact ? 0.5 : 0.74
+        sway_scalar: compact ? 0.5 : 0.74,
+        focus_lerp: compact ? 0.035 : 0.058,
+        radius_lerp: compact ? 0.026 : 0.046
+      };
+  }
+}
+
+function resolveDistrictHudProfile(districtKey) {
+  switch (districtKey) {
+    case "arena_prime":
+      return {
+        hud_profile_key: "arena_prime",
+        tone_label_key: "world_hud_tone_arena_prime",
+        caption_label_key: "world_hud_caption_arena_prime"
+      };
+    case "mission_quarter":
+      return {
+        hud_profile_key: "mission_quarter",
+        tone_label_key: "world_hud_tone_mission_quarter",
+        caption_label_key: "world_hud_caption_mission_quarter"
+      };
+    case "exchange_district":
+      return {
+        hud_profile_key: "exchange_district",
+        tone_label_key: "world_hud_tone_exchange_district",
+        caption_label_key: "world_hud_caption_exchange_district"
+      };
+    case "ops_citadel":
+      return {
+        hud_profile_key: "ops_citadel",
+        tone_label_key: "world_hud_tone_ops_citadel",
+        caption_label_key: "world_hud_caption_ops_citadel"
+      };
+    default:
+      return {
+        hud_profile_key: "central_hub",
+        tone_label_key: "world_hud_tone_central_hub",
+        caption_label_key: "world_hud_caption_central_hub"
       };
   }
 }
@@ -314,13 +359,18 @@ function buildHotspot(input) {
     key: toText(input.key, "hotspot"),
     label: toText(input.label, "Hotspot"),
     label_key: toText(input.labelKey, ""),
+    source_type: "district_scene_hotspot",
     action_key: toText(input.actionKey, ""),
     actor_key: toText(input.actorKey, ""),
+    interaction_kind: toText(input.interactionKind, "open"),
+    hint_label_key: toText(input.hintLabelKey, "world_hotspot_hint_open"),
     x: toNum(input.x, 0),
     y: toNum(input.y, 0),
     z: toNum(input.z, 0),
+    focus_y: toNum(input.focusY, toNum(input.y, 0.16) + 0.52),
     radius: clamp(toNum(input.radius, 0.42), 0.12, 4),
     ring_radius: clamp(toNum(input.ringRadius, toNum(input.radius, 0.42) * 1.55), 0.18, 6),
+    camera_radius_scale: clamp(toNum(input.cameraRadiusScale, 1), 0.7, 1.25),
     accent_hex: toText(input.accentHex, "#52bfff"),
     energy: clamp(toNum(input.energy, 0.3), 0.08, 1)
   };
@@ -601,9 +651,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_duel_pit",
           actionKey: nodes[0]?.action_key,
           actorKey: "arena_hazard_arc",
+          interactionKind: "compete",
+          hintLabelKey: "world_hotspot_hint_compete",
           x: 0,
           y: 0.2,
           z: 0.1,
+          focusY: 0.9,
+          cameraRadiusScale: 0.9,
           radius: compactRadius + 0.06,
           accentHex: theme.ring_hex,
           energy: actorEnergy(nodes, 0, ambientEnergy)
@@ -614,9 +668,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_ladder_bridge",
           actionKey: nodes[1]?.action_key,
           actorKey: "arena_crown_east",
+          interactionKind: "climb",
+          hintLabelKey: "world_hotspot_hint_climb",
           x: 4.25,
           y: 0.18,
           z: 0.9,
+          focusY: 0.84,
+          cameraRadiusScale: 0.92,
           radius: compactRadius,
           accentHex: theme.ring_secondary_hex,
           energy: actorEnergy(nodes, 1, ambientEnergy)
@@ -627,9 +685,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_diagnostics_rail",
           actionKey: nodes[2]?.action_key,
           actorKey: "arena_spine",
+          interactionKind: "review",
+          hintLabelKey: "world_hotspot_hint_review",
           x: 0,
           y: 0.14,
           z: -3.35,
+          focusY: 0.72,
+          cameraRadiusScale: 0.96,
           radius: compactRadius - 0.04,
           accentHex: theme.light_hex,
           energy: actorEnergy(nodes, 2, ambientEnergy)
@@ -643,9 +705,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_offer_desk",
           actionKey: nodes[0]?.action_key,
           actorKey: "mission_terminal_alpha",
+          interactionKind: "launch",
+          hintLabelKey: "world_hotspot_hint_launch",
           x: -3.7,
           y: 0.12,
           z: -1.4,
+          focusY: 0.78,
+          cameraRadiusScale: 0.94,
           radius: compactRadius,
           accentHex: theme.ring_hex,
           energy: actorEnergy(nodes, 0, ambientEnergy)
@@ -656,9 +722,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_streak_pulse",
           actionKey: nodes[1]?.action_key,
           actorKey: "mission_terminal_beta",
+          interactionKind: "track",
+          hintLabelKey: "world_hotspot_hint_track",
           x: 3.7,
           y: 0.12,
           z: -1.1,
+          focusY: 0.76,
+          cameraRadiusScale: 0.95,
           radius: compactRadius - 0.02,
           accentHex: theme.ring_secondary_hex,
           energy: actorEnergy(nodes, 1, ambientEnergy)
@@ -669,9 +739,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_claim_dais",
           actionKey: nodes[2]?.action_key,
           actorKey: "mission_contract_spine",
+          interactionKind: "claim",
+          hintLabelKey: "world_hotspot_hint_claim",
           x: 0,
           y: 0.14,
           z: 3.45,
+          focusY: 0.78,
+          cameraRadiusScale: 0.92,
           radius: compactRadius,
           accentHex: theme.light_hex,
           energy: actorEnergy(nodes, 2, ambientEnergy)
@@ -685,9 +759,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_wallet_dock",
           actionKey: nodes[0]?.action_key,
           actorKey: "exchange_vault_west",
+          interactionKind: "connect",
+          hintLabelKey: "world_hotspot_hint_connect",
           x: -4.05,
           y: 0.14,
           z: 0.9,
+          focusY: 0.78,
+          cameraRadiusScale: 0.95,
           radius: compactRadius,
           accentHex: theme.ring_hex,
           energy: actorEnergy(nodes, 0, ambientEnergy)
@@ -698,9 +776,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_payout_bay",
           actionKey: nodes[1]?.action_key,
           actorKey: "exchange_vault_east",
+          interactionKind: "payout",
+          hintLabelKey: "world_hotspot_hint_payout",
           x: 4.05,
           y: 0.14,
           z: -0.9,
+          focusY: 0.82,
+          cameraRadiusScale: 0.93,
           radius: compactRadius,
           accentHex: theme.ring_secondary_hex,
           energy: actorEnergy(nodes, 1, ambientEnergy)
@@ -711,9 +793,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_premium_lane",
           actionKey: nodes[2]?.action_key,
           actorKey: "exchange_pass_arc",
+          interactionKind: "upgrade",
+          hintLabelKey: "world_hotspot_hint_upgrade",
           x: 0,
           y: 0.16,
           z: -3.1,
+          focusY: 0.86,
+          cameraRadiusScale: 0.9,
           radius: compactRadius - 0.02,
           accentHex: theme.light_hex,
           energy: actorEnergy(nodes, 2, ambientEnergy)
@@ -727,9 +813,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_queue_gate",
           actionKey: nodes[0]?.action_key,
           actorKey: "ops_watchtower_west",
+          interactionKind: "review",
+          hintLabelKey: "world_hotspot_hint_review",
           x: -4.15,
           y: 0.16,
           z: -0.2,
+          focusY: 0.82,
+          cameraRadiusScale: 0.96,
           radius: compactRadius,
           accentHex: theme.ring_hex,
           energy: actorEnergy(nodes, 0, ambientEnergy)
@@ -740,9 +830,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_runtime_dais",
           actionKey: nodes[1]?.action_key,
           actorKey: "ops_watchtower_east",
+          interactionKind: "monitor",
+          hintLabelKey: "world_hotspot_hint_monitor",
           x: 4.15,
           y: 0.16,
           z: 0.2,
+          focusY: 0.84,
+          cameraRadiusScale: 0.94,
           radius: compactRadius,
           accentHex: theme.ring_secondary_hex,
           energy: actorEnergy(nodes, 1, ambientEnergy)
@@ -753,9 +847,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_liveops_table",
           actionKey: nodes[2]?.action_key,
           actorKey: "ops_signal_array",
+          interactionKind: "dispatch",
+          hintLabelKey: "world_hotspot_hint_dispatch",
           x: 0,
           y: 0.16,
           z: -3.45,
+          focusY: 0.86,
+          cameraRadiusScale: 0.92,
           radius: compactRadius - 0.02,
           accentHex: theme.light_hex,
           energy: actorEnergy(nodes, 2, ambientEnergy)
@@ -769,9 +867,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_season_gate",
           actionKey: nodes[0]?.action_key,
           actorKey: "hub_gate_north",
+          interactionKind: "travel",
+          hintLabelKey: "world_hotspot_hint_travel",
           x: 0,
           y: 0.16,
           z: -3.45,
+          focusY: 0.8,
+          cameraRadiusScale: 0.92,
           radius: compactRadius,
           accentHex: theme.ring_hex,
           energy: actorEnergy(nodes, 0, ambientEnergy)
@@ -782,9 +884,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_mission_desk",
           actionKey: nodes[1]?.action_key,
           actorKey: "hub_guidance_arch",
+          interactionKind: "launch",
+          hintLabelKey: "world_hotspot_hint_launch",
           x: -2.35,
           y: 0.16,
           z: 1.55,
+          focusY: 0.76,
+          cameraRadiusScale: 0.96,
           radius: compactRadius - 0.02,
           accentHex: theme.ring_secondary_hex,
           energy: actorEnergy(nodes, 1, ambientEnergy)
@@ -795,9 +901,13 @@ function buildDistrictHotspots(districtKey, nodes, theme, ambientEnergy, lowEndM
           labelKey: "world_hotspot_wallet_port",
           actionKey: nodes[2]?.action_key,
           actorKey: "hub_gate_south",
+          interactionKind: "connect",
+          hintLabelKey: "world_hotspot_hint_connect",
           x: 2.35,
           y: 0.16,
           z: 1.55,
+          focusY: 0.76,
+          cameraRadiusScale: 0.96,
           radius: compactRadius - 0.02,
           accentHex: theme.light_hex,
           energy: actorEnergy(nodes, 2, ambientEnergy)
@@ -1166,6 +1276,7 @@ export function buildDistrictWorldState(input = {}) {
   const activeHotspotKey = resolveActiveHotspotKey(hotspots, input.navigationContext, activeNode);
   const activeHotspot = hotspots.find((hotspot) => hotspot.key === activeHotspotKey) || null;
   const cameraProfile = resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality);
+  const hudProfile = resolveDistrictHudProfile(districtKey);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
@@ -1192,9 +1303,13 @@ export function buildDistrictWorldState(input = {}) {
     active_action_key: toText(activeNode?.action_key, ""),
     camera_profile_key: cameraProfile.camera_profile_key,
     camera_profile: cameraProfile,
+    hud_profile_key: hudProfile.hud_profile_key,
+    hud_profile: hudProfile,
     active_hotspot_key: activeHotspotKey,
     active_hotspot_label: toText(activeHotspot?.label, ""),
     active_hotspot_label_key: toText(activeHotspot?.label_key, ""),
+    active_hotspot_hint_key: toText(activeHotspot?.hint_label_key, ""),
+    active_hotspot_interaction_kind: toText(activeHotspot?.interaction_kind, ""),
     theme: districtTheme,
     actors,
     hotspots: hotspots.map((hotspot) => ({
