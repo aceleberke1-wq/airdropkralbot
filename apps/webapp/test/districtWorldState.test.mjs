@@ -34,6 +34,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.active_node_key, "season_arc");
   assert.equal(state.camera_profile_key, "hub_glide");
   assert.equal(state.hud_profile_key, "central_hub");
+  assert.equal(state.hud_density, "normal");
+  assert.equal(state.hud_profile.density_label_key, "world_hud_density_expanded");
   assert.equal(state.active_hotspot_key, "season_gate");
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_travel");
   assert.equal(state.actors.length, 3);
@@ -43,8 +45,10 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.deepEqual(
     state.hotspots.map((hotspot) => hotspot.key),
-    ["season_gate", "mission_desk", "wallet_port"]
+    ["season_gate", "events_portal", "mission_desk", "discover_arc", "wallet_port", "rewards_cache"]
   );
+  assert.equal(state.hotspots.find((hotspot) => hotspot.key === "events_portal")?.is_secondary, true);
+  assert.equal(state.hotspots.find((hotspot) => hotspot.key === "events_portal")?.cluster_size, 2);
 });
 
 test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
@@ -82,6 +86,7 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.district_theme_key, "arena_prime");
   assert.equal(state.camera_profile_key, "arena_focus");
   assert.equal(state.hud_profile_key, "arena_prime");
+  assert.equal(state.hud_profile.compact_mode, true);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
     ["blade_tower", "blade_tower", "arch", "spine"]
@@ -126,8 +131,9 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   );
   assert.deepEqual(
     state.hotspots.map((hotspot) => hotspot.key),
-    ["queue_gate", "runtime_dais", "liveops_table"]
+    ["queue_gate", "policy_lens", "runtime_dais", "flags_console", "liveops_table", "bot_relay"]
   );
+  assert.equal(state.hotspots.find((hotspot) => hotspot.key === "policy_lens")?.cluster_size, 2);
 });
 
 test("buildDistrictWorldState marks active node from navigation context shell action", () => {
@@ -157,11 +163,42 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_hotspot_key, "payout_bay");
   assert.equal(state.active_hotspot_label_key, "world_hotspot_payout_bay");
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_payout");
+  assert.equal(state.active_hotspot_cluster_key, "exchange_vault_east");
   assert.equal(state.camera_profile.radius, state.camera_radius);
   assert.equal(state.nodes.find((node) => node.key === "payout_lift")?.is_active, true);
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "payout_bay")?.is_active, true);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
     ["vault", "vault", "rail", "arch"]
+  );
+  assert.deepEqual(
+    state.hotspots.map((hotspot) => hotspot.key),
+    ["wallet_dock", "rewards_vault", "payout_bay", "support_bay", "premium_lane"]
+  );
+});
+
+test("buildDistrictWorldState collapses secondary hotspots on compact hud density", () => {
+  const state = buildDistrictWorldState({
+    workspace: "player",
+    tab: "home",
+    scene: {
+      effectiveQuality: "high",
+      capabilityProfile: {
+        scene_profile: "cinematic",
+        effective_hud_density: "compact"
+      }
+    },
+    homeFeed: {
+      season: { progress_pct: 62 },
+      mission: { active_count: 3 },
+      wallet_quick: { linked: true }
+    }
+  });
+
+  assert.equal(state.hud_density, "compact");
+  assert.equal(state.hud_profile.compact_mode, true);
+  assert.deepEqual(
+    state.hotspots.map((hotspot) => hotspot.key),
+    ["season_gate", "mission_desk", "wallet_port"]
   );
 });

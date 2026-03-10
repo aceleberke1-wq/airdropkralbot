@@ -33,6 +33,8 @@ type BabylonDistrictSceneHostProps = {
     sourceType?: string;
     actorKey?: string;
     interactionKind?: string;
+    clusterKey?: string;
+    isSecondary?: boolean;
     workspace: "player" | "admin";
     tab: "home" | "pvp" | "tasks" | "vault";
     districtKey: string;
@@ -135,12 +137,14 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       JSON.stringify({
         world_key: worldState.world_key,
         effective_quality: worldState.effective_quality,
+        hud_density: worldState.hud_density,
         low_end_mode: worldState.low_end_mode,
         reduced_motion: worldState.reduced_motion,
         district_theme_key: worldState.district_theme_key,
         active_node_key: worldState.active_node_key,
         camera_profile_key: worldState.camera_profile_key,
         active_hotspot_key: worldState.active_hotspot_key,
+        active_hotspot_cluster_key: worldState.active_hotspot_cluster_key,
         ambient_energy: worldState.ambient_energy,
         actors: worldState.actors.map((actor) => ({
           key: actor.key,
@@ -151,6 +155,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           key: hotspot.key,
           action_key: hotspot.action_key,
           is_active: hotspot.is_active,
+          is_secondary: hotspot.is_secondary,
+          cluster_key: hotspot.cluster_key,
           energy: hotspot.energy
         })),
         nodes: worldState.nodes.map((node) => ({
@@ -362,7 +368,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             `akrDistrictHotspotRing-${hotspot.key}`,
             {
               diameter: hotspot.ring_radius * 2,
-              thickness: hotspot.is_active ? 0.08 : 0.05,
+              thickness: hotspot.is_active ? 0.08 : hotspot.is_secondary ? 0.034 : 0.05,
               tessellation: worldState.low_end_mode ? 22 : 34
             },
             scene
@@ -385,7 +391,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           pad.rotation.x = Math.PI / 2;
           pad.position = new Vector3(hotspot.x, hotspot.y + 0.02, hotspot.z);
           const padMaterial = new StandardMaterial(`akrDistrictHotspotPadMaterial-${hotspot.key}`, scene);
-          padMaterial.alpha = hotspot.is_active ? 0.42 : 0.22;
+          padMaterial.alpha = hotspot.is_active ? 0.42 : hotspot.is_secondary ? 0.15 : 0.22;
           padMaterial.diffuseColor = Color3.FromHexString(hotspot.accent_hex);
           padMaterial.emissiveColor = Color3.FromHexString(hotspot.is_active ? theme.ring_secondary_hex : hotspot.accent_hex);
           pad.material = padMaterial;
@@ -393,7 +399,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const beacon = CreateSphere(
             `akrDistrictHotspotBeacon-${hotspot.key}`,
             {
-              diameter: hotspot.is_active ? 0.24 : 0.18,
+              diameter: hotspot.is_active ? 0.24 : hotspot.is_secondary ? 0.14 : 0.18,
               segments: worldState.low_end_mode ? 6 : 10
             },
             scene
@@ -412,7 +418,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             labelKey: hotspot.label_key,
             sourceType: hotspot.source_type,
             actorKey: hotspot.actor_key,
-            interactionKind: hotspot.interaction_kind
+            interactionKind: hotspot.interaction_kind,
+            clusterKey: hotspot.cluster_key,
+            isSecondary: hotspot.is_secondary
           };
           [ring, pad, beacon].forEach((mesh) => {
             mesh.isPickable = Boolean(hotspot.action_key);
@@ -423,7 +431,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             animate: (now: number, motionScalar: number) => {
               ring.rotation.z = now * (0.25 + index * 0.03) * motionScalar;
               beacon.position.y = hotspot.y + 0.28 + Math.sin(now * (1.1 + index * 0.17)) * 0.06 * motionScalar;
-              const pulse = 1 + Math.sin(now * (1.3 + index * 0.14)) * 0.08 * motionScalar + (hotspot.is_active ? 0.12 : 0);
+              const pulse =
+                1 +
+                Math.sin(now * (1.3 + index * 0.14)) * (hotspot.is_secondary ? 0.05 : 0.08) * motionScalar +
+                (hotspot.is_active ? 0.12 : 0);
               beacon.scaling.setAll(pulse);
               pad.scaling.setAll(1 + Math.sin(now * (0.9 + index * 0.13)) * 0.04 * motionScalar);
             }
@@ -489,7 +500,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             labelKey: node.label_key,
             sourceType: "district_scene_node",
             actorKey: "",
-            interactionKind: "open"
+            interactionKind: "open",
+            clusterKey: node.key,
+            isSecondary: false
           };
           interactiveMeshes.forEach((mesh) => {
             mesh.isPickable = Boolean(node.action_key);
@@ -519,6 +532,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             sourceType: String(metadata?.sourceType || "district_scene_node"),
             actorKey: String(metadata?.actorKey || ""),
             interactionKind: String(metadata?.interactionKind || "open"),
+            clusterKey: String(metadata?.clusterKey || ""),
+            isSecondary: Boolean(metadata?.isSecondary),
             workspace: props.workspace,
             tab: props.tab,
             districtKey: worldState.district_key
@@ -539,8 +554,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const orbScale = 1 + worldState.ambient_energy * 0.16 + Math.sin(now * 1.7) * 0.04 * motionScalar;
           coreOrb.scaling.setAll(orbScale);
           point.intensity = 1.1 + worldState.ambient_energy * 0.6 + Math.sin(now) * 0.08 * motionScalar;
-          camera.alpha = cameraProfile.alpha_base + now * worldState.orbit_speed * cameraProfile.orbit_scalar;
-          camera.beta = cameraProfile.beta_base + Math.sin(now * 0.32) * 0.03 * cameraProfile.sway_scalar * motionScalar;
+          const targetAlpha =
+            cameraProfile.alpha_base +
+            now * worldState.orbit_speed * cameraProfile.orbit_scalar +
+            (activeHotspot?.camera_alpha_offset || 0);
+          const targetBeta =
+            cameraProfile.beta_base +
+            Math.sin(now * 0.32) * 0.03 * cameraProfile.sway_scalar * motionScalar +
+            (activeHotspot?.camera_beta_offset || 0);
+          camera.alpha += (targetAlpha - camera.alpha) * cameraProfile.alpha_lerp;
+          camera.beta += (targetBeta - camera.beta) * cameraProfile.beta_lerp;
           if (activeHotspot) {
             camera.target.x += (activeHotspot.x - camera.target.x) * cameraProfile.focus_lerp;
             camera.target.y += (activeHotspot.focus_y - camera.target.y) * cameraProfile.focus_lerp;
@@ -610,12 +633,17 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       <div className="akrSceneWorldHud akrGlass">
         <strong>{t(props.lang, worldState.district_label_key as never)}</strong>
         <span>{t(props.lang, worldState.mode_label_key as never)}</span>
+        {worldState.hud_profile.show_density_chip ? (
+          <span>{t(props.lang, worldState.hud_profile.density_label_key as never)}</span>
+        ) : null}
         <span>{t(props.lang, worldState.hud_profile.tone_label_key as never)}</span>
         <span>{props.workspace === "admin" ? "OPS" : props.tab.toUpperCase()}</span>
         <span>
           {worldState.beacon_count} / {worldState.hot_nodes + worldState.warn_nodes}
         </span>
-        <span>{t(props.lang, worldState.hud_profile.caption_label_key as never)}</span>
+        {worldState.hud_profile.show_caption ? (
+          <span>{t(props.lang, worldState.hud_profile.caption_label_key as never)}</span>
+        ) : null}
         {worldState.active_hotspot_label ? (
           <span className="akrSceneWorldFocus">
             {worldState.active_hotspot_label_key
@@ -628,7 +656,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             {t(props.lang, worldState.active_hotspot_hint_key as never)}
           </span>
         ) : null}
-        {worldState.active_node_label ? (
+        {worldState.hud_profile.show_node_label && worldState.active_node_label ? (
           <span className="akrSceneWorldFocus">
             {worldState.active_node_label_key ? t(props.lang, worldState.active_node_label_key as never) : worldState.active_node_label}
           </span>

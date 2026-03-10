@@ -574,6 +574,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       sourceType?: string;
       actorKey?: string;
       interactionKind?: string;
+      clusterKey?: string;
+      isSecondary?: boolean;
       workspace: "player" | "admin";
       tab: TabKey;
       districtKey: string;
@@ -632,7 +634,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           node_key: payload.nodeKey,
           lane_key: payload.laneKey,
           actor_key: String(payload.actorKey || ""),
+          cluster_key: String(payload.clusterKey || ""),
           interaction_kind: String(payload.interactionKind || "open"),
+          is_secondary: Boolean(payload.isSecondary),
           node_label: payload.label,
           node_label_key: String(payload.labelKey || ""),
           target_workspace: target.workspace,
