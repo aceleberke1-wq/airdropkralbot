@@ -32,6 +32,11 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.nodes[2].action_key, SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT);
   assert.equal(state.district_theme_key, "central_hub");
   assert.equal(state.active_node_key, "season_arc");
+  assert.equal(state.actors.length, 3);
+  assert.deepEqual(
+    state.actors.map((actor) => actor.kind),
+    ["gate", "gate", "arch"]
+  );
 });
 
 test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
@@ -67,6 +72,10 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.nodes[0].key, "duel_core");
   assert.equal(state.nodes[0].action_key, SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL);
   assert.equal(state.district_theme_key, "arena_prime");
+  assert.deepEqual(
+    state.actors.map((actor) => actor.kind),
+    ["blade_tower", "blade_tower", "arch", "spine"]
+  );
 });
 
 test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
@@ -95,6 +104,10 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.nodes[0].action_key, SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL);
   assert.equal(state.nodes[1].status_key, "warn");
   assert.equal(state.district_theme_key, "ops_citadel");
+  assert.deepEqual(
+    state.actors.map((actor) => actor.kind),
+    ["watchtower", "watchtower", "array", "spine"]
+  );
 });
 
 test("buildDistrictWorldState marks active node from navigation context shell action", () => {
@@ -122,4 +135,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_action_key, SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST);
   assert.equal(state.active_node_label_key, "world_node_payout_lift");
   assert.equal(state.nodes.find((node) => node.key === "payout_lift")?.is_active, true);
+  assert.deepEqual(
+    state.actors.map((actor) => actor.kind),
+    ["vault", "vault", "rail", "arch"]
+  );
 });

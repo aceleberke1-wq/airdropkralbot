@@ -50,6 +50,7 @@ async function loadBabylonSceneModules() {
     { PointLight },
     { GlowLayer },
     { CreateDisc },
+    { CreateBox },
     { CreateTorus },
     { CreateCylinder },
     { CreateSphere },
@@ -64,6 +65,7 @@ async function loadBabylonSceneModules() {
     import("@babylonjs/core/Lights/pointLight"),
     import("@babylonjs/core/Layers/glowLayer"),
     import("@babylonjs/core/Meshes/Builders/discBuilder"),
+    import("@babylonjs/core/Meshes/Builders/boxBuilder"),
     import("@babylonjs/core/Meshes/Builders/torusBuilder"),
     import("@babylonjs/core/Meshes/Builders/cylinderBuilder"),
     import("@babylonjs/core/Meshes/Builders/sphereBuilder"),
@@ -73,6 +75,7 @@ async function loadBabylonSceneModules() {
     ArcRotateCamera,
     Color3,
     Color4,
+    CreateBox,
     CreateCylinder,
     CreateDisc,
     CreateSphere,
@@ -133,6 +136,11 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         district_theme_key: worldState.district_theme_key,
         active_node_key: worldState.active_node_key,
         ambient_energy: worldState.ambient_energy,
+        actors: worldState.actors.map((actor) => ({
+          key: actor.key,
+          kind: actor.kind,
+          energy: actor.energy
+        })),
         nodes: worldState.nodes.map((node) => ({
           key: node.key,
           action_key: node.action_key,
@@ -163,6 +171,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           ArcRotateCamera,
           Color3,
           Color4,
+          CreateBox,
           CreateCylinder,
           CreateDisc,
           CreateSphere,
@@ -317,6 +326,22 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           return { orb, baseAngle: angle };
         });
 
+        const actorHandles = worldState.actors.flatMap((actor) =>
+          createDistrictActorHandles({
+            actor,
+            scene,
+            theme,
+            lowEndMode: worldState.low_end_mode,
+            CreateBox,
+            CreateCylinder,
+            CreateSphere,
+            CreateTorus,
+            StandardMaterial,
+            Color3,
+            Vector3
+          })
+        );
+
         const nodeHandles = worldState.nodes.map((node, index) => {
           const angle = (Math.PI * 2 * index) / Math.max(1, worldState.nodes.length);
           const radius = theme.orbit_radius;
@@ -425,6 +450,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             entry.orb.position.z = Math.sin(entry.baseAngle + now * worldState.orbit_speed * 10) * radiusPulse;
             entry.orb.position.y = theme.satellite_height + Math.sin(now * (1 + index * 0.09)) * 0.06 * motionScalar;
           });
+          actorHandles.forEach((entry, index) => {
+            entry.animate?.(now, motionScalar, index);
+          });
           nodeHandles.forEach((entry, index) => {
             const activePulse = entry.isActive ? 0.16 : 0.04;
             entry.orb.position.y =
@@ -502,4 +530,190 @@ function districtTilt(themeKey: string) {
     default:
       return Math.PI / 7;
   }
+}
+
+type DistrictActorHandle = {
+  animate?: (now: number, motionScalar: number, index: number) => void;
+};
+
+function createStandardActorMaterial({
+  scene,
+  StandardMaterial,
+  Color3,
+  diffuseHex,
+  emissiveHex
+}: {
+  scene: any;
+  StandardMaterial: any;
+  Color3: any;
+  diffuseHex: string;
+  emissiveHex: string;
+}) {
+  const material = new StandardMaterial(`akrDistrictActorMaterial-${diffuseHex}-${emissiveHex}`, scene);
+  material.diffuseColor = Color3.FromHexString(diffuseHex);
+  material.emissiveColor = Color3.FromHexString(emissiveHex);
+  return material;
+}
+
+function createDistrictActorHandles({
+  actor,
+  scene,
+  theme,
+  lowEndMode,
+  CreateBox,
+  CreateCylinder,
+  CreateSphere,
+  CreateTorus,
+  StandardMaterial,
+  Color3,
+  Vector3
+}: {
+  actor: any;
+  scene: any;
+  theme: Record<string, unknown>;
+  lowEndMode: boolean;
+  CreateBox: any;
+  CreateCylinder: any;
+  CreateSphere: any;
+  CreateTorus: any;
+  StandardMaterial: any;
+  Color3: any;
+  Vector3: any;
+}): DistrictActorHandle[] {
+  const baseMaterial = createStandardActorMaterial({
+    scene,
+    StandardMaterial,
+    Color3,
+    diffuseHex: String(actor.accent_hex || theme.ground_glow_hex || "#103254"),
+    emissiveHex: String(actor.glow_hex || actor.accent_hex || theme.ring_hex || "#52bfff")
+  });
+
+  const capMaterial = createStandardActorMaterial({
+    scene,
+    StandardMaterial,
+    Color3,
+    diffuseHex: String(theme.ground_glow_hex || actor.accent_hex || "#103254"),
+    emissiveHex: String(theme.core_hex || actor.glow_hex || "#d6f6ff")
+  });
+
+  const handles: DistrictActorHandle[] = [];
+  const x = Number(actor.x || 0);
+  const y = Number(actor.y || 0);
+  const z = Number(actor.z || 0);
+  const width = Number(actor.width || 0.4);
+  const height = Number(actor.height || 1);
+  const depth = Number(actor.depth || width);
+  const energy = Number(actor.energy || 0.3);
+  const rotationY = Number(actor.rotation_y || 0);
+
+  if (actor.kind === "gate") {
+    const left = CreateBox(`${actor.key}-left`, { width: 0.22, height, depth }, scene);
+    const right = CreateBox(`${actor.key}-right`, { width: 0.22, height, depth }, scene);
+    const lintel = CreateBox(`${actor.key}-lintel`, { width, height: 0.18, depth }, scene);
+    left.position = new Vector3(x - width / 2.4, y, z);
+    right.position = new Vector3(x + width / 2.4, y, z);
+    lintel.position = new Vector3(x, y + height / 2.1, z);
+    [left, right, lintel].forEach((mesh) => {
+      mesh.rotation.y = rotationY;
+      mesh.material = baseMaterial;
+    });
+    handles.push({
+      animate: (now, motionScalar) => {
+        lintel.position.y = y + height / 2.1 + Math.sin(now * 1.1) * 0.04 * motionScalar;
+      }
+    });
+  } else if (actor.kind === "arch") {
+    const arch = CreateTorus(
+      `${actor.key}-arch`,
+      { diameter: width, thickness: Math.max(depth, 0.1), tessellation: lowEndMode ? 26 : 42 },
+      scene
+    );
+    arch.position = new Vector3(x, y, z);
+    arch.rotation.y = rotationY;
+    arch.material = baseMaterial;
+    handles.push({
+      animate: (now, motionScalar, index) => {
+        arch.rotation.z = now * (0.18 + index * 0.02) * motionScalar;
+      }
+    });
+  } else if (actor.kind === "rail") {
+    const rail = CreateBox(`${actor.key}-rail`, { width, height: Math.max(height, 0.12), depth }, scene);
+    rail.position = new Vector3(x, y, z);
+    rail.rotation.y = rotationY;
+    rail.material = baseMaterial;
+    handles.push({
+      animate: (now, motionScalar) => {
+        rail.scaling.x = 1 + Math.sin(now * 0.9) * 0.03 * motionScalar;
+      }
+    });
+  } else if (actor.kind === "array") {
+    const spine = CreateBox(`${actor.key}-spine`, { width, height: Math.max(height * 0.18, 0.12), depth }, scene);
+    spine.position = new Vector3(x, y, z);
+    spine.material = baseMaterial;
+    const sensors = [-1, 0, 1].map((offset, index) => {
+      const orb = CreateSphere(
+        `${actor.key}-sensor-${index}`,
+        { diameter: lowEndMode ? 0.18 : 0.24, segments: lowEndMode ? 6 : 10 },
+        scene
+      );
+      orb.position = new Vector3(x + offset * (width / 3.2), y + 0.42, z);
+      orb.material = capMaterial;
+      return orb;
+    });
+    handles.push({
+      animate: (now, motionScalar) => {
+        sensors.forEach((orb: any, index: number) => {
+          orb.position.y = y + 0.42 + Math.sin(now * (1 + index * 0.18)) * 0.05 * motionScalar;
+        });
+      }
+    });
+  } else {
+    const shaft =
+      actor.kind === "terminal" || actor.kind === "vault"
+        ? CreateBox(`${actor.key}-shaft`, { width, height, depth }, scene)
+        : CreateCylinder(
+            `${actor.key}-shaft`,
+            { height, diameter: Math.max(width, depth), tessellation: lowEndMode ? 8 : 14 },
+            scene
+          );
+    shaft.position = new Vector3(x, y, z);
+    shaft.rotation.y = rotationY;
+    shaft.material = baseMaterial;
+
+    const cap = CreateSphere(
+      `${actor.key}-cap`,
+      { diameter: actor.kind === "watchtower" ? 0.34 : 0.28, segments: lowEndMode ? 6 : 12 },
+      scene
+    );
+    cap.position = new Vector3(x, y + height / 2 + 0.28, z);
+    cap.material = capMaterial;
+
+    if (actor.kind === "blade_tower") {
+      const blade = CreateTorus(
+        `${actor.key}-blade`,
+        { diameter: Math.max(width * 2.6, 0.9), thickness: 0.06, tessellation: lowEndMode ? 20 : 32 },
+        scene
+      );
+      blade.position = new Vector3(x, y + height / 2, z);
+      blade.rotation.x = Math.PI / 2;
+      blade.material = capMaterial;
+      handles.push({
+        animate: (now, motionScalar, index) => {
+          blade.rotation.z = now * (0.55 + index * 0.03) * motionScalar;
+          cap.position.y = y + height / 2 + 0.28 + Math.sin(now * 1.3) * 0.04 * motionScalar;
+        }
+      });
+    } else {
+      handles.push({
+        animate: (now, motionScalar, index) => {
+          cap.position.y = y + height / 2 + 0.28 + Math.sin(now * (1 + index * 0.11)) * (0.04 + energy * 0.03) * motionScalar;
+          if (actor.kind === "spine" || actor.kind === "watchtower") {
+            shaft.scaling.y = 1 + Math.sin(now * (0.72 + index * 0.09)) * 0.03 * motionScalar;
+          }
+        }
+      });
+    }
+  }
+
+  return handles;
 }

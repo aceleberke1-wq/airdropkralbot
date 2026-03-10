@@ -226,6 +226,287 @@ function buildNode(input) {
   };
 }
 
+function buildActor(input) {
+  return {
+    key: toText(input.key, "actor"),
+    kind: toText(input.kind, "tower"),
+    accent_hex: toText(input.accentHex, "#52bfff"),
+    glow_hex: toText(input.glowHex, input.accentHex || "#52bfff"),
+    x: toNum(input.x, 0),
+    y: toNum(input.y, 0),
+    z: toNum(input.z, 0),
+    width: clamp(toNum(input.width, 0.5), 0.08, 8),
+    height: clamp(toNum(input.height, 0.5), 0.08, 8),
+    depth: clamp(toNum(input.depth, 0.5), 0.08, 8),
+    energy: clamp(toNum(input.energy, 0.3), 0.08, 1),
+    rotation_y: toNum(input.rotationY, 0)
+  };
+}
+
+function actorEnergy(nodes, index, fallback = 0.3) {
+  return clamp(toNum(nodes[index]?.energy, fallback), 0.08, 1);
+}
+
+function buildDistrictActors(districtKey, nodes, theme, ambientEnergy, lowEndMode) {
+  const sharedGlow = theme.ring_secondary_hex;
+  const sharedCore = theme.core_hex;
+
+  switch (districtKey) {
+    case "arena_prime":
+      return [
+        buildActor({
+          key: "arena_crown_east",
+          kind: "blade_tower",
+          x: 4.25,
+          y: 1.2,
+          z: 0,
+          width: 0.46,
+          height: 2.8 + actorEnergy(nodes, 0, ambientEnergy),
+          depth: 0.46,
+          accentHex: theme.ring_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 0, ambientEnergy)
+        }),
+        buildActor({
+          key: "arena_crown_west",
+          kind: "blade_tower",
+          x: -4.25,
+          y: 1.1,
+          z: 0,
+          width: 0.42,
+          height: 2.5 + actorEnergy(nodes, 1, ambientEnergy),
+          depth: 0.42,
+          accentHex: theme.ring_secondary_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 1, ambientEnergy)
+        }),
+        buildActor({
+          key: "arena_hazard_arc",
+          kind: "arch",
+          x: 0,
+          y: 1.7,
+          z: 0,
+          width: 3.8,
+          height: 3.8,
+          depth: 0.18,
+          accentHex: sharedGlow,
+          glowHex: sharedGlow,
+          energy: clamp(ambientEnergy + 0.08, 0.08, 1),
+          rotationY: Math.PI / 2
+        }),
+        buildActor({
+          key: "arena_spine",
+          kind: "spine",
+          x: 0,
+          y: 1.15,
+          z: -3.9,
+          width: 0.28,
+          height: 2 + actorEnergy(nodes, 2, ambientEnergy),
+          depth: 0.28,
+          accentHex: theme.light_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 2, ambientEnergy)
+        })
+      ];
+    case "mission_quarter":
+      return [
+        buildActor({
+          key: "mission_terminal_alpha",
+          kind: "terminal",
+          x: -3.7,
+          y: 0.9,
+          z: -1.4,
+          width: 0.9,
+          height: 1.8,
+          depth: 0.9,
+          accentHex: theme.ring_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 0, ambientEnergy)
+        }),
+        buildActor({
+          key: "mission_terminal_beta",
+          kind: "terminal",
+          x: 3.7,
+          y: 0.9,
+          z: -1.1,
+          width: 0.82,
+          height: 1.65,
+          depth: 0.82,
+          accentHex: theme.ring_secondary_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 1, ambientEnergy)
+        }),
+        buildActor({
+          key: "mission_contract_spine",
+          kind: "spine",
+          x: 0,
+          y: 1.25,
+          z: 3.95,
+          width: 0.24,
+          height: 2.2 + actorEnergy(nodes, 3, ambientEnergy),
+          depth: 0.24,
+          accentHex: theme.light_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 3, ambientEnergy)
+        })
+      ];
+    case "exchange_district":
+      return [
+        buildActor({
+          key: "exchange_vault_west",
+          kind: "vault",
+          x: -4.05,
+          y: 1.1,
+          z: 0.6,
+          width: 0.78,
+          height: 2.2,
+          depth: 0.78,
+          accentHex: theme.ring_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 0, ambientEnergy)
+        }),
+        buildActor({
+          key: "exchange_vault_east",
+          kind: "vault",
+          x: 4.05,
+          y: 1.1,
+          z: -0.6,
+          width: 0.78,
+          height: 2.2,
+          depth: 0.78,
+          accentHex: theme.ring_secondary_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 1, ambientEnergy)
+        }),
+        buildActor({
+          key: "exchange_route_rail",
+          kind: "rail",
+          x: 0,
+          y: 0.45,
+          z: 3.8,
+          width: 5.8,
+          height: 0.16,
+          depth: 0.22,
+          accentHex: theme.light_hex,
+          glowHex: sharedGlow,
+          energy: clamp(ambientEnergy + 0.06, 0.08, 1)
+        }),
+        buildActor({
+          key: "exchange_pass_arc",
+          kind: "arch",
+          x: 0,
+          y: 1.5,
+          z: -3.6,
+          width: 3.1,
+          height: 3.1,
+          depth: 0.16,
+          accentHex: sharedGlow,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 2, ambientEnergy),
+          rotationY: Math.PI / 6
+        })
+      ];
+    case "ops_citadel":
+      return [
+        buildActor({
+          key: "ops_watchtower_west",
+          kind: "watchtower",
+          x: -4.2,
+          y: 1.25,
+          z: -0.8,
+          width: 0.64,
+          height: 2.7 + actorEnergy(nodes, 0, ambientEnergy),
+          depth: 0.64,
+          accentHex: theme.ring_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 0, ambientEnergy)
+        }),
+        buildActor({
+          key: "ops_watchtower_east",
+          kind: "watchtower",
+          x: 4.2,
+          y: 1.2,
+          z: 0.8,
+          width: 0.6,
+          height: 2.5 + actorEnergy(nodes, 1, ambientEnergy),
+          depth: 0.6,
+          accentHex: theme.ring_secondary_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 1, ambientEnergy)
+        }),
+        buildActor({
+          key: "ops_signal_array",
+          kind: "array",
+          x: 0,
+          y: 1.05,
+          z: -4.05,
+          width: 3.6,
+          height: 1.2,
+          depth: 0.2,
+          accentHex: theme.light_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 2, ambientEnergy)
+        }),
+        buildActor({
+          key: "ops_audit_spine",
+          kind: "spine",
+          x: 0,
+          y: 1.25,
+          z: 4.1,
+          width: 0.24,
+          height: 2.4 + actorEnergy(nodes, 3, ambientEnergy),
+          depth: 0.24,
+          accentHex: sharedCore,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 3, ambientEnergy)
+        })
+      ];
+    default:
+      return [
+        buildActor({
+          key: "hub_gate_north",
+          kind: "gate",
+          x: 0,
+          y: 1.1,
+          z: -4.05,
+          width: 3.2,
+          height: 2.2,
+          depth: 0.28,
+          accentHex: theme.ring_hex,
+          glowHex: sharedGlow,
+          energy: actorEnergy(nodes, 0, ambientEnergy)
+        }),
+        buildActor({
+          key: "hub_gate_south",
+          kind: "gate",
+          x: 0,
+          y: 1.05,
+          z: 4.05,
+          width: 2.8,
+          height: 2,
+          depth: 0.24,
+          accentHex: theme.ring_secondary_hex,
+          glowHex: sharedCore,
+          energy: actorEnergy(nodes, 1, ambientEnergy)
+        }),
+        buildActor({
+          key: "hub_guidance_arch",
+          kind: "arch",
+          x: 0,
+          y: 1.55,
+          z: 0,
+          width: 3.4,
+          height: 3.4,
+          depth: 0.14,
+          accentHex: theme.light_hex,
+          glowHex: sharedGlow,
+          energy: clamp(ambientEnergy, 0.08, 1),
+          rotationY: Math.PI / 8
+        })
+      ].slice(0, lowEndMode ? 2 : 3);
+  }
+}
+
 function resolveFallbackActiveNodeKey(workspace, tab) {
   if (workspace === "admin") {
     return "queue_bastion";
@@ -569,6 +850,7 @@ export function buildDistrictWorldState(input = {}) {
   const hotNodes = nodes.filter((node) => node.status_key === "hot").length;
   const warnNodes = nodes.filter((node) => node.status_key === "warn").length;
   const activeNode = nodes.find((node) => node.key === activeNodeKey) || null;
+  const actors = buildDistrictActors(districtKey, nodes, districtTheme, ambientEnergy, lowEndMode);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
@@ -594,6 +876,7 @@ export function buildDistrictWorldState(input = {}) {
     active_node_label_key: toText(activeNode?.label_key, ""),
     active_action_key: toText(activeNode?.action_key, ""),
     theme: districtTheme,
+    actors,
     nodes
   };
 }
