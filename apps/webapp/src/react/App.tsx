@@ -106,6 +106,11 @@ const OnboardingOverlay = lazy(async () => {
   return { default: mod.OnboardingOverlay };
 });
 
+const BabylonDistrictSceneHost = lazy(async () => {
+  const mod = await import("./features/shell/BabylonDistrictSceneHost");
+  return { default: mod.BabylonDistrictSceneHost };
+});
+
 type ReactWebAppV1Props = {
   auth: WebAppAuth;
   bootstrap: BootstrapV2Payload;
@@ -536,6 +541,21 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       capabilityProfile
     }
   });
+  const pvpLiveState = useMemo(
+    () => ({
+      leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
+      diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
+      tick: (pvpLive?.tick as Record<string, unknown> | null) || null
+    }),
+    [pvpLive?.diagnostics, pvpLive?.leaderboard, pvpLive?.tick]
+  );
+  const adminRuntimeState = useMemo(
+    () => ({
+      summary: (adminRuntime.summary as Record<string, unknown> | null) || null,
+      queue: Array.isArray(adminRuntime.queue) ? (adminRuntime.queue as Array<Record<string, unknown>>) : []
+    }),
+    [adminRuntime.queue, adminRuntime.summary]
+  );
   const bridgeDockEnabled = advanced || workspace === "admin";
   useSceneBridgeFeed({
     enabled: bridgeDockEnabled,
@@ -548,16 +568,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     taskResult: (taskResult as Record<string, unknown> | null) || null,
     pvpRuntime: (pvpRuntime.session as Record<string, unknown> | null) || null,
     leagueOverview: (leagueOverview as Record<string, unknown> | null) || null,
-    pvpLive: {
-      leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
-      diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
-      tick: (pvpLive?.tick as Record<string, unknown> | null) || null
-    },
+    pvpLive: pvpLiveState,
     vaultData: (vaultData as Record<string, unknown> | null) || null,
-    adminRuntime: {
-      summary: (adminRuntime.summary as Record<string, unknown> | null) || null,
-      queue: Array.isArray(adminRuntime.queue) ? (adminRuntime.queue as Array<Record<string, unknown>>) : []
-    },
+    adminRuntime: adminRuntimeState,
     adminPanels: (adminPanels as Record<string, unknown> | null) || null
   });
   const pvpSessionMachine = useMemo(
@@ -645,6 +658,23 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   return (
     <div className={rootClassName}>
       <div className="akrBgAura" />
+      <Suspense fallback={null}>
+        <BabylonDistrictSceneHost
+          lang={lang}
+          workspace={workspace}
+          tab={tab}
+          scene={(scene as Record<string, unknown>) || {}}
+          sceneRuntime={(sceneRuntime as Record<string, unknown>) || {}}
+          data={(data as Record<string, unknown> | null) || null}
+          homeFeed={(homeFeed as Record<string, unknown> | null) || null}
+          taskResult={(taskResult as Record<string, unknown> | null) || null}
+          pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
+          leagueOverview={(leagueOverview as Record<string, unknown> | null) || null}
+          pvpLive={pvpLiveState}
+          vaultData={(vaultData as Record<string, unknown> | null) || null}
+          adminRuntime={adminRuntimeState}
+        />
+      </Suspense>
       <TopBar
         lang={lang}
         advanced={advanced}
@@ -708,11 +738,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
             homeFeed={(homeFeed as Record<string, unknown> | null) || null}
             pvpRuntime={(pvpRuntime.session as Record<string, unknown> | null) || null}
             leagueOverview={(leagueOverview as Record<string, unknown> | null) || null}
-            pvpLive={{
-              leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
-              diagnostics: (pvpLive?.diagnostics as Record<string, unknown> | null) || null,
-              tick: (pvpLive?.tick as Record<string, unknown> | null) || null
-            }}
+            pvpLive={pvpLiveState}
             pvpCapabilities={{
               canStart: pvpSessionMachine.can_start,
               canRefreshState: pvpSessionMachine.can_refresh_state,

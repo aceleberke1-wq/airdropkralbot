@@ -8,6 +8,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@babylonjs/core": "^7.52.2",
     "@reduxjs/toolkit": "^2.3.0",
     "gsap": "^3.12.5",
     "howler": "^2.2.4",

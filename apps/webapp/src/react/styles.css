@@ -32,6 +32,11 @@ body {
   position: relative;
 }
 
+.akrReactRoot > * {
+  position: relative;
+  z-index: 1;
+}
+
 .akrReactRoot.isLargeText {
   font-size: 1.08rem;
 }
@@ -79,6 +84,50 @@ body {
     radial-gradient(circle at 15% 20%, rgba(47, 255, 181, 0.09), transparent 34%),
     radial-gradient(circle at 86% 72%, rgba(0, 214, 255, 0.1), transparent 42%);
   filter: blur(12px);
+}
+
+.akrReactRoot > .akrBgAura,
+.akrReactRoot > .akrSceneWorldLayer {
+  z-index: 0;
+}
+
+.akrSceneWorldLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.96;
+}
+
+.akrSceneWorldCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: saturate(1.08) contrast(1.03);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.92) 18%, rgba(0, 0, 0, 1) 84%, rgba(0, 0, 0, 0.4));
+}
+
+.akrSceneWorldHud {
+  position: fixed;
+  left: max(16px, calc((100vw - 1180px) / 2 + 16px));
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  color: #dff6ff;
+  background: linear-gradient(135deg, rgba(8, 21, 44, 0.68), rgba(9, 30, 54, 0.52));
+}
+
+.akrSceneWorldHud strong {
+  color: var(--akr-accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
 }
 
 .akrGlass {
@@ -1043,6 +1092,14 @@ body {
 }
 
 @media (max-width: 900px) {
+  .akrSceneWorldHud {
+    left: 14px;
+    right: 14px;
+    bottom: 12px;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+
   .akrTopbar {
     flex-direction: column;
     align-items: flex-start;
