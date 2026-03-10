@@ -2317,6 +2317,108 @@ function buildDistrictInteractionFlow(input, districtKey, activeHotspot, interac
   };
 }
 
+function buildDistrictInteractionEntry(districtKey, activeHotspot, interactionSurface, interactionFlow, interactionSheet) {
+  if (!activeHotspot || !interactionSurface || !interactionFlow || !interactionSheet?.rows?.length) {
+    return null;
+  }
+
+  const hotspotKey = toText(activeHotspot.key, "");
+  const flowStepMap = new Map(asList(interactionFlow.step_rows).map((row) => [toText(row.label_key, ""), row]));
+  let entryKindKey = "world_entry_kind_hub_portal";
+  let entryClassKey = "hub_portal";
+
+  switch (districtKey) {
+    case "arena_prime":
+      if (hotspotKey === "ladder_bridge" || hotspotKey === "ranking_orbit") {
+        entryKindKey = "world_entry_kind_ladder_console";
+        entryClassKey = "ladder_console";
+      } else if (hotspotKey === "diagnostics_rail" || hotspotKey === "tick_chamber") {
+        entryKindKey = "world_entry_kind_telemetry_console";
+        entryClassKey = "telemetry_console";
+      } else {
+        entryKindKey = "world_entry_kind_duel_console";
+        entryClassKey = "duel_console";
+      }
+      break;
+    case "mission_quarter":
+      if (hotspotKey === "claim_dais") {
+        entryKindKey = "world_entry_kind_claim_terminal";
+        entryClassKey = "claim_terminal";
+      } else if (hotspotKey === "streak_pulse" || hotspotKey === "contract_pulse") {
+        entryKindKey = "world_entry_kind_streak_terminal";
+        entryClassKey = "streak_terminal";
+      } else {
+        entryKindKey = "world_entry_kind_mission_terminal";
+        entryClassKey = "mission_terminal";
+      }
+      break;
+    case "exchange_district":
+      if (hotspotKey === "rewards_vault") {
+        entryKindKey = "world_entry_kind_rewards_vault";
+        entryClassKey = "rewards_vault";
+      } else if (hotspotKey === "payout_bay" || hotspotKey === "support_bay") {
+        entryKindKey = "world_entry_kind_payout_terminal";
+        entryClassKey = "payout_terminal";
+      } else if (hotspotKey === "premium_lane") {
+        entryKindKey = "world_entry_kind_premium_terminal";
+        entryClassKey = "premium_terminal";
+      } else {
+        entryKindKey = "world_entry_kind_wallet_terminal";
+        entryClassKey = "wallet_terminal";
+      }
+      break;
+    case "ops_citadel":
+      if (hotspotKey === "liveops_table") {
+        entryKindKey = "world_entry_kind_dispatch_console";
+        entryClassKey = "dispatch_console";
+      } else if (hotspotKey === "runtime_dais" || hotspotKey === "flags_console" || hotspotKey === "bot_relay") {
+        entryKindKey = "world_entry_kind_runtime_console";
+        entryClassKey = "runtime_console";
+      } else {
+        entryKindKey = "world_entry_kind_queue_console";
+        entryClassKey = "queue_console";
+      }
+      break;
+    default:
+      if (hotspotKey === "mission_desk" || hotspotKey === "discover_arc") {
+        entryKindKey = "world_entry_kind_mission_terminal";
+        entryClassKey = "mission_terminal";
+      } else if (hotspotKey === "wallet_port") {
+        entryKindKey = "world_entry_kind_wallet_terminal";
+        entryClassKey = "wallet_terminal";
+      } else if (hotspotKey === "rewards_cache") {
+        entryKindKey = "world_entry_kind_rewards_vault";
+        entryClassKey = "rewards_vault";
+      }
+      break;
+  }
+
+  const previewRows = interactionSheet.rows.slice(0, 3).map((row) => {
+    const stepRow = flowStepMap.get(toText(row.label_key, ""));
+    return {
+      label_key: row.label_key,
+      value: row.value,
+      status_key: toText(stepRow?.status_key, interactionFlow.readiness_status_key || "ready")
+    };
+  });
+
+  return {
+    entry_key: `${districtKey}:${hotspotKey || "entry"}`,
+    entry_kind_key: entryKindKey,
+    entry_class_key: entryClassKey,
+    status_key: toText(interactionFlow.readiness_status_key, "ready"),
+    status_label_key: toText(interactionFlow.readiness_value_key, "world_flow_state_ready"),
+    summary_label_key: toText(interactionSurface.hero_label_key, ""),
+    summary_value: toText(interactionSurface.hero_value, ""),
+    support_label_key: toText(interactionSurface.support_label_key, ""),
+    support_value: toText(interactionSurface.support_value, ""),
+    preview_rows: previewRows,
+    primary_action_key: toText(interactionSurface.action_items?.[0]?.action_key, ""),
+    primary_action_label_key: toText(interactionSurface.action_items?.[0]?.label_key, ""),
+    action_count: toNum(interactionSurface.action_count, 0)
+  };
+}
+
 export function buildDistrictWorldState(input = {}) {
   const workspace = normalizeWorkspace(input.workspace);
   const tab = normalizeTab(input.tab);
@@ -2368,6 +2470,7 @@ export function buildDistrictWorldState(input = {}) {
   const interactionSheet = buildDistrictInteractionSheet(input, districtKey, activeHotspot, activeCluster);
   const interactionSurface = buildDistrictInteractionSurface(districtKey, activeHotspot, activeCluster, interactionSheet);
   const interactionFlow = buildDistrictInteractionFlow(input, districtKey, activeHotspot, interactionSheet);
+  const interactionEntry = buildDistrictInteractionEntry(districtKey, activeHotspot, interactionSurface, interactionFlow, interactionSheet);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
@@ -2422,6 +2525,7 @@ export function buildDistrictWorldState(input = {}) {
     interaction_sheet: interactionSheet,
     interaction_surface: interactionSurface,
     interaction_flow: interactionFlow,
+    interaction_entry: interactionEntry,
     theme: districtTheme,
     actors,
     interaction_cluster_count: interactionClusters.length,

@@ -1120,6 +1120,22 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               <strong>{t(props.lang, worldState.interaction_surface.hint_label_key as never)}</strong>
             ) : null}
           </div>
+          {worldState.interaction_entry ? (
+            <div className={`akrSceneEntrySurfaceMode is-${worldState.interaction_entry.entry_class_key} is-${worldState.interaction_entry.status_key}`}>
+              <div className="akrSceneEntrySurfaceModeHeader">
+                <span>{t(props.lang, worldState.interaction_entry.entry_kind_key as never)}</span>
+                <strong>{t(props.lang, worldState.interaction_entry.status_label_key as never)}</strong>
+              </div>
+              <div className="akrSceneEntrySurfaceModeRows">
+                {worldState.interaction_entry.preview_rows.map((row: { label_key: string; value: string; status_key: string }) => (
+                  <div key={`${worldState.interaction_entry.entry_key}:${row.label_key}`} className={`akrSceneEntrySurfaceModeRow is-${row.status_key}`}>
+                    <span>{t(props.lang, row.label_key as never)}</span>
+                    <strong>{row.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="akrSceneEntrySurfaceActions">
             {worldState.interaction_surface.action_items.map((action: ClusterActionItem) => (
               <button

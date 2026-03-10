@@ -360,6 +360,84 @@ body {
   letter-spacing: 0.06em;
 }
 
+.akrSceneEntrySurfaceMode {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 181, 225, 0.22);
+  background: rgba(6, 20, 41, 0.42);
+}
+
+.akrSceneEntrySurfaceModeHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  color: #9fc7df;
+}
+
+.akrSceneEntrySurfaceModeHeader strong {
+  color: #fff3c7;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.akrSceneEntrySurfaceModeRows {
+  display: grid;
+  gap: 6px;
+}
+
+.akrSceneEntrySurfaceModeRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  background: rgba(6, 20, 41, 0.3);
+}
+
+.akrSceneEntrySurfaceModeRow span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  color: #9fc7df;
+}
+
+.akrSceneEntrySurfaceModeRow strong {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 0.88rem;
+  color: #f2fbff;
+}
+
+.akrSceneEntrySurfaceMode.is-ready,
+.akrSceneEntrySurfaceModeRow.is-ready {
+  border-color: rgba(123, 230, 255, 0.24);
+}
+
+.akrSceneEntrySurfaceMode.is-live,
+.akrSceneEntrySurfaceModeRow.is-live {
+  border-color: rgba(47, 255, 181, 0.24);
+}
+
+.akrSceneEntrySurfaceMode.is-watch,
+.akrSceneEntrySurfaceModeRow.is-watch {
+  border-color: rgba(255, 180, 93, 0.26);
+}
+
+.akrSceneEntrySurfaceMode.is-alert,
+.akrSceneEntrySurfaceModeRow.is-alert {
+  border-color: rgba(255, 111, 145, 0.28);
+}
+
+.akrSceneEntrySurfaceMode.is-locked,
+.akrSceneEntrySurfaceModeRow.is-locked {
+  border-color: rgba(158, 178, 196, 0.22);
+}
+
 .akrSceneEntrySurfaceTitle strong {
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
   font-size: 0.98rem;
