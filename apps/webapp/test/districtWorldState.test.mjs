@@ -38,6 +38,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.hud_profile.density_label_key, "world_hud_density_expanded");
   assert.equal(state.active_hotspot_key, "season_gate");
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_travel");
+  assert.equal(state.active_cluster_key, "hub_gate_north");
+  assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.actors.length, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
@@ -49,6 +51,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "events_portal")?.is_secondary, true);
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "events_portal")?.cluster_size, 2);
+  assert.equal(state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.hotspot_count, 2);
+  assert.equal(state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.is_active, true);
 });
 
 test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
@@ -87,6 +91,7 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.camera_profile_key, "arena_focus");
   assert.equal(state.hud_profile_key, "arena_prime");
   assert.equal(state.hud_profile.compact_mode, true);
+  assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
     ["blade_tower", "blade_tower", "arch", "spine"]
@@ -125,6 +130,7 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.district_theme_key, "ops_citadel");
   assert.equal(state.camera_profile_key, "ops_overwatch");
   assert.equal(state.hud_profile_key, "ops_citadel");
+  assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
     ["watchtower", "watchtower", "array", "spine"]
@@ -164,6 +170,7 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_hotspot_label_key, "world_hotspot_payout_bay");
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_payout");
   assert.equal(state.active_hotspot_cluster_key, "exchange_vault_east");
+  assert.equal(state.active_cluster_key, "exchange_vault_east");
   assert.equal(state.camera_profile.radius, state.camera_radius);
   assert.equal(state.nodes.find((node) => node.key === "payout_lift")?.is_active, true);
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "payout_bay")?.is_active, true);

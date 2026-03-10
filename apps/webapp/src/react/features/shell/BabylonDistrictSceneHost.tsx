@@ -155,6 +155,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         camera_profile_key: worldState.camera_profile_key,
         active_hotspot_key: worldState.active_hotspot_key,
         active_hotspot_cluster_key: worldState.active_hotspot_cluster_key,
+        active_cluster_key: worldState.active_cluster_key,
         ambient_energy: worldState.ambient_energy,
         actors: worldState.actors.map((actor) => ({
           key: actor.key,
@@ -168,6 +169,13 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           is_secondary: hotspot.is_secondary,
           cluster_key: hotspot.cluster_key,
           energy: hotspot.energy
+        })),
+        interaction_clusters: worldState.interaction_clusters.map((cluster) => ({
+          cluster_key: cluster.cluster_key,
+          hotspot_count: cluster.hotspot_count,
+          secondary_count: cluster.secondary_count,
+          is_active: cluster.is_active,
+          energy: cluster.energy
         })),
         nodes: worldState.nodes.map((node) => ({
           key: node.key,
@@ -185,6 +193,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     let disposed = false;
     let handle: BabylonSceneHandle | null = null;
     let hoveredHotspotKey = "";
+    let hoveredClusterKey = "";
 
     const buildScene = async () => {
       const canvas = canvasRef.current;
@@ -233,6 +242,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         const cameraProfile = worldState.camera_profile;
         const activeHotspot =
           worldState.hotspots.find((hotspot) => hotspot.key === worldState.active_hotspot_key) || worldState.hotspots[0] || null;
+        const hotspotMap = new Map(worldState.hotspots.map((hotspot) => [hotspot.key, hotspot]));
 
         const camera = new ArcRotateCamera(
           "akrDistrictCamera",
@@ -373,6 +383,86 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             Vector3
           })
         );
+
+        const clusterHandles = worldState.interaction_clusters.map((cluster, index) => {
+          const primaryHotspot =
+            hotspotMap.get(cluster.active_hotspot_key) ||
+            hotspotMap.get(cluster.primary_hotspot_key) ||
+            hotspotMap.get(cluster.hotspot_keys[0]) ||
+            null;
+          const typedPrimaryHotspot = (primaryHotspot || null) as Record<string, any> | null;
+          const ring = CreateTorus(
+            `akrDistrictClusterRing-${cluster.cluster_key}`,
+            {
+              diameter: cluster.orbit_radius * 2,
+              thickness: cluster.is_active ? 0.07 : 0.04,
+              tessellation: worldState.low_end_mode ? 24 : 38
+            },
+            scene
+          );
+          ring.rotation.x = Math.PI / 2;
+          ring.position = new Vector3(cluster.x, cluster.y + 0.16, cluster.z);
+          const ringMaterial = new StandardMaterial(`akrDistrictClusterRingMaterial-${cluster.cluster_key}`, scene);
+          ringMaterial.diffuseColor = Color3.FromHexString(typedPrimaryHotspot?.accent_hex || theme.ring_hex);
+          ringMaterial.emissiveColor = Color3.FromHexString(
+            cluster.is_active ? theme.core_hex : typedPrimaryHotspot?.accent_hex || theme.ring_hex
+          );
+          ring.material = ringMaterial;
+
+          const satellites = cluster.hotspot_keys
+            .map((hotspotKey, hotspotIndex) => {
+              const hotspot = hotspotMap.get(hotspotKey) as Record<string, any> | undefined;
+              if (!hotspot) {
+                return null;
+              }
+              const orb = CreateSphere(
+                `akrDistrictClusterOrb-${cluster.cluster_key}-${hotspot.key}`,
+                {
+                  diameter: hotspot.is_secondary ? 0.12 : 0.16,
+                  segments: worldState.low_end_mode ? 5 : 8
+                },
+                scene
+              );
+              const material = new StandardMaterial(`akrDistrictClusterOrbMaterial-${cluster.cluster_key}-${hotspot.key}`, scene);
+              material.diffuseColor = Color3.FromHexString(hotspot.accent_hex);
+              material.emissiveColor = Color3.FromHexString(hotspot.is_active ? theme.core_hex : hotspot.accent_hex);
+              orb.material = material;
+              return { orb, hotspot, hotspotIndex };
+            })
+            .filter(Boolean) as Array<{ orb: any; hotspot: Record<string, any>; hotspotIndex: number }>;
+
+          return {
+            cluster,
+            ring,
+            satellites,
+            animate: (now: number, motionScalar: number) => {
+              const focusClusterKey = hoveredClusterKey || worldState.active_cluster_key;
+              const isFocused = focusClusterKey === cluster.cluster_key;
+              ring.rotation.z = now * (0.18 + index * 0.03) * motionScalar;
+              const ringScale = isFocused ? 1.06 : cluster.is_active ? 1.03 : 1;
+              ring.scaling.setAll(ringScale);
+              satellites.forEach((entry) => {
+                const angle =
+                  (Math.PI * 2 * entry.hotspotIndex) / Math.max(1, satellites.length) +
+                  now * (0.4 + entry.hotspotIndex * 0.06) * motionScalar;
+                const radius = cluster.orbit_radius * (entry.hotspot.is_secondary ? 0.84 : 1);
+                entry.orb.position.x = cluster.x + Math.cos(angle) * radius;
+                entry.orb.position.z = cluster.z + Math.sin(angle) * radius;
+                entry.orb.position.y =
+                  cluster.y +
+                  0.18 +
+                  Math.sin(now * (1 + entry.hotspotIndex * 0.12)) * 0.04 * motionScalar +
+                  (isFocused ? 0.06 : 0);
+                const scale =
+                  1 +
+                  Math.sin(now * (1.2 + entry.hotspotIndex * 0.14)) * 0.06 * motionScalar +
+                  (entry.hotspot.is_active ? 0.14 : 0) +
+                  (isFocused ? 0.08 : 0);
+                entry.orb.scaling.setAll(scale);
+              });
+            }
+          };
+        });
 
         const hotspotHandles = worldState.hotspots.map((hotspot, index) => {
           const ring = CreateTorus(
@@ -534,6 +624,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           canvas.style.cursor = actionKey ? "pointer" : "default";
           if (!actionKey) {
             hoveredHotspotKey = "";
+            hoveredClusterKey = "";
             setHoverPreview((prev) => (prev ? null : prev));
             return;
           }
@@ -546,6 +637,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     ""
                 );
           hoveredHotspotKey = nextHotspotKey;
+          hoveredClusterKey = String(metadata?.clusterKey || "");
           setHoverPreview((prev) => {
             const next = {
               key: String(metadata?.nodeKey || ""),
@@ -631,6 +723,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           });
           actorHandles.forEach((entry, index) => {
             entry.animate?.(now, motionScalar, index);
+          });
+          clusterHandles.forEach((entry) => {
+            entry.animate(now, motionScalar);
           });
           hotspotHandles.forEach((entry) => {
             entry.animate(now, motionScalar);

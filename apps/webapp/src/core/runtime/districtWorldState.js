@@ -428,6 +428,55 @@ function finalizeHotspots(hotspots) {
   });
 }
 
+function buildInteractionClusters(actors, hotspots, activeHotspotKey) {
+  const actorMap = new Map(actors.map((actor) => [actor.key, actor]));
+  const grouped = new Map();
+  hotspots.forEach((hotspot) => {
+    const clusterKey = toText(hotspot.cluster_key || hotspot.actor_key || hotspot.key, hotspot.key);
+    const current = grouped.get(clusterKey) || {
+      cluster_key: clusterKey,
+      actor_key: toText(hotspot.actor_key, clusterKey),
+      label: toText(hotspot.label, "Cluster"),
+      label_key: toText(hotspot.label_key, ""),
+      primary_hotspot_key: toText(hotspot.key, ""),
+      active_hotspot_key: "",
+      hotspot_keys: [],
+      hotspot_count: 0,
+      secondary_count: 0,
+      energy: 0,
+      x: toNum(hotspot.x, 0),
+      y: toNum(hotspot.y, 0.2),
+      z: toNum(hotspot.z, 0)
+    };
+    current.hotspot_keys.push(hotspot.key);
+    current.hotspot_count += 1;
+    current.secondary_count += hotspot.is_secondary ? 1 : 0;
+    current.energy = clamp(Math.max(current.energy, toNum(hotspot.energy, 0.2)), 0.08, 1);
+    if (!hotspot.is_secondary && !current.label_key) {
+      current.label = toText(hotspot.label, current.label);
+      current.label_key = toText(hotspot.label_key, current.label_key);
+      current.primary_hotspot_key = toText(hotspot.key, current.primary_hotspot_key);
+    }
+    if (hotspot.key === activeHotspotKey) {
+      current.active_hotspot_key = hotspot.key;
+      current.label = toText(hotspot.label, current.label);
+      current.label_key = toText(hotspot.label_key, current.label_key);
+    }
+    grouped.set(clusterKey, current);
+  });
+  return Array.from(grouped.values()).map((cluster) => {
+    const actor = actorMap.get(cluster.actor_key);
+    return {
+      ...cluster,
+      x: toNum(actor?.x, cluster.x),
+      y: toNum(actor?.y, cluster.y + 0.44),
+      z: toNum(actor?.z, cluster.z),
+      orbit_radius: clamp(0.56 + cluster.hotspot_count * 0.18, 0.52, 1.28),
+      is_active: cluster.active_hotspot_key !== ""
+    };
+  });
+}
+
 function actorEnergy(nodes, index, fallback = 0.3) {
   return clamp(toNum(nodes[index]?.energy, fallback), 0.08, 1);
 }
@@ -1634,6 +1683,8 @@ export function buildDistrictWorldState(input = {}) {
   const hotspots = buildDistrictHotspots(districtKey, nodes, districtTheme, ambientEnergy, lowEndMode, allowSecondaryHotspots);
   const activeHotspotKey = resolveActiveHotspotKey(hotspots, input.navigationContext, activeNode);
   const activeHotspot = hotspots.find((hotspot) => hotspot.key === activeHotspotKey) || null;
+  const interactionClusters = buildInteractionClusters(actors, hotspots, activeHotspotKey);
+  const activeCluster = interactionClusters.find((cluster) => cluster.is_active) || null;
   const cameraProfile = resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality, hudDensity, sceneProfile);
   const hudProfile = resolveDistrictHudProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
 
@@ -1672,8 +1723,13 @@ export function buildDistrictWorldState(input = {}) {
     active_hotspot_interaction_kind: toText(activeHotspot?.interaction_kind, ""),
     active_hotspot_cluster_key: toText(activeHotspot?.cluster_key, ""),
     active_hotspot_is_secondary: Boolean(activeHotspot?.is_secondary),
+    active_cluster_key: toText(activeCluster?.cluster_key, ""),
+    active_cluster_label_key: toText(activeCluster?.label_key, ""),
+    active_cluster_label: toText(activeCluster?.label, ""),
     theme: districtTheme,
     actors,
+    interaction_cluster_count: interactionClusters.length,
+    interaction_clusters: interactionClusters,
     hotspots: hotspots.map((hotspot) => ({
       ...hotspot,
       is_active: hotspot.key === activeHotspotKey
