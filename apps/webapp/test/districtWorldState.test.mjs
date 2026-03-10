@@ -36,6 +36,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.hud_profile_key, "central_hub");
   assert.equal(state.hud_density, "normal");
   assert.equal(state.hud_profile.density_label_key, "world_hud_density_expanded");
+  assert.equal(state.director_profile_key, "hub_vector");
+  assert.equal(state.director_profile.pace_label_key, "world_director_pace_hub");
   assert.equal(state.active_hotspot_key, "season_gate");
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_travel");
   assert.equal(state.active_cluster_key, "hub_gate_north");
@@ -53,6 +55,9 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.hotspots.find((hotspot) => hotspot.key === "events_portal")?.cluster_size, 2);
   assert.equal(state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.hotspot_count, 2);
   assert.equal(state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.is_active, true);
+  assert.equal(state.active_cluster_actions.length, 2);
+  assert.equal(state.active_cluster_actions[0].action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
+  assert.equal(state.active_cluster_actions[1].is_secondary, true);
 });
 
 test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
@@ -90,6 +95,7 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.district_theme_key, "arena_prime");
   assert.equal(state.camera_profile_key, "arena_focus");
   assert.equal(state.hud_profile_key, "arena_prime");
+  assert.equal(state.director_profile_key, "arena_vector");
   assert.equal(state.hud_profile.compact_mode, true);
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
@@ -130,6 +136,7 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.district_theme_key, "ops_citadel");
   assert.equal(state.camera_profile_key, "ops_overwatch");
   assert.equal(state.hud_profile_key, "ops_citadel");
+  assert.equal(state.director_profile_key, "ops_vector");
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
@@ -208,4 +215,5 @@ test("buildDistrictWorldState collapses secondary hotspots on compact hud densit
     state.hotspots.map((hotspot) => hotspot.key),
     ["season_gate", "mission_desk", "wallet_port"]
   );
+  assert.equal(state.active_cluster_actions.length, 1);
 });

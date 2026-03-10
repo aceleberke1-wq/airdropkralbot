@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildDistrictWorldState } from "../../../core/runtime/districtWorldState.js";
 import { t, type Lang } from "../../i18n";
 
@@ -52,6 +52,18 @@ type HoverPreview = {
   hintLabelKey: string;
   interactionKind: string;
   sourceType: string;
+};
+
+type ClusterActionItem = {
+  key: string;
+  label: string;
+  label_key: string;
+  action_key: string;
+  actor_key: string;
+  cluster_key: string;
+  hint_label_key: string;
+  interaction_kind: string;
+  is_secondary: boolean;
 };
 
 async function loadBabylonSceneModules() {
@@ -109,6 +121,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState<"idle" | "ready" | "failed">("idle");
   const [hoverPreview, setHoverPreview] = useState<HoverPreview | null>(null);
+  const [hoveredClusterKeyState, setHoveredClusterKeyState] = useState("");
   const worldState = useMemo(
     () =>
       buildDistrictWorldState({
@@ -151,6 +164,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         low_end_mode: worldState.low_end_mode,
         reduced_motion: worldState.reduced_motion,
         district_theme_key: worldState.district_theme_key,
+        director_profile_key: worldState.director_profile_key,
         active_node_key: worldState.active_node_key,
         camera_profile_key: worldState.camera_profile_key,
         active_hotspot_key: worldState.active_hotspot_key,
@@ -187,6 +201,38 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         }))
       }),
     [worldState]
+  );
+  const focusedCluster = useMemo(() => {
+    const focusClusterKey = hoveredClusterKeyState || worldState.active_cluster_key;
+    if (!focusClusterKey) {
+      return null;
+    }
+    return worldState.interaction_clusters.find((cluster) => cluster.cluster_key === focusClusterKey) || null;
+  }, [hoveredClusterKeyState, worldState.active_cluster_key, worldState.interaction_clusters]);
+  const focusedClusterActions = useMemo(
+    () => ((focusedCluster?.action_items as Array<ClusterActionItem> | undefined) || []).filter((item) => item.action_key),
+    [focusedCluster]
+  );
+
+  const triggerSceneAction = useCallback(
+    (payload: {
+      actionKey: string;
+      nodeKey: string;
+      laneKey: string;
+      label: string;
+      labelKey?: string;
+      sourceType?: string;
+      actorKey?: string;
+      interactionKind?: string;
+      clusterKey?: string;
+      isSecondary?: boolean;
+      workspace: "player" | "admin";
+      tab: "home" | "pvp" | "tasks" | "vault";
+      districtKey: string;
+    }) => {
+      props.onNodeAction?.(payload);
+    },
+    [props.onNodeAction]
   );
 
   useEffect(() => {
@@ -240,6 +286,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         scene.clearColor = new Color4(0, 0, 0, 0);
         const theme = worldState.theme;
         const cameraProfile = worldState.camera_profile;
+        const directorProfile = worldState.director_profile;
         const activeHotspot =
           worldState.hotspots.find((hotspot) => hotspot.key === worldState.active_hotspot_key) || worldState.hotspots[0] || null;
         const hotspotMap = new Map(worldState.hotspots.map((hotspot) => [hotspot.key, hotspot]));
@@ -438,13 +485,13 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             animate: (now: number, motionScalar: number) => {
               const focusClusterKey = hoveredClusterKey || worldState.active_cluster_key;
               const isFocused = focusClusterKey === cluster.cluster_key;
-              ring.rotation.z = now * (0.18 + index * 0.03) * motionScalar;
+              ring.rotation.z = now * (0.18 + index * 0.03) * motionScalar * directorProfile.cluster_spin_scalar;
               const ringScale = isFocused ? 1.06 : cluster.is_active ? 1.03 : 1;
               ring.scaling.setAll(ringScale);
               satellites.forEach((entry) => {
                 const angle =
                   (Math.PI * 2 * entry.hotspotIndex) / Math.max(1, satellites.length) +
-                  now * (0.4 + entry.hotspotIndex * 0.06) * motionScalar;
+                  now * (0.4 + entry.hotspotIndex * 0.06) * motionScalar * directorProfile.cluster_spin_scalar;
                 const radius = cluster.orbit_radius * (entry.hotspot.is_secondary ? 0.84 : 1);
                 entry.orb.position.x = cluster.x + Math.cos(angle) * radius;
                 entry.orb.position.z = cluster.z + Math.sin(angle) * radius;
@@ -531,7 +578,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
 
           return {
             animate: (now: number, motionScalar: number) => {
-              ring.rotation.z = now * (0.25 + index * 0.03) * motionScalar;
+              ring.rotation.z = now * (0.25 + index * 0.03) * motionScalar * directorProfile.cluster_spin_scalar;
               beacon.position.y = hotspot.y + 0.28 + Math.sin(now * (1.1 + index * 0.17)) * 0.06 * motionScalar;
               const isHovered = hoveredHotspotKey === hotspot.key;
               const pulse =
@@ -625,6 +672,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           if (!actionKey) {
             hoveredHotspotKey = "";
             hoveredClusterKey = "";
+            setHoveredClusterKeyState((prev) => (prev ? "" : prev));
             setHoverPreview((prev) => (prev ? null : prev));
             return;
           }
@@ -638,6 +686,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 );
           hoveredHotspotKey = nextHotspotKey;
           hoveredClusterKey = String(metadata?.clusterKey || "");
+          setHoveredClusterKeyState((prev) => {
+            const nextClusterKey = String(metadata?.clusterKey || "");
+            return prev === nextClusterKey ? prev : nextClusterKey;
+          });
           setHoverPreview((prev) => {
             const next = {
               key: String(metadata?.nodeKey || ""),
@@ -665,7 +717,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           if (!actionKey) {
             return;
           }
-          props.onNodeAction?.({
+          triggerSceneAction({
             actionKey,
             nodeKey: String(metadata?.nodeKey || ""),
             laneKey: String(metadata?.laneKey || ""),
@@ -687,15 +739,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
 
         engine.runRenderLoop(() => {
           const now = performance.now() * 0.001;
-          const motionScalar = worldState.reduced_motion ? 0.22 : 1;
+          const motionScalar = (worldState.reduced_motion ? 0.22 : 1) * directorProfile.motion_scalar;
           const focusHotspot =
             worldState.hotspots.find((hotspot) => hotspot.key === hoveredHotspotKey) || activeHotspot;
-          ring.rotation.z = now * worldState.orbit_speed * 22;
+          ring.rotation.z = now * worldState.orbit_speed * 22 * directorProfile.orbit_spin_scalar;
           if (outerRing) {
-            outerRing.rotation.y = now * worldState.orbit_speed * 14;
+            outerRing.rotation.y = now * worldState.orbit_speed * 14 * directorProfile.orbit_spin_scalar;
           }
-          coreOrb.position.y = 1.2 + Math.sin(now * 1.4) * 0.12 * motionScalar;
-          const orbScale = 1 + worldState.ambient_energy * 0.16 + Math.sin(now * 1.7) * 0.04 * motionScalar;
+          coreOrb.position.y = 1.2 + Math.sin(now * 1.4) * 0.12 * motionScalar * directorProfile.node_pulse_scalar;
+          const orbScale =
+            1 + worldState.ambient_energy * 0.16 + Math.sin(now * 1.7) * 0.04 * motionScalar * directorProfile.node_pulse_scalar;
           coreOrb.scaling.setAll(orbScale);
           point.intensity = 1.1 + worldState.ambient_energy * 0.6 + Math.sin(now) * 0.08 * motionScalar;
           const targetAlpha =
@@ -717,8 +770,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           }
           satellites.forEach((entry, index) => {
             const radiusPulse = theme.satellite_radius + Math.sin(now * (0.8 + index * 0.07)) * 0.06 * motionScalar;
-            entry.orb.position.x = Math.cos(entry.baseAngle + now * worldState.orbit_speed * 10) * radiusPulse;
-            entry.orb.position.z = Math.sin(entry.baseAngle + now * worldState.orbit_speed * 10) * radiusPulse;
+            entry.orb.position.x =
+              Math.cos(entry.baseAngle + now * worldState.orbit_speed * 10 * directorProfile.orbit_spin_scalar) * radiusPulse;
+            entry.orb.position.z =
+              Math.sin(entry.baseAngle + now * worldState.orbit_speed * 10 * directorProfile.orbit_spin_scalar) * radiusPulse;
             entry.orb.position.y = theme.satellite_height + Math.sin(now * (1 + index * 0.09)) * 0.06 * motionScalar;
           });
           actorHandles.forEach((entry, index) => {
@@ -733,11 +788,19 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           nodeHandles.forEach((entry, index) => {
             const activePulse = entry.isActive ? 0.16 : 0.04;
             entry.orb.position.y =
-              1.15 + entry.node.energy * 0.95 + Math.sin(now * (1.2 + index * 0.17)) * (0.18 + activePulse) * motionScalar;
-            entry.pillar.scaling.y = 1 + entry.node.energy * 0.65 + Math.sin(now * (0.8 + index * 0.11)) * 0.04 * motionScalar;
-            entry.orb.scaling.setAll(1 + Math.sin(now * (1.4 + index * 0.12)) * activePulse * motionScalar + (entry.isActive ? 0.12 : 0));
+              1.15 +
+              entry.node.energy * 0.95 +
+              Math.sin(now * (1.2 + index * 0.17)) * (0.18 + activePulse) * motionScalar * directorProfile.node_pulse_scalar;
+            entry.pillar.scaling.y =
+              1 + entry.node.energy * 0.65 + Math.sin(now * (0.8 + index * 0.11)) * 0.04 * motionScalar * directorProfile.node_pulse_scalar;
+            entry.orb.scaling.setAll(
+              1 +
+                Math.sin(now * (1.4 + index * 0.12)) * activePulse * motionScalar * directorProfile.node_pulse_scalar +
+                (entry.isActive ? 0.12 : 0)
+            );
             if (entry.halo) {
-              entry.halo.rotation.z = now * (0.42 + index * 0.06 + (entry.isActive ? 0.18 : 0)) * motionScalar;
+              entry.halo.rotation.z =
+                now * (0.42 + index * 0.06 + (entry.isActive ? 0.18 : 0)) * motionScalar * directorProfile.cluster_spin_scalar;
             }
           });
           scene.render();
@@ -768,7 +831,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       disposed = true;
       handle?.dispose();
     };
-  }, [worldSignature, worldState]);
+  }, [props.tab, props.workspace, triggerSceneAction, worldSignature, worldState]);
 
   return (
     <div className="akrSceneWorldLayer" data-status={status} data-district={worldState.district_key}>
@@ -783,6 +846,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         {worldState.hud_profile.show_density_chip ? (
           <span>{t(props.lang, worldState.hud_profile.density_label_key as never)}</span>
         ) : null}
+        <span>{t(props.lang, worldState.director_profile.pace_label_key as never)}</span>
         <span>{t(props.lang, worldState.hud_profile.tone_label_key as never)}</span>
         <span>{props.workspace === "admin" ? "OPS" : props.tab.toUpperCase()}</span>
         <span>
@@ -811,6 +875,50 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           </span>
         ) : null}
       </div>
+      {focusedClusterActions.length ? (
+        <div className="akrSceneWorldRail akrGlass">
+          <div className="akrSceneWorldRailHeader">
+            <strong>
+              {focusedCluster?.label_key ? t(props.lang, focusedCluster.label_key as never) : focusedCluster?.label || ""}
+            </strong>
+            <span>
+              {focusedCluster?.hotspot_count} {t(props.lang, "world_interaction_routes" as never)}
+            </span>
+          </div>
+          <div className="akrSceneWorldRailActions">
+            {focusedClusterActions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                className={`akrSceneWorldAction ${action.is_secondary ? "isSecondary" : "isPrimary"}`}
+                onClick={() =>
+                  triggerSceneAction({
+                    actionKey: action.action_key,
+                    nodeKey: action.key,
+                    laneKey: focusedCluster?.cluster_key || "",
+                    label: action.label,
+                    labelKey: action.label_key,
+                    sourceType: "district_scene_cluster_action",
+                    actorKey: action.actor_key,
+                    interactionKind: action.interaction_kind,
+                    clusterKey: action.cluster_key,
+                    isSecondary: action.is_secondary,
+                    workspace: props.workspace,
+                    tab: props.tab,
+                    districtKey: worldState.district_key
+                  })
+                }
+              >
+                <span className="akrSceneWorldActionMeta">
+                  {t(props.lang, (action.is_secondary ? "world_interaction_secondary" : "world_interaction_primary") as never)}
+                </span>
+                <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
+                <span>{t(props.lang, action.hint_label_key as never)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

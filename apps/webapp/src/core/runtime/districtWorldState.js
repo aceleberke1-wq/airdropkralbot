@@ -291,6 +291,57 @@ function resolveDistrictHudProfile(districtKey, hudDensity, lowEndMode, scenePro
   }
 }
 
+function resolveDistrictDirectorProfile(districtKey, hudDensity, lowEndMode, sceneProfile) {
+  const compact = lowEndMode || hudDensity === "compact" || sceneProfile === "lite";
+  switch (districtKey) {
+    case "arena_prime":
+      return {
+        director_profile_key: "arena_vector",
+        pace_label_key: "world_director_pace_arena",
+        motion_scalar: compact ? 0.82 : 1.18,
+        orbit_spin_scalar: compact ? 0.82 : 1.22,
+        cluster_spin_scalar: compact ? 0.76 : 1.18,
+        node_pulse_scalar: compact ? 0.78 : 1.16
+      };
+    case "mission_quarter":
+      return {
+        director_profile_key: "mission_vector",
+        pace_label_key: "world_director_pace_mission",
+        motion_scalar: compact ? 0.68 : 0.94,
+        orbit_spin_scalar: compact ? 0.7 : 0.9,
+        cluster_spin_scalar: compact ? 0.66 : 0.88,
+        node_pulse_scalar: compact ? 0.74 : 0.96
+      };
+    case "exchange_district":
+      return {
+        director_profile_key: "exchange_vector",
+        pace_label_key: "world_director_pace_exchange",
+        motion_scalar: compact ? 0.74 : 1.02,
+        orbit_spin_scalar: compact ? 0.78 : 1.04,
+        cluster_spin_scalar: compact ? 0.76 : 1,
+        node_pulse_scalar: compact ? 0.78 : 1.02
+      };
+    case "ops_citadel":
+      return {
+        director_profile_key: "ops_vector",
+        pace_label_key: "world_director_pace_ops",
+        motion_scalar: compact ? 0.58 : 0.82,
+        orbit_spin_scalar: compact ? 0.58 : 0.78,
+        cluster_spin_scalar: compact ? 0.56 : 0.72,
+        node_pulse_scalar: compact ? 0.66 : 0.84
+      };
+    default:
+      return {
+        director_profile_key: "hub_vector",
+        pace_label_key: "world_director_pace_hub",
+        motion_scalar: compact ? 0.7 : 0.96,
+        orbit_spin_scalar: compact ? 0.74 : 0.98,
+        cluster_spin_scalar: compact ? 0.72 : 0.94,
+        node_pulse_scalar: compact ? 0.76 : 0.98
+      };
+  }
+}
+
 function resolveModeKey(sceneProfile, lowEndMode) {
   if (lowEndMode || sceneProfile === "lite") {
     return "world_scene_mode_lite";
@@ -440,7 +491,11 @@ function buildInteractionClusters(actors, hotspots, activeHotspotKey) {
       label_key: toText(hotspot.label_key, ""),
       primary_hotspot_key: toText(hotspot.key, ""),
       active_hotspot_key: "",
+      primary_action_key: toText(hotspot.action_key, ""),
+      primary_hint_label_key: toText(hotspot.hint_label_key, "world_hotspot_hint_open"),
+      primary_interaction_kind: toText(hotspot.interaction_kind, "open"),
       hotspot_keys: [],
+      action_items: [],
       hotspot_count: 0,
       secondary_count: 0,
       energy: 0,
@@ -449,6 +504,17 @@ function buildInteractionClusters(actors, hotspots, activeHotspotKey) {
       z: toNum(hotspot.z, 0)
     };
     current.hotspot_keys.push(hotspot.key);
+    current.action_items.push({
+      key: toText(hotspot.key, ""),
+      label: toText(hotspot.label, ""),
+      label_key: toText(hotspot.label_key, ""),
+      action_key: toText(hotspot.action_key, ""),
+      actor_key: toText(hotspot.actor_key, ""),
+      cluster_key: clusterKey,
+      hint_label_key: toText(hotspot.hint_label_key, "world_hotspot_hint_open"),
+      interaction_kind: toText(hotspot.interaction_kind, "open"),
+      is_secondary: Boolean(hotspot.is_secondary)
+    });
     current.hotspot_count += 1;
     current.secondary_count += hotspot.is_secondary ? 1 : 0;
     current.energy = clamp(Math.max(current.energy, toNum(hotspot.energy, 0.2)), 0.08, 1);
@@ -456,6 +522,9 @@ function buildInteractionClusters(actors, hotspots, activeHotspotKey) {
       current.label = toText(hotspot.label, current.label);
       current.label_key = toText(hotspot.label_key, current.label_key);
       current.primary_hotspot_key = toText(hotspot.key, current.primary_hotspot_key);
+      current.primary_action_key = toText(hotspot.action_key, current.primary_action_key);
+      current.primary_hint_label_key = toText(hotspot.hint_label_key, current.primary_hint_label_key);
+      current.primary_interaction_kind = toText(hotspot.interaction_kind, current.primary_interaction_kind);
     }
     if (hotspot.key === activeHotspotKey) {
       current.active_hotspot_key = hotspot.key;
@@ -466,13 +535,24 @@ function buildInteractionClusters(actors, hotspots, activeHotspotKey) {
   });
   return Array.from(grouped.values()).map((cluster) => {
     const actor = actorMap.get(cluster.actor_key);
+    const actionItems = asList(cluster.action_items)
+      .filter((item) => toText(item.action_key, "") !== "")
+      .sort((left, right) => {
+        const leftSecondary = Boolean(left.is_secondary);
+        const rightSecondary = Boolean(right.is_secondary);
+        if (leftSecondary !== rightSecondary) {
+          return leftSecondary ? 1 : -1;
+        }
+        return toText(left.label_key || left.label, "").localeCompare(toText(right.label_key || right.label, ""));
+      });
     return {
       ...cluster,
       x: toNum(actor?.x, cluster.x),
       y: toNum(actor?.y, cluster.y + 0.44),
       z: toNum(actor?.z, cluster.z),
       orbit_radius: clamp(0.56 + cluster.hotspot_count * 0.18, 0.52, 1.28),
-      is_active: cluster.active_hotspot_key !== ""
+      is_active: cluster.active_hotspot_key !== "",
+      action_items: actionItems
     };
   });
 }
@@ -1687,6 +1767,7 @@ export function buildDistrictWorldState(input = {}) {
   const activeCluster = interactionClusters.find((cluster) => cluster.is_active) || null;
   const cameraProfile = resolveDistrictCameraProfile(districtKey, lowEndMode, effectiveQuality, hudDensity, sceneProfile);
   const hudProfile = resolveDistrictHudProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
+  const directorProfile = resolveDistrictDirectorProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
@@ -1716,6 +1797,8 @@ export function buildDistrictWorldState(input = {}) {
     camera_profile: cameraProfile,
     hud_profile_key: hudProfile.hud_profile_key,
     hud_profile: hudProfile,
+    director_profile_key: directorProfile.director_profile_key,
+    director_profile: directorProfile,
     active_hotspot_key: activeHotspotKey,
     active_hotspot_label: toText(activeHotspot?.label, ""),
     active_hotspot_label_key: toText(activeHotspot?.label_key, ""),
@@ -1726,6 +1809,10 @@ export function buildDistrictWorldState(input = {}) {
     active_cluster_key: toText(activeCluster?.cluster_key, ""),
     active_cluster_label_key: toText(activeCluster?.label_key, ""),
     active_cluster_label: toText(activeCluster?.label, ""),
+    active_cluster_primary_action_key: toText(activeCluster?.primary_action_key, ""),
+    active_cluster_primary_hint_key: toText(activeCluster?.primary_hint_label_key, ""),
+    active_cluster_secondary_count: toNum(activeCluster?.secondary_count, 0),
+    active_cluster_actions: asList(activeCluster?.action_items),
     theme: districtTheme,
     actors,
     interaction_cluster_count: interactionClusters.length,
