@@ -2561,6 +2561,9 @@ function buildModalProtocolPod(labelKey, value, statusKey = "ready", toneKey = "
   if (!text) {
     return null;
   }
+  const rows = asList(options.rows).filter(Boolean).slice(0, 3);
+  const actionItems = asList(options.actionItems).filter(Boolean).slice(0, 2);
+  const explicitFlowRows = asList(options.flowRows).filter(Boolean).slice(0, 3);
   return {
     pod_key: `${labelKey}:${statusKey}:${toneKey || "pod"}`,
     label_key: labelKey,
@@ -2569,8 +2572,14 @@ function buildModalProtocolPod(labelKey, value, statusKey = "ready", toneKey = "
     tone_key: toText(toneKey, ""),
     status_label_key: flowStatusLabelKey(statusKey),
     hint_label_key: toText(options.hintLabelKey, ""),
-    rows: asList(options.rows).filter(Boolean).slice(0, 3),
-    action_items: asList(options.actionItems).filter(Boolean).slice(0, 2)
+    rows,
+    signal_rows: [
+      buildTerminalSignalRow(labelKey, text, statusKey),
+      buildTerminalSignalRow("world_terminal_signal_routes", String(Math.max(1, rows.length)), rows.length > 1 ? "live" : statusKey),
+      buildTerminalSignalRow("world_terminal_signal_actions", String(Math.max(1, actionItems.length)), actionItems.length ? "ready" : statusKey)
+    ].filter(Boolean),
+    flow_rows: (explicitFlowRows.length ? explicitFlowRows : rows.slice(0, 2)).filter(Boolean),
+    action_items: actionItems
   };
 }
 

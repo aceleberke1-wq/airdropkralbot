@@ -94,6 +94,8 @@ type ProtocolCardFlowPod = {
   tone_key?: string;
   hint_label_key?: string;
   rows?: Array<{ label_key: string; value: string; status_key: string }>;
+  signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
+  flow_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   action_items?: ProtocolCardActionItem[];
 };
 
@@ -174,6 +176,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeProtocolCardKey, setActiveProtocolCardKey] = useState("");
+  const [activeProtocolPodKey, setActiveProtocolPodKey] = useState("");
   const worldState = useMemo(
     () =>
       buildDistrictWorldState({
@@ -283,11 +286,19 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     }
     return cards.find((card) => card.card_key === activeProtocolCardKey) || cards[0] || null;
   }, [activeProtocolCardKey, worldState.interaction_modal?.protocol_cards]);
+  const selectedProtocolPod = useMemo(() => {
+    const pods = (selectedProtocolCard?.flow_pods as Array<ProtocolCardFlowPod> | undefined) || [];
+    if (!pods.length) {
+      return null;
+    }
+    return pods.find((pod) => pod.pod_key === activeProtocolPodKey) || pods[0] || null;
+  }, [activeProtocolPodKey, selectedProtocolCard]);
 
   useEffect(() => {
     setTerminalOpen(false);
     setModalOpen(false);
     setActiveProtocolCardKey("");
+    setActiveProtocolPodKey("");
   }, [worldState.interaction_terminal?.terminal_key]);
 
   useEffect(() => {
@@ -302,6 +313,19 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       setActiveProtocolCardKey(cards[0].card_key);
     }
   }, [activeProtocolCardKey, worldState.interaction_modal?.modal_key, worldState.interaction_modal?.protocol_cards]);
+
+  useEffect(() => {
+    const pods = (selectedProtocolCard?.flow_pods as Array<ProtocolCardFlowPod> | undefined) || [];
+    if (!pods.length) {
+      if (activeProtocolPodKey) {
+        setActiveProtocolPodKey("");
+      }
+      return;
+    }
+    if (!pods.some((pod) => pod.pod_key === activeProtocolPodKey)) {
+      setActiveProtocolPodKey(pods[0].pod_key);
+    }
+  }, [activeProtocolPodKey, selectedProtocolCard]);
 
   const triggerSceneAction = useCallback(
     (payload: {
@@ -1610,57 +1634,117 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     </div>
                     <div className="akrSceneInteractionModalPodGrid">
                       {selectedProtocolCard.flow_pods.map((pod) => (
-                        <article key={`${selectedProtocolCard.card_key}:pod:${pod.pod_key}`} className={`akrSceneInteractionModalPod is-${pod.status_key}`}>
+                        <button
+                          key={`${selectedProtocolCard.card_key}:pod:${pod.pod_key}`}
+                          type="button"
+                          className={`akrSceneInteractionModalPod is-${pod.status_key} ${selectedProtocolPod?.pod_key === pod.pod_key ? "is-selected" : ""}`}
+                          onMouseEnter={() => setActiveProtocolPodKey(pod.pod_key)}
+                          onFocus={() => setActiveProtocolPodKey(pod.pod_key)}
+                          onClick={() => setActiveProtocolPodKey(pod.pod_key)}
+                          aria-pressed={selectedProtocolPod?.pod_key === pod.pod_key}
+                        >
                           <div className="akrSceneInteractionModalPodHeader">
                             <span>{t(props.lang, pod.label_key as never)}</span>
                             <strong>{pod.value}</strong>
                           </div>
                           {pod.tone_key ? <em>{t(props.lang, pod.tone_key as never)}</em> : null}
                           {pod.hint_label_key ? <b>{t(props.lang, pod.hint_label_key as never)}</b> : null}
-                          {pod.rows?.length ? (
-                            <div className="akrSceneInteractionModalRows">
-                              {pod.rows.map((row) => (
-                                <div key={`${pod.pod_key}:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
-                                  <span>{t(props.lang, row.label_key as never)}</span>
-                                  <strong>{row.value}</strong>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          {pod.action_items?.length ? (
-                            <div className="akrSceneInteractionModalActionGrid">
-                              {pod.action_items.map((action) => (
-                                <button
-                                  key={`${pod.pod_key}:${action.item_key}`}
-                                  type="button"
-                                  className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""}`}
-                                  onClick={() =>
-                                    triggerSceneAction({
-                                      actionKey: action.action_key,
-                                      nodeKey: pod.pod_key,
-                                      laneKey: "modal_protocol_pod",
-                                      label: pod.value,
-                                      labelKey: pod.label_key,
-                                      sourceType: "district_scene_protocol_pod",
-                                      actorKey: worldState.active_hotspot_key,
-                                      interactionKind: "protocol_pod",
-                                      clusterKey: worldState.active_cluster_key,
-                                      workspace: props.workspace,
-                                      tab: props.tab,
-                                      districtKey: worldState.district_key
-                                    })
-                                  }
-                                >
-                                  <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, pod.label_key as never)}</span>
-                                  <strong>{t(props.lang, action.label_key as never)}</strong>
-                                  {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                        </article>
+                          <div className="akrSceneInteractionModalPodMeta">
+                            <span>{pod.status_label_key ? t(props.lang, pod.status_label_key as never) : pod.value}</span>
+                            <strong>{pod.action_items?.length || 0}</strong>
+                          </div>
+                        </button>
                       ))}
                     </div>
+                  </section>
+                ) : null}
+                {selectedProtocolPod ? (
+                  <section className="akrSceneInteractionModalSection">
+                    <div className="akrSceneInteractionModalSectionHeader">
+                      <span>{t(props.lang, "world_modal_section_pod_focus" as never)}</span>
+                      <strong>{selectedProtocolPod.status_label_key ? t(props.lang, selectedProtocolPod.status_label_key as never) : selectedProtocolPod.value}</strong>
+                    </div>
+                    <div className="akrSceneInteractionModalChips">
+                      <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                        <span>{t(props.lang, selectedProtocolPod.label_key as never)}</span>
+                        <strong>{selectedProtocolPod.value}</strong>
+                      </div>
+                      {selectedProtocolPod.tone_key ? (
+                        <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                          <span>{t(props.lang, "world_modal_section_pods" as never)}</span>
+                          <strong>{t(props.lang, selectedProtocolPod.tone_key as never)}</strong>
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.action_items?.length ? (
+                        <div className="akrSceneInteractionModalChip is-tempo">
+                          <span>{t(props.lang, "world_modal_section_actions" as never)}</span>
+                          <strong>{selectedProtocolPod.action_items.length}</strong>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="akrSceneInteractionModalGrid">
+                      {selectedProtocolPod.rows?.length ? (
+                        <div className="akrSceneInteractionModalRows">
+                          {selectedProtocolPod.rows.map((row) => (
+                            <div key={`${selectedProtocolPod.pod_key}:row:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                              <span>{t(props.lang, row.label_key as never)}</span>
+                              <strong>{row.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.signal_rows?.length ? (
+                        <div className="akrSceneInteractionModalRows">
+                          {selectedProtocolPod.signal_rows.map((row) => (
+                            <div key={`${selectedProtocolPod.pod_key}:signal:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                              <span>{t(props.lang, row.label_key as never)}</span>
+                              <strong>{row.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.flow_rows?.length ? (
+                        <div className="akrSceneInteractionModalRows">
+                          {selectedProtocolPod.flow_rows.map((row) => (
+                            <div key={`${selectedProtocolPod.pod_key}:flow:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                              <span>{t(props.lang, row.label_key as never)}</span>
+                              <strong>{row.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    {selectedProtocolPod.action_items?.length ? (
+                      <div className="akrSceneInteractionModalActionGrid">
+                        {selectedProtocolPod.action_items.map((action) => (
+                          <button
+                            key={`${selectedProtocolPod.pod_key}:${action.item_key}`}
+                            type="button"
+                            className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""}`}
+                            onClick={() =>
+                              triggerSceneAction({
+                                actionKey: action.action_key,
+                                nodeKey: selectedProtocolPod.pod_key,
+                                laneKey: "modal_protocol_pod_focus",
+                                label: selectedProtocolPod.value,
+                                labelKey: selectedProtocolPod.label_key,
+                                sourceType: "district_scene_protocol_pod_focus",
+                                actorKey: worldState.active_hotspot_key,
+                                interactionKind: "protocol_pod_focus",
+                                clusterKey: worldState.active_cluster_key,
+                                workspace: props.workspace,
+                                tab: props.tab,
+                                districtKey: worldState.district_key
+                              })
+                            }
+                          >
+                            <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolPod.label_key as never)}</span>
+                            <strong>{t(props.lang, action.label_key as never)}</strong>
+                            {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </section>
                 ) : null}
               </div>

@@ -1006,6 +1006,12 @@ body {
   border-radius: 14px;
   border: 1px solid rgba(120, 181, 225, 0.2);
   background: rgba(6, 20, 41, 0.42);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
 .akrSceneInteractionModalPodHeader {
@@ -1048,9 +1054,26 @@ body {
   border-color: rgba(255, 196, 107, 0.24);
 }
 
+.akrSceneInteractionModalPod:hover,
+.akrSceneInteractionModalPod.is-selected {
+  transform: translateY(-1px);
+  border-color: rgba(110, 234, 255, 0.44);
+  background: rgba(10, 34, 64, 0.72);
+}
+
 .akrSceneInteractionModalPod.is-alert,
 .akrSceneInteractionModalPod.is-locked {
   border-color: rgba(255, 116, 154, 0.24);
+}
+
+.akrSceneInteractionModalPodMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64rem;
+  color: #9fc7df;
 }
 
 .akrSceneInteractionModalSectionHeader {
