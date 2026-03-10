@@ -1046,6 +1046,38 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           </div>
         </div>
       ) : null}
+      {worldState.interaction_sheet?.rows?.length ? (
+        <div className={`akrSceneWorldSheet akrGlass is-${worldState.interaction_sheet.variant_key}`}>
+          <div className="akrSceneWorldSheetHeader">
+            <strong>
+              {worldState.interaction_sheet.title_key
+                ? t(props.lang, worldState.interaction_sheet.title_key as never)
+                : worldState.interaction_sheet.title}
+            </strong>
+            {worldState.interaction_sheet.intent_label_key ? (
+              <span>{t(props.lang, worldState.interaction_sheet.intent_label_key as never)}</span>
+            ) : null}
+          </div>
+          {worldState.interaction_sheet.intent_tone_key ? (
+            <div className="akrSceneWorldSheetTone">
+              <span>{t(props.lang, worldState.interaction_sheet.intent_tone_key as never)}</span>
+              {worldState.interaction_sheet.cluster_label_key ? (
+                <strong>{t(props.lang, worldState.interaction_sheet.cluster_label_key as never)}</strong>
+              ) : worldState.interaction_sheet.cluster_label ? (
+                <strong>{worldState.interaction_sheet.cluster_label}</strong>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="akrSceneWorldSheetRows">
+            {worldState.interaction_sheet.rows.map((row: { label_key: string; value: string }) => (
+              <div key={`${worldState.interaction_sheet.sheet_key}:${row.label_key}`} className="akrSceneWorldSheetRow">
+                <span>{t(props.lang, row.label_key as never)}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

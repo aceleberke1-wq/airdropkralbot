@@ -1894,6 +1894,129 @@ function buildAdminNodes(input) {
   ];
 }
 
+function metricRow(labelKey, value) {
+  const text = toText(value, "");
+  if (!text) {
+    return null;
+  }
+  return {
+    label_key: labelKey,
+    value: text
+  };
+}
+
+function percentText(value) {
+  const parsed = toNum(value, Number.NaN);
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+  return `${Math.max(0, Math.round(parsed))}%`;
+}
+
+function countText(value) {
+  const parsed = toNum(value, Number.NaN);
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+  return String(Math.max(0, Math.round(parsed)));
+}
+
+function upperText(value) {
+  return toText(value, "").toUpperCase();
+}
+
+function buildDistrictInteractionSheet(input, districtKey, activeHotspot, activeCluster) {
+  if (!activeHotspot) {
+    return null;
+  }
+
+  const homeFeed = asRecord(input.homeFeed);
+  const season = asRecord(homeFeed.season);
+  const mission = asRecord(homeFeed.mission);
+  const walletQuick = asRecord(homeFeed.wallet_quick);
+  const risk = asRecord(homeFeed.risk);
+  const daily = asRecord(homeFeed.daily);
+  const contract = asRecord(homeFeed.contract);
+  const taskResult = asRecord(input.taskResult);
+  const pvpRuntime = asRecord(input.pvpRuntime);
+  const leagueOverview = asRecord(input.leagueOverview);
+  const dailyDuel = asRecord(leagueOverview.daily_duel);
+  const weeklyLadder = asRecord(leagueOverview.weekly_ladder);
+  const pvpLive = asRecord(input.pvpLive);
+  const diagnostics = asRecord(pvpLive.diagnostics);
+  const tick = asRecord(pvpLive.tick);
+  const vaultData = asRecord(input.vaultData);
+  const walletSession = asRecord(vaultData.wallet_session);
+  const payoutStatus = asRecord(vaultData.payout_status);
+  const monetization = asRecord(vaultData.monetization_status);
+  const routeStatus = asRecord(vaultData.route_status);
+  const adminRuntime = asRecord(input.adminRuntime);
+  const summary = asRecord(adminRuntime.summary);
+  const queue = asList(adminRuntime.queue);
+
+  let rows = [];
+  let variantKey = districtKey;
+
+  switch (districtKey) {
+    case "arena_prime":
+      rows = [
+        metricRow("world_sheet_metric_duel_phase", upperText(pvpRuntime.phase || dailyDuel.phase)),
+        metricRow("world_sheet_metric_ladder_charge", percentText(weeklyLadder.completion_pct || weeklyLadder.rank_progress_pct)),
+        metricRow("world_sheet_metric_diag_band", upperText(diagnostics.category || diagnostics.state)),
+        metricRow("world_sheet_metric_tick_tempo", toNum(tick.tempo_ms || tick.tick_ms, Number.NaN) ? `${Math.round(toNum(tick.tempo_ms || tick.tick_ms, 0))}ms` : "")
+      ].filter(Boolean);
+      break;
+    case "mission_quarter":
+      rows = [
+        metricRow("world_sheet_metric_offer_count", countText(taskResult.offer_count || taskResult.offers_count || mission.offer_count || mission.active_count)),
+        metricRow("world_sheet_metric_streak", countText(daily.streak_days || daily.streak) ? `${countText(daily.streak_days || daily.streak)}d` : ""),
+        metricRow("world_sheet_metric_claimable", countText(taskResult.claimable_count || mission.claimable_count)),
+        metricRow("world_sheet_metric_contract_band", upperText(contract.band || contract.state))
+      ].filter(Boolean);
+      break;
+    case "exchange_district":
+      rows = [
+        metricRow("world_sheet_metric_wallet_state", pickTruthy(walletSession, ["active", "linked"]) ? "LIVE" : "OPEN"),
+        metricRow("world_sheet_metric_payout_state", upperText(payoutStatus.state || payoutStatus.status)),
+        metricRow(
+          "world_sheet_metric_premium_state",
+          pickTruthy(monetization, ["pass_active", "active", "premium_active"]) ? "ACTIVE" : "READY"
+        ),
+        metricRow("world_sheet_metric_route_state", upperText(routeStatus.state || routeStatus.health))
+      ].filter(Boolean);
+      break;
+    case "ops_citadel":
+      rows = [
+        metricRow("world_sheet_metric_queue_depth", countText(queue.length)),
+        metricRow("world_sheet_metric_scene_health", upperText(summary.scene_runtime_health_band_24h || summary.scene_health_band)),
+        metricRow("world_sheet_metric_liveops_sent", countText(summary.live_ops_sent_24h || summary.sent_24h)),
+        metricRow("world_sheet_metric_alerts", countText(summary.ops_alert_raised_24h || summary.alerts_24h))
+      ].filter(Boolean);
+      break;
+    default:
+      rows = [
+        metricRow("world_sheet_metric_progress", percentText(season.progress_pct || season.progress || season.completion_pct)),
+        metricRow("world_sheet_metric_active_missions", countText(mission.active_count || mission.offer_count)),
+        metricRow("world_sheet_metric_wallet_state", pickTruthy(walletQuick, ["linked", "wallet_linked", "active"]) ? "LIVE" : "OPEN"),
+        metricRow("world_sheet_metric_risk_band", upperText(risk.band || risk.state))
+      ].filter(Boolean);
+      variantKey = "central_hub";
+      break;
+  }
+
+  return {
+    sheet_key: `${districtKey}:${toText(activeHotspot.key, "sheet")}`,
+    variant_key: variantKey,
+    title_key: toText(activeHotspot.label_key, ""),
+    title: toText(activeHotspot.label, ""),
+    intent_label_key: toText(activeHotspot.intent_profile?.intent_label_key, ""),
+    intent_tone_key: toText(activeHotspot.intent_profile?.intent_tone_key, ""),
+    cluster_label_key: toText(activeCluster?.label_key, ""),
+    cluster_label: toText(activeCluster?.label, ""),
+    rows
+  };
+}
+
 export function buildDistrictWorldState(input = {}) {
   const workspace = normalizeWorkspace(input.workspace);
   const tab = normalizeTab(input.tab);
@@ -1942,6 +2065,7 @@ export function buildDistrictWorldState(input = {}) {
   const hudProfile = resolveDistrictHudProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
   const directorProfile = resolveDistrictDirectorProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
   const railProfile = resolveDistrictRailProfile(districtKey, hudDensity, lowEndMode, sceneProfile);
+  const interactionSheet = buildDistrictInteractionSheet(input, districtKey, activeHotspot, activeCluster);
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
@@ -1993,6 +2117,7 @@ export function buildDistrictWorldState(input = {}) {
     active_cluster_secondary_count: toNum(activeCluster?.secondary_count, 0),
     active_cluster_actions: asList(activeCluster?.action_items),
     active_cluster_slot_count: toNum(activeCluster?.intent_slots?.length, 0),
+    interaction_sheet: interactionSheet,
     theme: districtTheme,
     actors,
     interaction_cluster_count: interactionClusters.length,

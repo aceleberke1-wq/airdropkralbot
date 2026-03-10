@@ -44,6 +44,9 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_travel");
   assert.equal(state.active_hotspot_intent_profile_key, "travel_primary");
   assert.equal(state.active_hotspot_intent_label_key, "world_intent_travel");
+  assert.equal(state.interaction_sheet.title_key, "world_hotspot_season_gate");
+  assert.equal(state.interaction_sheet.rows.length, 4);
+  assert.equal(state.interaction_sheet.rows[0].label_key, "world_sheet_metric_progress");
   assert.equal(state.active_cluster_key, "hub_gate_north");
   assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.active_cluster_slot_count, 2);
@@ -106,6 +109,8 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.hud_profile_key, "arena_prime");
   assert.equal(state.director_profile_key, "arena_vector");
   assert.equal(state.rail_profile_key, "arena_prime");
+  assert.equal(state.interaction_sheet.title_key, "world_hotspot_duel_pit");
+  assert.equal(state.interaction_sheet.rows[0].label_key, "world_sheet_metric_duel_phase");
   assert.equal(state.hud_profile.compact_mode, true);
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
@@ -148,6 +153,8 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.hud_profile_key, "ops_citadel");
   assert.equal(state.director_profile_key, "ops_vector");
   assert.equal(state.rail_profile_key, "ops_citadel");
+  assert.equal(state.interaction_sheet.title_key, "world_hotspot_queue_gate");
+  assert.equal(state.interaction_sheet.rows[0].label_key, "world_sheet_metric_queue_depth");
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
