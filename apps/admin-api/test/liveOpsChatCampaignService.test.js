@@ -2402,7 +2402,7 @@ test("live ops chat campaign service applies field-family risk to mission-idle s
       !text.includes("GROUP BY 1, 2") &&
       !text.includes("adj->>'reason_code'")
     ) {
-      return { rows: [{ bucket_key: "query_strategy_locale_and_segment", item_count: 2 }] };
+      return { rows: [{ bucket_key: "query_strategy_locale_and_segment", item_count: 1 }] };
     }
     if (
       text.includes("targeting_selection_summary,query_strategy_summary,segment_strategy_reason") &&
@@ -2569,5 +2569,246 @@ test("live ops chat campaign service applies field-family risk to mission-idle s
   assert.equal(queryAdjustments.find((row) => row.field_key === "pool_limit_multiplier")?.after_value, 1);
   assert.equal(queryAdjustments.find((row) => row.field_key === "active_within_days_cap")?.after_value, 3);
   assert.equal(queryAdjustments.find((row) => row.field_key === "offer_age_days_cap")?.after_value, 1);
+  assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_shifted_to_query_strategy");
+});
+
+test("live ops chat campaign service applies field-family risk to all-active scheduler query windows", async () => {
+  const sentChatIds = [];
+  const { pool, recordedQueries } = createQueryRecorder((text) => {
+    if (text.includes("FROM config_versions") && text.includes("LIMIT 1")) {
+      return { rows: [{ version: 12, created_at: "2026-03-08T12:00:00.000Z", created_by: 7001, config_json: buildCampaign({ targeting: { segment_key: "all_active" } }) }] };
+    }
+    if (text.includes("COUNT(*)::int AS sent_total") && text.includes("interval '72 hours'")) {
+      return { rows: [{ sent_total: 0, sent_72h: 0, last_sent_at: null, last_segment_key: "", last_dispatch_ref: "" }] };
+    }
+    if (text.includes("event_key IN ('runtime.scene.ready', 'runtime.scene.failed')")) {
+      return {
+        rows: [
+          {
+            ready_24h: 10,
+            failed_24h: 0,
+            low_end_24h: 1,
+            avg_loaded_bundles_24h: 3.2,
+            daily_breakdown_7d: [{ day: "2026-03-08", total_count: 10, ready_count: 10, failed_count: 0, low_end_count: 1 }],
+            quality_breakdown_24h: [],
+            perf_breakdown_24h: []
+          }
+        ]
+      };
+    }
+    if (text.includes("COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS raised_24h")) {
+      return {
+        rows: [
+          {
+            raised_24h: 2,
+            raised_7d: 4,
+            telegram_sent_24h: 1,
+            telegram_sent_7d: 2,
+            effective_cap_delta_24h: 6,
+            effective_cap_delta_7d: 12,
+            max_effective_cap_delta_7d: 6
+          }
+        ]
+      };
+    }
+    if (text.includes("FROM admin_audit") && text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("query_strategy_applied_24h")) {
+      return {
+        rows: [
+          {
+            dispatches_24h: 4,
+            dispatches_7d: 4,
+            query_strategy_applied_24h: 4,
+            query_strategy_applied_7d: 4,
+            prefilter_applied_24h: 0,
+            prefilter_applied_7d: 0,
+            prefilter_delta_24h: 0,
+            prefilter_delta_7d: 0,
+            prioritized_focus_matches_24h: 4,
+            prioritized_focus_matches_7d: 4,
+            selected_focus_matches_24h: 1,
+            selected_focus_matches_7d: 1
+          }
+        ]
+      };
+    }
+    if (text.includes("FROM admin_audit") && text.includes("action = 'live_ops_campaign_dispatch'") && text.includes("ORDER BY created_at DESC") && text.includes("LIMIT 1;")) {
+      return {
+        rows: [
+          {
+            created_at: "2026-03-08T12:20:00.000Z",
+            payload_json: {
+              targeting_selection_summary: {
+                guidance_mode: "protective",
+                focus_dimension: "locale",
+                focus_bucket: "tr",
+                query_strategy_summary: {
+                  reason: "query_strategy_locale_and_segment",
+                  segment_strategy_reason: "segment_query_active_window_tight",
+                  adjustment_rows: [
+                    { field_key: "active_within_days_cap", before_value: 5, after_value: 2, delta_value: -3, direction_key: "decrease", reason_code: "selection_family_risk_tightened" }
+                  ]
+                },
+                prefilter_summary: {
+                  reason: "prefilter_shifted_to_query_strategy"
+                }
+              }
+            }
+          }
+        ]
+      };
+    }
+    if (text.includes("FROM admin_audit") && text.includes("dispatch_count") && text.includes("query_strategy_applied_count")) {
+      return {
+        rows: [
+          {
+            day: "2026-03-08",
+            dispatch_count: 2,
+            query_strategy_applied_count: 2,
+            prefilter_applied_count: 0,
+            prefilter_delta_sum: 0,
+            prioritized_focus_matches: 2,
+            selected_focus_matches: 1
+          },
+          {
+            day: "2026-03-07",
+            dispatch_count: 2,
+            query_strategy_applied_count: 2,
+            prefilter_applied_count: 0,
+            prefilter_delta_sum: 0,
+            prioritized_focus_matches: 2,
+            selected_focus_matches: 0
+          }
+        ]
+      };
+    }
+    if (text.includes("targeting_selection_summary,prefilter_summary,reason")) {
+      return { rows: [{ bucket_key: "prefilter_shifted_to_query_strategy", item_count: 4 }] };
+    }
+    if (
+      text.includes("targeting_selection_summary,query_strategy_summary,reason") &&
+      !text.includes("segment_strategy_reason") &&
+      !text.includes("GROUP BY 1, 2") &&
+      !text.includes("adj->>'reason_code'")
+    ) {
+      return { rows: [{ bucket_key: "query_strategy_locale_and_segment", item_count: 2 }] };
+    }
+    if (
+      text.includes("targeting_selection_summary,query_strategy_summary,segment_strategy_reason") &&
+      !text.includes("GROUP BY 1, 2") &&
+      !text.includes("adj->>'reason_code'")
+    ) {
+      return { rows: [{ bucket_key: "segment_query_active_window_tight", item_count: 1 }] };
+    }
+    if (
+      text.includes("targeting_selection_summary,query_strategy_summary,reason") &&
+      text.includes("GROUP BY 1, 2") &&
+      !text.includes("adj->>'reason_code'")
+    ) {
+      return {
+        rows: [
+          { day: "2026-03-08", bucket_key: "query_strategy_locale_and_segment", item_count: 1 }
+        ]
+      };
+    }
+    if (
+      text.includes("targeting_selection_summary,query_strategy_summary,segment_strategy_reason") &&
+      text.includes("GROUP BY 1, 2") &&
+      !text.includes("adj->>'reason_code'")
+    ) {
+      return {
+        rows: [
+          { day: "2026-03-08", bucket_key: "segment_query_active_window_tight", item_count: 1 }
+        ]
+      };
+    }
+    if (text.includes("COALESCE(NULLIF(adj->>'field_key', ''), 'unknown') AS bucket_key") && !text.includes("GROUP BY 1, 2")) {
+      return {
+        rows: [{ bucket_key: "active_within_days_cap", item_count: 8 }]
+      };
+    }
+    if (text.includes("COALESCE(NULLIF(adj->>'field_key', ''), 'unknown') AS bucket_key") && text.includes("GROUP BY 1, 2")) {
+      return {
+        rows: [
+          { day: "2026-03-08", bucket_key: "active_within_days_cap", item_count: 4 },
+          { day: "2026-03-07", bucket_key: "active_within_days_cap", item_count: 4 },
+          { day: "2026-03-06", bucket_key: "active_within_days_cap", item_count: 4 },
+          { day: "2026-03-05", bucket_key: "active_within_days_cap", item_count: 4 }
+        ]
+      };
+    }
+    if (text.includes("adj->>'reason_code'")) {
+      return { rows: [{ bucket_key: "selection_family_risk_tightened", item_count: 8 }] };
+    }
+    if (text.includes("FROM users u") && text.includes("LIMIT $7;") && !text.includes("v5_wallet_links") && !text.includes("mission_windows")) {
+      return {
+        rows: [
+          { user_id: 41, telegram_id: 8401, locale: "en", last_seen_at: "2026-03-08T10:00:00.000Z", public_name: "a1", prefs_json: {} },
+          { user_id: 42, telegram_id: 8402, locale: "en", last_seen_at: "2026-03-08T09:00:00.000Z", public_name: "a2", prefs_json: {} }
+        ]
+      };
+    }
+    if (text.includes("FROM v5_webapp_experiment_assignments")) {
+      return {
+        rows: [
+          { uid: 41, variant_key: "control", cohort_bucket: 42 },
+          { uid: 42, variant_key: "control", cohort_bucket: 42 }
+        ]
+      };
+    }
+    if (text.includes("INSERT INTO behavior_events") || text.includes("INSERT INTO admin_audit")) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  const service = createLiveOpsChatCampaignService({
+    pool,
+    fetchImpl: async (_url, options) => {
+      const payload = JSON.parse(String(options.body || "{}"));
+      sentChatIds.push(Number(payload.chat_id || 0));
+      return { ok: true };
+    },
+    botToken: "bot_token",
+    botUsername: "airdropkral_2026_bot",
+    webappPublicUrl: "https://example.com/app",
+    webappHmacSecret: "secret",
+    resolveWebappVersion: async () => ({ version: "abc123" }),
+    nowFactory: () => new Date("2026-03-08T12:30:00.000Z"),
+    logger: () => {}
+  });
+
+  const result = await service.dispatchCampaign({
+    adminId: 7010,
+    dryRun: false,
+    reason: "scheduled_window_dispatch",
+    dispatchSource: "scheduler",
+    campaign: buildCampaign({
+      targeting: {
+        segment_key: "all_active",
+        max_recipients: 2
+      },
+      surfaces: [{ slot_key: "hub_lane", surface_key: "home_panel" }]
+    })
+  });
+
+  const candidateQuery = recordedQueries.find(
+    (entry) => entry.sql.includes("FROM users u") && entry.sql.includes("LIMIT $7;") && !entry.sql.includes("v5_wallet_links")
+  );
+  assert.ok(candidateQuery);
+  assert.equal(candidateQuery.params[0], 2);
+  assert.equal(candidateQuery.params[2], "");
+  assert.equal(candidateQuery.params[6], 2);
+  assert.equal(result.ok, true);
+  assert.deepEqual(sentChatIds, [8401]);
+  assert.equal(result.data.selection_summary.query_strategy_summary.family_risk_state, "alert");
+  assert.equal(result.data.selection_summary.query_strategy_summary.family_risk_dimension, "field_family");
+  assert.equal(result.data.selection_summary.query_strategy_summary.family_risk_bucket, "activity_window");
+  assert.equal(result.data.selection_summary.query_strategy_summary.strategy_segment_path_key, "all_active:active_window");
+  assert.equal(result.data.selection_summary.query_strategy_summary.adjustment_segment_path_key, "all_active:activity_window");
+  assert.equal(result.data.selection_summary.query_strategy_summary.pool_limit_multiplier, 1);
+  assert.equal(result.data.selection_summary.query_strategy_summary.active_within_days_cap, 2);
+  const queryAdjustments = result.data.selection_summary.query_strategy_summary.adjustment_rows;
+  assert.equal(queryAdjustments.find((row) => row.field_key === "pool_limit_multiplier")?.after_value, 1);
+  assert.equal(queryAdjustments.find((row) => row.field_key === "active_within_days_cap")?.after_value, 2);
   assert.equal(result.data.selection_summary.prefilter_summary.reason, "prefilter_shifted_to_query_strategy");
 });

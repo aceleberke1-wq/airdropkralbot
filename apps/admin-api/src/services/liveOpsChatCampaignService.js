@@ -901,25 +901,29 @@ function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
       poolLimitMultiplier = 1;
       tightened = true;
       if (activeWithinDaysCap > 0) {
-        const tightenDelta =
-          strategy.family_risk_state === "alert"
-            ? segmentKey === LIVE_OPS_SEGMENT_KEY.MISSION_IDLE
-              ? 4
-              : 3
-            : segmentKey === LIVE_OPS_SEGMENT_KEY.MISSION_IDLE
-              ? 3
-              : 2;
-        activeWithinDaysCap = tightenByDelta(activeWithinDaysCap, 3, tightenDelta);
+        if (segmentKey === LIVE_OPS_SEGMENT_KEY.ALL_ACTIVE) {
+          activeWithinDaysCap = tightenByDelta(activeWithinDaysCap, 2, strategy.family_risk_state === "alert" ? 4 : 3);
+        } else {
+          const tightenDelta =
+            strategy.family_risk_state === "alert"
+              ? segmentKey === LIVE_OPS_SEGMENT_KEY.MISSION_IDLE
+                ? 4
+                : 3
+              : segmentKey === LIVE_OPS_SEGMENT_KEY.MISSION_IDLE
+                ? 3
+                : 2;
+          activeWithinDaysCap = tightenByDelta(activeWithinDaysCap, 3, tightenDelta);
+        }
       }
       if (segmentKey === LIVE_OPS_SEGMENT_KEY.MISSION_IDLE && offerAgeDaysCap > 0) {
         offerAgeDaysCap = tightenByDelta(offerAgeDaysCap, 1, strategy.family_risk_state === "alert" ? 2 : 1);
       }
       if (segmentKey === LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING) {
         if (inactiveHoursFloor > 0) {
-          inactiveHoursFloor += strategy.family_risk_state === "alert" ? 48 : 24;
+          inactiveHoursFloor += strategy.family_risk_state === "alert" ? 72 : 36;
         }
         if (maxAgeDaysCap > 0) {
-          maxAgeDaysCap = tightenByDelta(maxAgeDaysCap, 7, strategy.family_risk_state === "alert" ? 10 : 5);
+          maxAgeDaysCap = tightenByDelta(maxAgeDaysCap, 7, strategy.family_risk_state === "alert" ? 12 : 6);
         }
       } else if (inactiveHoursFloor > 0) {
         inactiveHoursFloor += strategy.family_risk_state === "alert" ? 24 : 12;
@@ -934,15 +938,27 @@ function applySelectionFamilyRiskToQueryStrategy(strategySummary, campaign) {
         if (activeWithinDaysCap > 0) {
           activeWithinDaysCap = tightenByDelta(activeWithinDaysCap, 3, 1);
         }
+      } else if (segmentKey === LIVE_OPS_SEGMENT_KEY.ALL_ACTIVE && activeWithinDaysCap > 0) {
+        activeWithinDaysCap = tightenByDelta(activeWithinDaysCap, 2, strategy.family_risk_state === "alert" ? 2 : 1);
       }
     } else if (strategy.family_risk_bucket === "recency_window") {
       poolLimitMultiplier = 1;
       tightened = true;
       if (maxAgeDaysCap > 0) {
-        maxAgeDaysCap = tightenByDelta(maxAgeDaysCap, 7, strategy.family_risk_state === "alert" ? 10 : 5);
+        maxAgeDaysCap = tightenByDelta(
+          maxAgeDaysCap,
+          7,
+          segmentKey === LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING
+            ? strategy.family_risk_state === "alert"
+              ? 14
+              : 8
+            : strategy.family_risk_state === "alert"
+              ? 10
+              : 5
+        );
       }
       if (segmentKey === LIVE_OPS_SEGMENT_KEY.INACTIVE_RETURNING && inactiveHoursFloor > 0) {
-        inactiveHoursFloor += strategy.family_risk_state === "alert" ? 24 : 12;
+        inactiveHoursFloor += strategy.family_risk_state === "alert" ? 48 : 24;
       }
     } else if (strategy.family_risk_bucket === "offer_window") {
       poolLimitMultiplier = 1;
