@@ -2541,12 +2541,32 @@ function buildModalCard(labelKey, value, statusKey = "ready", toneKey = "") {
   };
 }
 
-function buildModalProtocolCard(labelKey, value, statusKey = "ready", toneKey = "", actionKey = "", actionLabelKey = "") {
+function buildModalProtocolActionItem(actionKey, labelKey, hintLabelKey = "", toneKey = "", intentProfileKey = "") {
+  const normalizedActionKey = toText(actionKey, "");
+  if (!normalizedActionKey) {
+    return null;
+  }
+  return {
+    item_key: `${labelKey}:${normalizedActionKey}`,
+    action_key: normalizedActionKey,
+    label_key: labelKey,
+    hint_label_key: toText(hintLabelKey, ""),
+    tone_key: toText(toneKey, ""),
+    intent_profile_key: toText(intentProfileKey, "")
+  };
+}
+
+function buildModalProtocolCard(labelKey, value, statusKey = "ready", toneKey = "", actionKey = "", actionLabelKey = "", options = {}) {
   const text = toText(value, "");
   const normalizedActionKey = toText(actionKey, "");
   if (!text) {
     return null;
   }
+  const defaultActionItem =
+    normalizedActionKey && toText(actionLabelKey, "")
+      ? buildModalProtocolActionItem(normalizedActionKey, actionLabelKey, labelKey, toneKey, "")
+      : null;
+  const actionItems = asList(options.actionItems).filter(Boolean);
   return {
     card_key: `${labelKey}:${statusKey}:${normalizedActionKey || "passive"}`,
     label_key: labelKey,
@@ -2555,7 +2575,11 @@ function buildModalProtocolCard(labelKey, value, statusKey = "ready", toneKey = 
     tone_key: toneKey,
     action_key: normalizedActionKey,
     action_label_key: toText(actionLabelKey, ""),
-    is_actionable: Boolean(normalizedActionKey)
+    is_actionable: Boolean(normalizedActionKey),
+    status_label_key: flowStatusLabelKey(statusKey),
+    preview_rows: asList(options.previewRows).filter(Boolean).slice(0, 3),
+    flow_rows: asList(options.flowRows).filter(Boolean).slice(0, 3),
+    action_items: (actionItems.length ? actionItems : defaultActionItem ? [defaultActionItem] : []).slice(0, 3)
   };
 }
 
@@ -2713,7 +2737,35 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(duelPhase, "live"),
           "world_intent_tone_compete",
           SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL,
-          "world_modal_protocol_action_enter"
+          "world_modal_protocol_action_enter",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live")),
+              buildFlowStep(
+                "world_sheet_metric_tick_tempo",
+                Number.isFinite(tickTempo) ? `${Math.round(tickTempo)}ms` : "",
+                resolveFlowStatusKey(tickTempo, "ready")
+              )
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge, resolveFlowStatusKey(ladderCharge, "ready")),
+              buildFlowStep("world_sheet_metric_diag_band", diagnosticsBand, resolveFlowStatusKey(diagnosticsBand, "ready"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL,
+                "world_modal_protocol_action_enter",
+                "world_modal_protocol_duel_boot",
+                "world_intent_tone_compete"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_WEEKLY_LADDER,
+                "world_modal_protocol_action_route",
+                "world_modal_protocol_ladder_seed",
+                "world_intent_tone_climb"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_ladder_seed",
@@ -2721,7 +2773,35 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(ladderCharge, "ready"),
           "world_intent_tone_climb",
           SHELL_ACTION_KEY.PLAYER_PVP_WEEKLY_LADDER,
-          "world_modal_protocol_action_route"
+          "world_modal_protocol_action_route",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge, resolveFlowStatusKey(ladderCharge, "ready")),
+              buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_diag_band", diagnosticsBand, resolveFlowStatusKey(diagnosticsBand, "ready")),
+              buildFlowStep(
+                "world_sheet_metric_tick_tempo",
+                Number.isFinite(tickTempo) ? `${Math.round(tickTempo)}ms` : "",
+                resolveFlowStatusKey(tickTempo, "ready")
+              )
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_WEEKLY_LADDER,
+                "world_modal_protocol_action_route",
+                "world_modal_protocol_ladder_seed",
+                "world_intent_tone_climb"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_LEADERBOARD,
+                "world_modal_protocol_action_scan",
+                "world_modal_protocol_telemetry_mesh",
+                "world_intent_tone_track"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           hotspotKey === "diagnostics_rail" || hotspotKey === "tick_chamber"
@@ -2731,7 +2811,37 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(diagnosticsBand || tickTempo, "ready"),
           "world_intent_tone_track",
           SHELL_ACTION_KEY.PLAYER_PVP_LEADERBOARD,
-          "world_modal_protocol_action_scan"
+          "world_modal_protocol_action_scan",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_diag_band", diagnosticsBand, resolveFlowStatusKey(diagnosticsBand, "ready")),
+              buildFlowStep(
+                "world_sheet_metric_tick_tempo",
+                Number.isFinite(tickTempo) ? `${Math.round(tickTempo)}ms` : "",
+                resolveFlowStatusKey(tickTempo, "ready")
+              )
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live")),
+              buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge, resolveFlowStatusKey(ladderCharge, "ready"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_LEADERBOARD,
+                "world_modal_protocol_action_scan",
+                hotspotKey === "diagnostics_rail" || hotspotKey === "tick_chamber"
+                  ? "world_modal_protocol_telemetry_mesh"
+                  : "world_modal_protocol_tick_mesh",
+                "world_intent_tone_track"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PVP_DAILY_DUEL,
+                "world_modal_protocol_action_enter",
+                "world_modal_protocol_duel_boot",
+                "world_intent_tone_compete"
+              )
+            ]
+          }
         )
       ].filter(Boolean);
     }
@@ -2747,7 +2857,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           toNum(offerCount, 0) > 0 ? "live" : "idle",
           "world_intent_tone_launch",
           SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
-          "world_modal_protocol_action_open"
+          "world_modal_protocol_action_open",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_offer_count", offerCount || "0", toNum(offerCount, 0) > 0 ? "live" : "idle"),
+              buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle"),
+              buildFlowStep("world_sheet_metric_streak", streakValue ? `${streakValue}d` : "0d", toNum(streakValue, 0) > 0 ? "live" : "idle")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
+                "world_modal_protocol_action_open",
+                "world_modal_protocol_offer_grid",
+                "world_intent_tone_launch"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
+                "world_modal_protocol_action_claim",
+                "world_modal_protocol_claim_sync",
+                "world_intent_tone_claim"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           hotspotKey === "claim_dais" ? "world_modal_protocol_claim_sync" : "world_modal_protocol_contract_sync",
@@ -2755,7 +2889,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           claimableCount ? "ready" : resolveFlowStatusKey(contractBand, "watch"),
           hotspotKey === "claim_dais" ? "world_intent_tone_claim" : "world_intent_tone_launch",
           SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
-          hotspotKey === "claim_dais" ? "world_modal_protocol_action_claim" : "world_modal_protocol_action_route"
+          hotspotKey === "claim_dais" ? "world_modal_protocol_action_claim" : "world_modal_protocol_action_route",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle"),
+              buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_offer_count", offerCount || "0", toNum(offerCount, 0) > 0 ? "live" : "idle"),
+              buildFlowStep("world_sheet_metric_streak", streakValue ? `${streakValue}d` : "0d", toNum(streakValue, 0) > 0 ? "live" : "idle")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
+                hotspotKey === "claim_dais" ? "world_modal_protocol_action_claim" : "world_modal_protocol_action_route",
+                hotspotKey === "claim_dais" ? "world_modal_protocol_claim_sync" : "world_modal_protocol_contract_sync",
+                hotspotKey === "claim_dais" ? "world_intent_tone_claim" : "world_intent_tone_launch"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
+                "world_modal_protocol_action_open",
+                "world_modal_protocol_offer_grid",
+                "world_intent_tone_launch"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_streak_guard",
@@ -2763,7 +2921,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           toNum(streakValue, 0) > 0 ? "live" : "idle",
           "world_intent_tone_claim",
           SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
-          "world_modal_protocol_action_sync"
+          "world_modal_protocol_action_sync",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_streak", streakValue ? `${streakValue}d` : "0d", toNum(streakValue, 0) > 0 ? "live" : "idle"),
+              buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle")
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_offer_count", offerCount || "0", toNum(offerCount, 0) > 0 ? "live" : "idle"),
+              buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
+                "world_modal_protocol_action_sync",
+                "world_modal_protocol_streak_guard",
+                "world_intent_tone_claim"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_TASKS_CLAIMS,
+                "world_modal_protocol_action_claim",
+                "world_modal_protocol_claim_sync",
+                "world_intent_tone_claim"
+              )
+            ]
+          }
         )
       ].filter(Boolean);
     }
@@ -2780,7 +2962,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           walletLive || walletQuickLive ? "ready" : "watch",
           "world_intent_tone_connect",
           SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT,
-          "world_modal_protocol_action_link"
+          "world_modal_protocol_action_link",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_wallet_state", walletLive || walletQuickLive ? "LIVE" : "OPEN", walletLive || walletQuickLive ? "ready" : "watch"),
+              buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_payout_state", payoutState, resolveFlowStatusKey(payoutState, "ready")),
+              buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT,
+                "world_modal_protocol_action_link",
+                "world_modal_protocol_wallet_auth",
+                "world_intent_tone_connect"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL,
+                "world_modal_protocol_action_scan",
+                "world_modal_protocol_route_matrix",
+                "world_intent_tone_track"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           hotspotKey === "premium_lane" ? "world_modal_protocol_premium_unlock" : "world_modal_protocol_payout_route",
@@ -2788,7 +2994,35 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(hotspotKey === "premium_lane" ? premiumState : payoutState, "ready"),
           hotspotKey === "premium_lane" ? "world_intent_tone_upgrade" : "world_intent_tone_payout",
           hotspotKey === "premium_lane" ? SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL : SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST,
-          hotspotKey === "premium_lane" ? "world_modal_protocol_action_upgrade" : "world_modal_protocol_action_route"
+          hotspotKey === "premium_lane" ? "world_modal_protocol_action_upgrade" : "world_modal_protocol_action_route",
+          {
+            previewRows: [
+              buildFlowStep(
+                hotspotKey === "premium_lane" ? "world_sheet_metric_premium_state" : "world_sheet_metric_payout_state",
+                hotspotKey === "premium_lane" ? premiumState : payoutState,
+                resolveFlowStatusKey(hotspotKey === "premium_lane" ? premiumState : payoutState, "ready")
+              ),
+              buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_wallet_state", walletLive || walletQuickLive ? "LIVE" : "OPEN", walletLive || walletQuickLive ? "ready" : "watch"),
+              buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                hotspotKey === "premium_lane" ? SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL : SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST,
+                hotspotKey === "premium_lane" ? "world_modal_protocol_action_upgrade" : "world_modal_protocol_action_route",
+                hotspotKey === "premium_lane" ? "world_modal_protocol_premium_unlock" : "world_modal_protocol_payout_route",
+                hotspotKey === "premium_lane" ? "world_intent_tone_upgrade" : "world_intent_tone_payout"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT,
+                "world_modal_protocol_action_link",
+                "world_modal_protocol_wallet_auth",
+                "world_intent_tone_connect"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_route_matrix",
@@ -2796,7 +3030,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(routeState, "ready"),
           "world_intent_tone_track",
           SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL,
-          "world_modal_protocol_action_scan"
+          "world_modal_protocol_action_scan",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready")),
+              buildFlowStep("world_sheet_metric_payout_state", payoutState, resolveFlowStatusKey(payoutState, "ready"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_wallet_state", walletLive || walletQuickLive ? "LIVE" : "OPEN", walletLive || walletQuickLive ? "ready" : "watch"),
+              buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_REWARDS_PANEL,
+                "world_modal_protocol_action_scan",
+                "world_modal_protocol_route_matrix",
+                "world_intent_tone_track"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST,
+                "world_modal_protocol_action_route",
+                "world_modal_protocol_payout_route",
+                "world_intent_tone_payout"
+              )
+            ]
+          }
         )
       ].filter(Boolean);
     }
@@ -2811,7 +3069,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           toNum(queueDepth, 0) > 0 ? "live" : "ready",
           "world_intent_tone_review",
           SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,
-          "world_modal_protocol_action_review"
+          "world_modal_protocol_action_review",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_queue_depth", queueDepth || "0", toNum(queueDepth, 0) > 0 ? "live" : "ready"),
+              buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_alerts", countText(summary.ops_alert_raised_24h || summary.alerts_24h || 0), "watch"),
+              buildFlowStep("world_sheet_metric_liveops_sent", countText(summary.live_ops_sent_24h || summary.sent_24h || 0), "ready")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_QUEUE_PANEL,
+                "world_modal_protocol_action_review",
+                "world_modal_protocol_queue_audit",
+                "world_intent_tone_review"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
+                "world_modal_protocol_action_monitor",
+                "world_modal_protocol_runtime_shield",
+                "world_intent_tone_monitor"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_runtime_shield",
@@ -2819,7 +3101,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(sceneHealth, "watch"),
           "world_intent_tone_monitor",
           SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
-          "world_modal_protocol_action_monitor"
+          "world_modal_protocol_action_monitor",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch")),
+              buildFlowStep("world_sheet_metric_alerts", countText(summary.ops_alert_raised_24h || summary.alerts_24h || 0), "watch")
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_liveops_sent", countText(summary.live_ops_sent_24h || summary.sent_24h || 0), "ready"),
+              buildFlowStep("world_sheet_metric_queue_depth", queueDepth || "0", toNum(queueDepth, 0) > 0 ? "live" : "ready")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
+                "world_modal_protocol_action_monitor",
+                "world_modal_protocol_runtime_shield",
+                "world_intent_tone_monitor"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS,
+                "world_modal_protocol_action_route",
+                "world_modal_protocol_runtime_shield",
+                "world_intent_tone_monitor"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_dispatch_guard",
@@ -2827,7 +3133,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(dispatchState, "ready"),
           "world_intent_tone_dispatch",
           SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL,
-          "world_modal_protocol_action_dispatch"
+          "world_modal_protocol_action_dispatch",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_liveops_sent", countText(summary.live_ops_sent_24h || summary.sent_24h || 0), "ready"),
+              buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_queue_depth", queueDepth || "0", toNum(queueDepth, 0) > 0 ? "live" : "ready"),
+              buildFlowStep("world_sheet_metric_alerts", countText(summary.ops_alert_raised_24h || summary.alerts_24h || 0), "watch")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_LIVE_OPS_PANEL,
+                "world_modal_protocol_action_dispatch",
+                "world_modal_protocol_dispatch_guard",
+                "world_intent_tone_dispatch"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.ADMIN_RUNTIME_META,
+                "world_modal_protocol_action_monitor",
+                "world_modal_protocol_runtime_shield",
+                "world_intent_tone_monitor"
+              )
+            ]
+          }
         )
       ].filter(Boolean);
     }
@@ -2843,7 +3173,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           progress ? "live" : "ready",
           "world_intent_tone_travel",
           SHELL_ACTION_KEY.PLAYER_SEASON_HALL,
-          "world_modal_protocol_action_route"
+          "world_modal_protocol_action_route",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_progress", progress || "0%", progress ? "live" : "ready"),
+              buildFlowStep("world_sheet_metric_active_missions", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle")
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_risk_band", riskBand, resolveFlowStatusKey(riskBand, "ready")),
+              buildFlowStep("world_sheet_metric_wallet_state", walletState, resolveFlowStatusKey(walletState, "watch"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_SEASON_HALL,
+                "world_modal_protocol_action_route",
+                "world_modal_protocol_travel_vector",
+                "world_intent_tone_travel"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_EVENTS_HALL,
+                "world_modal_protocol_action_enter",
+                "world_modal_protocol_travel_vector",
+                "world_intent_tone_travel"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           hotspotKey === "wallet_port" ? "world_modal_protocol_wallet_auth" : "world_modal_protocol_mission_sync",
@@ -2851,7 +3205,35 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           hotspotKey === "wallet_port" ? resolveFlowStatusKey(walletState, "watch") : toNum(missionCount, 0) > 0 ? "live" : "idle",
           hotspotKey === "wallet_port" ? "world_intent_tone_connect" : "world_intent_tone_launch",
           hotspotKey === "wallet_port" ? SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT : SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
-          hotspotKey === "wallet_port" ? "world_modal_protocol_action_link" : "world_modal_protocol_action_open"
+          hotspotKey === "wallet_port" ? "world_modal_protocol_action_link" : "world_modal_protocol_action_open",
+          {
+            previewRows: [
+              buildFlowStep(
+                hotspotKey === "wallet_port" ? "world_sheet_metric_wallet_state" : "world_sheet_metric_active_missions",
+                hotspotKey === "wallet_port" ? walletState : missionCount || "0",
+                hotspotKey === "wallet_port" ? resolveFlowStatusKey(walletState, "watch") : toNum(missionCount, 0) > 0 ? "live" : "idle"
+              ),
+              buildFlowStep("world_sheet_metric_risk_band", riskBand, resolveFlowStatusKey(riskBand, "ready"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_progress", progress || "0%", progress ? "live" : "ready"),
+              buildFlowStep("world_sheet_metric_wallet_state", walletState, resolveFlowStatusKey(walletState, "watch"))
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                hotspotKey === "wallet_port" ? SHELL_ACTION_KEY.PLAYER_WALLET_CONNECT : SHELL_ACTION_KEY.PLAYER_TASKS_BOARD,
+                hotspotKey === "wallet_port" ? "world_modal_protocol_action_link" : "world_modal_protocol_action_open",
+                hotspotKey === "wallet_port" ? "world_modal_protocol_wallet_auth" : "world_modal_protocol_mission_sync",
+                hotspotKey === "wallet_port" ? "world_intent_tone_connect" : "world_intent_tone_launch"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_STATUS_PANEL,
+                "world_modal_protocol_action_scan",
+                "world_modal_protocol_risk_watch",
+                "world_intent_tone_track"
+              )
+            ]
+          }
         ),
         buildModalProtocolCard(
           "world_modal_protocol_risk_watch",
@@ -2859,7 +3241,31 @@ function buildDistrictInteractionProtocolCards(input, districtKey, activeHotspot
           resolveFlowStatusKey(riskBand, "ready"),
           "world_intent_tone_track",
           SHELL_ACTION_KEY.PLAYER_STATUS_PANEL,
-          "world_modal_protocol_action_scan"
+          "world_modal_protocol_action_scan",
+          {
+            previewRows: [
+              buildFlowStep("world_sheet_metric_risk_band", riskBand, resolveFlowStatusKey(riskBand, "ready")),
+              buildFlowStep("world_sheet_metric_wallet_state", walletState, resolveFlowStatusKey(walletState, "watch"))
+            ],
+            flowRows: [
+              buildFlowStep("world_sheet_metric_active_missions", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle"),
+              buildFlowStep("world_sheet_metric_progress", progress || "0%", progress ? "live" : "ready")
+            ],
+            actionItems: [
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_STATUS_PANEL,
+                "world_modal_protocol_action_scan",
+                "world_modal_protocol_risk_watch",
+                "world_intent_tone_track"
+              ),
+              buildModalProtocolActionItem(
+                SHELL_ACTION_KEY.PLAYER_SUPPORT_STATUS,
+                "world_modal_protocol_action_monitor",
+                "world_modal_protocol_risk_watch",
+                "world_intent_tone_track"
+              )
+            ]
+          }
         )
       ].filter(Boolean);
     }
