@@ -49,6 +49,9 @@ type RuntimeBridgePayload = {
   loopQueueCadenceText?: string;
   loopQueueCards?: LoopBridgeCard[];
   loopQueueBlocks?: LoopBridgeBlock[];
+  loopQueueFlowCards?: LoopBridgeCard[];
+  loopQueueFlowBlocks?: LoopBridgeBlock[];
+  loopQueueFlowPanels?: LoopBridgePanel[];
   loopRuntimeFamilyText?: string;
   loopRuntimeFlowText?: string;
   loopRuntimeSummaryText?: string;
@@ -61,6 +64,9 @@ type RuntimeBridgePayload = {
   loopRuntimeCadenceText?: string;
   loopRuntimeCards?: LoopBridgeCard[];
   loopRuntimeBlocks?: LoopBridgeBlock[];
+  loopRuntimeFlowCards?: LoopBridgeCard[];
+  loopRuntimeFlowBlocks?: LoopBridgeBlock[];
+  loopRuntimeFlowPanels?: LoopBridgePanel[];
   loopDispatchFamilyText?: string;
   loopDispatchFlowText?: string;
   loopDispatchSummaryText?: string;
@@ -142,12 +148,18 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopQueuePanel = byId<HTMLElement>("adminRuntimeLoopQueuePanel");
   const loopQueueCards = byId<HTMLElement>("adminRuntimeLoopQueueCards");
   const loopQueueBlocks = byId<HTMLElement>("adminRuntimeLoopQueueBlocks");
+  const loopQueueFlowCards = byId<HTMLElement>("adminRuntimeLoopQueueFlowCards");
+  const loopQueueFlowBlocks = byId<HTMLElement>("adminRuntimeLoopQueueFlowBlocks");
+  const loopQueueFlowPanels = byId<HTMLElement>("adminRuntimeLoopQueueFlowPanels");
   const loopQueueFocus = byId<HTMLElement>("adminRuntimeLoopQueueFocus");
   const loopQueueStage = byId<HTMLElement>("adminRuntimeLoopQueueStage");
   const loopRuntime = byId<HTMLElement>("adminRuntimeLoopRuntime");
   const loopRuntimePanel = byId<HTMLElement>("adminRuntimeLoopRuntimePanel");
   const loopRuntimeCards = byId<HTMLElement>("adminRuntimeLoopRuntimeCards");
   const loopRuntimeBlocks = byId<HTMLElement>("adminRuntimeLoopRuntimeBlocks");
+  const loopRuntimeFlowCards = byId<HTMLElement>("adminRuntimeLoopRuntimeFlowCards");
+  const loopRuntimeFlowBlocks = byId<HTMLElement>("adminRuntimeLoopRuntimeFlowBlocks");
+  const loopRuntimeFlowPanels = byId<HTMLElement>("adminRuntimeLoopRuntimeFlowPanels");
   const loopRuntimeFocus = byId<HTMLElement>("adminRuntimeLoopRuntimeFocus");
   const loopRuntimeStage = byId<HTMLElement>("adminRuntimeLoopRuntimeStage");
   const loopDispatch = byId<HTMLElement>("adminRuntimeLoopDispatch");
@@ -221,6 +233,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   setTone(loopQueuePanel, payload.loopQueueTone);
   renderLoopBridgeCards(loopQueueCards, payload.loopQueueCards);
   renderLoopBridgeBlocks(loopQueueBlocks, payload.loopQueueBlocks);
+  renderLoopBridgeCards(loopQueueFlowCards, payload.loopQueueFlowCards);
+  renderLoopBridgeBlocks(loopQueueFlowBlocks, payload.loopQueueFlowBlocks);
+  renderLoopBridgePanels(loopQueueFlowPanels, payload.loopQueueFlowPanels);
   if (loopQueueFocus) {
     loopQueueFocus.textContent = String(payload.loopQueueFocusText || "ENTRY WAIT | FOCUS WAIT | FLOW WAIT");
   }
@@ -233,6 +248,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   setTone(loopRuntimePanel, payload.loopRuntimeTone);
   renderLoopBridgeCards(loopRuntimeCards, payload.loopRuntimeCards);
   renderLoopBridgeBlocks(loopRuntimeBlocks, payload.loopRuntimeBlocks);
+  renderLoopBridgeCards(loopRuntimeFlowCards, payload.loopRuntimeFlowCards);
+  renderLoopBridgeBlocks(loopRuntimeFlowBlocks, payload.loopRuntimeFlowBlocks);
+  renderLoopBridgePanels(loopRuntimeFlowPanels, payload.loopRuntimeFlowPanels);
   if (loopRuntimeFocus) {
     loopRuntimeFocus.textContent = String(payload.loopRuntimeFocusText || "SEQ WAIT | FOCUS WAIT | ALERT --");
   }

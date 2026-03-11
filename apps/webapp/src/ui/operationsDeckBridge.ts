@@ -37,6 +37,9 @@ type LoopFamilyPanel = {
   tone?: string;
   cards?: LoopBridgeCard[];
   blocks?: LoopBridgeBlock[];
+  flowCards?: LoopBridgeCard[];
+  flowBlocks?: LoopBridgeBlock[];
+  flowPanels?: LoopBridgePanel[];
   familyText?: string;
   flowText?: string;
   summaryText?: string;
@@ -351,6 +354,9 @@ function renderLoopFamily(prefix: string, payload: LoopFamilyPanel): void {
   setNodeText(prefix, payload.text, "WAIT");
   renderLoopBridgeCards(byId<HTMLElement>(`${prefix}Cards`), payload.cards);
   renderLoopBridgeBlocks(byId<HTMLElement>(`${prefix}Blocks`), payload.blocks);
+  renderLoopBridgeCards(byId<HTMLElement>(`${prefix}FlowCards`), payload.flowCards);
+  renderLoopBridgeBlocks(byId<HTMLElement>(`${prefix}FlowBlocks`), payload.flowBlocks);
+  renderLoopBridgePanels(byId<HTMLElement>(`${prefix}FlowPanels`), payload.flowPanels);
   setNodeText(`${prefix}Family`, payload.familyText, "FLOW --");
   setNodeText(`${prefix}Flow`, payload.flowText, "ENTRY --");
   setNodeText(`${prefix}Summary`, payload.summaryText, "SUMMARY --");
@@ -387,6 +393,9 @@ function readLoopFamily(payload: LoopPayload, familyKey: string): LoopFamilyPane
     tone: safeText(source[`${familyKey}Tone`], "neutral"),
     cards: Array.isArray(source[`${familyKey}Cards`]) ? (source[`${familyKey}Cards`] as LoopBridgeCard[]) : undefined,
     blocks: Array.isArray(source[`${familyKey}Blocks`]) ? (source[`${familyKey}Blocks`] as LoopBridgeBlock[]) : undefined,
+    flowCards: Array.isArray(source[`${familyKey}FlowCards`]) ? (source[`${familyKey}FlowCards`] as LoopBridgeCard[]) : undefined,
+    flowBlocks: Array.isArray(source[`${familyKey}FlowBlocks`]) ? (source[`${familyKey}FlowBlocks`] as LoopBridgeBlock[]) : undefined,
+    flowPanels: Array.isArray(source[`${familyKey}FlowPanels`]) ? (source[`${familyKey}FlowPanels`] as LoopBridgePanel[]) : undefined,
     familyText: safeText(source[`${familyKey}FamilyText`], "FLOW --"),
     flowText: safeText(source[`${familyKey}FlowText`], "ENTRY --"),
     summaryText: safeText(source[`${familyKey}SummaryText`], "SUMMARY --"),

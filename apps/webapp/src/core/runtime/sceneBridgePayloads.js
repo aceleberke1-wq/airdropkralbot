@@ -578,10 +578,84 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       signalText: panels.duelSignalText,
       detailText: panels.duelDetailText
     });
+    const ladderFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.ladderTone, {
+      familyText: panels.ladderFamilyText,
+      flowText: panels.ladderFlowText,
+      summaryText: panels.ladderSummaryText,
+      gateText: panels.ladderGateText,
+      leadText: panels.ladderLeadText,
+      windowText: panels.ladderWindowText,
+      pressureText: panels.ladderPressureText,
+      responseText: panels.ladderResponseText,
+      attentionText: panels.ladderAttentionText,
+      cadenceText: panels.ladderCadenceText,
+      focusText: panels.ladderFocusText,
+      stageText: panels.ladderStageText,
+      stateText: panels.ladderStateText,
+      opsText: panels.ladderOpsText,
+      signalText: panels.ladderSignalText,
+      detailText: panels.ladderDetailText
+    });
+    const telemetryFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.telemetryTone, {
+      familyText: panels.telemetryFamilyText,
+      flowText: panels.telemetryFlowText,
+      summaryText: panels.telemetrySummaryText,
+      gateText: panels.telemetryGateText,
+      leadText: panels.telemetryLeadText,
+      windowText: panels.telemetryWindowText,
+      pressureText: panels.telemetryPressureText,
+      responseText: panels.telemetryResponseText,
+      attentionText: panels.telemetryAttentionText,
+      cadenceText: panels.telemetryCadenceText,
+      focusText: panels.telemetryFocusText,
+      stageText: panels.telemetryStageText,
+      stateText: panels.telemetryStateText,
+      opsText: panels.telemetryOpsText,
+      signalText: panels.telemetrySignalText,
+      detailText: panels.telemetryDetailText
+    });
     panels.ladderCards = ladderBundle.cards;
     panels.ladderBlocks = ladderBundle.blocks;
     panels.telemetryCards = telemetryBundle.cards;
     panels.telemetryBlocks = telemetryBundle.blocks;
+    panels.ladderFlowCards = ladderFlowBundle.cards;
+    panels.ladderFlowBlocks = ladderFlowBundle.blocks;
+    panels.ladderFlowPanels = buildLoopFlowFamilyPanels(panels.ladderTone, {
+      familyText: panels.ladderFamilyText,
+      flowText: panels.ladderFlowText,
+      summaryText: panels.ladderSummaryText,
+      gateText: panels.ladderGateText,
+      leadText: panels.ladderLeadText,
+      windowText: panels.ladderWindowText,
+      pressureText: panels.ladderPressureText,
+      responseText: panels.ladderResponseText,
+      attentionText: panels.ladderAttentionText,
+      cadenceText: panels.ladderCadenceText,
+      stateText: panels.ladderStateText,
+      stageText: panels.ladderStageText,
+      opsText: panels.ladderOpsText,
+      signalText: panels.ladderSignalText,
+      detailText: panels.ladderDetailText
+    });
+    panels.telemetryFlowCards = telemetryFlowBundle.cards;
+    panels.telemetryFlowBlocks = telemetryFlowBundle.blocks;
+    panels.telemetryFlowPanels = buildLoopFlowFamilyPanels(panels.telemetryTone, {
+      familyText: panels.telemetryFamilyText,
+      flowText: panels.telemetryFlowText,
+      summaryText: panels.telemetrySummaryText,
+      gateText: panels.telemetryGateText,
+      leadText: panels.telemetryLeadText,
+      windowText: panels.telemetryWindowText,
+      pressureText: panels.telemetryPressureText,
+      responseText: panels.telemetryResponseText,
+      attentionText: panels.telemetryAttentionText,
+      cadenceText: panels.telemetryCadenceText,
+      stateText: panels.telemetryStateText,
+      stageText: panels.telemetryStageText,
+      opsText: panels.telemetryOpsText,
+      signalText: panels.telemetrySignalText,
+      detailText: panels.telemetryDetailText
+    });
     panels.duelFlowCards = duelFlowBundle.cards;
     panels.duelFlowBlocks = duelFlowBundle.blocks;
     panels.duelFlowPanels = buildLoopFlowFamilyPanels(panels.duelTone, {
@@ -797,10 +871,84 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     signalText: panels.duelSignalText,
     detailText: panels.duelDetailText
   });
+  const ladderFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.ladderTone, {
+    familyText: panels.ladderFamilyText,
+    flowText: panels.ladderFlowText,
+    summaryText: panels.ladderSummaryText,
+    gateText: panels.ladderGateText,
+    leadText: panels.ladderLeadText,
+    windowText: panels.ladderWindowText,
+    pressureText: panels.ladderPressureText,
+    responseText: panels.ladderResponseText,
+    attentionText: panels.ladderAttentionText,
+    cadenceText: panels.ladderCadenceText,
+    focusText: panels.ladderFocusText,
+    stageText: panels.ladderStageText,
+    stateText: panels.ladderStateText,
+    opsText: panels.ladderOpsText,
+    signalText: panels.ladderSignalText,
+    detailText: panels.ladderDetailText
+  });
+  const telemetryFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.telemetryTone, {
+    familyText: panels.telemetryFamilyText,
+    flowText: panels.telemetryFlowText,
+    summaryText: panels.telemetrySummaryText,
+    gateText: panels.telemetryGateText,
+    leadText: panels.telemetryLeadText,
+    windowText: panels.telemetryWindowText,
+    pressureText: panels.telemetryPressureText,
+    responseText: panels.telemetryResponseText,
+    attentionText: panels.telemetryAttentionText,
+    cadenceText: panels.telemetryCadenceText,
+    focusText: panels.telemetryFocusText,
+    stageText: panels.telemetryStageText,
+    stateText: panels.telemetryStateText,
+    opsText: panels.telemetryOpsText,
+    signalText: panels.telemetrySignalText,
+    detailText: panels.telemetryDetailText
+  });
   panels.ladderCards = ladderBundle.cards;
   panels.ladderBlocks = ladderBundle.blocks;
   panels.telemetryCards = telemetryBundle.cards;
   panels.telemetryBlocks = telemetryBundle.blocks;
+  panels.ladderFlowCards = ladderFlowBundle.cards;
+  panels.ladderFlowBlocks = ladderFlowBundle.blocks;
+  panels.ladderFlowPanels = buildLoopFlowFamilyPanels(panels.ladderTone, {
+    familyText: panels.ladderFamilyText,
+    flowText: panels.ladderFlowText,
+    summaryText: panels.ladderSummaryText,
+    gateText: panels.ladderGateText,
+    leadText: panels.ladderLeadText,
+    windowText: panels.ladderWindowText,
+    pressureText: panels.ladderPressureText,
+    responseText: panels.ladderResponseText,
+    attentionText: panels.ladderAttentionText,
+    cadenceText: panels.ladderCadenceText,
+    stateText: panels.ladderStateText,
+    stageText: panels.ladderStageText,
+    opsText: panels.ladderOpsText,
+    signalText: panels.ladderSignalText,
+    detailText: panels.ladderDetailText
+  });
+  panels.telemetryFlowCards = telemetryFlowBundle.cards;
+  panels.telemetryFlowBlocks = telemetryFlowBundle.blocks;
+  panels.telemetryFlowPanels = buildLoopFlowFamilyPanels(panels.telemetryTone, {
+    familyText: panels.telemetryFamilyText,
+    flowText: panels.telemetryFlowText,
+    summaryText: panels.telemetrySummaryText,
+    gateText: panels.telemetryGateText,
+    leadText: panels.telemetryLeadText,
+    windowText: panels.telemetryWindowText,
+    pressureText: panels.telemetryPressureText,
+    responseText: panels.telemetryResponseText,
+    attentionText: panels.telemetryAttentionText,
+    cadenceText: panels.telemetryCadenceText,
+    stateText: panels.telemetryStateText,
+    stageText: panels.telemetryStageText,
+    opsText: panels.telemetryOpsText,
+    signalText: panels.telemetrySignalText,
+    detailText: panels.telemetryDetailText
+  });
   panels.duelFlowCards = duelFlowBundle.cards;
   panels.duelFlowBlocks = duelFlowBundle.blocks;
   panels.duelFlowPanels = buildLoopFlowFamilyPanels(panels.duelTone, {
@@ -960,12 +1108,123 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       signalText: panels.walletSignalText,
       detailText: panels.walletDetailText
     });
+    const payoutFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.payoutTone, {
+      familyText: panels.payoutFamilyText,
+      flowText: panels.payoutFlowText,
+      summaryText: panels.payoutSummaryText,
+      gateText: panels.payoutGateText,
+      leadText: panels.payoutLeadText,
+      windowText: panels.payoutWindowText,
+      pressureText: panels.payoutPressureText,
+      responseText: panels.payoutResponseText,
+      attentionText: panels.payoutAttentionText,
+      cadenceText: panels.payoutCadenceText,
+      focusText: panels.payoutFocusText,
+      stageText: panels.payoutStageText,
+      stateText: panels.payoutStateText,
+      opsText: panels.payoutOpsText,
+      signalText: panels.payoutSignalText,
+      detailText: panels.payoutDetailText
+    });
+    const routeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.routeTone, {
+      familyText: panels.routeFamilyText,
+      flowText: panels.routeFlowText,
+      summaryText: panels.routeSummaryText,
+      gateText: panels.routeGateText,
+      leadText: panels.routeLeadText,
+      windowText: panels.routeWindowText,
+      pressureText: panels.routePressureText,
+      responseText: panels.routeResponseText,
+      attentionText: panels.routeAttentionText,
+      cadenceText: panels.routeCadenceText,
+      focusText: panels.routeFocusText,
+      stageText: panels.routeStageText,
+      stateText: panels.routeStateText,
+      opsText: panels.routeOpsText,
+      signalText: panels.routeSignalText,
+      detailText: panels.routeDetailText
+    });
+    const premiumFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.premiumTone, {
+      familyText: panels.premiumFamilyText,
+      flowText: panels.premiumFlowText,
+      summaryText: panels.premiumSummaryText,
+      gateText: panels.premiumGateText,
+      leadText: panels.premiumLeadText,
+      windowText: panels.premiumWindowText,
+      pressureText: panels.premiumPressureText,
+      responseText: panels.premiumResponseText,
+      attentionText: panels.premiumAttentionText,
+      cadenceText: panels.premiumCadenceText,
+      focusText: panels.premiumFocusText,
+      stageText: panels.premiumStageText,
+      stateText: panels.premiumStateText,
+      opsText: panels.premiumOpsText,
+      signalText: panels.premiumSignalText,
+      detailText: panels.premiumDetailText
+    });
     panels.payoutCards = payoutBundle.cards;
     panels.payoutBlocks = payoutBundle.blocks;
     panels.routeCards = routeBundle.cards;
     panels.routeBlocks = routeBundle.blocks;
     panels.premiumCards = premiumBundle.cards;
     panels.premiumBlocks = premiumBundle.blocks;
+    panels.payoutFlowCards = payoutFlowBundle.cards;
+    panels.payoutFlowBlocks = payoutFlowBundle.blocks;
+    panels.payoutFlowPanels = buildLoopFlowFamilyPanels(panels.payoutTone, {
+      familyText: panels.payoutFamilyText,
+      flowText: panels.payoutFlowText,
+      summaryText: panels.payoutSummaryText,
+      gateText: panels.payoutGateText,
+      leadText: panels.payoutLeadText,
+      windowText: panels.payoutWindowText,
+      pressureText: panels.payoutPressureText,
+      responseText: panels.payoutResponseText,
+      attentionText: panels.payoutAttentionText,
+      cadenceText: panels.payoutCadenceText,
+      stateText: panels.payoutStateText,
+      stageText: panels.payoutStageText,
+      opsText: panels.payoutOpsText,
+      signalText: panels.payoutSignalText,
+      detailText: panels.payoutDetailText
+    });
+    panels.routeFlowCards = routeFlowBundle.cards;
+    panels.routeFlowBlocks = routeFlowBundle.blocks;
+    panels.routeFlowPanels = buildLoopFlowFamilyPanels(panels.routeTone, {
+      familyText: panels.routeFamilyText,
+      flowText: panels.routeFlowText,
+      summaryText: panels.routeSummaryText,
+      gateText: panels.routeGateText,
+      leadText: panels.routeLeadText,
+      windowText: panels.routeWindowText,
+      pressureText: panels.routePressureText,
+      responseText: panels.routeResponseText,
+      attentionText: panels.routeAttentionText,
+      cadenceText: panels.routeCadenceText,
+      stateText: panels.routeStateText,
+      stageText: panels.routeStageText,
+      opsText: panels.routeOpsText,
+      signalText: panels.routeSignalText,
+      detailText: panels.routeDetailText
+    });
+    panels.premiumFlowCards = premiumFlowBundle.cards;
+    panels.premiumFlowBlocks = premiumFlowBundle.blocks;
+    panels.premiumFlowPanels = buildLoopFlowFamilyPanels(panels.premiumTone, {
+      familyText: panels.premiumFamilyText,
+      flowText: panels.premiumFlowText,
+      summaryText: panels.premiumSummaryText,
+      gateText: panels.premiumGateText,
+      leadText: panels.premiumLeadText,
+      windowText: panels.premiumWindowText,
+      pressureText: panels.premiumPressureText,
+      responseText: panels.premiumResponseText,
+      attentionText: panels.premiumAttentionText,
+      cadenceText: panels.premiumCadenceText,
+      stateText: panels.premiumStateText,
+      stageText: panels.premiumStageText,
+      opsText: panels.premiumOpsText,
+      signalText: panels.premiumSignalText,
+      detailText: panels.premiumDetailText
+    });
     panels.walletFlowCards = walletFlowBundle.cards;
     panels.walletFlowBlocks = walletFlowBundle.blocks;
     panels.walletFlowPanels = buildLoopFlowFamilyPanels(panels.walletTone, {
@@ -1191,12 +1450,123 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     signalText: panels.walletSignalText,
     detailText: panels.walletDetailText
   });
+  const payoutFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.payoutTone, {
+    familyText: panels.payoutFamilyText,
+    flowText: panels.payoutFlowText,
+    summaryText: panels.payoutSummaryText,
+    gateText: panels.payoutGateText,
+    leadText: panels.payoutLeadText,
+    windowText: panels.payoutWindowText,
+    pressureText: panels.payoutPressureText,
+    responseText: panels.payoutResponseText,
+    attentionText: panels.payoutAttentionText,
+    cadenceText: panels.payoutCadenceText,
+    focusText: panels.payoutFocusText,
+    stageText: panels.payoutStageText,
+    stateText: panels.payoutStateText,
+    opsText: panels.payoutOpsText,
+    signalText: panels.payoutSignalText,
+    detailText: panels.payoutDetailText
+  });
+  const routeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.routeTone, {
+    familyText: panels.routeFamilyText,
+    flowText: panels.routeFlowText,
+    summaryText: panels.routeSummaryText,
+    gateText: panels.routeGateText,
+    leadText: panels.routeLeadText,
+    windowText: panels.routeWindowText,
+    pressureText: panels.routePressureText,
+    responseText: panels.routeResponseText,
+    attentionText: panels.routeAttentionText,
+    cadenceText: panels.routeCadenceText,
+    focusText: panels.routeFocusText,
+    stageText: panels.routeStageText,
+    stateText: panels.routeStateText,
+    opsText: panels.routeOpsText,
+    signalText: panels.routeSignalText,
+    detailText: panels.routeDetailText
+  });
+  const premiumFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.premiumTone, {
+    familyText: panels.premiumFamilyText,
+    flowText: panels.premiumFlowText,
+    summaryText: panels.premiumSummaryText,
+    gateText: panels.premiumGateText,
+    leadText: panels.premiumLeadText,
+    windowText: panels.premiumWindowText,
+    pressureText: panels.premiumPressureText,
+    responseText: panels.premiumResponseText,
+    attentionText: panels.premiumAttentionText,
+    cadenceText: panels.premiumCadenceText,
+    focusText: panels.premiumFocusText,
+    stageText: panels.premiumStageText,
+    stateText: panels.premiumStateText,
+    opsText: panels.premiumOpsText,
+    signalText: panels.premiumSignalText,
+    detailText: panels.premiumDetailText
+  });
   panels.payoutCards = payoutBundle.cards;
   panels.payoutBlocks = payoutBundle.blocks;
   panels.routeCards = routeBundle.cards;
   panels.routeBlocks = routeBundle.blocks;
   panels.premiumCards = premiumBundle.cards;
   panels.premiumBlocks = premiumBundle.blocks;
+  panels.payoutFlowCards = payoutFlowBundle.cards;
+  panels.payoutFlowBlocks = payoutFlowBundle.blocks;
+  panels.payoutFlowPanels = buildLoopFlowFamilyPanels(panels.payoutTone, {
+    familyText: panels.payoutFamilyText,
+    flowText: panels.payoutFlowText,
+    summaryText: panels.payoutSummaryText,
+    gateText: panels.payoutGateText,
+    leadText: panels.payoutLeadText,
+    windowText: panels.payoutWindowText,
+    pressureText: panels.payoutPressureText,
+    responseText: panels.payoutResponseText,
+    attentionText: panels.payoutAttentionText,
+    cadenceText: panels.payoutCadenceText,
+    stateText: panels.payoutStateText,
+    stageText: panels.payoutStageText,
+    opsText: panels.payoutOpsText,
+    signalText: panels.payoutSignalText,
+    detailText: panels.payoutDetailText
+  });
+  panels.routeFlowCards = routeFlowBundle.cards;
+  panels.routeFlowBlocks = routeFlowBundle.blocks;
+  panels.routeFlowPanels = buildLoopFlowFamilyPanels(panels.routeTone, {
+    familyText: panels.routeFamilyText,
+    flowText: panels.routeFlowText,
+    summaryText: panels.routeSummaryText,
+    gateText: panels.routeGateText,
+    leadText: panels.routeLeadText,
+    windowText: panels.routeWindowText,
+    pressureText: panels.routePressureText,
+    responseText: panels.routeResponseText,
+    attentionText: panels.routeAttentionText,
+    cadenceText: panels.routeCadenceText,
+    stateText: panels.routeStateText,
+    stageText: panels.routeStageText,
+    opsText: panels.routeOpsText,
+    signalText: panels.routeSignalText,
+    detailText: panels.routeDetailText
+  });
+  panels.premiumFlowCards = premiumFlowBundle.cards;
+  panels.premiumFlowBlocks = premiumFlowBundle.blocks;
+  panels.premiumFlowPanels = buildLoopFlowFamilyPanels(panels.premiumTone, {
+    familyText: panels.premiumFamilyText,
+    flowText: panels.premiumFlowText,
+    summaryText: panels.premiumSummaryText,
+    gateText: panels.premiumGateText,
+    leadText: panels.premiumLeadText,
+    windowText: panels.premiumWindowText,
+    pressureText: panels.premiumPressureText,
+    responseText: panels.premiumResponseText,
+    attentionText: panels.premiumAttentionText,
+    cadenceText: panels.premiumCadenceText,
+    stateText: panels.premiumStateText,
+    stageText: panels.premiumStageText,
+    opsText: panels.premiumOpsText,
+    signalText: panels.premiumSignalText,
+    detailText: panels.premiumDetailText
+  });
   panels.walletFlowCards = walletFlowBundle.cards;
   panels.walletFlowBlocks = walletFlowBundle.blocks;
   panels.walletFlowPanels = buildLoopFlowFamilyPanels(panels.walletTone, {
@@ -1327,10 +1697,84 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       signalText: panels.dispatchSignalText,
       detailText: panels.dispatchDetailText
     });
+    const queueFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.queueTone, {
+      familyText: panels.queueFamilyText,
+      flowText: panels.queueFlowText,
+      summaryText: panels.queueSummaryText,
+      gateText: panels.queueGateText,
+      leadText: panels.queueLeadText,
+      windowText: panels.queueWindowText,
+      pressureText: panels.queuePressureText,
+      responseText: panels.queueResponseText,
+      attentionText: panels.queueAttentionText,
+      cadenceText: panels.queueCadenceText,
+      focusText: panels.queueFocusText,
+      stageText: panels.queueStageText,
+      stateText: panels.queueStateText,
+      opsText: panels.queueOpsText,
+      signalText: panels.queueSignalText,
+      detailText: panels.queueDetailText
+    });
+    const runtimeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.runtimeTone, {
+      familyText: panels.runtimeFamilyText,
+      flowText: panels.runtimeFlowText,
+      summaryText: panels.runtimeSummaryText,
+      gateText: panels.runtimeGateText,
+      leadText: panels.runtimeLeadText,
+      windowText: panels.runtimeWindowText,
+      pressureText: panels.runtimePressureText,
+      responseText: panels.runtimeResponseText,
+      attentionText: panels.runtimeAttentionText,
+      cadenceText: panels.runtimeCadenceText,
+      focusText: panels.runtimeFocusText,
+      stageText: panels.runtimeStageText,
+      stateText: panels.runtimeStateText,
+      opsText: panels.runtimeOpsText,
+      signalText: panels.runtimeSignalText,
+      detailText: panels.runtimeDetailText
+    });
     panels.queueCards = queueBundle.cards;
     panels.queueBlocks = queueBundle.blocks;
     panels.runtimeCards = runtimeBundle.cards;
     panels.runtimeBlocks = runtimeBundle.blocks;
+    panels.queueFlowCards = queueFlowBundle.cards;
+    panels.queueFlowBlocks = queueFlowBundle.blocks;
+    panels.queueFlowPanels = buildLoopFlowFamilyPanels(panels.queueTone, {
+      familyText: panels.queueFamilyText,
+      flowText: panels.queueFlowText,
+      summaryText: panels.queueSummaryText,
+      gateText: panels.queueGateText,
+      leadText: panels.queueLeadText,
+      windowText: panels.queueWindowText,
+      pressureText: panels.queuePressureText,
+      responseText: panels.queueResponseText,
+      attentionText: panels.queueAttentionText,
+      cadenceText: panels.queueCadenceText,
+      stateText: panels.queueStateText,
+      stageText: panels.queueStageText,
+      opsText: panels.queueOpsText,
+      signalText: panels.queueSignalText,
+      detailText: panels.queueDetailText
+    });
+    panels.runtimeFlowCards = runtimeFlowBundle.cards;
+    panels.runtimeFlowBlocks = runtimeFlowBundle.blocks;
+    panels.runtimeFlowPanels = buildLoopFlowFamilyPanels(panels.runtimeTone, {
+      familyText: panels.runtimeFamilyText,
+      flowText: panels.runtimeFlowText,
+      summaryText: panels.runtimeSummaryText,
+      gateText: panels.runtimeGateText,
+      leadText: panels.runtimeLeadText,
+      windowText: panels.runtimeWindowText,
+      pressureText: panels.runtimePressureText,
+      responseText: panels.runtimeResponseText,
+      attentionText: panels.runtimeAttentionText,
+      cadenceText: panels.runtimeCadenceText,
+      stateText: panels.runtimeStateText,
+      stageText: panels.runtimeStageText,
+      opsText: panels.runtimeOpsText,
+      signalText: panels.runtimeSignalText,
+      detailText: panels.runtimeDetailText
+    });
     panels.dispatchFlowCards = dispatchFlowBundle.cards;
     panels.dispatchFlowBlocks = dispatchFlowBundle.blocks;
     panels.dispatchFlowPanels = buildLoopFlowFamilyPanels(panels.dispatchTone, {
@@ -1514,10 +1958,84 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     signalText: panels.dispatchSignalText,
     detailText: panels.dispatchDetailText
   });
+  const queueFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.queueTone, {
+    familyText: panels.queueFamilyText,
+    flowText: panels.queueFlowText,
+    summaryText: panels.queueSummaryText,
+    gateText: panels.queueGateText,
+    leadText: panels.queueLeadText,
+    windowText: panels.queueWindowText,
+    pressureText: panels.queuePressureText,
+    responseText: panels.queueResponseText,
+    attentionText: panels.queueAttentionText,
+    cadenceText: panels.queueCadenceText,
+    focusText: panels.queueFocusText,
+    stageText: panels.queueStageText,
+    stateText: panels.queueStateText,
+    opsText: panels.queueOpsText,
+    signalText: panels.queueSignalText,
+    detailText: panels.queueDetailText
+  });
+  const runtimeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.runtimeTone, {
+    familyText: panels.runtimeFamilyText,
+    flowText: panels.runtimeFlowText,
+    summaryText: panels.runtimeSummaryText,
+    gateText: panels.runtimeGateText,
+    leadText: panels.runtimeLeadText,
+    windowText: panels.runtimeWindowText,
+    pressureText: panels.runtimePressureText,
+    responseText: panels.runtimeResponseText,
+    attentionText: panels.runtimeAttentionText,
+    cadenceText: panels.runtimeCadenceText,
+    focusText: panels.runtimeFocusText,
+    stageText: panels.runtimeStageText,
+    stateText: panels.runtimeStateText,
+    opsText: panels.runtimeOpsText,
+    signalText: panels.runtimeSignalText,
+    detailText: panels.runtimeDetailText
+  });
   panels.queueCards = queueBundle.cards;
   panels.queueBlocks = queueBundle.blocks;
   panels.runtimeCards = runtimeBundle.cards;
   panels.runtimeBlocks = runtimeBundle.blocks;
+  panels.queueFlowCards = queueFlowBundle.cards;
+  panels.queueFlowBlocks = queueFlowBundle.blocks;
+  panels.queueFlowPanels = buildLoopFlowFamilyPanels(panels.queueTone, {
+    familyText: panels.queueFamilyText,
+    flowText: panels.queueFlowText,
+    summaryText: panels.queueSummaryText,
+    gateText: panels.queueGateText,
+    leadText: panels.queueLeadText,
+    windowText: panels.queueWindowText,
+    pressureText: panels.queuePressureText,
+    responseText: panels.queueResponseText,
+    attentionText: panels.queueAttentionText,
+    cadenceText: panels.queueCadenceText,
+    stateText: panels.queueStateText,
+    stageText: panels.queueStageText,
+    opsText: panels.queueOpsText,
+    signalText: panels.queueSignalText,
+    detailText: panels.queueDetailText
+  });
+  panels.runtimeFlowCards = runtimeFlowBundle.cards;
+  panels.runtimeFlowBlocks = runtimeFlowBundle.blocks;
+  panels.runtimeFlowPanels = buildLoopFlowFamilyPanels(panels.runtimeTone, {
+    familyText: panels.runtimeFamilyText,
+    flowText: panels.runtimeFlowText,
+    summaryText: panels.runtimeSummaryText,
+    gateText: panels.runtimeGateText,
+    leadText: panels.runtimeLeadText,
+    windowText: panels.runtimeWindowText,
+    pressureText: panels.runtimePressureText,
+    responseText: panels.runtimeResponseText,
+    attentionText: panels.runtimeAttentionText,
+    cadenceText: panels.runtimeCadenceText,
+    stateText: panels.runtimeStateText,
+    stageText: panels.runtimeStageText,
+    opsText: panels.runtimeOpsText,
+    signalText: panels.runtimeSignalText,
+    detailText: panels.runtimeDetailText
+  });
   panels.dispatchFlowCards = dispatchFlowBundle.cards;
   panels.dispatchFlowBlocks = dispatchFlowBundle.blocks;
   panels.dispatchFlowPanels = buildLoopFlowFamilyPanels(panels.dispatchTone, {
@@ -1677,12 +2195,123 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       attentionText: panels.streakAttentionText,
       cadenceText: panels.streakCadenceText
     });
+    const offerFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.offerTone, {
+      familyText: panels.offerFamilyText,
+      flowText: panels.offerFlowText,
+      summaryText: panels.offerSummaryText,
+      gateText: panels.offerGateText,
+      leadText: panels.offerLeadText,
+      windowText: panels.offerWindowText,
+      pressureText: panels.offerPressureText,
+      responseText: panels.offerResponseText,
+      attentionText: panels.offerAttentionText,
+      cadenceText: panels.offerCadenceText,
+      focusText: panels.offerFocusText,
+      stageText: panels.offerStageText,
+      stateText: panels.offerStateText,
+      opsText: panels.offerOpsText,
+      signalText: panels.offerSignalText,
+      detailText: panels.offerDetailText
+    });
+    const claimFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.claimTone, {
+      familyText: panels.claimFamilyText,
+      flowText: panels.claimFlowText,
+      summaryText: panels.claimSummaryText,
+      gateText: panels.claimGateText,
+      leadText: panels.claimLeadText,
+      windowText: panels.claimWindowText,
+      pressureText: panels.claimPressureText,
+      responseText: panels.claimResponseText,
+      attentionText: panels.claimAttentionText,
+      cadenceText: panels.claimCadenceText,
+      focusText: panels.claimFocusText,
+      stageText: panels.claimStageText,
+      stateText: panels.claimStateText,
+      opsText: panels.claimOpsText,
+      signalText: panels.claimSignalText,
+      detailText: panels.claimDetailText
+    });
+    const streakFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.streakTone, {
+      familyText: panels.streakFamilyText,
+      flowText: panels.streakFlowText,
+      summaryText: panels.streakSummaryText,
+      gateText: panels.streakGateText,
+      leadText: panels.streakLeadText,
+      windowText: panels.streakWindowText,
+      pressureText: panels.streakPressureText,
+      responseText: panels.streakResponseText,
+      attentionText: panels.streakAttentionText,
+      cadenceText: panels.streakCadenceText,
+      focusText: panels.streakFocusText,
+      stageText: panels.streakStageText,
+      stateText: panels.streakStateText,
+      opsText: panels.streakOpsText,
+      signalText: panels.streakSignalText,
+      detailText: panels.streakDetailText
+    });
     panels.offerCards = offerBundle.cards;
     panels.offerBlocks = offerBundle.blocks;
     panels.claimCards = claimBundle.cards;
     panels.claimBlocks = claimBundle.blocks;
     panels.streakCards = streakBundle.cards;
     panels.streakBlocks = streakBundle.blocks;
+    panels.offerFlowCards = offerFlowBundle.cards;
+    panels.offerFlowBlocks = offerFlowBundle.blocks;
+    panels.offerFlowPanels = buildLoopFlowFamilyPanels(panels.offerTone, {
+      familyText: panels.offerFamilyText,
+      flowText: panels.offerFlowText,
+      summaryText: panels.offerSummaryText,
+      gateText: panels.offerGateText,
+      leadText: panels.offerLeadText,
+      windowText: panels.offerWindowText,
+      pressureText: panels.offerPressureText,
+      responseText: panels.offerResponseText,
+      attentionText: panels.offerAttentionText,
+      cadenceText: panels.offerCadenceText,
+      stateText: panels.offerStateText,
+      stageText: panels.offerStageText,
+      opsText: panels.offerOpsText,
+      signalText: panels.offerSignalText,
+      detailText: panels.offerDetailText
+    });
+    panels.claimFlowCards = claimFlowBundle.cards;
+    panels.claimFlowBlocks = claimFlowBundle.blocks;
+    panels.claimFlowPanels = buildLoopFlowFamilyPanels(panels.claimTone, {
+      familyText: panels.claimFamilyText,
+      flowText: panels.claimFlowText,
+      summaryText: panels.claimSummaryText,
+      gateText: panels.claimGateText,
+      leadText: panels.claimLeadText,
+      windowText: panels.claimWindowText,
+      pressureText: panels.claimPressureText,
+      responseText: panels.claimResponseText,
+      attentionText: panels.claimAttentionText,
+      cadenceText: panels.claimCadenceText,
+      stateText: panels.claimStateText,
+      stageText: panels.claimStageText,
+      opsText: panels.claimOpsText,
+      signalText: panels.claimSignalText,
+      detailText: panels.claimDetailText
+    });
+    panels.streakFlowCards = streakFlowBundle.cards;
+    panels.streakFlowBlocks = streakFlowBundle.blocks;
+    panels.streakFlowPanels = buildLoopFlowFamilyPanels(panels.streakTone, {
+      familyText: panels.streakFamilyText,
+      flowText: panels.streakFlowText,
+      summaryText: panels.streakSummaryText,
+      gateText: panels.streakGateText,
+      leadText: panels.streakLeadText,
+      windowText: panels.streakWindowText,
+      pressureText: panels.streakPressureText,
+      responseText: panels.streakResponseText,
+      attentionText: panels.streakAttentionText,
+      cadenceText: panels.streakCadenceText,
+      stateText: panels.streakStateText,
+      stageText: panels.streakStageText,
+      opsText: panels.streakOpsText,
+      signalText: panels.streakSignalText,
+      detailText: panels.streakDetailText
+    });
     panels.lootFlowCards = lootFlowBundle.cards;
     panels.lootFlowBlocks = lootFlowBundle.blocks;
     panels.lootFlowPanels = buildLoopFlowFamilyPanels(panels.lootTone, {
@@ -1896,12 +2525,123 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     attentionText: panels.streakAttentionText,
     cadenceText: panels.streakCadenceText
   });
+  const offerFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.offerTone, {
+    familyText: panels.offerFamilyText,
+    flowText: panels.offerFlowText,
+    summaryText: panels.offerSummaryText,
+    gateText: panels.offerGateText,
+    leadText: panels.offerLeadText,
+    windowText: panels.offerWindowText,
+    pressureText: panels.offerPressureText,
+    responseText: panels.offerResponseText,
+    attentionText: panels.offerAttentionText,
+    cadenceText: panels.offerCadenceText,
+    focusText: panels.offerFocusText,
+    stageText: panels.offerStageText,
+    stateText: panels.offerStateText,
+    opsText: panels.offerOpsText,
+    signalText: panels.offerSignalText,
+    detailText: panels.offerDetailText
+  });
+  const claimFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.claimTone, {
+    familyText: panels.claimFamilyText,
+    flowText: panels.claimFlowText,
+    summaryText: panels.claimSummaryText,
+    gateText: panels.claimGateText,
+    leadText: panels.claimLeadText,
+    windowText: panels.claimWindowText,
+    pressureText: panels.claimPressureText,
+    responseText: panels.claimResponseText,
+    attentionText: panels.claimAttentionText,
+    cadenceText: panels.claimCadenceText,
+    focusText: panels.claimFocusText,
+    stageText: panels.claimStageText,
+    stateText: panels.claimStateText,
+    opsText: panels.claimOpsText,
+    signalText: panels.claimSignalText,
+    detailText: panels.claimDetailText
+  });
+  const streakFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.streakTone, {
+    familyText: panels.streakFamilyText,
+    flowText: panels.streakFlowText,
+    summaryText: panels.streakSummaryText,
+    gateText: panels.streakGateText,
+    leadText: panels.streakLeadText,
+    windowText: panels.streakWindowText,
+    pressureText: panels.streakPressureText,
+    responseText: panels.streakResponseText,
+    attentionText: panels.streakAttentionText,
+    cadenceText: panels.streakCadenceText,
+    focusText: panels.streakFocusText,
+    stageText: panels.streakStageText,
+    stateText: panels.streakStateText,
+    opsText: panels.streakOpsText,
+    signalText: panels.streakSignalText,
+    detailText: panels.streakDetailText
+  });
   panels.offerCards = offerBundle.cards;
   panels.offerBlocks = offerBundle.blocks;
   panels.claimCards = claimBundle.cards;
   panels.claimBlocks = claimBundle.blocks;
   panels.streakCards = streakBundle.cards;
   panels.streakBlocks = streakBundle.blocks;
+  panels.offerFlowCards = offerFlowBundle.cards;
+  panels.offerFlowBlocks = offerFlowBundle.blocks;
+  panels.offerFlowPanels = buildLoopFlowFamilyPanels(panels.offerTone, {
+    familyText: panels.offerFamilyText,
+    flowText: panels.offerFlowText,
+    summaryText: panels.offerSummaryText,
+    gateText: panels.offerGateText,
+    leadText: panels.offerLeadText,
+    windowText: panels.offerWindowText,
+    pressureText: panels.offerPressureText,
+    responseText: panels.offerResponseText,
+    attentionText: panels.offerAttentionText,
+    cadenceText: panels.offerCadenceText,
+    stateText: panels.offerStateText,
+    stageText: panels.offerStageText,
+    opsText: panels.offerOpsText,
+    signalText: panels.offerSignalText,
+    detailText: panels.offerDetailText
+  });
+  panels.claimFlowCards = claimFlowBundle.cards;
+  panels.claimFlowBlocks = claimFlowBundle.blocks;
+  panels.claimFlowPanels = buildLoopFlowFamilyPanels(panels.claimTone, {
+    familyText: panels.claimFamilyText,
+    flowText: panels.claimFlowText,
+    summaryText: panels.claimSummaryText,
+    gateText: panels.claimGateText,
+    leadText: panels.claimLeadText,
+    windowText: panels.claimWindowText,
+    pressureText: panels.claimPressureText,
+    responseText: panels.claimResponseText,
+    attentionText: panels.claimAttentionText,
+    cadenceText: panels.claimCadenceText,
+    stateText: panels.claimStateText,
+    stageText: panels.claimStageText,
+    opsText: panels.claimOpsText,
+    signalText: panels.claimSignalText,
+    detailText: panels.claimDetailText
+  });
+  panels.streakFlowCards = streakFlowBundle.cards;
+  panels.streakFlowBlocks = streakFlowBundle.blocks;
+  panels.streakFlowPanels = buildLoopFlowFamilyPanels(panels.streakTone, {
+    familyText: panels.streakFamilyText,
+    flowText: panels.streakFlowText,
+    summaryText: panels.streakSummaryText,
+    gateText: panels.streakGateText,
+    leadText: panels.streakLeadText,
+    windowText: panels.streakWindowText,
+    pressureText: panels.streakPressureText,
+    responseText: panels.streakResponseText,
+    attentionText: panels.streakAttentionText,
+    cadenceText: panels.streakCadenceText,
+    stateText: panels.streakStateText,
+    stageText: panels.streakStageText,
+    opsText: panels.streakOpsText,
+    signalText: panels.streakSignalText,
+    detailText: panels.streakDetailText
+  });
   panels.lootFlowCards = lootFlowBundle.cards;
   panels.lootFlowBlocks = lootFlowBundle.blocks;
   panels.lootFlowPanels = buildLoopFlowFamilyPanels(panels.lootTone, {
@@ -2723,6 +3463,9 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopLadderCadenceText: loopMicro.ladderCadenceText,
       loopLadderCards: loopMicro.ladderCards,
       loopLadderBlocks: loopMicro.ladderBlocks,
+      loopLadderFlowCards: loopMicro.ladderFlowCards,
+      loopLadderFlowBlocks: loopMicro.ladderFlowBlocks,
+      loopLadderFlowPanels: loopMicro.ladderFlowPanels,
       loopTelemetryFamilyText: loopMicro.telemetryFamilyText,
       loopTelemetryFlowText: loopMicro.telemetryFlowText,
       loopTelemetrySummaryText: loopMicro.telemetrySummaryText,
@@ -2734,7 +3477,10 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopTelemetryAttentionText: loopMicro.telemetryAttentionText,
       loopTelemetryCadenceText: loopMicro.telemetryCadenceText,
       loopTelemetryCards: loopMicro.telemetryCards,
-      loopTelemetryBlocks: loopMicro.telemetryBlocks
+      loopTelemetryBlocks: loopMicro.telemetryBlocks,
+      loopTelemetryFlowCards: loopMicro.telemetryFlowCards,
+      loopTelemetryFlowBlocks: loopMicro.telemetryFlowBlocks,
+      loopTelemetryFlowPanels: loopMicro.telemetryFlowPanels
     },
     camera: {
       mode: {
@@ -2985,6 +3731,9 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         offerCadenceText: loopMicro.offerCadenceText,
         offerCards: loopMicro.offerCards,
         offerBlocks: loopMicro.offerBlocks,
+        offerFlowCards: loopMicro.offerFlowCards,
+        offerFlowBlocks: loopMicro.offerFlowBlocks,
+        offerFlowPanels: loopMicro.offerFlowPanels,
         claimFamilyText: loopMicro.claimFamilyText,
         claimFlowText: loopMicro.claimFlowText,
         claimSummaryText: loopMicro.claimSummaryText,
@@ -2997,6 +3746,9 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         claimCadenceText: loopMicro.claimCadenceText,
         claimCards: loopMicro.claimCards,
         claimBlocks: loopMicro.claimBlocks,
+        claimFlowCards: loopMicro.claimFlowCards,
+        claimFlowBlocks: loopMicro.claimFlowBlocks,
+        claimFlowPanels: loopMicro.claimFlowPanels,
         streakFamilyText: loopMicro.streakFamilyText,
         streakFlowText: loopMicro.streakFlowText,
         streakSummaryText: loopMicro.streakSummaryText,
@@ -3009,6 +3761,9 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         streakCadenceText: loopMicro.streakCadenceText,
         streakCards: loopMicro.streakCards,
         streakBlocks: loopMicro.streakBlocks,
+        streakFlowCards: loopMicro.streakFlowCards,
+        streakFlowBlocks: loopMicro.streakFlowBlocks,
+        streakFlowPanels: loopMicro.streakFlowPanels,
         lootFamilyText: loopMicro.lootFamilyText,
         lootFlowText: loopMicro.lootFlowText,
         lootSummaryText: loopMicro.lootSummaryText,
@@ -3165,6 +3920,15 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopPremiumResponseText: loopMicro.premiumResponseText,
     loopPremiumAttentionText: loopMicro.premiumAttentionText,
     loopPremiumCadenceText: loopMicro.premiumCadenceText,
+    loopPayoutFlowCards: loopMicro.payoutFlowCards,
+    loopPayoutFlowBlocks: loopMicro.payoutFlowBlocks,
+    loopPayoutFlowPanels: loopMicro.payoutFlowPanels,
+    loopRouteFlowCards: loopMicro.routeFlowCards,
+    loopRouteFlowBlocks: loopMicro.routeFlowBlocks,
+    loopRouteFlowPanels: loopMicro.routeFlowPanels,
+    loopPremiumFlowCards: loopMicro.premiumFlowCards,
+    loopPremiumFlowBlocks: loopMicro.premiumFlowBlocks,
+    loopPremiumFlowPanels: loopMicro.premiumFlowPanels,
     statusChips: [
       {
         id: "tokenWalletChip",
@@ -3511,6 +4275,9 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopQueueCadenceText: loopMicro.queueCadenceText,
     loopQueueCards: loopMicro.queueCards,
     loopQueueBlocks: loopMicro.queueBlocks,
+    loopQueueFlowCards: loopMicro.queueFlowCards,
+    loopQueueFlowBlocks: loopMicro.queueFlowBlocks,
+    loopQueueFlowPanels: loopMicro.queueFlowPanels,
     loopRuntimeFamilyText: loopMicro.runtimeFamilyText,
     loopRuntimeFlowText: loopMicro.runtimeFlowText,
     loopRuntimeSummaryText: loopMicro.runtimeSummaryText,
@@ -3523,6 +4290,9 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopRuntimeCadenceText: loopMicro.runtimeCadenceText,
     loopRuntimeCards: loopMicro.runtimeCards,
     loopRuntimeBlocks: loopMicro.runtimeBlocks,
+    loopRuntimeFlowCards: loopMicro.runtimeFlowCards,
+    loopRuntimeFlowBlocks: loopMicro.runtimeFlowBlocks,
+    loopRuntimeFlowPanels: loopMicro.runtimeFlowPanels,
     loopDispatchFamilyText: loopMicro.dispatchFamilyText,
     loopDispatchFlowText: loopMicro.dispatchFlowText,
     loopDispatchSummaryText: loopMicro.dispatchSummaryText,
