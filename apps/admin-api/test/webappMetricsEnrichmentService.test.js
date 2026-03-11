@@ -223,4 +223,14 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_family_matrix_7d[0].loop_family_key, "duel");
   assert.equal(enriched.scene_loop_district_family_matrix_7d[0].latest_health_band, "yellow");
   assert.equal(enriched.scene_loop_district_family_matrix_7d[0].attention_band, "watch");
+  assert.equal(enriched.scene_loop_district_family_latest_band_breakdown_7d[0].bucket_key, "yellow");
+  assert.equal(enriched.scene_loop_district_family_latest_band_breakdown_7d[0].item_count, 2);
+  assert.equal(enriched.scene_loop_district_family_trend_breakdown_7d[0].bucket_key, "no_data");
+  assert.equal(enriched.scene_loop_district_family_trend_breakdown_7d[0].item_count, 2);
+  assert.equal(enriched.scene_loop_district_family_health_trend_breakdown_7d[0].bucket_key, "red:no_data");
+  assert.equal(enriched.scene_loop_district_family_health_trend_breakdown_7d[0].item_count, 1);
+  assert.equal(enriched.scene_loop_district_family_attention_breakdown_7d[0].bucket_key, "watch");
+  assert.equal(enriched.scene_loop_district_family_attention_breakdown_7d[0].item_count, 2);
+  assert.equal(enriched.scene_loop_district_family_health_attention_breakdown_7d[0].bucket_key, "yellow:watch");
+  assert.equal(enriched.scene_loop_district_family_health_attention_breakdown_7d[0].item_count, 2);
 });
