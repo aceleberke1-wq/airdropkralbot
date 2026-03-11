@@ -4508,6 +4508,358 @@ function buildDistrictInteractionModal(input, districtKey, activeHotspot, intera
   };
 }
 
+function buildProtocolMicroFlowLiveState(sequenceKindKey, input) {
+  const homeFeed = asRecord(input.homeFeed);
+  const season = asRecord(homeFeed.season);
+  const mission = asRecord(homeFeed.mission);
+  const walletQuick = asRecord(homeFeed.wallet_quick);
+  const daily = asRecord(homeFeed.daily);
+  const contract = asRecord(homeFeed.contract);
+  const taskResult = asRecord(input.taskResult);
+  const pvpRuntime = asRecord(input.pvpRuntime);
+  const leagueOverview = asRecord(input.leagueOverview);
+  const dailyDuel = asRecord(leagueOverview.daily_duel);
+  const weeklyLadder = asRecord(leagueOverview.weekly_ladder);
+  const pvpLive = asRecord(input.pvpLive);
+  const diagnostics = asRecord(pvpLive.diagnostics);
+  const tick = asRecord(pvpLive.tick);
+  const vaultData = asRecord(input.vaultData);
+  const walletSession = asRecord(vaultData.wallet_session);
+  const payoutStatus = asRecord(vaultData.payout_status);
+  const monetization = asRecord(vaultData.monetization_status);
+  const routeStatus = asRecord(vaultData.route_status);
+  const adminRuntime = asRecord(input.adminRuntime);
+  const summary = asRecord(adminRuntime.summary);
+  const queue = asList(adminRuntime.queue);
+
+  const walletLinked = pickTruthy(walletSession, ["active", "linked"]) || pickTruthy(walletQuick, ["linked", "wallet_linked", "active"]);
+  const progress = percentText(season.progress_pct || season.progress || season.completion_pct);
+  const missionCount = countText(taskResult.offer_count || taskResult.offers_count || mission.offer_count || mission.active_count);
+  const claimableCount = countText(taskResult.claimable_count || mission.claimable_count);
+  const streakDays = countText(daily.streak_days || daily.streak);
+  const contractBand = upperText(contract.band || contract.state || "OPEN");
+  const duelPhase = upperText(pvpRuntime.phase || dailyDuel.phase || "SYNC");
+  const ladderCharge = percentText(weeklyLadder.completion_pct || weeklyLadder.rank_progress_pct);
+  const diagBand = upperText(diagnostics.category || diagnostics.state || "CLEAN");
+  const tickTempoValue = toNum(tick.tempo_ms || tick.tick_ms, Number.NaN);
+  const tickTempo = Number.isFinite(tickTempoValue) ? `${Math.round(tickTempoValue)}ms` : "SYNC";
+  const payoutState = upperText(payoutStatus.state || payoutStatus.status || "READY");
+  const routeState = upperText(routeStatus.state || routeStatus.health || "READY");
+  const premiumState = pickTruthy(monetization, ["pass_active", "active", "premium_active"]) ? "ACTIVE" : "READY";
+  const sceneHealth = upperText(summary.scene_runtime_health_band_24h || summary.scene_health_band || "READY");
+  const schedulerState = upperText(summary.live_ops_scheduler_state || summary.scheduler_state || "READY");
+  const liveOpsSent = countText(summary.live_ops_sent_24h || summary.sent_24h);
+  const alertCount = countText(summary.ops_alert_raised_24h || summary.alerts_24h);
+
+  switch (sequenceKindKey) {
+    case "world_modal_kind_duel_sequence":
+      return {
+        loop_status_key: resolveFlowStatusKey(duelPhase, "live"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(duelPhase, "live")),
+        loop_stage_value: duelPhase,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live")),
+          buildFlowStep("world_sheet_metric_tick_tempo", tickTempo, "live"),
+          buildFlowStep("world_sheet_metric_diag_band", diagBand, resolveFlowStatusKey(diagBand, "ready"))
+        ].filter(Boolean),
+        loop_signal_rows: [
+          buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge || "0%", ladderCharge ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_diag_band", diagBand, resolveFlowStatusKey(diagBand, "ready"))
+        ].filter(Boolean),
+        loop_motion_scalar: duelPhase === "RESOLVE" ? 1.24 : 1.12,
+        loop_radius_scale: duelPhase === "RESOLVE" ? 0.94 : 0.98,
+        loop_focus_y_offset: duelPhase === "RESOLVE" ? 0.05 : 0.03,
+        loop_alpha_offset: duelPhase === "RESOLVE" ? -0.06 : -0.03,
+        loop_beta_offset: duelPhase === "RESOLVE" ? 0.03 : 0.01,
+        loop_focus_lerp_scalar: duelPhase === "RESOLVE" ? 1.18 : 1.08,
+        loop_radius_lerp_scalar: duelPhase === "RESOLVE" ? 1.16 : 1.08
+      };
+    case "world_modal_kind_ladder_sequence":
+      return {
+        loop_status_key: resolveFlowStatusKey(weeklyLadder.phase || ladderCharge, "live"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(weeklyLadder.phase || ladderCharge, "live")),
+        loop_stage_value: ladderCharge || upperText(weeklyLadder.phase || "LIVE"),
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge || "0%", ladderCharge ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live")),
+          buildFlowStep("world_sheet_metric_tick_tempo", tickTempo, "live")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_diag_band", diagBand, resolveFlowStatusKey(diagBand, "ready"))].filter(Boolean),
+        loop_motion_scalar: 1.08,
+        loop_radius_scale: 0.98,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: -0.02,
+        loop_beta_offset: 0.01,
+        loop_focus_lerp_scalar: 1.04,
+        loop_radius_lerp_scalar: 1.06
+      };
+    case "world_modal_kind_telemetry_scan":
+      return {
+        loop_status_key: resolveFlowStatusKey(diagBand, "watch"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(diagBand, "watch")),
+        loop_stage_value: diagBand,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_diag_band", diagBand, resolveFlowStatusKey(diagBand, "watch")),
+          buildFlowStep("world_sheet_metric_tick_tempo", tickTempo, "live"),
+          buildFlowStep("world_sheet_metric_ladder_charge", ladderCharge || "0%", ladderCharge ? "live" : "idle")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_duel_phase", duelPhase, resolveFlowStatusKey(duelPhase, "live"))].filter(Boolean),
+        loop_motion_scalar: 0.92,
+        loop_radius_scale: 1.02,
+        loop_focus_y_offset: 0.01,
+        loop_alpha_offset: 0.02,
+        loop_beta_offset: -0.01,
+        loop_focus_lerp_scalar: 0.98,
+        loop_radius_lerp_scalar: 0.96
+      };
+    case "world_modal_kind_mission_terminal":
+      return {
+        loop_status_key: toNum(missionCount, 0) > 0 ? "live" : "idle",
+        loop_status_label_key: flowStatusLabelKey(toNum(missionCount, 0) > 0 ? "live" : "idle"),
+        loop_stage_value: missionCount ? `${missionCount} LIVE` : "IDLE",
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_offer_count", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch")),
+          buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_streak", streakDays ? `${streakDays}d` : "0d", toNum(streakDays, 0) > 0 ? "live" : "idle")].filter(Boolean),
+        loop_motion_scalar: toNum(missionCount, 0) > 0 ? 1.04 : 0.92,
+        loop_radius_scale: toNum(missionCount, 0) > 0 ? 0.98 : 1.02,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: -0.02,
+        loop_beta_offset: 0.01,
+        loop_focus_lerp_scalar: 1.04,
+        loop_radius_lerp_scalar: 1.02
+      };
+    case "world_modal_kind_contract_sequence":
+      return {
+        loop_status_key: claimableCount ? "ready" : resolveFlowStatusKey(contractBand, "watch"),
+        loop_status_label_key: flowStatusLabelKey(claimableCount ? "ready" : resolveFlowStatusKey(contractBand, "watch")),
+        loop_stage_value: claimableCount ? `${claimableCount} READY` : contractBand,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle"),
+          buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch")),
+          buildFlowStep("world_sheet_metric_streak", streakDays ? `${streakDays}d` : "0d", toNum(streakDays, 0) > 0 ? "live" : "idle")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_offer_count", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle")].filter(Boolean),
+        loop_motion_scalar: claimableCount ? 1.12 : 0.98,
+        loop_radius_scale: claimableCount ? 0.94 : 1,
+        loop_focus_y_offset: claimableCount ? 0.04 : 0.02,
+        loop_alpha_offset: claimableCount ? -0.04 : -0.02,
+        loop_beta_offset: claimableCount ? 0.02 : 0.01,
+        loop_focus_lerp_scalar: claimableCount ? 1.12 : 1,
+        loop_radius_lerp_scalar: claimableCount ? 1.08 : 1
+      };
+    case "world_modal_kind_streak_sync":
+      return {
+        loop_status_key: toNum(streakDays, 0) > 0 ? "live" : "idle",
+        loop_status_label_key: flowStatusLabelKey(toNum(streakDays, 0) > 0 ? "live" : "idle"),
+        loop_stage_value: streakDays ? `${streakDays}D` : "0D",
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_streak", streakDays ? `${streakDays}d` : "0d", toNum(streakDays, 0) > 0 ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_claimable", claimableCount || "0", claimableCount ? "ready" : "idle"),
+          buildFlowStep("world_sheet_metric_offer_count", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_contract_band", contractBand, resolveFlowStatusKey(contractBand, "watch"))].filter(Boolean),
+        loop_motion_scalar: toNum(streakDays, 0) > 0 ? 0.98 : 0.9,
+        loop_radius_scale: 1,
+        loop_focus_y_offset: 0.01,
+        loop_alpha_offset: 0,
+        loop_beta_offset: -0.01,
+        loop_focus_lerp_scalar: 0.96,
+        loop_radius_lerp_scalar: 0.96
+      };
+    case "world_modal_kind_wallet_terminal":
+      return {
+        loop_status_key: walletLinked ? "ready" : "watch",
+        loop_status_label_key: flowStatusLabelKey(walletLinked ? "ready" : "watch"),
+        loop_stage_value: walletLinked ? "LIVE" : "OPEN",
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_wallet_state", walletLinked ? "LIVE" : "OPEN", walletLinked ? "ready" : "watch"),
+          buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready")),
+          buildFlowStep("world_sheet_metric_payout_state", payoutState, resolveFlowStatusKey(payoutState, "ready"))
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready"))].filter(Boolean),
+        loop_motion_scalar: walletLinked ? 0.96 : 1.02,
+        loop_radius_scale: walletLinked ? 0.98 : 1.02,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: -0.01,
+        loop_beta_offset: 0.01,
+        loop_focus_lerp_scalar: 1.02,
+        loop_radius_lerp_scalar: 1.02
+      };
+    case "world_modal_kind_payout_route":
+      return {
+        loop_status_key: resolveFlowStatusKey(payoutState || routeState, "ready"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(payoutState || routeState, "ready")),
+        loop_stage_value: payoutState || routeState,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_payout_state", payoutState, resolveFlowStatusKey(payoutState, "ready")),
+          buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready")),
+          buildFlowStep("world_sheet_metric_wallet_state", walletLinked ? "LIVE" : "OPEN", walletLinked ? "ready" : "watch")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready"))].filter(Boolean),
+        loop_motion_scalar: payoutState === "LOCKED" ? 0.86 : 0.94,
+        loop_radius_scale: payoutState === "LOCKED" ? 1.04 : 0.96,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: payoutState === "LOCKED" ? 0.02 : -0.02,
+        loop_beta_offset: 0.01,
+        loop_focus_lerp_scalar: payoutState === "LOCKED" ? 0.94 : 1.04,
+        loop_radius_lerp_scalar: payoutState === "LOCKED" ? 0.94 : 1.06
+      };
+    case "world_modal_kind_premium_unlock":
+      return {
+        loop_status_key: resolveFlowStatusKey(premiumState, "ready"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(premiumState, "ready")),
+        loop_stage_value: premiumState,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_premium_state", premiumState, resolveFlowStatusKey(premiumState, "ready")),
+          buildFlowStep("world_sheet_metric_route_state", routeState, resolveFlowStatusKey(routeState, "ready")),
+          buildFlowStep("world_sheet_metric_wallet_state", walletLinked ? "LIVE" : "OPEN", walletLinked ? "ready" : "watch")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_payout_state", payoutState, resolveFlowStatusKey(payoutState, "ready"))].filter(Boolean),
+        loop_motion_scalar: premiumState === "ACTIVE" ? 1.02 : 0.96,
+        loop_radius_scale: 0.96,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: -0.02,
+        loop_beta_offset: 0.01,
+        loop_focus_lerp_scalar: 1.02,
+        loop_radius_lerp_scalar: 1.02
+      };
+    case "world_modal_kind_queue_review":
+      return {
+        loop_status_key: toNum(queue.length, 0) > 0 ? "live" : "ready",
+        loop_status_label_key: flowStatusLabelKey(toNum(queue.length, 0) > 0 ? "live" : "ready"),
+        loop_stage_value: countText(queue.length) || "0",
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_queue_depth", countText(queue.length) || "0", toNum(queue.length, 0) > 0 ? "live" : "ready"),
+          buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch")),
+          buildFlowStep("world_sheet_metric_alerts", alertCount || "0", toNum(alertCount, 0) > 0 ? "watch" : "ready")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_liveops_sent", liveOpsSent || "0", toNum(liveOpsSent, 0) > 0 ? "live" : "idle")].filter(Boolean),
+        loop_motion_scalar: toNum(queue.length, 0) > 0 ? 0.92 : 0.84,
+        loop_radius_scale: 1,
+        loop_focus_y_offset: 0.02,
+        loop_alpha_offset: 0.02,
+        loop_beta_offset: -0.02,
+        loop_focus_lerp_scalar: 0.96,
+        loop_radius_lerp_scalar: 0.98
+      };
+    case "world_modal_kind_runtime_scan":
+      return {
+        loop_status_key: resolveFlowStatusKey(sceneHealth, "watch"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(sceneHealth, "watch")),
+        loop_stage_value: sceneHealth,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch")),
+          buildFlowStep("world_sheet_metric_alerts", alertCount || "0", toNum(alertCount, 0) > 0 ? "watch" : "ready"),
+          buildFlowStep("world_sheet_metric_liveops_sent", liveOpsSent || "0", toNum(liveOpsSent, 0) > 0 ? "live" : "idle")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_queue_depth", countText(queue.length) || "0", toNum(queue.length, 0) > 0 ? "live" : "ready")].filter(Boolean),
+        loop_motion_scalar: 0.84,
+        loop_radius_scale: 1.02,
+        loop_focus_y_offset: 0.03,
+        loop_alpha_offset: 0.02,
+        loop_beta_offset: -0.02,
+        loop_focus_lerp_scalar: 0.92,
+        loop_radius_lerp_scalar: 0.94
+      };
+    case "world_modal_kind_dispatch_sequence":
+      return {
+        loop_status_key: resolveFlowStatusKey(schedulerState, "watch"),
+        loop_status_label_key: flowStatusLabelKey(resolveFlowStatusKey(schedulerState, "watch")),
+        loop_stage_value: schedulerState,
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_liveops_sent", liveOpsSent || "0", toNum(liveOpsSent, 0) > 0 ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_alerts", alertCount || "0", toNum(alertCount, 0) > 0 ? "watch" : "ready"),
+          buildFlowStep("world_sheet_metric_scene_health", sceneHealth, resolveFlowStatusKey(sceneHealth, "watch"))
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_queue_depth", countText(queue.length) || "0", toNum(queue.length, 0) > 0 ? "live" : "ready")].filter(Boolean),
+        loop_motion_scalar: schedulerState === "ALERT" ? 1.02 : 0.92,
+        loop_radius_scale: schedulerState === "ALERT" ? 0.94 : 0.98,
+        loop_focus_y_offset: 0.04,
+        loop_alpha_offset: -0.04,
+        loop_beta_offset: 0.02,
+        loop_focus_lerp_scalar: 1.08,
+        loop_radius_lerp_scalar: 1.06
+      };
+    case "world_modal_kind_travel_gate":
+    default:
+      return {
+        loop_status_key: progress ? "live" : "ready",
+        loop_status_label_key: flowStatusLabelKey(progress ? "live" : "ready"),
+        loop_stage_value: progress || (walletLinked ? "LIVE" : "OPEN"),
+        loop_rows: [
+          buildFlowStep("world_sheet_metric_progress", progress || "0%", progress ? "live" : "ready"),
+          buildFlowStep("world_sheet_metric_active_missions", missionCount || "0", toNum(missionCount, 0) > 0 ? "live" : "idle"),
+          buildFlowStep("world_sheet_metric_wallet_state", walletLinked ? "LIVE" : "OPEN", walletLinked ? "ready" : "watch")
+        ].filter(Boolean),
+        loop_signal_rows: [buildFlowStep("world_sheet_metric_risk_band", upperText(asRecord(homeFeed.risk).band || asRecord(homeFeed.risk).state || "STABLE"), "ready")].filter(Boolean),
+        loop_motion_scalar: 0.96,
+        loop_radius_scale: 1,
+        loop_focus_y_offset: 0.01,
+        loop_alpha_offset: 0.02,
+        loop_beta_offset: -0.01,
+        loop_focus_lerp_scalar: 0.98,
+        loop_radius_lerp_scalar: 0.98
+      };
+  }
+}
+
+function enrichDistrictInteractionModal(interactionModal, input) {
+  const modal = asRecord(interactionModal);
+  if (!modal.modal_key || !Array.isArray(modal.protocol_cards) || !modal.protocol_cards.length) {
+    return interactionModal;
+  }
+  return {
+    ...interactionModal,
+    protocol_cards: modal.protocol_cards.map((card) => {
+      const protocolCard = asRecord(card);
+      const flowPods = asList(protocolCard.flow_pods);
+      if (!flowPods.length) {
+        return card;
+      }
+      return {
+        ...card,
+        flow_pods: flowPods.map((pod) => {
+          const flowPod = asRecord(pod);
+          const microflows = asList(flowPod.microflow_cards);
+          if (!microflows.length) {
+            return pod;
+          }
+          return {
+            ...pod,
+            microflow_cards: microflows.map((flow) => {
+              const microflow = asRecord(flow);
+              const loopState = buildProtocolMicroFlowLiveState(toText(microflow.sequence_kind_key, ""), input);
+              if (!loopState) {
+                return flow;
+              }
+              return {
+                ...flow,
+                loop_status_key: loopState.loop_status_key,
+                loop_status_label_key: loopState.loop_status_label_key,
+                loop_stage_value: loopState.loop_stage_value,
+                loop_rows: asList(loopState.loop_rows).slice(0, 3),
+                loop_signal_rows: asList(loopState.loop_signal_rows).slice(0, 2),
+                stage_value: loopState.loop_stage_value || microflow.stage_value,
+                stage_status_key: loopState.loop_status_key || microflow.stage_status_key,
+                motion_scalar: toNum(microflow.motion_scalar, 1) * toNum(loopState.loop_motion_scalar, 1),
+                camera_radius_scale: toNum(microflow.camera_radius_scale, 1) * toNum(loopState.loop_radius_scale, 1),
+                camera_focus_y_offset: toNum(microflow.camera_focus_y_offset, 0) + toNum(loopState.loop_focus_y_offset, 0),
+                alpha_offset: toNum(microflow.alpha_offset, 0) + toNum(loopState.loop_alpha_offset, 0),
+                beta_offset: toNum(microflow.beta_offset, 0) + toNum(loopState.loop_beta_offset, 0),
+                focus_lerp_scalar: toNum(microflow.focus_lerp_scalar, 1) * toNum(loopState.loop_focus_lerp_scalar, 1),
+                radius_lerp_scalar: toNum(microflow.radius_lerp_scalar, 1) * toNum(loopState.loop_radius_lerp_scalar, 1)
+              };
+            })
+          };
+        })
+      };
+    })
+  };
+}
+
 export function buildDistrictWorldState(input = {}) {
   const workspace = normalizeWorkspace(input.workspace);
   const tab = normalizeTab(input.tab);
@@ -4569,7 +4921,10 @@ export function buildDistrictWorldState(input = {}) {
     interactionFlow,
     interactionEntry
   );
-  const interactionModal = buildDistrictInteractionModal(input, districtKey, activeHotspot, interactionTerminal);
+  const interactionModal = enrichDistrictInteractionModal(
+    buildDistrictInteractionModal(input, districtKey, activeHotspot, interactionTerminal),
+    input
+  );
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,

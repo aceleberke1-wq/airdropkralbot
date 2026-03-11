@@ -134,6 +134,11 @@ type ProtocolCardFlowPod = {
     stage_status_key?: string;
     sequence_rows?: Array<{ label_key: string; value: string; status_key: string }>;
     sequence_cards?: Array<{ card_key: string; label_key: string; value: string; value_key?: string; status_key: string }>;
+    loop_status_key?: string;
+    loop_status_label_key?: string;
+    loop_stage_value?: string;
+    loop_rows?: Array<{ label_key: string; value: string; status_key: string }>;
+    loop_signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
     rows?: Array<{ label_key: string; value: string; status_key: string }>;
   }>;
   action_items?: ProtocolCardActionItem[];
@@ -1922,8 +1927,46 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                 <strong>{t(props.lang, selectedMicroflow.hud_tone_label_key as never)}</strong>
                               </div>
                             ) : null}
+                            {selectedMicroflow.loop_status_label_key ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}>
+                                <span>{t(props.lang, "world_flow_readiness_label" as never)}</span>
+                                <strong>{t(props.lang, selectedMicroflow.loop_status_label_key as never)}</strong>
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.loop_stage_value ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}>
+                                <span>{t(props.lang, "world_flow_stage_label" as never)}</span>
+                                <strong>{selectedMicroflow.loop_stage_value}</strong>
+                              </div>
+                            ) : null}
                           </div>
                           <div className="akrSceneInteractionModalGrid">
+                            {selectedMicroflow.loop_rows?.length ? (
+                              <section className="akrSceneInteractionModalSection">
+                                <div className="akrSceneInteractionModalSectionHeader">
+                                  <span>{t(props.lang, "world_modal_section_live_loop" as never)}</span>
+                                  <strong>{selectedMicroflow.loop_rows.length}</strong>
+                                </div>
+                                <div className="akrSceneInteractionModalRows">
+                                  {selectedMicroflow.loop_rows.map((row) => (
+                                    <div key={`${selectedMicroflow.microflow_key}:loop:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                      <span>{t(props.lang, row.label_key as never)}</span>
+                                      <strong>{row.value}</strong>
+                                    </div>
+                                  ))}
+                                </div>
+                                {selectedMicroflow.loop_signal_rows?.length ? (
+                                  <div className="akrSceneInteractionModalRows">
+                                    {selectedMicroflow.loop_signal_rows.map((row) => (
+                                      <div key={`${selectedMicroflow.microflow_key}:loop-signal:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                        <span>{t(props.lang, row.label_key as never)}</span>
+                                        <strong>{row.value}</strong>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </section>
+                            ) : null}
                             {selectedMicroflow.sequence_cards?.length ? (
                               <section className="akrSceneInteractionModalSection">
                                 <div className="akrSceneInteractionModalSectionHeader">
