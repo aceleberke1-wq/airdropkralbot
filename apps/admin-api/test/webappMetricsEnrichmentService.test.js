@@ -233,4 +233,8 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_family_attention_breakdown_7d[0].item_count, 2);
   assert.equal(enriched.scene_loop_district_family_health_attention_breakdown_7d[0].bucket_key, "yellow:watch");
   assert.equal(enriched.scene_loop_district_family_health_attention_breakdown_7d[0].item_count, 2);
+  assert.equal(enriched.scene_loop_district_family_attention_trend_breakdown_7d[0].bucket_key, "alert:no_data");
+  assert.equal(enriched.scene_loop_district_family_attention_trend_breakdown_7d[0].item_count, 1);
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_breakdown_7d[0].bucket_key, "red:alert:no_data");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_breakdown_7d[0].item_count, 1);
 });

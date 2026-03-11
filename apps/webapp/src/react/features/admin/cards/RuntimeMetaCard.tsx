@@ -421,6 +421,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictFamilyHealthAttentionBreakdown = asRows(
     props.metricsData?.scene_loop_district_family_health_attention_breakdown_7d
   );
+  const sceneLoopDistrictFamilyAttentionTrendBreakdown = asRows(
+    props.metricsData?.scene_loop_district_family_attention_trend_breakdown_7d
+  );
+  const sceneLoopDistrictFamilyHealthAttentionTrendBreakdown = asRows(
+    props.metricsData?.scene_loop_district_family_health_attention_trend_breakdown_7d
+  );
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
   const liveOpsSceneRuntime = asRecord(liveOpsKpi?.scene_runtime);
@@ -680,6 +686,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_trend_title")}
+          rows={sceneLoopDistrictFamilyAttentionTrendBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_title")}
+          rows={sceneLoopDistrictFamilyHealthAttentionTrendBreakdown}
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>

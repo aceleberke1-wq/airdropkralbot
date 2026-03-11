@@ -4192,7 +4192,9 @@ async function buildAdminMetrics(db) {
       scene_loop_district_family_trend_breakdown_7d: [],
       scene_loop_district_family_health_trend_breakdown_7d: [],
       scene_loop_district_family_attention_breakdown_7d: [],
-      scene_loop_district_family_health_attention_breakdown_7d: []
+      scene_loop_district_family_health_attention_breakdown_7d: [],
+      scene_loop_district_family_attention_trend_breakdown_7d: [],
+      scene_loop_district_family_health_attention_trend_breakdown_7d: []
   };
 
   const coreRes = await db.query(
