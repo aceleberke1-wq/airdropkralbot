@@ -645,6 +645,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                   <p id="combatLoopLadder" className="akrBridgeHint">
                     LADDER | WAIT
                   </p>
+                  <div className="akrChipRow">
+                    <BridgeChip id="combatLoopLadderFamily" className="combatAlertChip neutral tone-neutral" />
+                    <BridgeChip id="combatLoopLadderFlow" className="combatAlertChip neutral tone-neutral" />
+                  </div>
+                  <div className="akrChipRow">
+                    <BridgeChip id="combatLoopLadderSummary" className="combatAlertChip neutral tone-neutral" />
+                    <BridgeChip id="combatLoopLadderGate" className="combatAlertChip neutral tone-neutral" />
+                  </div>
                   <p id="combatLoopLadderFocus" className="akrBridgeHint">
                     SEQ WAIT | FOCUS WAIT | FLOW WAIT
                   </p>
@@ -668,6 +676,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                   <p id="combatLoopTelemetry" className="akrBridgeHint">
                     TELEMETRY | WAIT
                   </p>
+                  <div className="akrChipRow">
+                    <BridgeChip id="combatLoopTelemetryFamily" className="combatAlertChip neutral tone-neutral" />
+                    <BridgeChip id="combatLoopTelemetryFlow" className="combatAlertChip neutral tone-neutral" />
+                  </div>
+                  <div className="akrChipRow">
+                    <BridgeChip id="combatLoopTelemetrySummary" className="combatAlertChip neutral tone-neutral" />
+                    <BridgeChip id="combatLoopTelemetryGate" className="combatAlertChip neutral tone-neutral" />
+                  </div>
                   <p id="combatLoopTelemetryFocus" className="akrBridgeHint">
                     PERSONA WAIT | FOCUS -- | FLOW WAIT
                   </p>
@@ -785,6 +801,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p id="tasksLoopOffer" className="akrBridgeHint">
                 OFFER | WAIT
               </p>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopOfferFamily" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopOfferFlow" className="combatAlertChip neutral tone-neutral" />
+              </div>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopOfferSummary" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopOfferGate" className="combatAlertChip neutral tone-neutral" />
+              </div>
               <p id="tasksLoopOfferFocus" className="akrBridgeHint">
                 ENTRY WAIT | FOCUS WAIT | FLOW WAIT
               </p>
@@ -808,6 +832,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p id="tasksLoopClaim" className="akrBridgeHint">
                 CLAIM | WAIT
               </p>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopClaimFamily" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopClaimFlow" className="combatAlertChip neutral tone-neutral" />
+              </div>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopClaimSummary" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopClaimGate" className="combatAlertChip neutral tone-neutral" />
+              </div>
               <p id="tasksLoopClaimFocus" className="akrBridgeHint">
                 SEQ WAIT | FOCUS WAIT | STAGE --
               </p>
@@ -831,6 +863,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p id="tasksLoopStreak" className="akrBridgeHint">
                 STREAK | WAIT
               </p>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopStreakFamily" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopStreakFlow" className="combatAlertChip neutral tone-neutral" />
+              </div>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopStreakSummary" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopStreakGate" className="combatAlertChip neutral tone-neutral" />
+              </div>
               <p id="tasksLoopStreakFocus" className="akrBridgeHint">
                 PERSONA WAIT | FOCUS WAIT | FLOW WAIT
               </p>
@@ -1002,6 +1042,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <p className="akrBridgeHint" id="tokenLoopPayout">
                   -
                 </p>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopPayoutFamily" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopPayoutFlow" className="combatAlertChip neutral tone-neutral" />
+                </div>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopPayoutSummary" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopPayoutGate" className="combatAlertChip neutral tone-neutral" />
+                </div>
                 <p className="akrBridgeHint" id="tokenLoopPayoutFocus">
                   -
                 </p>
@@ -1025,6 +1073,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <p className="akrBridgeHint" id="tokenLoopRoute">
                   -
                 </p>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopRouteFamily" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopRouteFlow" className="combatAlertChip neutral tone-neutral" />
+                </div>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopRouteSummary" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopRouteGate" className="combatAlertChip neutral tone-neutral" />
+                </div>
                 <p className="akrBridgeHint" id="tokenLoopRouteFocus">
                   -
                 </p>
@@ -1048,6 +1104,14 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <p className="akrBridgeHint" id="tokenLoopPremium">
                   -
                 </p>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopPremiumFamily" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopPremiumFlow" className="combatAlertChip neutral tone-neutral" />
+                </div>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopPremiumSummary" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopPremiumGate" className="combatAlertChip neutral tone-neutral" />
+                </div>
                 <p className="akrBridgeHint" id="tokenLoopPremiumFocus">
                   -
                 </p>
@@ -1226,6 +1290,14 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <p id="adminRuntimeLoopQueue" className="akrBridgeHint">
               -
             </p>
+            <div className="akrChipRow">
+              <BridgeChip id="adminRuntimeLoopQueueFamily" className="combatAlertChip neutral tone-neutral" />
+              <BridgeChip id="adminRuntimeLoopQueueFlow" className="combatAlertChip neutral tone-neutral" />
+            </div>
+            <div className="akrChipRow">
+              <BridgeChip id="adminRuntimeLoopQueueSummary" className="combatAlertChip neutral tone-neutral" />
+              <BridgeChip id="adminRuntimeLoopQueueGate" className="combatAlertChip neutral tone-neutral" />
+            </div>
             <p id="adminRuntimeLoopQueueFocus" className="akrBridgeHint">
               -
             </p>
@@ -1249,6 +1321,14 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <p id="adminRuntimeLoopRuntime" className="akrBridgeHint">
               -
             </p>
+            <div className="akrChipRow">
+              <BridgeChip id="adminRuntimeLoopRuntimeFamily" className="combatAlertChip neutral tone-neutral" />
+              <BridgeChip id="adminRuntimeLoopRuntimeFlow" className="combatAlertChip neutral tone-neutral" />
+            </div>
+            <div className="akrChipRow">
+              <BridgeChip id="adminRuntimeLoopRuntimeSummary" className="combatAlertChip neutral tone-neutral" />
+              <BridgeChip id="adminRuntimeLoopRuntimeGate" className="combatAlertChip neutral tone-neutral" />
+            </div>
             <p id="adminRuntimeLoopRuntimeFocus" className="akrBridgeHint">
               -
             </p>

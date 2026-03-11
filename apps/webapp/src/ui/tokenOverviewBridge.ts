@@ -73,6 +73,18 @@ export type TokenOverviewBridgePayload = {
   loopWalletResponseText?: string;
   loopWalletAttentionText?: string;
   loopWalletCadenceText?: string;
+  loopPayoutFamilyText?: string;
+  loopPayoutFlowText?: string;
+  loopPayoutSummaryText?: string;
+  loopPayoutGateText?: string;
+  loopRouteFamilyText?: string;
+  loopRouteFlowText?: string;
+  loopRouteSummaryText?: string;
+  loopRouteGateText?: string;
+  loopPremiumFamilyText?: string;
+  loopPremiumFlowText?: string;
+  loopPremiumSummaryText?: string;
+  loopPremiumGateText?: string;
 };
 
 type TokenOverviewBridge = {
@@ -165,6 +177,18 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopWalletResponse = byId<HTMLElement>("tokenLoopWalletResponse");
   const loopWalletAttention = byId<HTMLElement>("tokenLoopWalletAttention");
   const loopWalletCadence = byId<HTMLElement>("tokenLoopWalletCadence");
+  const loopPayoutFamily = byId<HTMLElement>("tokenLoopPayoutFamily");
+  const loopPayoutFlow = byId<HTMLElement>("tokenLoopPayoutFlow");
+  const loopPayoutSummary = byId<HTMLElement>("tokenLoopPayoutSummary");
+  const loopPayoutGate = byId<HTMLElement>("tokenLoopPayoutGate");
+  const loopRouteFamily = byId<HTMLElement>("tokenLoopRouteFamily");
+  const loopRouteFlow = byId<HTMLElement>("tokenLoopRouteFlow");
+  const loopRouteSummary = byId<HTMLElement>("tokenLoopRouteSummary");
+  const loopRouteGate = byId<HTMLElement>("tokenLoopRouteGate");
+  const loopPremiumFamily = byId<HTMLElement>("tokenLoopPremiumFamily");
+  const loopPremiumFlow = byId<HTMLElement>("tokenLoopPremiumFlow");
+  const loopPremiumSummary = byId<HTMLElement>("tokenLoopPremiumSummary");
+  const loopPremiumGate = byId<HTMLElement>("tokenLoopPremiumGate");
   const chainSelect = byId<HTMLSelectElement>("tokenChainSelect");
   const buyBtn = byId<HTMLButtonElement>("tokenBuyBtn");
 
@@ -300,11 +324,47 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopPayoutDetail) {
     loopPayoutDetail.textContent = safeText(payload.loopPayoutDetailText, "Payout route detay bekleniyor.");
   }
+  if (loopPayoutFamily) {
+    loopPayoutFamily.textContent = safeText(payload.loopPayoutFamilyText, "FLOW --");
+  }
+  if (loopPayoutFlow) {
+    loopPayoutFlow.textContent = safeText(payload.loopPayoutFlowText, "ENTRY --");
+  }
+  if (loopPayoutSummary) {
+    loopPayoutSummary.textContent = safeText(payload.loopPayoutSummaryText, "SUMMARY --");
+  }
+  if (loopPayoutGate) {
+    loopPayoutGate.textContent = safeText(payload.loopPayoutGateText, "GATE --");
+  }
   if (loopRouteDetail) {
     loopRouteDetail.textContent = safeText(payload.loopRouteDetailText, "Route quorum detay bekleniyor.");
   }
+  if (loopRouteFamily) {
+    loopRouteFamily.textContent = safeText(payload.loopRouteFamilyText, "FLOW --");
+  }
+  if (loopRouteFlow) {
+    loopRouteFlow.textContent = safeText(payload.loopRouteFlowText, "ENTRY --");
+  }
+  if (loopRouteSummary) {
+    loopRouteSummary.textContent = safeText(payload.loopRouteSummaryText, "SUMMARY --");
+  }
+  if (loopRouteGate) {
+    loopRouteGate.textContent = safeText(payload.loopRouteGateText, "GATE --");
+  }
   if (loopPremiumDetail) {
     loopPremiumDetail.textContent = safeText(payload.loopPremiumDetailText, "Premium lane detay bekleniyor.");
+  }
+  if (loopPremiumFamily) {
+    loopPremiumFamily.textContent = safeText(payload.loopPremiumFamilyText, "FLOW --");
+  }
+  if (loopPremiumFlow) {
+    loopPremiumFlow.textContent = safeText(payload.loopPremiumFlowText, "ENTRY --");
+  }
+  if (loopPremiumSummary) {
+    loopPremiumSummary.textContent = safeText(payload.loopPremiumSummaryText, "SUMMARY --");
+  }
+  if (loopPremiumGate) {
+    loopPremiumGate.textContent = safeText(payload.loopPremiumGateText, "GATE --");
   }
 
   const options = Array.isArray(payload.chainOptions) ? payload.chainOptions : [];

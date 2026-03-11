@@ -34,6 +34,14 @@ type RuntimeBridgePayload = {
   loopQueueDetailText?: string;
   loopRuntimeDetailText?: string;
   loopDispatchDetailText?: string;
+  loopQueueFamilyText?: string;
+  loopQueueFlowText?: string;
+  loopQueueSummaryText?: string;
+  loopQueueGateText?: string;
+  loopRuntimeFamilyText?: string;
+  loopRuntimeFlowText?: string;
+  loopRuntimeSummaryText?: string;
+  loopRuntimeGateText?: string;
   loopDispatchFamilyText?: string;
   loopDispatchFlowText?: string;
   loopDispatchSummaryText?: string;
@@ -121,6 +129,14 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopQueueDetail = byId<HTMLElement>("adminRuntimeLoopQueueDetail");
   const loopRuntimeDetail = byId<HTMLElement>("adminRuntimeLoopRuntimeDetail");
   const loopDispatchDetail = byId<HTMLElement>("adminRuntimeLoopDispatchDetail");
+  const loopQueueFamily = byId<HTMLElement>("adminRuntimeLoopQueueFamily");
+  const loopQueueFlow = byId<HTMLElement>("adminRuntimeLoopQueueFlow");
+  const loopQueueSummary = byId<HTMLElement>("adminRuntimeLoopQueueSummary");
+  const loopQueueGate = byId<HTMLElement>("adminRuntimeLoopQueueGate");
+  const loopRuntimeFamily = byId<HTMLElement>("adminRuntimeLoopRuntimeFamily");
+  const loopRuntimeFlow = byId<HTMLElement>("adminRuntimeLoopRuntimeFlow");
+  const loopRuntimeSummary = byId<HTMLElement>("adminRuntimeLoopRuntimeSummary");
+  const loopRuntimeGate = byId<HTMLElement>("adminRuntimeLoopRuntimeGate");
   const loopDispatchFamily = byId<HTMLElement>("adminRuntimeLoopDispatchFamily");
   const loopDispatchFlow = byId<HTMLElement>("adminRuntimeLoopDispatchFlow");
   const loopDispatchSummary = byId<HTMLElement>("adminRuntimeLoopDispatchSummary");
@@ -205,8 +221,32 @@ function render(payload: RuntimeBridgePayload): boolean {
   if (loopQueueDetail) {
     loopQueueDetail.textContent = String(payload.loopQueueDetailText || "Queue action detay bekleniyor.");
   }
+  if (loopQueueFamily) {
+    loopQueueFamily.textContent = String(payload.loopQueueFamilyText || "FLOW --");
+  }
+  if (loopQueueFlow) {
+    loopQueueFlow.textContent = String(payload.loopQueueFlowText || "ENTRY --");
+  }
+  if (loopQueueSummary) {
+    loopQueueSummary.textContent = String(payload.loopQueueSummaryText || "SUMMARY --");
+  }
+  if (loopQueueGate) {
+    loopQueueGate.textContent = String(payload.loopQueueGateText || "GATE --");
+  }
   if (loopRuntimeDetail) {
     loopRuntimeDetail.textContent = String(payload.loopRuntimeDetailText || "Runtime diagnostics bekleniyor.");
+  }
+  if (loopRuntimeFamily) {
+    loopRuntimeFamily.textContent = String(payload.loopRuntimeFamilyText || "FLOW --");
+  }
+  if (loopRuntimeFlow) {
+    loopRuntimeFlow.textContent = String(payload.loopRuntimeFlowText || "ENTRY --");
+  }
+  if (loopRuntimeSummary) {
+    loopRuntimeSummary.textContent = String(payload.loopRuntimeSummaryText || "SUMMARY --");
+  }
+  if (loopRuntimeGate) {
+    loopRuntimeGate.textContent = String(payload.loopRuntimeGateText || "GATE --");
   }
   if (loopDispatchDetail) {
     loopDispatchDetail.textContent = String(payload.loopDispatchDetailText || "Dispatch gate detay bekleniyor.");

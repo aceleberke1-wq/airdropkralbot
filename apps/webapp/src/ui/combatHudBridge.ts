@@ -128,6 +128,14 @@ type CombatHudPayload = {
   loopDuelResponseText?: string;
   loopDuelAttentionText?: string;
   loopDuelCadenceText?: string;
+  loopLadderFamilyText?: string;
+  loopLadderFlowText?: string;
+  loopLadderSummaryText?: string;
+  loopLadderGateText?: string;
+  loopTelemetryFamilyText?: string;
+  loopTelemetryFlowText?: string;
+  loopTelemetrySummaryText?: string;
+  loopTelemetryGateText?: string;
   rejectCategory?: string;
   rejectTone?: string;
   ladderTone?: string;
@@ -255,6 +263,14 @@ function render(payload: CombatHudPayload): boolean {
   const cadenceStrikeMeter = byId("combatCadenceStrikeMeter");
   const cadenceGuardMeter = byId("combatCadenceGuardMeter");
   const cadenceChargeMeter = byId("combatCadenceChargeMeter");
+  const loopLadderFamily = byId("combatLoopLadderFamily");
+  const loopLadderFlow = byId("combatLoopLadderFlow");
+  const loopLadderSummary = byId("combatLoopLadderSummary");
+  const loopLadderGate = byId("combatLoopLadderGate");
+  const loopTelemetryFamily = byId("combatLoopTelemetryFamily");
+  const loopTelemetryFlow = byId("combatLoopTelemetryFlow");
+  const loopTelemetrySummary = byId("combatLoopTelemetrySummary");
+  const loopTelemetryGate = byId("combatLoopTelemetryGate");
   const bossPressureLine = byId("bossPressureLine");
   const bossPressureMeter = byId("bossPressureMeter");
   const overdriveLine = byId("combatOverdriveLine");
@@ -577,6 +593,30 @@ function render(payload: CombatHudPayload): boolean {
   }
   if (loopDuelCadence) {
     loopDuelCadence.textContent = String(payload.loopDuelCadenceText || "CADENCE --");
+  }
+  if (loopLadderFamily) {
+    loopLadderFamily.textContent = String(payload.loopLadderFamilyText || "FLOW --");
+  }
+  if (loopLadderFlow) {
+    loopLadderFlow.textContent = String(payload.loopLadderFlowText || "ENTRY --");
+  }
+  if (loopLadderSummary) {
+    loopLadderSummary.textContent = String(payload.loopLadderSummaryText || "SUMMARY --");
+  }
+  if (loopLadderGate) {
+    loopLadderGate.textContent = String(payload.loopLadderGateText || "GATE --");
+  }
+  if (loopTelemetryFamily) {
+    loopTelemetryFamily.textContent = String(payload.loopTelemetryFamilyText || "FLOW --");
+  }
+  if (loopTelemetryFlow) {
+    loopTelemetryFlow.textContent = String(payload.loopTelemetryFlowText || "ENTRY --");
+  }
+  if (loopTelemetrySummary) {
+    loopTelemetrySummary.textContent = String(payload.loopTelemetrySummaryText || "SUMMARY --");
+  }
+  if (loopTelemetryGate) {
+    loopTelemetryGate.textContent = String(payload.loopTelemetryGateText || "GATE --");
   }
   if (loopLadderDetail) {
     loopLadderDetail.textContent = String(payload.loopLadderDetailText || "Ladder snapshot bekleniyor.");
