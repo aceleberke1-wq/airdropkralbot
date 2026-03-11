@@ -38,6 +38,8 @@ type RuntimeBridgePayload = {
   loopDispatchFlowText?: string;
   loopDispatchSummaryText?: string;
   loopDispatchGateText?: string;
+  loopDispatchLeadText?: string;
+  loopDispatchWindowText?: string;
   loopDispatchPressureText?: string;
   loopDispatchResponseText?: string;
   loopDispatchAttentionText?: string;
@@ -123,6 +125,8 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopDispatchFlow = byId<HTMLElement>("adminRuntimeLoopDispatchFlow");
   const loopDispatchSummary = byId<HTMLElement>("adminRuntimeLoopDispatchSummary");
   const loopDispatchGate = byId<HTMLElement>("adminRuntimeLoopDispatchGate");
+  const loopDispatchLead = byId<HTMLElement>("adminRuntimeLoopDispatchLead");
+  const loopDispatchWindow = byId<HTMLElement>("adminRuntimeLoopDispatchWindow");
   const loopDispatchPressure = byId<HTMLElement>("adminRuntimeLoopDispatchPressure");
   const loopDispatchResponse = byId<HTMLElement>("adminRuntimeLoopDispatchResponse");
   const loopDispatchAttention = byId<HTMLElement>("adminRuntimeLoopDispatchAttention");
@@ -218,6 +222,12 @@ function render(payload: RuntimeBridgePayload): boolean {
   }
   if (loopDispatchGate) {
     loopDispatchGate.textContent = String(payload.loopDispatchGateText || "GATE --");
+  }
+  if (loopDispatchLead) {
+    loopDispatchLead.textContent = String(payload.loopDispatchLeadText || "LEAD --");
+  }
+  if (loopDispatchWindow) {
+    loopDispatchWindow.textContent = String(payload.loopDispatchWindowText || "WINDOW --");
   }
   if (loopDispatchPressure) {
     loopDispatchPressure.textContent = String(payload.loopDispatchPressureText || "PRESSURE --");

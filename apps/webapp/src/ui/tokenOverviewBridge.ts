@@ -67,6 +67,8 @@ export type TokenOverviewBridgePayload = {
   loopWalletFlowText?: string;
   loopWalletSummaryText?: string;
   loopWalletGateText?: string;
+  loopWalletLeadText?: string;
+  loopWalletWindowText?: string;
   loopWalletPressureText?: string;
   loopWalletResponseText?: string;
   loopWalletAttentionText?: string;
@@ -157,6 +159,8 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopWalletFlow = byId<HTMLElement>("tokenLoopWalletFlow");
   const loopWalletSummary = byId<HTMLElement>("tokenLoopWalletSummary");
   const loopWalletGate = byId<HTMLElement>("tokenLoopWalletGate");
+  const loopWalletLead = byId<HTMLElement>("tokenLoopWalletLead");
+  const loopWalletWindow = byId<HTMLElement>("tokenLoopWalletWindow");
   const loopWalletPressure = byId<HTMLElement>("tokenLoopWalletPressure");
   const loopWalletResponse = byId<HTMLElement>("tokenLoopWalletResponse");
   const loopWalletAttention = byId<HTMLElement>("tokenLoopWalletAttention");
@@ -274,6 +278,12 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   }
   if (loopWalletGate) {
     loopWalletGate.textContent = safeText(payload.loopWalletGateText, "GATE --");
+  }
+  if (loopWalletLead) {
+    loopWalletLead.textContent = safeText(payload.loopWalletLeadText, "LEAD --");
+  }
+  if (loopWalletWindow) {
+    loopWalletWindow.textContent = safeText(payload.loopWalletWindowText, "WINDOW --");
   }
   if (loopWalletPressure) {
     loopWalletPressure.textContent = safeText(payload.loopWalletPressureText, "PRESSURE --");
