@@ -1,5 +1,5 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, type LoopBridgeBlock, type LoopBridgeCard } from "./loopBridgeCards.js";
+import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
 
 type ChainOption = {
   chain: string;
@@ -80,6 +80,7 @@ export type TokenOverviewBridgePayload = {
   loopWalletBlocks?: LoopBridgeBlock[];
   loopWalletFlowCards?: LoopBridgeCard[];
   loopWalletFlowBlocks?: LoopBridgeBlock[];
+  loopWalletFlowPanels?: LoopBridgePanel[];
   loopPayoutCards?: LoopBridgeCard[];
   loopPayoutBlocks?: LoopBridgeBlock[];
   loopPayoutFamilyText?: string;
@@ -181,6 +182,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopWalletBlocks = byId<HTMLElement>("tokenLoopWalletBlocks");
   const loopWalletFlowCards = byId<HTMLElement>("tokenLoopWalletFlowCards");
   const loopWalletFlowBlocks = byId<HTMLElement>("tokenLoopWalletFlowBlocks");
+  const loopWalletFlowPanels = byId<HTMLElement>("tokenLoopWalletFlowPanels");
   const loopWalletFocus = byId<HTMLElement>("tokenLoopWalletFocus");
   const loopWalletStage = byId<HTMLElement>("tokenLoopWalletStage");
   const loopPayout = byId<HTMLElement>("tokenLoopPayout");
@@ -393,6 +395,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   renderLoopBridgeBlocks(loopWalletBlocks, payload.loopWalletBlocks);
   renderLoopBridgeCards(loopWalletFlowCards, payload.loopWalletFlowCards);
   renderLoopBridgeBlocks(loopWalletFlowBlocks, payload.loopWalletFlowBlocks);
+  renderLoopBridgePanels(loopWalletFlowPanels, payload.loopWalletFlowPanels);
   renderLoopBridgeCards(loopPayoutCards, payload.loopPayoutCards);
   renderLoopBridgeBlocks(loopPayoutBlocks, payload.loopPayoutBlocks);
   renderLoopBridgeCards(loopRouteCards, payload.loopRouteCards);

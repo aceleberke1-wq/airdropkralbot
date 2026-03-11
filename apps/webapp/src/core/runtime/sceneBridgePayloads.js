@@ -389,6 +389,42 @@ function buildLoopFlowFamilyBridgeBundle(tone, rails) {
   };
 }
 
+function buildLoopFlowFamilyPanels(tone, rails) {
+  const source = asRecord(rails);
+  return [
+    {
+      title: "COMMAND",
+      tone,
+      hint: toText(source.familyText, ""),
+      lines: [
+        toText(source.leadText, "LEAD --"),
+        toText(source.windowText, "WINDOW --"),
+        toText(source.flowText, "FLOW --")
+      ]
+    },
+    {
+      title: "STATE",
+      tone,
+      hint: toText(source.gateText, ""),
+      lines: [
+        toText(source.stateText || source.summaryText, "STATE --"),
+        toText(source.summaryText, "SUMMARY --"),
+        toText(source.stageText || source.detailText, "STAGE --")
+      ]
+    },
+    {
+      title: "SIGNAL",
+      tone,
+      hint: toText(source.responseText || source.pressureText, ""),
+      lines: [
+        toText(source.pressureText, "PRESSURE --"),
+        toText(source.attentionText || source.cadenceText, "ATTN --"),
+        toText(source.opsText || source.signalText || source.detailText, "OPS --")
+      ]
+    }
+  ];
+}
+
 function resolveLoopFamilyTone(...values) {
   const text = values
     .map((value) => toText(value, ""))
@@ -548,6 +584,23 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     panels.telemetryBlocks = telemetryBundle.blocks;
     panels.duelFlowCards = duelFlowBundle.cards;
     panels.duelFlowBlocks = duelFlowBundle.blocks;
+    panels.duelFlowPanels = buildLoopFlowFamilyPanels(panels.duelTone, {
+      familyText: panels.duelFamilyText,
+      flowText: panels.duelFlowText,
+      summaryText: panels.duelSummaryText,
+      gateText: panels.duelGateText,
+      leadText: panels.duelLeadText,
+      windowText: panels.duelWindowText,
+      pressureText: panels.duelPressureText,
+      responseText: panels.duelResponseText,
+      attentionText: panels.duelAttentionText,
+      cadenceText: panels.duelCadenceText,
+      stateText: panels.duelStateText,
+      stageText: panels.duelStageText,
+      opsText: panels.duelOpsText,
+      signalText: panels.duelSignalText,
+      detailText: panels.duelDetailText
+    });
     return panels;
   }
   const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
@@ -750,6 +803,23 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
   panels.telemetryBlocks = telemetryBundle.blocks;
   panels.duelFlowCards = duelFlowBundle.cards;
   panels.duelFlowBlocks = duelFlowBundle.blocks;
+  panels.duelFlowPanels = buildLoopFlowFamilyPanels(panels.duelTone, {
+    familyText: panels.duelFamilyText,
+    flowText: panels.duelFlowText,
+    summaryText: panels.duelSummaryText,
+    gateText: panels.duelGateText,
+    leadText: panels.duelLeadText,
+    windowText: panels.duelWindowText,
+    pressureText: panels.duelPressureText,
+    responseText: panels.duelResponseText,
+    attentionText: panels.duelAttentionText,
+    cadenceText: panels.duelCadenceText,
+    stateText: panels.duelStateText,
+    stageText: panels.duelStageText,
+    opsText: panels.duelOpsText,
+    signalText: panels.duelSignalText,
+    detailText: panels.duelDetailText
+  });
   return panels;
 }
 
@@ -898,6 +968,23 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     panels.premiumBlocks = premiumBundle.blocks;
     panels.walletFlowCards = walletFlowBundle.cards;
     panels.walletFlowBlocks = walletFlowBundle.blocks;
+    panels.walletFlowPanels = buildLoopFlowFamilyPanels(panels.walletTone, {
+      familyText: panels.walletFamilyText,
+      flowText: panels.walletFlowText,
+      summaryText: panels.walletSummaryText,
+      gateText: panels.walletGateText,
+      leadText: panels.walletLeadText,
+      windowText: panels.walletWindowText,
+      pressureText: panels.walletPressureText,
+      responseText: panels.walletResponseText,
+      attentionText: panels.walletAttentionText,
+      cadenceText: panels.walletCadenceText,
+      stateText: panels.walletStateText,
+      stageText: panels.walletStageText,
+      opsText: panels.walletOpsText,
+      signalText: panels.walletSignalText,
+      detailText: panels.walletDetailText
+    });
     return panels;
   }
   const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
@@ -1112,6 +1199,23 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
   panels.premiumBlocks = premiumBundle.blocks;
   panels.walletFlowCards = walletFlowBundle.cards;
   panels.walletFlowBlocks = walletFlowBundle.blocks;
+  panels.walletFlowPanels = buildLoopFlowFamilyPanels(panels.walletTone, {
+    familyText: panels.walletFamilyText,
+    flowText: panels.walletFlowText,
+    summaryText: panels.walletSummaryText,
+    gateText: panels.walletGateText,
+    leadText: panels.walletLeadText,
+    windowText: panels.walletWindowText,
+    pressureText: panels.walletPressureText,
+    responseText: panels.walletResponseText,
+    attentionText: panels.walletAttentionText,
+    cadenceText: panels.walletCadenceText,
+    stateText: panels.walletStateText,
+    stageText: panels.walletStageText,
+    opsText: panels.walletOpsText,
+    signalText: panels.walletSignalText,
+    detailText: panels.walletDetailText
+  });
   return panels;
 }
 
@@ -1229,6 +1333,23 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     panels.runtimeBlocks = runtimeBundle.blocks;
     panels.dispatchFlowCards = dispatchFlowBundle.cards;
     panels.dispatchFlowBlocks = dispatchFlowBundle.blocks;
+    panels.dispatchFlowPanels = buildLoopFlowFamilyPanels(panels.dispatchTone, {
+      familyText: panels.dispatchFamilyText,
+      flowText: panels.dispatchFlowText,
+      summaryText: panels.dispatchSummaryText,
+      gateText: panels.dispatchGateText,
+      leadText: panels.dispatchLeadText,
+      windowText: panels.dispatchWindowText,
+      pressureText: panels.dispatchPressureText,
+      responseText: panels.dispatchResponseText,
+      attentionText: panels.dispatchAttentionText,
+      cadenceText: panels.dispatchCadenceText,
+      stateText: panels.dispatchStateText,
+      stageText: panels.dispatchStageText,
+      opsText: panels.dispatchOpsText,
+      signalText: panels.dispatchSignalText,
+      detailText: panels.dispatchDetailText
+    });
     return panels;
   }
   const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
@@ -1399,6 +1520,23 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
   panels.runtimeBlocks = runtimeBundle.blocks;
   panels.dispatchFlowCards = dispatchFlowBundle.cards;
   panels.dispatchFlowBlocks = dispatchFlowBundle.blocks;
+  panels.dispatchFlowPanels = buildLoopFlowFamilyPanels(panels.dispatchTone, {
+    familyText: panels.dispatchFamilyText,
+    flowText: panels.dispatchFlowText,
+    summaryText: panels.dispatchSummaryText,
+    gateText: panels.dispatchGateText,
+    leadText: panels.dispatchLeadText,
+    windowText: panels.dispatchWindowText,
+    pressureText: panels.dispatchPressureText,
+    responseText: panels.dispatchResponseText,
+    attentionText: panels.dispatchAttentionText,
+    cadenceText: panels.dispatchCadenceText,
+    stateText: panels.dispatchStateText,
+    stageText: panels.dispatchStageText,
+    opsText: panels.dispatchOpsText,
+    signalText: panels.dispatchSignalText,
+    detailText: panels.dispatchDetailText
+  });
   return panels;
 }
 
@@ -1547,6 +1685,23 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     panels.streakBlocks = streakBundle.blocks;
     panels.lootFlowCards = lootFlowBundle.cards;
     panels.lootFlowBlocks = lootFlowBundle.blocks;
+    panels.lootFlowPanels = buildLoopFlowFamilyPanels(panels.lootTone, {
+      familyText: panels.lootFamilyText,
+      flowText: panels.lootFlowText,
+      summaryText: panels.lootSummaryText,
+      gateText: panels.lootGateText,
+      leadText: panels.lootLeadText,
+      windowText: panels.lootWindowText,
+      pressureText: panels.lootPressureText,
+      responseText: panels.lootResponseText,
+      attentionText: panels.lootAttentionText,
+      cadenceText: panels.lootCadenceText,
+      stateText: panels.lootStateText,
+      stageText: panels.lootStageText,
+      opsText: panels.lootOpsText,
+      signalText: panels.lootSignalText,
+      detailText: panels.lootDetailText
+    });
     return panels;
   }
   const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
@@ -1749,6 +1904,23 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
   panels.streakBlocks = streakBundle.blocks;
   panels.lootFlowCards = lootFlowBundle.cards;
   panels.lootFlowBlocks = lootFlowBundle.blocks;
+  panels.lootFlowPanels = buildLoopFlowFamilyPanels(panels.lootTone, {
+    familyText: panels.lootFamilyText,
+    flowText: panels.lootFlowText,
+    summaryText: panels.lootSummaryText,
+    gateText: panels.lootGateText,
+    leadText: panels.lootLeadText,
+    windowText: panels.lootWindowText,
+    pressureText: panels.lootPressureText,
+    responseText: panels.lootResponseText,
+    attentionText: panels.lootAttentionText,
+    cadenceText: panels.lootCadenceText,
+    stateText: panels.lootStateText,
+    stageText: panels.lootStageText,
+    opsText: panels.lootOpsText,
+    signalText: panels.lootSignalText,
+    detailText: panels.lootDetailText
+  });
   return panels;
 }
 
@@ -2538,6 +2710,7 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopDuelBlocks: loopMicro.duelBlocks,
       loopDuelFlowCards: loopMicro.duelFlowCards,
       loopDuelFlowBlocks: loopMicro.duelFlowBlocks,
+      loopDuelFlowPanels: loopMicro.duelFlowPanels,
       loopLadderFamilyText: loopMicro.ladderFamilyText,
       loopLadderFlowText: loopMicro.ladderFlowText,
       loopLadderSummaryText: loopMicro.ladderSummaryText,
@@ -2849,7 +3022,8 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         lootCards: loopMicro.lootCards,
         lootBlocks: loopMicro.lootBlocks,
         lootFlowCards: loopMicro.lootFlowCards,
-        lootFlowBlocks: loopMicro.lootFlowBlocks
+        lootFlowBlocks: loopMicro.lootFlowBlocks,
+        lootFlowPanels: loopMicro.lootFlowPanels
       }
     };
   }
@@ -2954,6 +3128,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopWalletBlocks: loopMicro.walletBlocks,
     loopWalletFlowCards: loopMicro.walletFlowCards,
     loopWalletFlowBlocks: loopMicro.walletFlowBlocks,
+    loopWalletFlowPanels: loopMicro.walletFlowPanels,
     loopPayoutCards: loopMicro.payoutCards,
     loopPayoutBlocks: loopMicro.payoutBlocks,
     loopRouteCards: loopMicro.routeCards,
@@ -3361,7 +3536,8 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopDispatchCards: loopMicro.dispatchCards,
     loopDispatchBlocks: loopMicro.dispatchBlocks,
     loopDispatchFlowCards: loopMicro.dispatchFlowCards,
-    loopDispatchFlowBlocks: loopMicro.dispatchFlowBlocks
+    loopDispatchFlowBlocks: loopMicro.dispatchFlowBlocks,
+    loopDispatchFlowPanels: loopMicro.dispatchFlowPanels
   };
 }
 

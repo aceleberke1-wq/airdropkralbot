@@ -345,6 +345,8 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.combatHud.loopDuelFlowCards?.[0]?.title, "ENTRY");
   assert.match(payloads.combatHud.loopDuelFlowCards?.[0]?.value || "", /DUEL CONSOLE|DUEL FLOW/i);
   assert.equal(payloads.combatHud.loopDuelFlowBlocks?.length, 3);
+  assert.equal(payloads.combatHud.loopDuelFlowPanels?.length, 3);
+  assert.equal(payloads.combatHud.loopDuelFlowPanels?.[0]?.title, "COMMAND");
   assert.equal(payloads.combatHud.loopDuelBlocks?.length, 3);
   assert.equal(payloads.combatHud.loopDuelBlocks?.[0]?.title, "FLOW");
   assert.match(payloads.combatHud.loopDuelBlocks?.[0]?.summary || "", /ACTIVE|ENGAGE|FLOW/i);
@@ -587,6 +589,8 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.equal(payloads.tokenOverview.loopWalletFlowCards?.[0]?.title, "ENTRY");
   assert.match(payloads.tokenOverview.loopWalletFlowCards?.[0]?.value || "", /WALLET TERMINAL|PAYOUT TERMINAL|PAYOUT FLOW/i);
   assert.equal(payloads.tokenOverview.loopWalletFlowBlocks?.length, 3);
+  assert.equal(payloads.tokenOverview.loopWalletFlowPanels?.length, 3);
+  assert.equal(payloads.tokenOverview.loopWalletFlowPanels?.[0]?.title, "COMMAND");
   assert.equal(payloads.tokenOverview.loopWalletBlocks?.length, 3);
   assert.equal(payloads.tokenOverview.loopWalletBlocks?.[0]?.title, "FLOW");
   assert.match(payloads.tokenOverview.loopWalletBlocks?.[0]?.summary || "", /APPROVED|LIVE|FLOW/i);
@@ -737,6 +741,8 @@ test("buildPlayerBridgePayloads surfaces active tasks loop micro panels from sel
   assert.equal(payloads.operations.loop.lootFlowCards?.[0]?.title, "ENTRY");
   assert.match(payloads.operations.loop.lootFlowCards?.[0]?.value || "", /MISSION TERMINAL|CONTRACT SEQUENCE|CLAIM/i);
   assert.equal(payloads.operations.loop.lootFlowBlocks?.length, 3);
+  assert.equal(payloads.operations.loop.lootFlowPanels?.length, 3);
+  assert.equal(payloads.operations.loop.lootFlowPanels?.[0]?.title, "COMMAND");
   assert.equal(payloads.operations.loop.lootBlocks?.length, 3);
   assert.equal(payloads.operations.loop.lootBlocks?.[0]?.title, "FLOW");
   assert.match(payloads.operations.loop.lootBlocks?.[0]?.summary || "", /READY|WATCH|FLOW/i);
@@ -864,6 +870,8 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.runtime.loopDispatchFlowCards?.[0]?.title, "ENTRY");
   assert.match(payloads.runtime.loopDispatchFlowCards?.[0]?.value || "", /DISPATCH CONSOLE|DISPATCH FLOW/i);
   assert.equal(payloads.runtime.loopDispatchFlowBlocks?.length, 3);
+  assert.equal(payloads.runtime.loopDispatchFlowPanels?.length, 3);
+  assert.equal(payloads.runtime.loopDispatchFlowPanels?.[0]?.title, "COMMAND");
   assert.equal(payloads.runtime.loopDispatchBlocks?.length, 3);
   assert.equal(payloads.runtime.loopDispatchBlocks?.[0]?.title, "FLOW");
   assert.match(payloads.runtime.loopDispatchBlocks?.[0]?.summary || "", /WATCH|ALERT|FLOW/i);

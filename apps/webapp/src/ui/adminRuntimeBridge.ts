@@ -1,5 +1,5 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, type LoopBridgeBlock, type LoopBridgeCard } from "./loopBridgeCards.js";
+import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
 
 type RuntimeBridgePayload = {
   lineText: string;
@@ -75,6 +75,7 @@ type RuntimeBridgePayload = {
   loopDispatchBlocks?: LoopBridgeBlock[];
   loopDispatchFlowCards?: LoopBridgeCard[];
   loopDispatchFlowBlocks?: LoopBridgeBlock[];
+  loopDispatchFlowPanels?: LoopBridgePanel[];
 };
 
 type AdminRuntimeBridge = {
@@ -155,6 +156,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopDispatchBlocks = byId<HTMLElement>("adminRuntimeLoopDispatchBlocks");
   const loopDispatchFlowCards = byId<HTMLElement>("adminRuntimeLoopDispatchFlowCards");
   const loopDispatchFlowBlocks = byId<HTMLElement>("adminRuntimeLoopDispatchFlowBlocks");
+  const loopDispatchFlowPanels = byId<HTMLElement>("adminRuntimeLoopDispatchFlowPanels");
   const loopDispatchFocus = byId<HTMLElement>("adminRuntimeLoopDispatchFocus");
   const loopDispatchStage = byId<HTMLElement>("adminRuntimeLoopDispatchStage");
   const loopQueueState = byId<HTMLElement>("adminRuntimeLoopQueueState");
@@ -397,6 +399,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   renderLoopBridgeBlocks(loopDispatchBlocks, payload.loopDispatchBlocks);
   renderLoopBridgeCards(loopDispatchFlowCards, payload.loopDispatchFlowCards);
   renderLoopBridgeBlocks(loopDispatchFlowBlocks, payload.loopDispatchFlowBlocks);
+  renderLoopBridgePanels(loopDispatchFlowPanels, payload.loopDispatchFlowPanels);
   setChipTone(loopDispatchFamily, resolveLoopRailTone(payload.loopDispatchTone, "family"));
   setChipTone(loopDispatchFlow, resolveLoopRailTone(payload.loopDispatchTone, "flow"));
   setChipTone(loopDispatchSummary, resolveLoopRailTone(payload.loopDispatchTone, "summary"));

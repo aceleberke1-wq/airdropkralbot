@@ -1,5 +1,5 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, type LoopBridgeBlock, type LoopBridgeCard } from "./loopBridgeCards.js";
+import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
 
 type CombatTrailRow = {
   action: string;
@@ -135,6 +135,7 @@ type CombatHudPayload = {
   loopDuelBlocks?: LoopBridgeBlock[];
   loopDuelFlowCards?: LoopBridgeCard[];
   loopDuelFlowBlocks?: LoopBridgeBlock[];
+  loopDuelFlowPanels?: LoopBridgePanel[];
   loopLadderCards?: LoopBridgeCard[];
   loopLadderBlocks?: LoopBridgeBlock[];
   loopLadderFamilyText?: string;
@@ -348,6 +349,7 @@ function render(payload: CombatHudPayload): boolean {
   const loopDuelBlocks = byId("combatLoopDuelBlocks");
   const loopDuelFlowCards = byId("combatLoopDuelFlowCards");
   const loopDuelFlowBlocks = byId("combatLoopDuelFlowBlocks");
+  const loopDuelFlowPanels = byId("combatLoopDuelFlowPanels");
   const loopLadderCards = byId("combatLoopLadderCards");
   const loopLadderBlocks = byId("combatLoopLadderBlocks");
   const loopTelemetryCards = byId("combatLoopTelemetryCards");
@@ -650,6 +652,7 @@ function render(payload: CombatHudPayload): boolean {
   renderLoopBridgeBlocks(loopDuelBlocks, payload.loopDuelBlocks);
   renderLoopBridgeCards(loopDuelFlowCards, payload.loopDuelFlowCards);
   renderLoopBridgeBlocks(loopDuelFlowBlocks, payload.loopDuelFlowBlocks);
+  renderLoopBridgePanels(loopDuelFlowPanels, payload.loopDuelFlowPanels);
   renderLoopBridgeCards(loopLadderCards, payload.loopLadderCards);
   renderLoopBridgeBlocks(loopLadderBlocks, payload.loopLadderBlocks);
   renderLoopBridgeCards(loopTelemetryCards, payload.loopTelemetryCards);

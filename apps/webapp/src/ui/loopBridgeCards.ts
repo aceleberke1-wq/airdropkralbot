@@ -13,6 +13,13 @@ export type LoopBridgeBlock = {
   tone?: string;
 };
 
+export type LoopBridgePanel = {
+  title: string;
+  lines: string[];
+  hint?: string;
+  tone?: string;
+};
+
 function safeText(value: unknown, fallback = ""): string {
   const text = String(value ?? "").trim();
   return text || fallback;
@@ -95,6 +102,46 @@ export function renderLoopBridgeBlocks(host: HTMLElement | null, blocks: LoopBri
     if (safeText(block.hint)) {
       const hint = document.createElement("em");
       hint.textContent = safeText(block.hint);
+      article.appendChild(hint);
+    }
+
+    host.appendChild(article);
+  });
+}
+
+export function renderLoopBridgePanels(host: HTMLElement | null, panels: LoopBridgePanel[] | undefined): void {
+  if (!host) {
+    return;
+  }
+  host.innerHTML = "";
+  const rows = Array.isArray(panels) ? panels.filter(Boolean).slice(0, 3) : [];
+  if (!rows.length) {
+    host.classList.add("hidden");
+    return;
+  }
+  host.classList.remove("hidden");
+  rows.forEach((panel) => {
+    const article = document.createElement("article");
+    article.className = "akrBridgeFlowPanel";
+    article.dataset.tone = normalizeTone(panel.tone);
+
+    const title = document.createElement("span");
+    title.textContent = safeText(panel.title, "FLOW");
+    article.appendChild(title);
+
+    const list = document.createElement("ul");
+    list.className = "akrBridgeFlowPanelList";
+    const lines = Array.isArray(panel.lines) ? panel.lines.filter(Boolean).slice(0, 4) : [];
+    lines.forEach((lineText) => {
+      const item = document.createElement("li");
+      item.textContent = safeText(lineText, "--");
+      list.appendChild(item);
+    });
+    article.appendChild(list);
+
+    if (safeText(panel.hint)) {
+      const hint = document.createElement("em");
+      hint.textContent = safeText(panel.hint);
       article.appendChild(hint);
     }
 

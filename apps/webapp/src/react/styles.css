@@ -2077,6 +2077,12 @@ body {
   margin: 0 0 10px;
 }
 
+.akrBridgeFlowPanels {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
 .akrBridgeFlowBlock {
   display: grid;
   gap: 4px;
@@ -2117,6 +2123,51 @@ body {
 
 .akrBridgeFlowBlock[data-tone="pressure"] {
   border-color: rgba(255, 180, 93, 0.26);
+}
+
+.akrBridgeFlowPanel {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  background: linear-gradient(180deg, rgba(5, 17, 34, 0.78), rgba(7, 21, 40, 0.62));
+}
+
+.akrBridgeFlowPanel > span,
+.akrBridgeFlowPanel em {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  color: #95bad0;
+  font-style: normal;
+}
+
+.akrBridgeFlowPanelList {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.akrBridgeFlowPanelList li {
+  color: #eefaff;
+  line-height: 1.35;
+}
+
+.akrBridgeFlowPanel[data-tone="advantage"] {
+  border-color: rgba(47, 255, 181, 0.24);
+}
+
+.akrBridgeFlowPanel[data-tone="balanced"] {
+  border-color: rgba(123, 230, 255, 0.22);
+}
+
+.akrBridgeFlowPanel[data-tone="pressure"] {
+  border-color: rgba(255, 180, 93, 0.26);
+}
+
+.akrBridgeFlowPanel[data-tone="critical"] {
+  border-color: rgba(255, 111, 145, 0.3);
 }
 
 .akrBridgeFlowBlock[data-tone="critical"] {

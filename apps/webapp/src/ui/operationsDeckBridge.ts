@@ -1,5 +1,5 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, type LoopBridgeBlock, type LoopBridgeCard } from "./loopBridgeCards.js";
+import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
 
 type OfferItem = {
   id: number | string;
@@ -417,6 +417,7 @@ function renderLoop(payload: NonNullable<OperationsDeckBridgePayload["loop"]>): 
   const sequence = byId<HTMLElement>("tasksLoopSequence");
   const lootFlowCards = byId<HTMLElement>("tasksLoopLootFlowCards");
   const lootFlowBlocks = byId<HTMLElement>("tasksLoopLootFlowBlocks");
+  const lootFlowPanels = byId<HTMLElement>("tasksLoopLootFlowPanels");
   if (!line || !hint || !focus || !ops || !status || !detail || !signal || !sequence) {
     return false;
   }
@@ -434,6 +435,7 @@ function renderLoop(payload: NonNullable<OperationsDeckBridgePayload["loop"]>): 
   renderLoopFamily("tasksLoopLoot", readLoopFamily(payload, "loot"));
   renderLoopBridgeCards(lootFlowCards, Array.isArray(payload.lootFlowCards) ? (payload.lootFlowCards as LoopBridgeCard[]) : undefined);
   renderLoopBridgeBlocks(lootFlowBlocks, Array.isArray(payload.lootFlowBlocks) ? (payload.lootFlowBlocks as LoopBridgeBlock[]) : undefined);
+  renderLoopBridgePanels(lootFlowPanels, Array.isArray(payload.lootFlowPanels) ? (payload.lootFlowPanels as LoopBridgePanel[]) : undefined);
   return true;
 }
 
