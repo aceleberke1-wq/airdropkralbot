@@ -120,10 +120,26 @@ function normalizeSceneLoopDistrictDailyRows(rows, limit = 42) {
         ...row,
         live_share: liveShare,
         blocked_share: blockedShare,
-        health_band: resolveSceneLoopHealthBand(row.total_count, 1, liveShare, blockedShare)
+        health_band: resolveSceneLoopDistrictHealthBand(row.total_count, liveShare, blockedShare)
       };
     })
     .slice(0, Math.max(1, Math.floor(toNum(limit, 42))));
+}
+
+function resolveSceneLoopDistrictHealthBand(totalCount, liveShare, blockedShare) {
+  const total = Math.max(0, Math.floor(toNum(totalCount, 0)));
+  const live = clamp(toNum(liveShare, 0), 0, 1);
+  const blocked = clamp(toNum(blockedShare, 0), 0, 1);
+  if (total <= 0) {
+    return "no_data";
+  }
+  if (live >= 0.8 && blocked <= 0.15 && total >= 8) {
+    return "green";
+  }
+  if (live >= 0.45 && blocked <= 0.35 && total >= 3) {
+    return "yellow";
+  }
+  return "red";
 }
 
 function resolveSceneLoopHealthBand(totalCount, districtCount, liveShare, blockedShare) {
@@ -234,6 +250,9 @@ function buildSceneLoopDistrictMatrix(rows, limit = 8) {
       const latestRow = sortedRows[0] || null;
       const earliestRow = sortedRows[sortedRows.length - 1] || null;
       const dayCount = sortedRows.length;
+      const greenDays = sortedRows.filter((row) => String(row?.health_band || "") === "green").length;
+      const yellowDays = sortedRows.filter((row) => String(row?.health_band || "") === "yellow").length;
+      const redDays = sortedRows.filter((row) => String(row?.health_band || "") === "red").length;
       return {
         district_key,
         total_count: totalCount,
@@ -244,7 +263,11 @@ function buildSceneLoopDistrictMatrix(rows, limit = 8) {
         day_count: dayCount,
         latest_day: latestRow?.day || null,
         latest_total_count: Math.max(0, Math.floor(toNum(latestRow?.total_count, 0))),
-        health_band: resolveSceneLoopHealthBand(totalCount, dayCount, liveShare, blockedShare),
+        latest_health_band: String(latestRow?.health_band || "no_data"),
+        green_days: greenDays,
+        yellow_days: yellowDays,
+        red_days: redDays,
+        health_band: resolveSceneLoopDistrictHealthBand(totalCount, liveShare, blockedShare),
         trend_direction: resolveSceneLoopTrendDirection(
           latestRow?.total_count,
           earliestRow?.total_count,
@@ -528,6 +551,7 @@ module.exports = {
   normalizeSceneLoopDailyRows,
   normalizeSceneLoopDistrictDailyRows,
   resolveSceneLoopHealthBand,
+  resolveSceneLoopDistrictHealthBand,
   resolveSceneLoopTrendDirection,
   buildSceneBandBreakdown,
   buildSceneLoopBandBreakdown,

@@ -86,6 +86,9 @@ type CombatHudPayload = {
   alertTertiaryLabel: string;
   alertTertiaryTone: string;
   alertHintText: string;
+  loopLineText?: string;
+  loopHintText?: string;
+  loopOpsLineText?: string;
   rejectCategory?: string;
   rejectTone?: string;
   ladderTone?: string;
@@ -224,6 +227,9 @@ function render(payload: CombatHudPayload): boolean {
   const alertSecondaryChip = byId("combatAlertSecondaryChip");
   const alertTertiaryChip = byId("combatAlertTertiaryChip");
   const alertHint = byId("combatAlertHint");
+  const loopLine = byId("combatLoopLine");
+  const loopHint = byId("combatLoopHint");
+  const loopOps = byId("combatLoopOpsLine");
 
   if (!panelRoot || !chainLine || !chainTrail || !timelineLine || !timelineBadge || !timelineMeter) {
     return false;
@@ -371,6 +377,15 @@ function render(payload: CombatHudPayload): boolean {
   if (alertHint) {
     alertHint.textContent = String(payload.alertHintText || "");
     alertHint.dataset.tone = String(payload.alertPrimaryTone || "steady").toLowerCase();
+  }
+  if (loopLine) {
+    loopLine.textContent = String(payload.loopLineText || "ARENA LOOP | WAIT");
+  }
+  if (loopHint) {
+    loopHint.textContent = String(payload.loopHintText || "Scene loop focus bekleniyor.");
+  }
+  if (loopOps) {
+    loopOps.textContent = String(payload.loopOpsLineText || "WAIT | FLOW IDLE");
   }
 
   const nodeMap: Record<string, HTMLElement | null> = {

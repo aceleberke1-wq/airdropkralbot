@@ -322,6 +322,8 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.pvpDuel.tick.live, true);
   assert.equal(payloads.combatHud.timelineBadgeText, "ACTIVE");
   assert.equal(payloads.combatHud.chainTrail.length, 3);
+  assert.match(payloads.combatHud.loopLineText, /ARENA LOOP/);
+  assert.match(payloads.combatHud.loopOpsLineText, /ACTIVE|ENGAGE|DUEL/);
   assert.equal(payloads.cameraDirector.mode.key, "broadcast");
   assert.match(payloads.cameraDirector.focus.text, /ACTIVE/);
   assert.equal(payloads.pvpRoundDirector.heat.phase, "engage");
@@ -337,6 +339,8 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.tokenOverview.unitsText, /PASS 1/);
   assert.match(payloads.tokenOverview.loopLineText, /VAULT STANDBY|VAULT LOOP/);
   assert.match(payloads.tokenOverview.loopHintText, /ARENA PRIME|DUEL CONSOLE|Scene loop focus/i);
+  assert.match(payloads.tokenOverview.loopOpsLineText, /FOCUS|WAIT|FLOW/i);
+  assert.match(payloads.tokenOverview.loopOpsHintText, /DUEL|ENTRY|FLOW|Scene/i);
   assert.equal(payloads.tokenOverview.statusChips[1].text, "PAY OPEN");
   assert.equal(payloads.tokenTreasury.route.badgeText, "ROUTE 2/3");
   assert.equal(payloads.tokenTreasury.actionDirector.badgeText, "SUBMIT");
@@ -384,6 +388,8 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.match(payloads.runtime.lineText, /Queue 2/);
   assert.match(payloads.runtime.loopLineText, /OPS STANDBY|OPS LOOP/);
   assert.match(payloads.runtime.loopHintText, /Scene loop focus|ARENA PRIME/i);
+  assert.match(payloads.runtime.loopOpsLineText, /FOCUS|WAIT|FLOW/i);
+  assert.match(payloads.runtime.loopOpsHintText, /ENTRY|FLOW|Scene/i);
   assert.equal(payloads.assetStatus.rows.length, 2);
   assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Missing 1");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");

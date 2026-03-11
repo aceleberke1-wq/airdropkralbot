@@ -161,10 +161,11 @@ function SceneLoopDistrictMatrixList(props: { title: string; rows: Array<Record<
       <div className="akrStack">
         {props.rows.slice(0, 8).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.district_key || index)}`}>
-            {String(row.district_key || "-")} | {String(row.health_band || "no_data")} | {String(row.trend_direction || "no_data")} (
-            {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))} | live{" "}
-            {Math.floor(Number(row.live_count || 0))} | blocked {Math.floor(Number(row.blocked_count || 0))} | days{" "}
-            {Math.floor(Number(row.day_count || 0))}
+            {String(row.district_key || "-")} | latest {String(row.latest_health_band || row.health_band || "no_data")} | trend{" "}
+            {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | loops{" "}
+            {Math.floor(Number(row.total_count || 0))} | live {Math.floor(Number(row.live_count || 0))} | blocked{" "}
+            {Math.floor(Number(row.blocked_count || 0))} | G/Y/R {Math.floor(Number(row.green_days || 0))}/
+            {Math.floor(Number(row.yellow_days || 0))}/{Math.floor(Number(row.red_days || 0))}
           </p>
         ))}
       </div>

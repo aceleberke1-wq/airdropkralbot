@@ -275,6 +275,8 @@ function buildDomainLoopPanelPayload(scene, domainKey) {
     return {
       lineText: `${domainConfig.standbyLabel} | WAIT`,
       hintText: "Scene loop focus bekleniyor.",
+      opsLineText: "WAIT | FLOW IDLE",
+      opsHintText: "District flow aktif degil.",
       active: false
     };
   }
@@ -290,6 +292,10 @@ function buildDomainLoopPanelPayload(scene, domainKey) {
     hintText: districtMatches
       ? `${entryLabel} | ${sequenceLabel}`
       : `Focus ${districtLabel} | ${entryLabel} | ${microflowLabel}`,
+    opsLineText: districtMatches
+      ? `${loopDeck.loopStatusLabel} | ${loopDeck.stageValue} | ${microflowLabel}`
+      : `FOCUS ${districtLabel} | ${loopDeck.loopStatusLabel}`,
+    opsHintText: `${entryLabel} | ${sequenceLabel} | ${microflowLabel}`,
     active: districtMatches
   };
 }
@@ -962,7 +968,10 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       assetTone: mapRuntimeTone(assetMetrics.tone || "balanced"),
       assetRiskPct: Math.round(clamp(assetMetrics.missingRatio) * 100),
       assetReadyPct: Math.round(clamp(assetMetrics.readyRatio) * 100),
-      assetSyncPct: Math.round(clamp(assetMetrics.integrityRatio) * 100)
+      assetSyncPct: Math.round(clamp(assetMetrics.integrityRatio) * 100),
+      loopLineText: loopPanel.lineText,
+      loopHintText: loopPanel.opsHintText,
+      loopOpsLineText: loopPanel.opsLineText
     },
     camera: {
       mode: {
@@ -1209,6 +1218,8 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     selectedChain,
     loopLineText: loopPanel.lineText,
     loopHintText: loopPanel.hintText,
+    loopOpsLineText: loopPanel.opsLineText,
+    loopOpsHintText: loopPanel.opsHintText,
     statusChips: [
       {
         id: "tokenWalletChip",
@@ -1509,7 +1520,9 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     lineText: `Queue ${queue.length} | Bundle ${toText(deploy.bundle_mode || deploy.webapp_bundle_mode || "unknown")} | Flags ${Object.keys(featureFlags).length}`,
     eventsLineText: `Bot ${toText(latest.state_key || latest.status || "idle")} | Lock ${latest.lock_acquired === true ? "yes" : "no"} | Source ${sourceMode}`,
     loopLineText: loopPanel.lineText,
-    loopHintText: loopPanel.hintText
+    loopHintText: loopPanel.hintText,
+    loopOpsLineText: loopPanel.opsLineText,
+    loopOpsHintText: loopPanel.opsHintText
   };
 }
 

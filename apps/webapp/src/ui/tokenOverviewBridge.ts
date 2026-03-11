@@ -24,6 +24,8 @@ export type TokenOverviewBridgePayload = {
   statusChips?: StatusChip[];
   loopLineText?: string;
   loopHintText?: string;
+  loopOpsLineText?: string;
+  loopOpsHintText?: string;
 };
 
 type TokenOverviewBridge = {
@@ -60,10 +62,12 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const hint = byId<HTMLElement>("tokenHint");
   const loopLine = byId<HTMLElement>("tokenLoopLine");
   const loopHint = byId<HTMLElement>("tokenLoopHint");
+  const loopOpsLine = byId<HTMLElement>("tokenLoopOpsLine");
+  const loopOpsHint = byId<HTMLElement>("tokenLoopOpsHint");
   const chainSelect = byId<HTMLSelectElement>("tokenChainSelect");
   const buyBtn = byId<HTMLButtonElement>("tokenBuyBtn");
 
-  if (!badge || !balance || !summary || !rate || !mintable || !units || !hint || !loopLine || !loopHint || !chainSelect || !buyBtn) {
+  if (!badge || !balance || !summary || !rate || !mintable || !units || !hint || !loopLine || !loopHint || !loopOpsLine || !loopOpsHint || !chainSelect || !buyBtn) {
     return false;
   }
 
@@ -76,6 +80,8 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   hint.textContent = safeText(payload.hintText, "Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.");
   loopLine.textContent = safeText(payload.loopLineText, "VAULT LOOP | WAIT");
   loopHint.textContent = safeText(payload.loopHintText, "Scene loop focus bekleniyor.");
+  loopOpsLine.textContent = safeText(payload.loopOpsLineText, "WAIT | FLOW IDLE");
+  loopOpsHint.textContent = safeText(payload.loopOpsHintText, "District flow aktif degil.");
 
   const options = Array.isArray(payload.chainOptions) ? payload.chainOptions : [];
   chainSelect.innerHTML = options
