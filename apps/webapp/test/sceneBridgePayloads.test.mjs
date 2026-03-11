@@ -290,7 +290,18 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
     },
     scene: {
       hudDensity: "normal",
-      capabilityProfile: { perf_tier: "high", fps_avg: 60 }
+      capabilityProfile: { perf_tier: "high", fps_avg: 60 },
+      selectedLoop: {
+        districtKey: "arena_prime",
+        protocolCardKey: "arena_protocol",
+        protocolPodKey: "duel_pod",
+        microflowKey: "duel_flow",
+        entryKindKey: "world_entry_kind_duel_console",
+        sequenceKindKey: "world_modal_kind_duel_sequence",
+        loopStatusKey: "active",
+        loopStatusLabelKey: "loop_status_active",
+        loopStageValue: "engage"
+      }
     },
     sceneRuntime: {
       lowEndMode: false,
@@ -299,6 +310,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   });
 
   assert.equal(payloads.sceneStatus.profileLine, "Profile online");
+  assert.match(payloads.sceneStatus.loopLine, /ARENA PRIME/);
   assert.equal(payloads.sceneTelemetry.alarm.badgeText, "SCENE WARN");
   assert.equal(payloads.publicTelemetry.assetManifest.badgeText, "ASSET 3/4");
   assert.equal(payloads.publicTelemetry.pvpLeaderboard.badgeText, "TOP 2");

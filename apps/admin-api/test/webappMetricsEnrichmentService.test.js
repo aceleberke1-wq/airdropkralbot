@@ -71,14 +71,39 @@ test("normalizeSceneDailyRows keeps only stable daily runtime keys", () => {
 
 test("normalizeSceneLoopDailyRows keeps only day and total count", () => {
   const rows = service.normalizeSceneLoopDailyRows([
-    { day: "2026-03-08", total_count: 14, ignored: 1 },
-    { day: "2026-03-07", total_count: 9 }
+    { day: "2026-03-08", total_count: 14, district_count: 4, live_count: 10, blocked_count: 2, ignored: 1 },
+    { day: "2026-03-07", total_count: 9, district_count: 2, live_count: 2, blocked_count: 4 }
   ]);
 
   assert.equal(rows.length, 2);
   assert.equal(rows[0].day, "2026-03-08");
   assert.equal(rows[0].total_count, 14);
+  assert.equal(rows[0].district_count, 4);
+  assert.equal(rows[0].live_count, 10);
+  assert.equal(rows[0].blocked_count, 2);
+  assert.equal(rows[0].health_band, "green");
   assert.equal("ignored" in rows[0], false);
+});
+
+test("resolveSceneLoopHealthBand and alarm state reflect loop coverage quality", () => {
+  assert.equal(service.resolveSceneLoopHealthBand(0, 0, 0, 0), "no_data");
+  assert.equal(service.resolveSceneLoopHealthBand(12, 4, 0.75, 0.08), "green");
+  assert.equal(service.resolveSceneLoopHealthBand(5, 2, 0.4, 0.2), "yellow");
+  assert.equal(service.resolveSceneLoopHealthBand(5, 1, 0.2, 0.5), "red");
+  assert.equal(
+    service.resolveSceneLoopAlarmState([
+      { health_band: "red", blocked_share: 0.5, district_count: 1 },
+      { health_band: "red", blocked_share: 0.35, district_count: 2 }
+    ]),
+    "alert"
+  );
+  assert.deepEqual(
+    service.buildSceneLoopAlarmReasons([
+      { health_band: "red", blocked_share: 0.5, live_share: 0.2, district_count: 1 },
+      { health_band: "red", blocked_share: 0.35, live_share: 0.3, district_count: 2 }
+    ]),
+    ["latest_blocked_share_spike", "latest_live_share_drop", "latest_district_coverage_low", "repeated_red_days"]
+  );
 });
 
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
@@ -106,9 +131,12 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     scene_runtime_device_breakdown_24h: [{ bucket_key: "mobile", item_count: 20 }],
     scene_runtime_profile_breakdown_24h: [{ bucket_key: "cinematic", item_count: 12 }],
     scene_loop_events_24h: 11,
+    scene_loop_live_24h: 7,
+    scene_loop_blocked_24h: 3,
+    scene_loop_district_coverage_24h: 3,
     scene_loop_daily_breakdown_7d: [
-      { day: "2026-03-08", total_count: 11 },
-      { day: "2026-03-07", total_count: 7 }
+      { day: "2026-03-08", total_count: 11, district_count: 3, live_count: 7, blocked_count: 3 },
+      { day: "2026-03-07", total_count: 7, district_count: 2, live_count: 3, blocked_count: 2 }
     ],
     scene_loop_district_breakdown_24h: [{ bucket_key: "arena_prime", item_count: 6 }],
     scene_loop_status_breakdown_24h: [{ bucket_key: "active", item_count: 8 }],
@@ -145,7 +173,17 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_runtime_profile_breakdown_24h[0].bucket_key, "cinematic");
   assert.equal(enriched.scene_loop_events_24h, 11);
   assert.equal(enriched.scene_loop_events_7d, 18);
+  assert.equal(enriched.scene_loop_live_share_24h, 0.6364);
+  assert.equal(enriched.scene_loop_blocked_share_24h, 0.2727);
+  assert.equal(enriched.scene_loop_health_band_24h, "yellow");
+  assert.equal(enriched.scene_loop_trend_direction_7d, "improving");
+  assert.equal(enriched.scene_loop_alarm_state_7d, "watch");
+  assert.equal(enriched.scene_loop_band_breakdown_7d[0].bucket_key, "yellow");
+  assert.equal(enriched.scene_loop_peak_day_7d.day, "2026-03-08");
   assert.equal(enriched.scene_loop_daily_breakdown_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_daily_breakdown_7d[0].district_count, 3);
+  assert.equal(enriched.scene_loop_daily_breakdown_7d[0].live_count, 7);
+  assert.equal(enriched.scene_loop_daily_breakdown_7d[0].blocked_count, 3);
   assert.equal(enriched.scene_loop_district_breakdown_24h[0].bucket_key, "arena_prime");
   assert.equal(enriched.scene_loop_status_breakdown_24h[0].bucket_key, "active");
   assert.equal(enriched.scene_loop_sequence_breakdown_24h[0].bucket_key, "world_modal_kind_duel_sequence");

@@ -83,10 +83,108 @@ function normalizeSceneLoopDailyRows(rows, limit = 7) {
   return source
     .map((row) => ({
       day: String(row?.day || ""),
-      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0)))
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      district_count: Math.max(0, Math.floor(toNum(row?.district_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0)))
     }))
     .filter((row) => row.day)
+    .map((row) => {
+      const liveShare = toRate(row.live_count, row.total_count);
+      const blockedShare = toRate(row.blocked_count, row.total_count);
+      return {
+        ...row,
+        live_share: liveShare,
+        blocked_share: blockedShare,
+        health_band: resolveSceneLoopHealthBand(row.total_count, row.district_count, liveShare, blockedShare)
+      };
+    })
     .slice(0, Math.max(1, Math.floor(toNum(limit, 7))));
+}
+
+function resolveSceneLoopHealthBand(totalCount, districtCount, liveShare, blockedShare) {
+  const total = Math.max(0, Math.floor(toNum(totalCount, 0)));
+  const districts = Math.max(0, Math.floor(toNum(districtCount, 0)));
+  const live = clamp(toNum(liveShare, 0), 0, 1);
+  const blocked = clamp(toNum(blockedShare, 0), 0, 1);
+  if (total <= 0) {
+    return "no_data";
+  }
+  if (live >= 0.55 && districts >= 3 && blocked <= 0.2 && total >= 8) {
+    return "green";
+  }
+  if (live >= 0.3 && districts >= 2 && blocked <= 0.45 && total >= 3) {
+    return "yellow";
+  }
+  return "red";
+}
+
+function resolveSceneLoopTrendDirection(latestCount, earliestCount, sampleCount) {
+  if (Math.max(0, Math.floor(toNum(sampleCount, 0))) < 2) {
+    return "no_data";
+  }
+  const latest = Math.max(0, Math.floor(toNum(latestCount, 0)));
+  const earliest = Math.max(0, Math.floor(toNum(earliestCount, 0)));
+  const delta = latest - earliest;
+  if (delta >= 4 || latest >= Math.ceil(earliest * 1.25)) return "improving";
+  if (delta <= -4 || latest <= Math.floor(earliest * 0.75)) return "degrading";
+  return "stable";
+}
+
+function buildSceneLoopBandBreakdown(rows) {
+  const counters = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = String(row?.health_band || "no_data");
+    counters.set(key, (counters.get(key) || 0) + 1);
+  });
+  return Array.from(counters.entries())
+    .map(([bucket_key, item_count]) => ({
+      bucket_key,
+      item_count: Math.max(0, Math.floor(toNum(item_count, 0)))
+    }))
+    .sort((left, right) => right.item_count - left.item_count || String(left.bucket_key).localeCompare(String(right.bucket_key)));
+}
+
+function resolveSceneLoopAlarmState(rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  if (!source.length) {
+    return "no_data";
+  }
+  const latest = source[0] || {};
+  const redDays = source.filter((row) => row?.health_band === "red").length;
+  const yellowDays = source.filter((row) => row?.health_band === "yellow").length;
+  if (latest.health_band === "red" || redDays >= 2 || toNum(latest.blocked_share, 0) >= 0.45) {
+    return "alert";
+  }
+  if (latest.health_band === "yellow" || yellowDays >= 3 || toNum(latest.district_count, 0) <= 1) {
+    return "watch";
+  }
+  return "clear";
+}
+
+function buildSceneLoopAlarmReasons(rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  if (!source.length) {
+    return [];
+  }
+  const latest = source[0] || {};
+  const reasons = [];
+  if (toNum(latest.blocked_share, 0) >= 0.45) {
+    reasons.push("latest_blocked_share_spike");
+  }
+  if (toNum(latest.live_share, 0) <= 0.25) {
+    reasons.push("latest_live_share_drop");
+  }
+  if (toNum(latest.district_count, 0) <= 1) {
+    reasons.push("latest_district_coverage_low");
+  }
+  if (source.filter((row) => row?.health_band === "red").length >= 2) {
+    reasons.push("repeated_red_days");
+  }
+  if (!reasons.length && latest.health_band === "yellow") {
+    reasons.push("latest_watch_band");
+  }
+  return reasons.slice(0, 4);
 }
 
 function resolveSceneTrendDirection(latestReadyRate, earliestReadyRate, sampleCount) {
@@ -220,11 +318,45 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_runtime_device_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_device_breakdown_24h);
   metrics.scene_runtime_profile_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_profile_breakdown_24h);
   metrics.scene_loop_events_24h = Math.max(0, Math.floor(toNum(metrics.scene_loop_events_24h, 0)));
+  metrics.scene_loop_live_24h = Math.max(0, Math.floor(toNum(metrics.scene_loop_live_24h, 0)));
+  metrics.scene_loop_blocked_24h = Math.max(0, Math.floor(toNum(metrics.scene_loop_blocked_24h, 0)));
+  metrics.scene_loop_district_coverage_24h = Math.max(0, Math.floor(toNum(metrics.scene_loop_district_coverage_24h, 0)));
   metrics.scene_loop_daily_breakdown_7d = normalizeSceneLoopDailyRows(metrics.scene_loop_daily_breakdown_7d);
   metrics.scene_loop_events_7d = metrics.scene_loop_daily_breakdown_7d.reduce(
     (sum, row) => sum + Math.max(0, Math.floor(toNum(row.total_count, 0))),
     0
   );
+  metrics.scene_loop_live_share_24h = toRate(metrics.scene_loop_live_24h, metrics.scene_loop_events_24h);
+  metrics.scene_loop_blocked_share_24h = toRate(metrics.scene_loop_blocked_24h, metrics.scene_loop_events_24h);
+  metrics.scene_loop_health_band_24h = resolveSceneLoopHealthBand(
+    metrics.scene_loop_events_24h,
+    metrics.scene_loop_district_coverage_24h,
+    metrics.scene_loop_live_share_24h,
+    metrics.scene_loop_blocked_share_24h
+  );
+  const sceneLoopRows = metrics.scene_loop_daily_breakdown_7d;
+  const latestSceneLoopDay = sceneLoopRows[0] || null;
+  const earliestSceneLoopDay = sceneLoopRows[sceneLoopRows.length - 1] || null;
+  metrics.scene_loop_trend_direction_7d = resolveSceneLoopTrendDirection(
+    latestSceneLoopDay?.total_count,
+    earliestSceneLoopDay?.total_count,
+    sceneLoopRows.length
+  );
+  metrics.scene_loop_trend_delta_7d = Math.max(
+    -9999,
+    Math.min(9999, Math.floor(toNum(latestSceneLoopDay?.total_count, 0) - toNum(earliestSceneLoopDay?.total_count, 0)))
+  );
+  metrics.scene_loop_alarm_state_7d = resolveSceneLoopAlarmState(sceneLoopRows);
+  metrics.scene_loop_alarm_reasons_7d = buildSceneLoopAlarmReasons(sceneLoopRows);
+  metrics.scene_loop_band_breakdown_7d = buildSceneLoopBandBreakdown(sceneLoopRows);
+  metrics.scene_loop_peak_day_7d =
+    sceneLoopRows.length > 0
+      ? [...sceneLoopRows].sort((left, right) => {
+          const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+          if (Math.abs(totalGap) > 0.0001) return totalGap;
+          return String(right.day || "").localeCompare(String(left.day || ""));
+        })[0]
+      : null;
   metrics.scene_loop_district_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_district_breakdown_24h);
   metrics.scene_loop_status_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_status_breakdown_24h);
   metrics.scene_loop_sequence_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_sequence_breakdown_24h);
@@ -313,7 +445,12 @@ module.exports = {
   normalizeBreakdownRows,
   normalizeSceneDailyRows,
   normalizeSceneLoopDailyRows,
+  resolveSceneLoopHealthBand,
+  resolveSceneLoopTrendDirection,
   buildSceneBandBreakdown,
+  buildSceneLoopBandBreakdown,
   buildSceneAlarmReasons,
+  buildSceneLoopAlarmReasons,
+  resolveSceneLoopAlarmState,
   enrichWebappRevenueMetrics
 };

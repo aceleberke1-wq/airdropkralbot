@@ -4161,17 +4161,29 @@ async function buildAdminMetrics(db) {
     scene_runtime_alarm_reasons_7d: [],
     scene_runtime_band_breakdown_7d: [],
     scene_runtime_worst_day_7d: null,
-    scene_runtime_quality_breakdown_24h: [],
-    scene_runtime_perf_breakdown_24h: [],
-    scene_runtime_device_breakdown_24h: [],
-    scene_runtime_profile_breakdown_24h: [],
-    scene_loop_events_24h: 0,
-    scene_loop_events_7d: 0,
-    scene_loop_daily_breakdown_7d: [],
-    scene_loop_district_breakdown_24h: [],
-    scene_loop_status_breakdown_24h: [],
-    scene_loop_sequence_breakdown_24h: [],
-    scene_loop_entry_breakdown_24h: []
+      scene_runtime_quality_breakdown_24h: [],
+      scene_runtime_perf_breakdown_24h: [],
+      scene_runtime_device_breakdown_24h: [],
+      scene_runtime_profile_breakdown_24h: [],
+      scene_loop_events_24h: 0,
+      scene_loop_live_24h: 0,
+      scene_loop_blocked_24h: 0,
+      scene_loop_district_coverage_24h: 0,
+      scene_loop_live_share_24h: 0,
+      scene_loop_blocked_share_24h: 0,
+      scene_loop_health_band_24h: "no_data",
+      scene_loop_events_7d: 0,
+      scene_loop_trend_direction_7d: "no_data",
+      scene_loop_trend_delta_7d: 0,
+      scene_loop_alarm_state_7d: "no_data",
+      scene_loop_alarm_reasons_7d: [],
+      scene_loop_band_breakdown_7d: [],
+      scene_loop_peak_day_7d: null,
+      scene_loop_daily_breakdown_7d: [],
+      scene_loop_district_breakdown_24h: [],
+      scene_loop_status_breakdown_24h: [],
+      scene_loop_sequence_breakdown_24h: [],
+      scene_loop_entry_breakdown_24h: []
   };
 
   const coreRes = await db.query(
@@ -4378,12 +4390,26 @@ async function buildAdminMetrics(db) {
        )
        SELECT
          COUNT(*)::bigint AS scene_loop_events_24h,
+         COUNT(*) FILTER (
+           WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+             IN ('active', 'ready', 'open', 'live', 'available', 'engaged', 'armed')
+         )::bigint AS scene_loop_live_24h,
+         COUNT(*) FILTER (
+           WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+             IN ('blocked', 'locked', 'review', 'failed', 'cooldown')
+         )::bigint AS scene_loop_blocked_24h,
+         COUNT(
+           DISTINCT COALESCE(NULLIF(lower(payload_json->>'district_key'), ''), 'unknown')
+         )::bigint AS scene_loop_district_coverage_24h,
          (
            SELECT COALESCE(
              json_agg(
                json_build_object(
                  'day', day,
-                 'total_count', total_count
+                 'total_count', total_count,
+                 'district_count', district_count,
+                 'live_count', live_count,
+                 'blocked_count', blocked_count
                )
                ORDER BY day DESC
              ),
@@ -4392,7 +4418,18 @@ async function buildAdminMetrics(db) {
            FROM (
              SELECT
                to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
-               COUNT(*)::int AS total_count
+               COUNT(*)::int AS total_count,
+               COUNT(
+                 DISTINCT COALESCE(NULLIF(lower(payload_json->>'district_key'), ''), 'unknown')
+               )::int AS district_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+                   IN ('active', 'ready', 'open', 'live', 'available', 'engaged', 'armed')
+               )::int AS live_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+                   IN ('blocked', 'locked', 'review', 'failed', 'cooldown')
+               )::int AS blocked_count
              FROM v5_webapp_ui_events
              WHERE created_at >= now() - interval '7 days'
                AND event_key = 'runtime.scene.loop'
@@ -4461,6 +4498,9 @@ async function buildAdminMetrics(db) {
     );
     const sceneLoopRow = sceneLoopRes.rows[0] || {};
     metrics.scene_loop_events_24h = Number(sceneLoopRow.scene_loop_events_24h || 0);
+    metrics.scene_loop_live_24h = Number(sceneLoopRow.scene_loop_live_24h || 0);
+    metrics.scene_loop_blocked_24h = Number(sceneLoopRow.scene_loop_blocked_24h || 0);
+    metrics.scene_loop_district_coverage_24h = Number(sceneLoopRow.scene_loop_district_coverage_24h || 0);
     metrics.scene_loop_daily_breakdown_7d = Array.isArray(sceneLoopRow.scene_loop_daily_breakdown_7d)
       ? sceneLoopRow.scene_loop_daily_breakdown_7d
       : [];

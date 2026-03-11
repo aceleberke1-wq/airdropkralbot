@@ -194,6 +194,59 @@ function buildSceneStatusPayload(profileMetrics) {
       : { shouldShow: false, text: "Lite Scene", tone: "info", mode: "ok", title: "" }
   };
 }
+
+function formatRuntimeKeyLabel(value, fallback = "-") {
+  const text = toText(value, fallback)
+    .replace(/^world_(entry|sequence|modal|loop)_kind_/, "")
+    .replace(/^loop_status_/, "")
+    .replace(/^district_/, "")
+    .replace(/^scene_/, "")
+    .replace(/^player_/, "")
+    .replace(/^admin_/, "")
+    .replace(/_/g, " ")
+    .trim();
+  return text ? text.toUpperCase() : fallback;
+}
+
+function formatLoopStageValue(value) {
+  const text = toText(value, "-");
+  return text ? text.replace(/_/g, " ").toUpperCase() : "-";
+}
+
+function buildSceneLoopDeckPayload(scene) {
+  const selectedLoop = asRecord(scene?.selectedLoop);
+  if (!selectedLoop) {
+    return {
+      lineText: "Loop state bekleniyor.",
+      districtKey: "",
+      loopStatusKey: "",
+      loopStatusLabel: "",
+      stageValue: "",
+      entryKindKey: "",
+      sequenceKindKey: "",
+      microflowKey: ""
+    };
+  }
+  const districtLabel = formatRuntimeKeyLabel(selectedLoop.districtKey, "DISTRICT");
+  const entryLabel = formatRuntimeKeyLabel(selectedLoop.entryKindKey, "ENTRY");
+  const statusLabel = formatRuntimeKeyLabel(
+    selectedLoop.loopStatusLabelKey || selectedLoop.loopStatusKey,
+    "IDLE"
+  );
+  const sequenceLabel = formatRuntimeKeyLabel(selectedLoop.sequenceKindKey, "LOOP");
+  const stageLabel = formatLoopStageValue(selectedLoop.loopStageValue);
+  const microflowLabel = formatRuntimeKeyLabel(selectedLoop.microflowKey, "FLOW");
+  return {
+    lineText: `${districtLabel} | ${entryLabel} | ${statusLabel} | ${sequenceLabel} ${stageLabel} | ${microflowLabel}`,
+    districtKey: toText(selectedLoop.districtKey, ""),
+    loopStatusKey: toText(selectedLoop.loopStatusKey, ""),
+    loopStatusLabel: statusLabel,
+    stageValue: stageLabel,
+    entryKindKey: toText(selectedLoop.entryKindKey, ""),
+    sequenceKindKey: toText(selectedLoop.sequenceKindKey, ""),
+    microflowKey: toText(selectedLoop.microflowKey, "")
+  };
+}
 function buildSceneTelemetryPayload(mutators, input) {
   if (!mutators?.computeSceneAlarmMetrics || !mutators?.computeSceneIntegrityOverlayMetrics) return null;
   const alarmMetrics = mutators.computeSceneAlarmMetrics(input);
@@ -949,7 +1002,7 @@ function buildOperationsDeckEvents(root, homeView) {
   return rows.slice(0, 6);
 }
 
-function buildOperationsDeckPayload(data, taskResult, homeFeed) {
+function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
   const root = asRecord(data);
   const homeView = buildHomeFeedViewModel({
     homeFeed: asRecord(homeFeed),
@@ -967,6 +1020,7 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed) {
   const activeAttempt = asRecord(asRecord(root.attempts).active || contract.active_attempt);
   const revealableAttempt = asRecord(asRecord(root.attempts).revealable || contract.revealable_attempt);
   const events = buildOperationsDeckEvents(root, homeView);
+  const loopDeck = buildSceneLoopDeckPayload(scene);
   return {
     offers: {
       badgeText: `${toNum(tasksView.summary.offers_total || contract.offers_total)} aktif`,
@@ -1014,14 +1068,14 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed) {
       emptyText: "Event akisi bos.",
       items: events
     },
-    pulse: {
-      lineText: `Streak ${Math.round(toNum(homeView.summary?.streak))} | D-${Math.round(toNum(homeView.summary?.season_days_left))} | Tasks ${Math.round(
-        toNum(homeView.summary?.tasks_done)
-      )}/${Math.round(toNum(homeView.summary?.daily_cap))}`,
-      hintText: `SC ${Math.round(toNum(homeView.summary?.sc_earned))} | RC ${Math.round(toNum(homeView.summary?.rc_earned))} | Wallet ${
-        asRecord(homeView.summary).wallet_active ? "LIVE" : "OFF"
-      } | ${asRecord(homeView.summary).premium_active ? "PREMIUM" : "BASE"}`,
-      chips: [
+      pulse: {
+        lineText: `Streak ${Math.round(toNum(homeView.summary?.streak))} | D-${Math.round(toNum(homeView.summary?.season_days_left))} | Tasks ${Math.round(
+          toNum(homeView.summary?.tasks_done)
+        )}/${Math.round(toNum(homeView.summary?.daily_cap))}`,
+        hintText: `SC ${Math.round(toNum(homeView.summary?.sc_earned))} | RC ${Math.round(toNum(homeView.summary?.rc_earned))} | Wallet ${
+          asRecord(homeView.summary).wallet_active ? "LIVE" : "OFF"
+        } | ${asRecord(homeView.summary).premium_active ? "PREMIUM" : "BASE"}`,
+        chips: [
         {
           id: "tasksPulseStreakChip",
           text: `STR ${Math.round(toNum(homeView.summary?.streak))}`,
@@ -1045,11 +1099,21 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed) {
           text: asRecord(homeView.summary).wallet_active ? `WL ${toText(homeView.summary?.wallet_chain, "TON").toUpperCase()}` : "WL OFF",
           tone: asRecord(homeView.summary).wallet_active ? "safe" : "pressure",
           level: asRecord(homeView.summary).wallet_active ? 0.88 : 0.22
-        }
-      ]
-    }
-  };
-}
+          }
+        ]
+      },
+      loop: {
+        lineText: loopDeck.lineText,
+        districtKey: loopDeck.districtKey,
+        loopStatusKey: loopDeck.loopStatusKey,
+        loopStatusLabel: loopDeck.loopStatusLabel,
+        stageValue: loopDeck.stageValue,
+        entryKindKey: loopDeck.entryKindKey,
+        sequenceKindKey: loopDeck.sequenceKindKey,
+        microflowKey: loopDeck.microflowKey
+      }
+    };
+  }
 
 function buildTokenOverviewPayload(vaultRoot, vaultView) {
   const root = asRecord(vaultRoot);
@@ -1560,7 +1624,10 @@ function buildPlayerBridgePayloads(options = {}) {
   };
 
   return {
-    sceneStatus: buildSceneStatusPayload(profileMetrics),
+    sceneStatus: {
+      ...(buildSceneStatusPayload(profileMetrics) || {}),
+      loopLine: buildSceneLoopDeckPayload(scene).lineText
+    },
     sceneTelemetry: buildSceneTelemetryPayload(mutators, telemetryInput),
     publicTelemetry: {
       assetManifest: buildAssetManifestStripPayload(assetMetrics),
@@ -1574,7 +1641,7 @@ function buildPlayerBridgePayloads(options = {}) {
     combatHud: pvpRuntimePayloads.combatHud,
     cameraDirector: pvpRuntimePayloads.camera,
     pvpRoundDirector: pvpRuntimePayloads.roundDirector,
-    operations: buildOperationsDeckPayload(data, options.taskResult, homeFeed),
+    operations: buildOperationsDeckPayload(data, options.taskResult, homeFeed, scene),
     tokenOverview: buildTokenOverviewPayload(vaultRoot, vaultView),
     tokenTreasury: buildTokenTreasuryPayload(mutators, vaultRoot, vaultView)
   };

@@ -94,7 +94,7 @@ import {
   useWalletVerifyV2Mutation,
   useVaultOverviewV2Query
 } from "./redux/api/webappApi";
-import { navigationActions } from "./redux/slices/shellSlices";
+import { navigationActions, sceneActions } from "./redux/slices/shellSlices";
 import "./styles.css";
 
 const PlayerWorkspace = lazy(async () => {
@@ -649,7 +649,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     [dispatch, isAdmin, setTab, setWorkspace, tab, trackUiEvent]
   );
   const handleDistrictLoopStateChange = useCallback(
-    (payload: {
+    (payload:
+      | {
       districtKey: string;
       workspace: "player" | "admin";
       tab: "home" | "pvp" | "tasks" | "vault";
@@ -667,7 +668,12 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       clusterKey?: string;
       hotspotKey?: string;
       sourceType: string;
-    }) => {
+    }
+      | null) => {
+      dispatch(sceneActions.setSelectedLoop(payload || null));
+      if (!payload) {
+        return;
+      }
       const nextTab = payload.workspace === "admin" ? "home" : payload.tab;
       trackUiEvent({
         event_key: UI_EVENT_KEY.SCENE_RUNTIME_LOOP,
@@ -700,7 +706,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         event_value: 1
       });
     },
-    [trackUiEvent]
+    [dispatch, trackUiEvent]
   );
   const pvpLiveState = useMemo(
     () => ({

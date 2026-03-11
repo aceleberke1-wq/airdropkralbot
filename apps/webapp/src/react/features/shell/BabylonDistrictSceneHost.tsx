@@ -24,7 +24,8 @@ type BabylonDistrictSceneHostProps = {
     summary: Record<string, unknown> | null;
     queue: Array<Record<string, unknown>>;
   };
-  onLoopStateChange?: (payload: {
+  onLoopStateChange?: (payload:
+    | {
     districtKey: string;
     workspace: "player" | "admin";
     tab: "home" | "pvp" | "tasks" | "vault";
@@ -42,7 +43,8 @@ type BabylonDistrictSceneHostProps = {
     clusterKey?: string;
     hotspotKey?: string;
     sourceType: string;
-  }) => void;
+  }
+    | null) => void;
   onNodeAction?: (payload: {
     actionKey: string;
     nodeKey: string;
@@ -427,6 +429,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       return;
     }
     if (!modalOpen || !selectedProtocolCard || !selectedProtocolPod || !selectedMicroflow) {
+      if (lastLoopSignatureRef.current) {
+        props.onLoopStateChange(null);
+      }
       lastLoopSignatureRef.current = "";
       return;
     }

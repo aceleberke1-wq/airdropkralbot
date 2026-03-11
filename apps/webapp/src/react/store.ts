@@ -53,6 +53,7 @@ type ReactShellState = {
     reducedMotion: boolean;
     largeText: boolean;
     capabilityProfile: Record<string, unknown> | null;
+    selectedLoop: Record<string, unknown> | null;
   };
   navigationContext: LaunchContext | null;
   navigationRequestKey: number;

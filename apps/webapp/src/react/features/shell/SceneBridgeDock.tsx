@@ -46,6 +46,9 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
           <p id="sceneProfileLine" className="akrBridgeLine">
             -
           </p>
+          <p id="sceneLoopLine" className="akrBridgeHint">
+            Loop state bekleniyor.
+          </p>
           <div className="akrChipRow">
             <BridgeChip id="sceneDeckModeChip" className="combatAlertChip neutral tone-neutral" />
             <BridgeChip id="sceneDeckPerfChip" className="combatAlertChip neutral tone-neutral" />

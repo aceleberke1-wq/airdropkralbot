@@ -136,7 +136,9 @@ function SceneLoopDailyTrendList(props: { title: string; rows: Array<Record<stri
       <div className="akrStack">
         {props.rows.slice(0, 7).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}`}>
-            {String(row.day || "-")} | loops {Math.floor(Number(row.total_count || 0))}
+            {String(row.day || "-")} | loops {Math.floor(Number(row.total_count || 0))} | districts{" "}
+            {Math.floor(Number(row.district_count || 0))} | live {Math.floor(Number(row.live_count || 0))} | blocked{" "}
+            {Math.floor(Number(row.blocked_count || 0))} | {String(row.health_band || "no_data")}
           </p>
         ))}
       </div>
@@ -325,7 +327,21 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneRuntimeDeviceBreakdown = asRows(props.metricsData?.scene_runtime_device_breakdown_24h);
   const sceneRuntimeProfileBreakdown = asRows(props.metricsData?.scene_runtime_profile_breakdown_24h);
   const sceneLoopEvents24h = readNum(props.metricsData, "scene_loop_events_24h");
+  const sceneLoopLive24h = readNum(props.metricsData, "scene_loop_live_24h");
+  const sceneLoopBlocked24h = readNum(props.metricsData, "scene_loop_blocked_24h");
+  const sceneLoopDistrictCoverage24h = readNum(props.metricsData, "scene_loop_district_coverage_24h");
+  const sceneLoopLiveShare24h = readNum(props.metricsData, "scene_loop_live_share_24h");
+  const sceneLoopBlockedShare24h = readNum(props.metricsData, "scene_loop_blocked_share_24h");
+  const sceneLoopHealthBand24h = readText(props.metricsData, "scene_loop_health_band_24h") || "no_data";
   const sceneLoopEvents7d = readNum(props.metricsData, "scene_loop_events_7d");
+  const sceneLoopTrendDirection7d = readText(props.metricsData, "scene_loop_trend_direction_7d") || "no_data";
+  const sceneLoopTrendDelta7d = readNum(props.metricsData, "scene_loop_trend_delta_7d");
+  const sceneLoopAlarmState7d = readText(props.metricsData, "scene_loop_alarm_state_7d") || "no_data";
+  const sceneLoopAlarmReasons7d = Array.isArray(props.metricsData?.scene_loop_alarm_reasons_7d)
+    ? (props.metricsData?.scene_loop_alarm_reasons_7d as unknown[]).map((row) => String(row || "")).filter(Boolean)
+    : [];
+  const sceneLoopBandBreakdown7d = asRows(props.metricsData?.scene_loop_band_breakdown_7d);
+  const sceneLoopPeakDay7d = asRecord(props.metricsData?.scene_loop_peak_day_7d);
   const sceneLoopDailyBreakdown = asRows(props.metricsData?.scene_loop_daily_breakdown_7d);
   const sceneLoopDistrictBreakdown = asRows(props.metricsData?.scene_loop_district_breakdown_24h);
   const sceneLoopStatusBreakdown = asRows(props.metricsData?.scene_loop_status_breakdown_24h);
@@ -514,12 +530,39 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <span className="akrChip">
             {t(props.lang, "admin_runtime_scene_loop_events_7d")}: {Math.floor(sceneLoopEvents7d)}
           </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_live_24h")}: {Math.floor(sceneLoopLive24h)} ({toPct(sceneLoopLiveShare24h)})
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_blocked_24h")}: {Math.floor(sceneLoopBlocked24h)} ({toPct(sceneLoopBlockedShare24h)})
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_coverage_24h")}: {Math.floor(sceneLoopDistrictCoverage24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_health_24h")}: {sceneLoopHealthBand24h}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_trend_7d")}: {sceneLoopTrendDirection7d} ({Math.floor(sceneLoopTrendDelta7d)})
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_alarm_7d")}: {sceneLoopAlarmState7d}
+          </span>
+        </div>
+        <div className="akrStack">
+          <p className="akrMutedLine">
+            {t(props.lang, "admin_runtime_scene_loop_peak_day_7d")}: {formatStamp(sceneLoopPeakDay7d?.day)} | loops{" "}
+            {Math.floor(Number(sceneLoopPeakDay7d?.total_count || 0))} | districts {Math.floor(Number(sceneLoopPeakDay7d?.district_count || 0))} |{" "}
+            {String(sceneLoopPeakDay7d?.health_band || "no_data")}
+          </p>
         </div>
         <SceneLoopDailyTrendList title={t(props.lang, "admin_runtime_scene_loop_daily_title")} rows={sceneLoopDailyBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_band_title")} rows={sceneLoopBandBreakdown7d} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_district_title")} rows={sceneLoopDistrictBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_status_title")} rows={sceneLoopStatusBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_sequence_title")} rows={sceneLoopSequenceBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_entry_title")} rows={sceneLoopEntryBreakdown} />
+        <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="live_ops_kpi">
         <h3>{t(props.lang, "admin_runtime_live_ops_kpi_title")}</h3>

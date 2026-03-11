@@ -18,6 +18,7 @@ type SceneLiteBadgePayload = {
 export type SceneStatusDeckBridgePayload = {
   chips: SceneDeckChipPayload[];
   profileLine?: string;
+  loopLine?: string;
   liteBadge?: SceneLiteBadgePayload;
 };
 
@@ -85,6 +86,10 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   if (profileLineNode && payload.profileLine) {
     profileLineNode.textContent = String(payload.profileLine);
   }
+  const loopLineNode = byId<HTMLElement>("sceneLoopLine");
+  if (loopLineNode) {
+    loopLineNode.textContent = String(payload.loopLine || "Loop state bekleniyor.");
+  }
   renderLiteBadge(payload.liteBadge);
   return true;
 }
@@ -92,4 +97,3 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
 export function installSceneStatusDeckBridge(): void {
   window.__AKR_SCENE_STATUS_DECK__ = { render };
 }
-

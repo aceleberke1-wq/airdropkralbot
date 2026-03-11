@@ -94,6 +94,7 @@ type SceneState = {
   reducedMotion: boolean;
   largeText: boolean;
   capabilityProfile: Record<string, unknown> | null;
+  selectedLoop: Record<string, unknown> | null;
 };
 
 type NavigationState = {
@@ -339,7 +340,8 @@ const sceneSlice = createSlice({
     hudDensity: "normal",
     reducedMotion: false,
     largeText: false,
-    capabilityProfile: null
+    capabilityProfile: null,
+    selectedLoop: null
   } as SceneState,
   reducers: {
     setScenePreferences(state, action: PayloadAction<Partial<SceneState>>) {
@@ -362,6 +364,9 @@ const sceneSlice = createSlice({
       if (Object.prototype.hasOwnProperty.call(patch, "capabilityProfile")) {
         state.capabilityProfile = patch.capabilityProfile || null;
       }
+    },
+    setSelectedLoop(state, action: PayloadAction<Record<string, unknown> | null>) {
+      state.selectedLoop = action.payload || null;
     }
   }
 });
