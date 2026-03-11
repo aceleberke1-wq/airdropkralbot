@@ -88,7 +88,10 @@ type CombatHudPayload = {
   alertHintText: string;
   loopLineText?: string;
   loopHintText?: string;
+  loopFocusText?: string;
   loopOpsLineText?: string;
+  loopSequenceText?: string;
+  loopStateText?: string;
   loopDetailText?: string;
   loopSignalText?: string;
   rejectCategory?: string;
@@ -231,7 +234,10 @@ function render(payload: CombatHudPayload): boolean {
   const alertHint = byId("combatAlertHint");
   const loopLine = byId("combatLoopLine");
   const loopHint = byId("combatLoopHint");
+  const loopFocus = byId("combatLoopFocus");
   const loopOps = byId("combatLoopOpsLine");
+  const loopSequence = byId("combatLoopSequence");
+  const loopState = byId("combatLoopState");
   const loopDetail = byId("combatLoopDetail");
   const loopSignal = byId("combatLoopSignal");
 
@@ -388,8 +394,17 @@ function render(payload: CombatHudPayload): boolean {
   if (loopHint) {
     loopHint.textContent = String(payload.loopHintText || "Scene loop focus bekleniyor.");
   }
+  if (loopFocus) {
+    loopFocus.textContent = String(payload.loopFocusText || "FLOW | WAIT");
+  }
   if (loopOps) {
     loopOps.textContent = String(payload.loopOpsLineText || "WAIT | FLOW IDLE");
+  }
+  if (loopSequence) {
+    loopSequence.textContent = String(payload.loopSequenceText || "Sequence detay bekleniyor.");
+  }
+  if (loopState) {
+    loopState.textContent = String(payload.loopStateText || "IDLE | FLOW WAIT");
   }
   if (loopDetail) {
     loopDetail.textContent = String(payload.loopDetailText || "Loop detay bekleniyor.");

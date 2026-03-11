@@ -296,8 +296,10 @@ function buildDomainLoopPanelPayload(scene, domainKey) {
     return {
       lineText: `${domainConfig.standbyLabel} | WAIT`,
       hintText: "Scene loop focus bekleniyor.",
+      focusLineText: "FLOW | WAIT",
       opsLineText: "WAIT | FLOW IDLE",
       opsHintText: "District flow aktif degil.",
+      statusLineText: "IDLE | FLOW WAIT",
       detailLineText: "Loop detay bekleniyor.",
       signalLineText: "Signal detay bekleniyor.",
       sequenceLineText: "Sequence detay bekleniyor.",
@@ -316,10 +318,14 @@ function buildDomainLoopPanelPayload(scene, domainKey) {
     hintText: districtMatches
       ? `${entryLabel} | ${sequenceLabel}`
       : `Focus ${districtLabel} | ${entryLabel} | ${microflowLabel}`,
+    focusLineText: districtMatches
+      ? `${districtLabel} | ${microflowLabel} | ${entryLabel}`
+      : `TRACK ${districtLabel} | ${microflowLabel}`,
     opsLineText: districtMatches
       ? `${loopDeck.loopStatusLabel} | ${loopDeck.stageValue} | ${microflowLabel}`
       : `FOCUS ${districtLabel} | ${loopDeck.loopStatusLabel}`,
     opsHintText: `${entryLabel} | ${sequenceLabel} | ${microflowLabel}`,
+    statusLineText: `${loopDeck.loopStatusLabel} | ${loopDeck.stageValue} | ${entryLabel}`,
     detailLineText: loopDeck.detailLine,
     signalLineText: loopDeck.signalLine,
     sequenceLineText: loopDeck.sequenceLine,
@@ -998,7 +1004,10 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       assetSyncPct: Math.round(clamp(assetMetrics.integrityRatio) * 100),
       loopLineText: loopPanel.lineText,
       loopHintText: loopPanel.opsHintText,
+      loopFocusText: loopPanel.focusLineText,
       loopOpsLineText: loopPanel.opsLineText,
+      loopSequenceText: loopPanel.sequenceLineText,
+      loopStateText: loopPanel.statusLineText,
       loopDetailText: loopPanel.detailLineText,
       loopSignalText: loopPanel.signalLineText
     },
@@ -1247,8 +1256,11 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     selectedChain,
     loopLineText: loopPanel.lineText,
     loopHintText: loopPanel.hintText,
+    loopFocusText: loopPanel.focusLineText,
     loopOpsLineText: loopPanel.opsLineText,
     loopOpsHintText: loopPanel.opsHintText,
+    loopSequenceText: loopPanel.sequenceLineText,
+    loopStateText: loopPanel.statusLineText,
     loopDetailText: loopPanel.detailLineText,
     loopSignalText: loopPanel.signalLineText,
     statusChips: [
@@ -1552,8 +1564,11 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     eventsLineText: `Bot ${toText(latest.state_key || latest.status || "idle")} | Lock ${latest.lock_acquired === true ? "yes" : "no"} | Source ${sourceMode}`,
     loopLineText: loopPanel.lineText,
     loopHintText: loopPanel.hintText,
+    loopFocusText: loopPanel.focusLineText,
     loopOpsLineText: loopPanel.opsLineText,
     loopOpsHintText: loopPanel.opsHintText,
+    loopSequenceText: loopPanel.sequenceLineText,
+    loopStateText: loopPanel.statusLineText,
     loopDetailText: loopPanel.detailLineText,
     loopSignalText: loopPanel.signalLineText
   };

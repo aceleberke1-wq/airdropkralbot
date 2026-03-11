@@ -578,8 +578,17 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <p id="combatLoopHint" className="akrBridgeHint">
                   Scene loop focus bekleniyor.
                 </p>
+                <p id="combatLoopFocus" className="akrBridgeHint">
+                  FLOW | WAIT
+                </p>
                 <p id="combatLoopOpsLine" className="akrBridgeHint">
                   WAIT | FLOW IDLE
+                </p>
+                <p id="combatLoopSequence" className="akrBridgeHint">
+                  Sequence detay bekleniyor.
+                </p>
+                <p id="combatLoopState" className="akrBridgeHint">
+                  IDLE | FLOW WAIT
                 </p>
                 <p id="combatLoopDetail" className="akrBridgeHint">
                   Loop detay bekleniyor.
@@ -692,10 +701,19 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
               <p className="akrBridgeHint" id="tokenLoopHint">
                 -
               </p>
+              <p className="akrBridgeHint" id="tokenLoopFocus">
+                -
+              </p>
               <p className="akrBridgeHint" id="tokenLoopOpsLine">
                 -
               </p>
               <p className="akrBridgeHint" id="tokenLoopOpsHint">
+                -
+              </p>
+              <p className="akrBridgeHint" id="tokenLoopSequence">
+                -
+              </p>
+              <p className="akrBridgeHint" id="tokenLoopState">
                 -
               </p>
               <p className="akrBridgeHint" id="tokenLoopDetail">
@@ -838,10 +856,19 @@ function AdminBridgeCards(props: { lang: Lang }) {
           <p id="adminRuntimeLoopHint" className="akrBridgeHint">
             -
           </p>
+          <p id="adminRuntimeLoopFocus" className="akrBridgeHint">
+            -
+          </p>
           <p id="adminRuntimeLoopOpsLine" className="akrBridgeHint">
             -
           </p>
           <p id="adminRuntimeLoopOpsHint" className="akrBridgeHint">
+            -
+          </p>
+          <p id="adminRuntimeLoopSequence" className="akrBridgeHint">
+            -
+          </p>
+          <p id="adminRuntimeLoopState" className="akrBridgeHint">
             -
           </p>
           <p id="adminRuntimeLoopDetail" className="akrBridgeHint">

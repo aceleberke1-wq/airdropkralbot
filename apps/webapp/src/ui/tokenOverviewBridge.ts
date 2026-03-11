@@ -24,8 +24,11 @@ export type TokenOverviewBridgePayload = {
   statusChips?: StatusChip[];
   loopLineText?: string;
   loopHintText?: string;
+  loopFocusText?: string;
   loopOpsLineText?: string;
   loopOpsHintText?: string;
+  loopSequenceText?: string;
+  loopStateText?: string;
   loopDetailText?: string;
   loopSignalText?: string;
 };
@@ -64,14 +67,17 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const hint = byId<HTMLElement>("tokenHint");
   const loopLine = byId<HTMLElement>("tokenLoopLine");
   const loopHint = byId<HTMLElement>("tokenLoopHint");
+  const loopFocus = byId<HTMLElement>("tokenLoopFocus");
   const loopOpsLine = byId<HTMLElement>("tokenLoopOpsLine");
   const loopOpsHint = byId<HTMLElement>("tokenLoopOpsHint");
+  const loopSequence = byId<HTMLElement>("tokenLoopSequence");
+  const loopState = byId<HTMLElement>("tokenLoopState");
   const loopDetail = byId<HTMLElement>("tokenLoopDetail");
   const loopSignal = byId<HTMLElement>("tokenLoopSignal");
   const chainSelect = byId<HTMLSelectElement>("tokenChainSelect");
   const buyBtn = byId<HTMLButtonElement>("tokenBuyBtn");
 
-  if (!badge || !balance || !summary || !rate || !mintable || !units || !hint || !loopLine || !loopHint || !loopOpsLine || !loopOpsHint || !loopDetail || !loopSignal || !chainSelect || !buyBtn) {
+  if (!badge || !balance || !summary || !rate || !mintable || !units || !hint || !loopLine || !loopHint || !loopFocus || !loopOpsLine || !loopOpsHint || !loopSequence || !loopState || !loopDetail || !loopSignal || !chainSelect || !buyBtn) {
     return false;
   }
 
@@ -84,8 +90,11 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   hint.textContent = safeText(payload.hintText, "Talep olustur, odeme yap, tx hash gonder, admin onayi bekle.");
   loopLine.textContent = safeText(payload.loopLineText, "VAULT LOOP | WAIT");
   loopHint.textContent = safeText(payload.loopHintText, "Scene loop focus bekleniyor.");
+  loopFocus.textContent = safeText(payload.loopFocusText, "FLOW | WAIT");
   loopOpsLine.textContent = safeText(payload.loopOpsLineText, "WAIT | FLOW IDLE");
   loopOpsHint.textContent = safeText(payload.loopOpsHintText, "District flow aktif degil.");
+  loopSequence.textContent = safeText(payload.loopSequenceText, "Sequence detay bekleniyor.");
+  loopState.textContent = safeText(payload.loopStateText, "IDLE | FLOW WAIT");
   loopDetail.textContent = safeText(payload.loopDetailText, "Loop detay bekleniyor.");
   loopSignal.textContent = safeText(payload.loopSignalText, "Signal detay bekleniyor.");
 

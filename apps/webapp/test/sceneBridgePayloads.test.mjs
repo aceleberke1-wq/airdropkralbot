@@ -330,6 +330,9 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.combatHud.chainTrail.length, 3);
   assert.match(payloads.combatHud.loopLineText, /ARENA LOOP/);
   assert.match(payloads.combatHud.loopOpsLineText, /ACTIVE|ENGAGE|DUEL/);
+  assert.match(payloads.combatHud.loopFocusText, /ARENA PRIME|DUEL|ENTRY/i);
+  assert.match(payloads.combatHud.loopSequenceText, /DUEL PHASE ENGAGE/i);
+  assert.match(payloads.combatHud.loopStateText, /ACTIVE|ENGAGE|DUEL/i);
   assert.match(payloads.combatHud.loopDetailText, /QUEUE DEPTH 3|RISK BAND WATCH/i);
   assert.match(payloads.combatHud.loopSignalText, /DIAG BAND HOT/i);
   assert.equal(payloads.cameraDirector.mode.key, "broadcast");
@@ -347,8 +350,11 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.tokenOverview.unitsText, /PASS 1/);
   assert.match(payloads.tokenOverview.loopLineText, /VAULT STANDBY|VAULT LOOP/);
   assert.match(payloads.tokenOverview.loopHintText, /ARENA PRIME|DUEL CONSOLE|Scene loop focus/i);
+  assert.match(payloads.tokenOverview.loopFocusText, /ARENA PRIME|DUEL/i);
   assert.match(payloads.tokenOverview.loopOpsLineText, /FOCUS|WAIT|FLOW/i);
   assert.match(payloads.tokenOverview.loopOpsHintText, /DUEL|ENTRY|FLOW|Scene/i);
+  assert.match(payloads.tokenOverview.loopSequenceText, /DUEL PHASE ENGAGE/i);
+  assert.match(payloads.tokenOverview.loopStateText, /ACTIVE|ENGAGE|DUEL/i);
   assert.match(payloads.tokenOverview.loopDetailText, /QUEUE DEPTH 3|RISK BAND WATCH/i);
   assert.match(payloads.tokenOverview.loopSignalText, /DIAG BAND HOT/i);
   assert.equal(payloads.tokenOverview.statusChips[1].text, "PAY OPEN");
@@ -398,8 +404,11 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.match(payloads.runtime.lineText, /Queue 2/);
   assert.match(payloads.runtime.loopLineText, /OPS STANDBY|OPS LOOP/);
   assert.match(payloads.runtime.loopHintText, /Scene loop focus|ARENA PRIME/i);
+  assert.match(payloads.runtime.loopFocusText, /FLOW \| WAIT|ARENA PRIME|DUEL/i);
   assert.match(payloads.runtime.loopOpsLineText, /FOCUS|WAIT|FLOW/i);
   assert.match(payloads.runtime.loopOpsHintText, /ENTRY|FLOW|Scene/i);
+  assert.match(payloads.runtime.loopSequenceText, /Sequence detay bekleniyor|DUEL PHASE ENGAGE/i);
+  assert.match(payloads.runtime.loopStateText, /IDLE \| FLOW WAIT|ACTIVE|ENGAGE|DUEL/i);
   assert.match(payloads.runtime.loopDetailText, /Loop detay bekleniyor|QUEUE DEPTH/i);
   assert.match(payloads.runtime.loopSignalText, /Signal detay bekleniyor|DIAG BAND/i);
   assert.equal(payloads.assetStatus.rows.length, 2);
