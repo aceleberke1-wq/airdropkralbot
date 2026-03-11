@@ -38,6 +38,8 @@ type RuntimeBridgePayload = {
   loopDispatchFlowText?: string;
   loopDispatchSummaryText?: string;
   loopDispatchGateText?: string;
+  loopDispatchPressureText?: string;
+  loopDispatchResponseText?: string;
   loopDispatchAttentionText?: string;
   loopDispatchCadenceText?: string;
 };
@@ -121,6 +123,8 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopDispatchFlow = byId<HTMLElement>("adminRuntimeLoopDispatchFlow");
   const loopDispatchSummary = byId<HTMLElement>("adminRuntimeLoopDispatchSummary");
   const loopDispatchGate = byId<HTMLElement>("adminRuntimeLoopDispatchGate");
+  const loopDispatchPressure = byId<HTMLElement>("adminRuntimeLoopDispatchPressure");
+  const loopDispatchResponse = byId<HTMLElement>("adminRuntimeLoopDispatchResponse");
   const loopDispatchAttention = byId<HTMLElement>("adminRuntimeLoopDispatchAttention");
   const loopDispatchCadence = byId<HTMLElement>("adminRuntimeLoopDispatchCadence");
   if (!line || !eventsLine || !loopLine || !loopHint || !loopFocus || !loopOpsLine || !loopOpsHint || !loopSequence || !loopState || !loopDetail || !loopSignal) {
@@ -215,6 +219,12 @@ function render(payload: RuntimeBridgePayload): boolean {
   if (loopDispatchGate) {
     loopDispatchGate.textContent = String(payload.loopDispatchGateText || "GATE --");
   }
+  if (loopDispatchPressure) {
+    loopDispatchPressure.textContent = String(payload.loopDispatchPressureText || "PRESSURE --");
+  }
+  if (loopDispatchResponse) {
+    loopDispatchResponse.textContent = String(payload.loopDispatchResponseText || "RESPONSE --");
+  }
   if (loopDispatchAttention) {
     loopDispatchAttention.textContent = String(payload.loopDispatchAttentionText || "ATTN --");
   }
@@ -248,6 +258,8 @@ function render(payload: RuntimeBridgePayload): boolean {
   pulseOnce(loopDispatchFlow);
   pulseOnce(loopDispatchSummary);
   pulseOnce(loopDispatchGate);
+  pulseOnce(loopDispatchPressure);
+  pulseOnce(loopDispatchResponse);
   pulseOnce(loopDispatchAttention);
   pulseOnce(loopDispatchCadence);
   return true;

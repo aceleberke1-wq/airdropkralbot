@@ -122,6 +122,8 @@ type CombatHudPayload = {
   loopDuelFlowText?: string;
   loopDuelSummaryText?: string;
   loopDuelGateText?: string;
+  loopDuelPressureText?: string;
+  loopDuelResponseText?: string;
   loopDuelAttentionText?: string;
   loopDuelCadenceText?: string;
   rejectCategory?: string;
@@ -306,6 +308,8 @@ function render(payload: CombatHudPayload): boolean {
   const loopDuelFlow = byId("combatLoopDuelFlow");
   const loopDuelSummary = byId("combatLoopDuelSummary");
   const loopDuelGate = byId("combatLoopDuelGate");
+  const loopDuelPressure = byId("combatLoopDuelPressure");
+  const loopDuelResponse = byId("combatLoopDuelResponse");
   const loopDuelAttention = byId("combatLoopDuelAttention");
   const loopDuelCadence = byId("combatLoopDuelCadence");
 
@@ -551,6 +555,12 @@ function render(payload: CombatHudPayload): boolean {
   }
   if (loopDuelGate) {
     loopDuelGate.textContent = String(payload.loopDuelGateText || "GATE --");
+  }
+  if (loopDuelPressure) {
+    loopDuelPressure.textContent = String(payload.loopDuelPressureText || "PRESSURE --");
+  }
+  if (loopDuelResponse) {
+    loopDuelResponse.textContent = String(payload.loopDuelResponseText || "RESPONSE --");
   }
   if (loopDuelAttention) {
     loopDuelAttention.textContent = String(payload.loopDuelAttentionText || "ATTN --");

@@ -608,6 +608,10 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                     <BridgeChip id="combatLoopDuelSummary" className="combatAlertChip neutral tone-neutral" />
                     <BridgeChip id="combatLoopDuelGate" className="combatAlertChip neutral tone-neutral" />
                   </div>
+                  <div className="akrChipRow">
+                    <BridgeChip id="combatLoopDuelPressure" className="combatAlertChip neutral tone-neutral" />
+                    <BridgeChip id="combatLoopDuelResponse" className="combatAlertChip neutral tone-neutral" />
+                  </div>
                   <p id="combatLoopDuelFocus" className="akrBridgeHint">
                     ENTRY WAIT | FOCUS WAIT | PERSONA --
                   </p>
@@ -854,6 +858,10 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <BridgeChip id="tasksLoopLootSummary" className="combatAlertChip neutral tone-neutral" />
                 <BridgeChip id="tasksLoopLootGate" className="combatAlertChip neutral tone-neutral" />
               </div>
+              <div className="akrChipRow">
+                <BridgeChip id="tasksLoopLootPressure" className="combatAlertChip neutral tone-neutral" />
+                <BridgeChip id="tasksLoopLootResponse" className="combatAlertChip neutral tone-neutral" />
+              </div>
               <p id="tasksLoopLootFocus" className="akrBridgeHint">
                 ENTRY WAIT | FOCUS WAIT | FLOW WAIT
               </p>
@@ -948,6 +956,10 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
                 <div className="akrChipRow">
                   <BridgeChip id="tokenLoopWalletSummary" className="combatAlertChip neutral tone-neutral" />
                   <BridgeChip id="tokenLoopWalletGate" className="combatAlertChip neutral tone-neutral" />
+                </div>
+                <div className="akrChipRow">
+                  <BridgeChip id="tokenLoopWalletPressure" className="combatAlertChip neutral tone-neutral" />
+                  <BridgeChip id="tokenLoopWalletResponse" className="combatAlertChip neutral tone-neutral" />
                 </div>
                 <p className="akrBridgeHint" id="tokenLoopWalletFocus">
                   -
@@ -1255,6 +1267,10 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <div className="akrChipRow">
               <BridgeChip id="adminRuntimeLoopDispatchSummary" className="combatAlertChip neutral tone-neutral" />
               <BridgeChip id="adminRuntimeLoopDispatchGate" className="combatAlertChip neutral tone-neutral" />
+            </div>
+            <div className="akrChipRow">
+              <BridgeChip id="adminRuntimeLoopDispatchPressure" className="combatAlertChip neutral tone-neutral" />
+              <BridgeChip id="adminRuntimeLoopDispatchResponse" className="combatAlertChip neutral tone-neutral" />
             </div>
             <p id="adminRuntimeLoopDispatchFocus" className="akrBridgeHint">
               -
