@@ -463,6 +463,9 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictFamilyHealthAttentionTrendDailyBreakdown = asRows(
     props.metricsData?.scene_loop_district_family_health_attention_trend_daily_breakdown_7d
   );
+  const sceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix = asRows(
+    props.metricsData?.scene_loop_district_family_health_attention_trend_daily_matrix_7d
+  );
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
   const liveOpsSceneRuntime = asRecord(liveOpsKpi?.scene_runtime);
@@ -738,6 +741,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <SceneLoopDistrictFamilyDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_daily_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionTrendDailyBreakdown}
+        />
+        <SceneLoopDistrictFamilyDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_daily_matrix_title")}
+          rows={sceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix}
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>

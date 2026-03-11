@@ -248,4 +248,9 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_breakdown_7d[0].latest_health_band, "yellow");
   assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_breakdown_7d[0].attention_band, "watch");
   assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_breakdown_7d[0].trend_direction, "no_data");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_matrix_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_matrix_7d[0].district_key, "exchange_district");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_matrix_7d[0].loop_family_key, "payout");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_matrix_7d[0].latest_health_band, "yellow");
+  assert.equal(enriched.scene_loop_district_family_health_attention_trend_daily_matrix_7d[0].attention_band, "watch");
 });
