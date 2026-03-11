@@ -69,6 +69,18 @@ test("normalizeSceneDailyRows keeps only stable daily runtime keys", () => {
   assert.equal(rows[0].health_band, "red");
 });
 
+test("normalizeSceneLoopDailyRows keeps only day and total count", () => {
+  const rows = service.normalizeSceneLoopDailyRows([
+    { day: "2026-03-08", total_count: 14, ignored: 1 },
+    { day: "2026-03-07", total_count: 9 }
+  ]);
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].day, "2026-03-08");
+  assert.equal(rows[0].total_count, 14);
+  assert.equal("ignored" in rows[0], false);
+});
+
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   const enriched = service.enrichWebappRevenueMetrics({
     ui_events_ingested_24h: 100,
@@ -92,7 +104,16 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     scene_runtime_quality_breakdown_24h: [{ bucket_key: "high", item_count: 14 }],
     scene_runtime_perf_breakdown_24h: [{ bucket_key: "mid", item_count: 10 }],
     scene_runtime_device_breakdown_24h: [{ bucket_key: "mobile", item_count: 20 }],
-    scene_runtime_profile_breakdown_24h: [{ bucket_key: "cinematic", item_count: 12 }]
+    scene_runtime_profile_breakdown_24h: [{ bucket_key: "cinematic", item_count: 12 }],
+    scene_loop_events_24h: 11,
+    scene_loop_daily_breakdown_7d: [
+      { day: "2026-03-08", total_count: 11 },
+      { day: "2026-03-07", total_count: 7 }
+    ],
+    scene_loop_district_breakdown_24h: [{ bucket_key: "arena_prime", item_count: 6 }],
+    scene_loop_status_breakdown_24h: [{ bucket_key: "active", item_count: 8 }],
+    scene_loop_sequence_breakdown_24h: [{ bucket_key: "world_modal_kind_duel_sequence", item_count: 4 }],
+    scene_loop_entry_breakdown_24h: [{ bucket_key: "world_entry_kind_duel_console", item_count: 4 }]
   });
 
   assert.equal(enriched.ui_event_quality_score_24h, 0.94);
@@ -122,4 +143,11 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_runtime_perf_breakdown_24h[0].bucket_key, "mid");
   assert.equal(enriched.scene_runtime_device_breakdown_24h[0].bucket_key, "mobile");
   assert.equal(enriched.scene_runtime_profile_breakdown_24h[0].bucket_key, "cinematic");
+  assert.equal(enriched.scene_loop_events_24h, 11);
+  assert.equal(enriched.scene_loop_events_7d, 18);
+  assert.equal(enriched.scene_loop_daily_breakdown_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_district_breakdown_24h[0].bucket_key, "arena_prime");
+  assert.equal(enriched.scene_loop_status_breakdown_24h[0].bucket_key, "active");
+  assert.equal(enriched.scene_loop_sequence_breakdown_24h[0].bucket_key, "world_modal_kind_duel_sequence");
+  assert.equal(enriched.scene_loop_entry_breakdown_24h[0].bucket_key, "world_entry_kind_duel_console");
 });

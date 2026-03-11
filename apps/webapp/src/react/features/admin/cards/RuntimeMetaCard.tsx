@@ -121,6 +121,29 @@ function SceneDailyTrendList(props: { title: string; rows: Array<Record<string, 
   );
 }
 
+function SceneLoopDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 7).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}`}>
+            {String(row.day || "-")} | loops {Math.floor(Number(row.total_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SkipDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
   if (!props.rows.length) {
     return (
@@ -301,6 +324,13 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneRuntimePerfBreakdown = asRows(props.metricsData?.scene_runtime_perf_breakdown_24h);
   const sceneRuntimeDeviceBreakdown = asRows(props.metricsData?.scene_runtime_device_breakdown_24h);
   const sceneRuntimeProfileBreakdown = asRows(props.metricsData?.scene_runtime_profile_breakdown_24h);
+  const sceneLoopEvents24h = readNum(props.metricsData, "scene_loop_events_24h");
+  const sceneLoopEvents7d = readNum(props.metricsData, "scene_loop_events_7d");
+  const sceneLoopDailyBreakdown = asRows(props.metricsData?.scene_loop_daily_breakdown_7d);
+  const sceneLoopDistrictBreakdown = asRows(props.metricsData?.scene_loop_district_breakdown_24h);
+  const sceneLoopStatusBreakdown = asRows(props.metricsData?.scene_loop_status_breakdown_24h);
+  const sceneLoopSequenceBreakdown = asRows(props.metricsData?.scene_loop_sequence_breakdown_24h);
+  const sceneLoopEntryBreakdown = asRows(props.metricsData?.scene_loop_entry_breakdown_24h);
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
   const liveOpsSceneRuntime = asRecord(liveOpsKpi?.scene_runtime);
@@ -474,6 +504,22 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <BreakdownList title={t(props.lang, "admin_runtime_scene_device_title")} rows={sceneRuntimeDeviceBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_profile_title")} rows={sceneRuntimeProfileBreakdown} />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_alarm_reasons")} rows={sceneRuntimeAlarmReasons} />
+      </section>
+      <section className="akrMiniPanel" data-akr-focus-key="scene_loop_kpi">
+        <h3>{t(props.lang, "admin_runtime_scene_loop_title")}</h3>
+        <div className="akrChipRow">
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_events_24h")}: {Math.floor(sceneLoopEvents24h)}
+          </span>
+          <span className="akrChip">
+            {t(props.lang, "admin_runtime_scene_loop_events_7d")}: {Math.floor(sceneLoopEvents7d)}
+          </span>
+        </div>
+        <SceneLoopDailyTrendList title={t(props.lang, "admin_runtime_scene_loop_daily_title")} rows={sceneLoopDailyBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_district_title")} rows={sceneLoopDistrictBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_status_title")} rows={sceneLoopStatusBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_sequence_title")} rows={sceneLoopSequenceBreakdown} />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_entry_title")} rows={sceneLoopEntryBreakdown} />
       </section>
       <section className="akrMiniPanel" data-akr-focus-key="live_ops_kpi">
         <h3>{t(props.lang, "admin_runtime_live_ops_kpi_title")}</h3>

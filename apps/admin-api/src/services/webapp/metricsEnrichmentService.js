@@ -78,6 +78,17 @@ function normalizeSceneDailyRows(rows, limit = 7) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 7))));
 }
 
+function normalizeSceneLoopDailyRows(rows, limit = 7) {
+  const source = Array.isArray(rows) ? rows : [];
+  return source
+    .map((row) => ({
+      day: String(row?.day || ""),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0)))
+    }))
+    .filter((row) => row.day)
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 7))));
+}
+
 function resolveSceneTrendDirection(latestReadyRate, earliestReadyRate, sampleCount) {
   if (Math.max(0, Math.floor(toNum(sampleCount, 0))) < 2) {
     return "no_data";
@@ -208,6 +219,16 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_runtime_perf_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_perf_breakdown_24h);
   metrics.scene_runtime_device_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_device_breakdown_24h);
   metrics.scene_runtime_profile_breakdown_24h = normalizeBreakdownRows(metrics.scene_runtime_profile_breakdown_24h);
+  metrics.scene_loop_events_24h = Math.max(0, Math.floor(toNum(metrics.scene_loop_events_24h, 0)));
+  metrics.scene_loop_daily_breakdown_7d = normalizeSceneLoopDailyRows(metrics.scene_loop_daily_breakdown_7d);
+  metrics.scene_loop_events_7d = metrics.scene_loop_daily_breakdown_7d.reduce(
+    (sum, row) => sum + Math.max(0, Math.floor(toNum(row.total_count, 0))),
+    0
+  );
+  metrics.scene_loop_district_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_district_breakdown_24h);
+  metrics.scene_loop_status_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_status_breakdown_24h);
+  metrics.scene_loop_sequence_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_sequence_breakdown_24h);
+  metrics.scene_loop_entry_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_entry_breakdown_24h);
   metrics.scene_runtime_daily_breakdown_7d = normalizeSceneDailyRows(metrics.scene_runtime_daily_breakdown_7d);
   const sceneDailyRows = metrics.scene_runtime_daily_breakdown_7d;
   const latestSceneDay = sceneDailyRows[0] || null;
@@ -291,6 +312,7 @@ module.exports = {
   resolveSceneAlarmState,
   normalizeBreakdownRows,
   normalizeSceneDailyRows,
+  normalizeSceneLoopDailyRows,
   buildSceneBandBreakdown,
   buildSceneAlarmReasons,
   enrichWebappRevenueMetrics

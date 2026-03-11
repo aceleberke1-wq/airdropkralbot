@@ -4164,7 +4164,14 @@ async function buildAdminMetrics(db) {
     scene_runtime_quality_breakdown_24h: [],
     scene_runtime_perf_breakdown_24h: [],
     scene_runtime_device_breakdown_24h: [],
-    scene_runtime_profile_breakdown_24h: []
+    scene_runtime_profile_breakdown_24h: [],
+    scene_loop_events_24h: 0,
+    scene_loop_events_7d: 0,
+    scene_loop_daily_breakdown_7d: [],
+    scene_loop_district_breakdown_24h: [],
+    scene_loop_status_breakdown_24h: [],
+    scene_loop_sequence_breakdown_24h: [],
+    scene_loop_entry_breakdown_24h: []
   };
 
   const coreRes = await db.query(
@@ -4360,6 +4367,114 @@ async function buildAdminMetrics(db) {
       : [];
     metrics.scene_runtime_profile_breakdown_24h = Array.isArray(sceneRow.scene_runtime_profile_breakdown_24h)
       ? sceneRow.scene_runtime_profile_breakdown_24h
+      : [];
+
+    const sceneLoopRes = await db.query(
+      `WITH scoped AS (
+         SELECT payload_json, created_at
+         FROM v5_webapp_ui_events
+         WHERE created_at >= now() - interval '24 hours'
+           AND event_key = 'runtime.scene.loop'
+       )
+       SELECT
+         COUNT(*)::bigint AS scene_loop_events_24h,
+         (
+           SELECT COALESCE(
+             json_agg(
+               json_build_object(
+                 'day', day,
+                 'total_count', total_count
+               )
+               ORDER BY day DESC
+             ),
+             '[]'::json
+           )
+           FROM (
+             SELECT
+               to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+               COUNT(*)::int AS total_count
+             FROM v5_webapp_ui_events
+             WHERE created_at >= now() - interval '7 days'
+               AND event_key = 'runtime.scene.loop'
+             GROUP BY 1
+             ORDER BY day DESC
+             LIMIT 7
+           ) daily_rows
+         ) AS scene_loop_daily_breakdown_7d,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'district_key'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) district_rows
+         ) AS scene_loop_district_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) status_rows
+         ) AS scene_loop_status_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'sequence_kind_key'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) sequence_rows
+         ) AS scene_loop_sequence_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(NULLIF(lower(payload_json->>'entry_kind_key'), ''), 'unknown') AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 6
+           ) entry_rows
+         ) AS scene_loop_entry_breakdown_24h
+       FROM scoped;`
+    );
+    const sceneLoopRow = sceneLoopRes.rows[0] || {};
+    metrics.scene_loop_events_24h = Number(sceneLoopRow.scene_loop_events_24h || 0);
+    metrics.scene_loop_daily_breakdown_7d = Array.isArray(sceneLoopRow.scene_loop_daily_breakdown_7d)
+      ? sceneLoopRow.scene_loop_daily_breakdown_7d
+      : [];
+    metrics.scene_loop_district_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_district_breakdown_24h)
+      ? sceneLoopRow.scene_loop_district_breakdown_24h
+      : [];
+    metrics.scene_loop_status_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_status_breakdown_24h)
+      ? sceneLoopRow.scene_loop_status_breakdown_24h
+      : [];
+    metrics.scene_loop_sequence_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_sequence_breakdown_24h)
+      ? sceneLoopRow.scene_loop_sequence_breakdown_24h
+      : [];
+    metrics.scene_loop_entry_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_entry_breakdown_24h)
+      ? sceneLoopRow.scene_loop_entry_breakdown_24h
       : [];
   } catch (err) {
     if (err.code !== "42P01" && err.code !== "42703") {

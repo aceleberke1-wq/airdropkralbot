@@ -24,6 +24,25 @@ type BabylonDistrictSceneHostProps = {
     summary: Record<string, unknown> | null;
     queue: Array<Record<string, unknown>>;
   };
+  onLoopStateChange?: (payload: {
+    districtKey: string;
+    workspace: "player" | "admin";
+    tab: "home" | "pvp" | "tasks" | "vault";
+    protocolCardKey: string;
+    protocolPodKey: string;
+    microflowKey: string;
+    entryKindKey: string;
+    sequenceKindKey: string;
+    loopStatusKey: string;
+    loopStatusLabelKey?: string;
+    loopStageValue: string;
+    directorPaceLabelKey?: string;
+    hudToneLabelKey?: string;
+    actorKey?: string;
+    clusterKey?: string;
+    hotspotKey?: string;
+    sourceType: string;
+  }) => void;
   onNodeAction?: (payload: {
     actionKey: string;
     nodeKey: string;
@@ -218,6 +237,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const modalOpenRef = useRef(false);
   const selectedProtocolPodRef = useRef<ProtocolCardFlowPod | null>(null);
   const selectedMicroflowRef = useRef<NonNullable<ProtocolCardFlowPod["microflow_cards"]>[number] | null>(null);
+  const lastLoopSignatureRef = useRef("");
   const [status, setStatus] = useState<"idle" | "ready" | "failed">("idle");
   const [hoverPreview, setHoverPreview] = useState<HoverPreview | null>(null);
   const [hoveredClusterKeyState, setHoveredClusterKeyState] = useState("");
@@ -401,6 +421,62 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     selectedProtocolPodRef.current = selectedProtocolPod;
     selectedMicroflowRef.current = selectedMicroflow;
   }, [modalOpen, selectedProtocolPod, selectedMicroflow]);
+
+  useEffect(() => {
+    if (!props.onLoopStateChange) {
+      return;
+    }
+    if (!modalOpen || !selectedProtocolCard || !selectedProtocolPod || !selectedMicroflow) {
+      lastLoopSignatureRef.current = "";
+      return;
+    }
+    const signature = JSON.stringify({
+      district_key: worldState.district_key,
+      protocol_card_key: selectedProtocolCard.card_key,
+      protocol_pod_key: selectedProtocolPod.pod_key,
+      microflow_key: selectedMicroflow.microflow_key,
+      loop_status_key: selectedMicroflow.loop_status_key || selectedMicroflow.status_key || "",
+      loop_stage_value: selectedMicroflow.loop_stage_value || selectedMicroflow.stage_value || "",
+      sequence_kind_key: selectedMicroflow.sequence_kind_key || "",
+      entry_kind_key: selectedMicroflow.entry_kind_key || "",
+      director_pace_label_key: selectedMicroflow.director_pace_label_key || "",
+      hud_tone_label_key: selectedMicroflow.hud_tone_label_key || ""
+    });
+    if (signature === lastLoopSignatureRef.current) {
+      return;
+    }
+    lastLoopSignatureRef.current = signature;
+    props.onLoopStateChange({
+      districtKey: worldState.district_key,
+      workspace: props.workspace,
+      tab: props.tab,
+      protocolCardKey: selectedProtocolCard.card_key,
+      protocolPodKey: selectedProtocolPod.pod_key,
+      microflowKey: selectedMicroflow.microflow_key,
+      entryKindKey: String(selectedMicroflow.entry_kind_key || ""),
+      sequenceKindKey: String(selectedMicroflow.sequence_kind_key || ""),
+      loopStatusKey: String(selectedMicroflow.loop_status_key || selectedMicroflow.status_key || ""),
+      loopStatusLabelKey: selectedMicroflow.loop_status_label_key || undefined,
+      loopStageValue: String(selectedMicroflow.loop_stage_value || selectedMicroflow.stage_value || ""),
+      directorPaceLabelKey: selectedMicroflow.director_pace_label_key || undefined,
+      hudToneLabelKey: selectedMicroflow.hud_tone_label_key || undefined,
+      actorKey: worldState.active_hotspot_key || undefined,
+      clusterKey: worldState.active_cluster_key || undefined,
+      hotspotKey: worldState.active_hotspot_key || undefined,
+      sourceType: "district_scene_live_loop"
+    });
+  }, [
+    modalOpen,
+    props.onLoopStateChange,
+    props.tab,
+    props.workspace,
+    selectedMicroflow,
+    selectedProtocolCard,
+    selectedProtocolPod,
+    worldState.active_cluster_key,
+    worldState.active_hotspot_key,
+    worldState.district_key
+  ]);
 
   const triggerSceneAction = useCallback(
     (payload: {

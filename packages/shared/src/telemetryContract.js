@@ -28,7 +28,10 @@ const UI_EVENT_KEY = Object.freeze({
   ACTION_REQUEST: "action.mutation.request",
   ACTION_RETRY: "action.mutation.retry",
   ACTION_SUCCESS: "action.mutation.success",
-  ACTION_FAILED: "action.mutation.failed"
+  ACTION_FAILED: "action.mutation.failed",
+  SCENE_RUNTIME_READY: "runtime.scene.ready",
+  SCENE_RUNTIME_FAILED: "runtime.scene.failed",
+  SCENE_RUNTIME_LOOP: "runtime.scene.loop"
 });
 
 const UI_FUNNEL_KEY = Object.freeze({

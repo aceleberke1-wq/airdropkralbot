@@ -46,4 +46,5 @@ test("taxonomy constants expose required loop keys", async () => {
   assert.equal(taxonomy.UI_FUNNEL_KEY.PVP_LOOP, "pvp_loop");
   assert.equal(taxonomy.UI_SURFACE_KEY.PANEL_VAULT, "panel_vault");
   assert.equal(taxonomy.UI_ECONOMY_EVENT_KEY.TOKEN_SUBMIT_TX, "economy.token.submit");
+  assert.equal(taxonomy.UI_EVENT_KEY.SCENE_RUNTIME_LOOP, "runtime.scene.loop");
 });

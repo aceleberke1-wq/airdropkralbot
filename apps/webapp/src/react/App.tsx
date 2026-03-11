@@ -648,6 +648,60 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     },
     [dispatch, isAdmin, setTab, setWorkspace, tab, trackUiEvent]
   );
+  const handleDistrictLoopStateChange = useCallback(
+    (payload: {
+      districtKey: string;
+      workspace: "player" | "admin";
+      tab: "home" | "pvp" | "tasks" | "vault";
+      protocolCardKey: string;
+      protocolPodKey: string;
+      microflowKey: string;
+      entryKindKey: string;
+      sequenceKindKey: string;
+      loopStatusKey: string;
+      loopStatusLabelKey?: string;
+      loopStageValue: string;
+      directorPaceLabelKey?: string;
+      hudToneLabelKey?: string;
+      actorKey?: string;
+      clusterKey?: string;
+      hotspotKey?: string;
+      sourceType: string;
+    }) => {
+      const nextTab = payload.workspace === "admin" ? "home" : payload.tab;
+      trackUiEvent({
+        event_key: UI_EVENT_KEY.SCENE_RUNTIME_LOOP,
+        tab_key: payload.workspace === "admin" ? "admin" : nextTab,
+        panel_key: payload.workspace === "admin" ? UI_SURFACE_KEY.PANEL_ADMIN : UI_SURFACE_KEY.SHELL,
+        route_key: payload.workspace === "admin" ? "admin.home" : `player.${nextTab}`,
+        focus_key: payload.microflowKey,
+        funnel_key: resolveWorkspaceFunnelKey(payload.workspace, nextTab),
+        surface_key: "scene_world",
+        payload_json: {
+          source: payload.sourceType,
+          source_panel_key: "scene_world",
+          district_key: payload.districtKey,
+          protocol_card_key: payload.protocolCardKey,
+          protocol_pod_key: payload.protocolPodKey,
+          microflow_key: payload.microflowKey,
+          entry_kind_key: payload.entryKindKey,
+          sequence_kind_key: payload.sequenceKindKey,
+          loop_status_key: payload.loopStatusKey,
+          loop_status_label_key: String(payload.loopStatusLabelKey || ""),
+          loop_stage_value: payload.loopStageValue,
+          director_pace_label_key: String(payload.directorPaceLabelKey || ""),
+          hud_tone_label_key: String(payload.hudToneLabelKey || ""),
+          actor_key: String(payload.actorKey || ""),
+          cluster_key: String(payload.clusterKey || ""),
+          hotspot_key: String(payload.hotspotKey || ""),
+          workspace: payload.workspace,
+          tab: payload.tab
+        },
+        event_value: 1
+      });
+    },
+    [trackUiEvent]
+  );
   const pvpLiveState = useMemo(
     () => ({
       leaderboard: (pvpLive?.leaderboard as Record<string, unknown> | null) || null,
@@ -782,6 +836,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           vaultData={(vaultData as Record<string, unknown> | null) || null}
           adminRuntime={adminRuntimeState}
           onNodeAction={handleDistrictNodeAction}
+          onLoopStateChange={handleDistrictLoopStateChange}
         />
       </Suspense>
       <TopBar
