@@ -2071,6 +2071,58 @@ body {
   border-color: rgba(255, 111, 145, 0.3);
 }
 
+.akrBridgeFlowBlocks {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.akrBridgeFlowBlock {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  background: linear-gradient(180deg, rgba(5, 17, 34, 0.78), rgba(7, 21, 40, 0.62));
+}
+
+.akrBridgeFlowBlock span,
+.akrBridgeFlowBlock em {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  color: #95bad0;
+  font-style: normal;
+}
+
+.akrBridgeFlowBlock strong {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 0.82rem;
+  color: #f4fbff;
+}
+
+.akrBridgeFlowBlock p {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  color: #cbe8f4;
+}
+
+.akrBridgeFlowBlock[data-tone="advantage"] {
+  border-color: rgba(47, 255, 181, 0.24);
+}
+
+.akrBridgeFlowBlock[data-tone="balanced"] {
+  border-color: rgba(123, 230, 255, 0.22);
+}
+
+.akrBridgeFlowBlock[data-tone="pressure"] {
+  border-color: rgba(255, 180, 93, 0.26);
+}
+
+.akrBridgeFlowBlock[data-tone="critical"] {
+  border-color: rgba(255, 111, 145, 0.28);
+}
+
 .akrBridgeHint,
 .muted,
 .micro,

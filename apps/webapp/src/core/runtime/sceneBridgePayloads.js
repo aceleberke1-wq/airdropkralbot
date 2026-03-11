@@ -340,6 +340,23 @@ function buildLoopBridgeCards(...cards) {
     .slice(0, 4);
 }
 
+function buildLoopBridgeBlock(title, summary, gate, tone, hint = "") {
+  return {
+    title: toText(title, "FLOW"),
+    summary: toText(summary, "--"),
+    gate: toText(gate, "--"),
+    tone: toText(tone, "neutral"),
+    hint: toText(hint, "")
+  };
+}
+
+function buildLoopBridgeBlocks(...blocks) {
+  return blocks
+    .map((block) => asRecord(block))
+    .filter((block) => toText(block.title || "") && toText(block.summary || ""))
+    .slice(0, 3);
+}
+
 function resolveLoopFamilyTone(...values) {
   const text = values
     .map((value) => toText(value, ""))
@@ -426,6 +443,11 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
         buildLoopBridgeCard("PHASE", "WAIT | STATUS --", "neutral"),
         buildLoopBridgeCard("QUEUE", "Q -- | RISK --", "neutral"),
         buildLoopBridgeCard("PERSONA", "SYNC | ENTRY WAIT", "neutral")
+      ),
+      duelBlocks: buildLoopBridgeBlocks(
+        buildLoopBridgeBlock("FLOW", "WAIT | STATUS --", "ENTRY WAIT | SEQ WAIT", "neutral", "PERSONA --"),
+        buildLoopBridgeBlock("GATE", "QUEUE -- | RISK --", "FLOW WAIT | RESPONSE --", "neutral", "PHASE --"),
+        buildLoopBridgeBlock("ATTN", "RISK -- | QUEUE --", "CADENCE --", "neutral", "WINDOW --")
       ),
       ladderFamilyText: "FLOW WAIT | STATUS -- | CHARGE --",
       ladderFlowText: "SEQ WAIT | FLOW WAIT | CHARGE --",
@@ -555,6 +577,29 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
         `SEQ ${sequenceLabel}`
       )
     ),
+    duelBlocks: buildLoopBridgeBlocks(
+      buildLoopBridgeBlock(
+        "FLOW",
+        buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${statusLabel}`, `STAGE ${duelPhase}`),
+        buildLoopMicroDetail(`ENTRY ${entryLabel}`, `SEQ ${sequenceLabel}`, `PERSONA ${personalityLabel || "SYNC"}`),
+        resolveLoopFamilyTone(duelPhase, statusLabel, personalityLabel),
+        buildLoopMicroDetail(`PHASE ${duelPhase}`, `QUEUE ${queueDepth}`, `RISK ${riskBand}`)
+      ),
+      buildLoopBridgeBlock(
+        "GATE",
+        buildLoopMicroDetail(`QUEUE ${queueDepth}`, `RISK ${riskBand}`, `ENTRY ${entryLabel}`),
+        buildLoopMicroDetail(`PHASE ${duelPhase}`, `FLOW ${statusLabel}`, `ENTRY ${entryLabel}`),
+        resolveLoopFamilyTone(queueDepth, riskBand, statusLabel),
+        buildLoopMicroDetail(`WINDOW ${duelPhase}`, `PERSONA ${personalityLabel || "SYNC"}`, `DIAG ${diagBand}`)
+      ),
+      buildLoopBridgeBlock(
+        "ATTN",
+        buildLoopAttentionDetail(`RISK ${riskBand}`, `QUEUE ${queueDepth}`, `PHASE ${duelPhase}`),
+        buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PERSONA ${personalityLabel || "SYNC"}`),
+        resolveLoopFamilyTone(riskBand, queueDepth, diagBand),
+        buildLoopMicroDetail(`DIAG ${diagBand}`, `SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`)
+      )
+    ),
     ladderFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${statusLabel}`, `CHARGE ${ladderCharge}`),
     ladderFlowText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `CHARGE ${ladderCharge}`),
     ladderSummaryText: buildLoopMicroDetail(`CHARGE ${ladderCharge}`, `TICK ${tickTempo}`, `FLOW ${microflowLabel}`),
@@ -631,6 +676,11 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
         buildLoopBridgeCard("WALLET", "STATE -- | FLOW WAIT", "neutral"),
         buildLoopBridgeCard("PAYOUT", "PAYOUT -- | ROUTE --", "neutral"),
         buildLoopBridgeCard("ROUTE", "ROUTE -- | ENTRY WAIT", "neutral")
+      ),
+      walletBlocks: buildLoopBridgeBlocks(
+        buildLoopBridgeBlock("FLOW", "WAIT | STATUS --", "ENTRY WAIT | SEQ WAIT", "neutral", "ROUTE --"),
+        buildLoopBridgeBlock("GATE", "STATE -- | ROUTE --", "PAYOUT -- | FLOW WAIT", "neutral", "PASS --"),
+        buildLoopBridgeBlock("ATTN", "STATE -- | ENTRY WAIT", "CADENCE --", "neutral", "PERSONA --")
       ),
       payoutFamilyText: "FLOW WAIT | STATUS -- | PAYOUT --",
       payoutFlowText: "SEQ WAIT | FLOW WAIT | ROUTE --",
@@ -763,6 +813,29 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       buildLoopBridgeCard("PAYOUT", `${payoutState} | ${routeState}`, resolveLoopFamilyTone(payoutState, routeState), `SEQ ${sequenceLabel}`),
       buildLoopBridgeCard("ROUTE", `${routeState} | ${entryLabel}`, resolveLoopFamilyTone(routeState, entryLabel), `FLOW ${microflowLabel}`)
     ),
+    walletBlocks: buildLoopBridgeBlocks(
+      buildLoopBridgeBlock(
+        "FLOW",
+        buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `STATE ${walletState}`),
+        buildLoopMicroDetail(`ENTRY ${entryLabel}`, `SEQ ${sequenceLabel}`, `ROUTE ${routeState}`),
+        resolveLoopFamilyTone(walletState, loopStatusLabel, routeState),
+        buildLoopMicroDetail(`PAYOUT ${payoutState}`, `PASS ${premiumState}`, `PERSONA ${personalityCaption || "SYNC"}`)
+      ),
+      buildLoopBridgeBlock(
+        "GATE",
+        buildLoopMicroDetail(`STATE ${walletState}`, `ROUTE ${routeState}`, `ENTRY ${entryLabel}`),
+        buildLoopMicroDetail(`PAYOUT ${payoutState}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
+        resolveLoopFamilyTone(routeState, payoutState, walletState),
+        buildLoopMicroDetail(`WINDOW ${walletState}`, `PAYOUT ${payoutState}`, `ROUTE ${routeState}`)
+      ),
+      buildLoopBridgeBlock(
+        "ATTN",
+        buildLoopAttentionDetail(`STATE ${walletState}`, `ENTRY ${entryLabel}`, `FLOW ${loopStatusLabel}`),
+        buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PERSONA ${personalityCaption || "SYNC"}`),
+        resolveLoopFamilyTone(walletState, premiumState, routeState),
+        buildLoopMicroDetail(`PASS ${premiumState}`, `SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`)
+      )
+    ),
     payoutFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `PAYOUT ${payoutState}`),
     payoutFlowText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `ROUTE ${routeState}`),
     payoutSummaryText: buildLoopMicroDetail(`PAYOUT ${payoutState}`, `ROUTE ${routeState}`, `FLOW ${microflowLabel}`),
@@ -837,6 +910,11 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
         buildLoopBridgeCard("SENT", "0 | STAGE --", "neutral"),
         buildLoopBridgeCard("ALERT", "0 | HEALTH --", "neutral"),
         buildLoopBridgeCard("QUEUE", "0 | ENTRY WAIT", "neutral")
+      ),
+      dispatchBlocks: buildLoopBridgeBlocks(
+        buildLoopBridgeBlock("FLOW", "WAIT | STATUS --", "ENTRY WAIT | SEQ WAIT", "neutral", "ALERT --"),
+        buildLoopBridgeBlock("GATE", "SENT -- | STAGE --", "HEALTH -- | FLOW WAIT", "neutral", "QUEUE --"),
+        buildLoopBridgeBlock("ATTN", "ALERT -- | SENT --", "CADENCE --", "neutral", "HEALTH --")
       ),
       queueFamilyText: "FLOW WAIT | STATUS -- | QUEUE --",
       queueFlowText: "ENTRY WAIT | FLOW WAIT | SEQ WAIT",
@@ -938,6 +1016,29 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       buildLoopBridgeCard("ALERT", `${alertCount} | ${sceneHealth}`, resolveLoopFamilyTone(alertCount, sceneHealth), `SEQ ${sequenceLabel}`),
       buildLoopBridgeCard("QUEUE", `${queueDepth} | ${entryLabel}`, resolveLoopFamilyTone(queueDepth, entryLabel), `FLOW ${microflowLabel}`)
     ),
+    dispatchBlocks: buildLoopBridgeBlocks(
+      buildLoopBridgeBlock(
+        "FLOW",
+        buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `ALERT ${alertCount}`),
+        buildLoopMicroDetail(`ENTRY ${entryLabel}`, `SEQ ${sequenceLabel}`, `SENT ${liveOpsSent}`),
+        resolveLoopFamilyTone(liveOpsSent, alertCount, loopStatusLabel),
+        buildLoopMicroDetail(`HEALTH ${sceneHealth}`, `QUEUE ${queueDepth}`, `STAGE ${stageValue}`)
+      ),
+      buildLoopBridgeBlock(
+        "GATE",
+        buildLoopMicroDetail(`SENT ${liveOpsSent}`, `STAGE ${stageValue}`, `ENTRY ${entryLabel}`),
+        buildLoopMicroDetail(`SENT ${liveOpsSent}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
+        resolveLoopFamilyTone(alertCount, sceneHealth, liveOpsSent),
+        buildLoopMicroDetail(`ALERT ${alertCount}`, `HEALTH ${sceneHealth}`, `QUEUE ${queueDepth}`)
+      ),
+      buildLoopBridgeBlock(
+        "ATTN",
+        buildLoopAttentionDetail(`ALERT ${alertCount}`, `SENT ${liveOpsSent}`, `STAGE ${stageValue}`),
+        buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `SENT ${liveOpsSent}`),
+        resolveLoopFamilyTone(alertCount, queueDepth, sceneHealth),
+        buildLoopMicroDetail(`QUEUE ${queueDepth}`, `SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`)
+      )
+    ),
     queueFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `QUEUE ${queueDepth}`),
     queueFlowText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `SEQ ${sequenceLabel}`),
     queueSummaryText: buildLoopMicroDetail(`QUEUE ${queueDepth}`, `STATUS ${loopStatusLabel}`, `FLOW ${microflowLabel}`),
@@ -1010,6 +1111,11 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
         buildLoopBridgeCard("CLAIM", "0 READY | STAGE --", "neutral"),
         buildLoopBridgeCard("OFFER", "0 LIVE | BAND --", "neutral"),
         buildLoopBridgeCard("STREAK", "0d | FLOW WAIT", "neutral")
+      ),
+      lootBlocks: buildLoopBridgeBlocks(
+        buildLoopBridgeBlock("FLOW", "WAIT | STATUS --", "ENTRY WAIT | SEQ WAIT", "neutral", "BAND --"),
+        buildLoopBridgeBlock("GATE", "CLAIM -- | BAND --", "STREAK -- | FLOW WAIT", "neutral", "OFFER --"),
+        buildLoopBridgeBlock("ATTN", "CLAIM -- | BAND --", "CADENCE --", "neutral", "STREAK --")
       ),
       offerFamilyText: "FLOW WAIT | STATUS -- | OFFER --",
       offerFlowText: "ENTRY WAIT | FLOW WAIT | BAND --",
@@ -1128,6 +1234,29 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
         `${streakValue} | ${personalityCaption || "SYNC"}`,
         resolveLoopFamilyTone(streakValue, personalityCaption || "SYNC"),
         `FLOW ${microflowLabel}`
+      )
+    ),
+    lootBlocks: buildLoopBridgeBlocks(
+      buildLoopBridgeBlock(
+        "FLOW",
+        buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `BAND ${contractBand}`),
+        buildLoopMicroDetail(`ENTRY ${entryLabel}`, `SEQ ${sequenceLabel}`, `CLAIM ${claimValue}`),
+        resolveLoopFamilyTone(claimValue, contractBand, loopStatusLabel),
+        buildLoopMicroDetail(`OFFER ${offerValue}`, `STREAK ${streakValue}`, `PERSONA ${personalityCaption || "SYNC"}`)
+      ),
+      buildLoopBridgeBlock(
+        "GATE",
+        buildLoopMicroDetail(`CLAIM ${claimValue}`, `BAND ${contractBand}`, `ENTRY ${entryLabel}`),
+        buildLoopMicroDetail(`STREAK ${streakValue}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
+        resolveLoopFamilyTone(contractBand, claimValue, offerValue),
+        buildLoopMicroDetail(`WINDOW ${claimValue}`, `OFFER ${offerValue}`, `STREAK ${streakValue}`)
+      ),
+      buildLoopBridgeBlock(
+        "ATTN",
+        buildLoopAttentionDetail(`CLAIM ${claimValue}`, `BAND ${contractBand}`, `ENTRY ${entryLabel}`),
+        buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `CLAIM ${claimValue}`),
+        resolveLoopFamilyTone(claimValue, streakValue, contractBand),
+        buildLoopMicroDetail(`STREAK ${streakValue}`, `OFFER ${offerValue}`, `FLOW ${microflowLabel}`)
       )
     ),
     offerFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `OFFER ${offerValue}`),
@@ -1946,6 +2075,7 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopDuelAttentionText: loopMicro.duelAttentionText,
       loopDuelCadenceText: loopMicro.duelCadenceText,
       loopDuelCards: loopMicro.duelCards,
+      loopDuelBlocks: loopMicro.duelBlocks,
       loopLadderFamilyText: loopMicro.ladderFamilyText,
       loopLadderFlowText: loopMicro.ladderFlowText,
       loopLadderSummaryText: loopMicro.ladderSummaryText,
@@ -2244,7 +2374,8 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         lootResponseText: loopMicro.lootResponseText,
         lootAttentionText: loopMicro.lootAttentionText,
         lootCadenceText: loopMicro.lootCadenceText,
-        lootCards: loopMicro.lootCards
+        lootCards: loopMicro.lootCards,
+        lootBlocks: loopMicro.lootBlocks
       }
     };
   }
@@ -2346,6 +2477,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopWalletAttentionText: loopMicro.walletAttentionText,
     loopWalletCadenceText: loopMicro.walletCadenceText,
     loopWalletCards: loopMicro.walletCards,
+    loopWalletBlocks: loopMicro.walletBlocks,
     loopPayoutFamilyText: loopMicro.payoutFamilyText,
     loopPayoutFlowText: loopMicro.payoutFlowText,
     loopPayoutSummaryText: loopMicro.payoutSummaryText,
@@ -2740,7 +2872,8 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopDispatchResponseText: loopMicro.dispatchResponseText,
     loopDispatchAttentionText: loopMicro.dispatchAttentionText,
     loopDispatchCadenceText: loopMicro.dispatchCadenceText,
-    loopDispatchCards: loopMicro.dispatchCards
+    loopDispatchCards: loopMicro.dispatchCards,
+    loopDispatchBlocks: loopMicro.dispatchBlocks
   };
 }
 

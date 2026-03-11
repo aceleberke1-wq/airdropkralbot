@@ -1,5 +1,5 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeCards, type LoopBridgeCard } from "./loopBridgeCards.js";
+import { renderLoopBridgeBlocks, renderLoopBridgeCards, type LoopBridgeBlock, type LoopBridgeCard } from "./loopBridgeCards.js";
 
 type RuntimeBridgePayload = {
   lineText: string;
@@ -68,6 +68,7 @@ type RuntimeBridgePayload = {
   loopDispatchAttentionText?: string;
   loopDispatchCadenceText?: string;
   loopDispatchCards?: LoopBridgeCard[];
+  loopDispatchBlocks?: LoopBridgeBlock[];
 };
 
 type AdminRuntimeBridge = {
@@ -141,6 +142,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopDispatch = byId<HTMLElement>("adminRuntimeLoopDispatch");
   const loopDispatchPanel = byId<HTMLElement>("adminRuntimeLoopDispatchPanel");
   const loopDispatchCards = byId<HTMLElement>("adminRuntimeLoopDispatchCards");
+  const loopDispatchBlocks = byId<HTMLElement>("adminRuntimeLoopDispatchBlocks");
   const loopDispatchFocus = byId<HTMLElement>("adminRuntimeLoopDispatchFocus");
   const loopDispatchStage = byId<HTMLElement>("adminRuntimeLoopDispatchStage");
   const loopQueueState = byId<HTMLElement>("adminRuntimeLoopQueueState");
@@ -376,6 +378,7 @@ function render(payload: RuntimeBridgePayload): boolean {
     loopDispatchCadence.textContent = String(payload.loopDispatchCadenceText || "CADENCE --");
   }
   renderLoopBridgeCards(loopDispatchCards, payload.loopDispatchCards);
+  renderLoopBridgeBlocks(loopDispatchBlocks, payload.loopDispatchBlocks);
   setChipTone(loopDispatchFamily, resolveLoopRailTone(payload.loopDispatchTone, "family"));
   setChipTone(loopDispatchFlow, resolveLoopRailTone(payload.loopDispatchTone, "flow"));
   setChipTone(loopDispatchSummary, resolveLoopRailTone(payload.loopDispatchTone, "summary"));

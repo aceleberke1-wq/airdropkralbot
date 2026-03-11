@@ -5,6 +5,14 @@ export type LoopBridgeCard = {
   tone?: string;
 };
 
+export type LoopBridgeBlock = {
+  title: string;
+  summary: string;
+  gate: string;
+  hint?: string;
+  tone?: string;
+};
+
 function safeText(value: unknown, fallback = ""): string {
   const text = String(value ?? "").trim();
   return text || fallback;
@@ -48,6 +56,45 @@ export function renderLoopBridgeCards(host: HTMLElement | null, cards: LoopBridg
     if (safeText(card.hint)) {
       const hint = document.createElement("em");
       hint.textContent = safeText(card.hint);
+      article.appendChild(hint);
+    }
+
+    host.appendChild(article);
+  });
+}
+
+export function renderLoopBridgeBlocks(host: HTMLElement | null, blocks: LoopBridgeBlock[] | undefined): void {
+  if (!host) {
+    return;
+  }
+  host.innerHTML = "";
+  const rows = Array.isArray(blocks) ? blocks.filter(Boolean).slice(0, 3) : [];
+  if (!rows.length) {
+    host.classList.add("hidden");
+    return;
+  }
+  host.classList.remove("hidden");
+  rows.forEach((block) => {
+    const article = document.createElement("article");
+    article.className = "akrBridgeFlowBlock";
+    article.dataset.tone = normalizeTone(block.tone);
+
+    const title = document.createElement("span");
+    title.textContent = safeText(block.title, "FLOW");
+
+    const summary = document.createElement("strong");
+    summary.textContent = safeText(block.summary, "--");
+
+    const gate = document.createElement("p");
+    gate.textContent = safeText(block.gate, "--");
+
+    article.appendChild(title);
+    article.appendChild(summary);
+    article.appendChild(gate);
+
+    if (safeText(block.hint)) {
+      const hint = document.createElement("em");
+      hint.textContent = safeText(block.hint);
       article.appendChild(hint);
     }
 
