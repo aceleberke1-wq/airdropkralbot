@@ -335,6 +335,9 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.combatHud.loopStateText, /ACTIVE|ENGAGE|DUEL/i);
   assert.match(payloads.combatHud.loopDetailText, /QUEUE DEPTH 3|RISK BAND WATCH/i);
   assert.match(payloads.combatHud.loopSignalText, /DIAG BAND HOT/i);
+  assert.match(payloads.combatHud.loopDuelText, /DUEL ENGAGE \| ACTIVE/i);
+  assert.match(payloads.combatHud.loopLadderText, /LADDER -- \| --/i);
+  assert.match(payloads.combatHud.loopTelemetryText, /TELEMETRY HOT \| WATCH/i);
   assert.equal(payloads.cameraDirector.mode.key, "broadcast");
   assert.match(payloads.cameraDirector.focus.text, /ACTIVE/);
   assert.equal(payloads.pvpRoundDirector.heat.phase, "engage");
@@ -357,6 +360,10 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.tokenOverview.loopStateText, /ACTIVE|ENGAGE|DUEL/i);
   assert.match(payloads.tokenOverview.loopDetailText, /QUEUE DEPTH 3|RISK BAND WATCH/i);
   assert.match(payloads.tokenOverview.loopSignalText, /DIAG BAND HOT/i);
+  assert.equal(payloads.tokenOverview.loopWalletText, "WALLET | WAIT");
+  assert.equal(payloads.tokenOverview.loopPayoutText, "PAYOUT | WAIT");
+  assert.equal(payloads.tokenOverview.loopRouteText, "ROUTE | WAIT");
+  assert.equal(payloads.tokenOverview.loopPremiumText, "PREMIUM | WAIT");
   assert.equal(payloads.tokenOverview.statusChips[1].text, "PAY OPEN");
   assert.equal(payloads.tokenTreasury.route.badgeText, "ROUTE 2/3");
   assert.equal(payloads.tokenTreasury.actionDirector.badgeText, "SUBMIT");
@@ -398,19 +405,40 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
           bot_runtime: { status: "degraded" }
         }
       }
+    },
+    scene: {
+      selectedLoop: {
+        districtKey: "ops_citadel",
+        entryKindKey: "world_entry_kind_dispatch_console",
+        sequenceKindKey: "world_modal_kind_dispatch_sequence",
+        microflowKey: "dispatch_flow",
+        loopStatusKey: "watch",
+        loopStatusLabelKey: "loop_status_watch",
+        loopStageValue: "ALERT",
+        loopRows: [
+          { label_key: "world_sheet_metric_liveops_sent", value: "12", status_key: "live" },
+          { label_key: "world_sheet_metric_alerts", value: "3", status_key: "watch" },
+          { label_key: "world_sheet_metric_scene_health", value: "WATCH", status_key: "watch" }
+        ],
+        loopSignalRows: [{ label_key: "world_sheet_metric_queue_depth", value: "2", status_key: "live" }],
+        sequenceRows: [{ label_key: "world_sheet_metric_liveops_sent", value: "12", status_key: "live" }]
+      }
     }
   });
 
   assert.match(payloads.runtime.lineText, /Queue 2/);
   assert.match(payloads.runtime.loopLineText, /OPS STANDBY|OPS LOOP/);
-  assert.match(payloads.runtime.loopHintText, /Scene loop focus|ARENA PRIME/i);
-  assert.match(payloads.runtime.loopFocusText, /FLOW \| WAIT|ARENA PRIME|DUEL/i);
-  assert.match(payloads.runtime.loopOpsLineText, /FOCUS|WAIT|FLOW/i);
-  assert.match(payloads.runtime.loopOpsHintText, /ENTRY|FLOW|Scene/i);
-  assert.match(payloads.runtime.loopSequenceText, /Sequence detay bekleniyor|DUEL PHASE ENGAGE/i);
-  assert.match(payloads.runtime.loopStateText, /IDLE \| FLOW WAIT|ACTIVE|ENGAGE|DUEL/i);
-  assert.match(payloads.runtime.loopDetailText, /Loop detay bekleniyor|QUEUE DEPTH/i);
-  assert.match(payloads.runtime.loopSignalText, /Signal detay bekleniyor|DIAG BAND/i);
+  assert.match(payloads.runtime.loopHintText, /Scene loop focus|ARENA PRIME|DISPATCH CONSOLE|DISPATCH SEQUENCE/i);
+  assert.match(payloads.runtime.loopFocusText, /OPS CITADEL|DISPATCH FLOW|DISPATCH CONSOLE/i);
+  assert.match(payloads.runtime.loopOpsLineText, /WATCH|ALERT|DISPATCH/i);
+  assert.match(payloads.runtime.loopOpsHintText, /DISPATCH CONSOLE|DISPATCH SEQUENCE|DISPATCH FLOW/i);
+  assert.match(payloads.runtime.loopSequenceText, /LIVEOPS SENT 12/i);
+  assert.match(payloads.runtime.loopStateText, /WATCH|ALERT|DISPATCH CONSOLE/i);
+  assert.match(payloads.runtime.loopDetailText, /LIVEOPS SENT 12|ALERTS 3|SCENE HEALTH WATCH/i);
+  assert.match(payloads.runtime.loopSignalText, /QUEUE DEPTH 2/i);
+  assert.match(payloads.runtime.loopQueueText, /QUEUE 2 \| WATCH/i);
+  assert.match(payloads.runtime.loopRuntimeText, /RUNTIME WATCH \| ALERT 3/i);
+  assert.match(payloads.runtime.loopDispatchText, /DISPATCH 12 \| ALERT/i);
   assert.equal(payloads.assetStatus.rows.length, 2);
   assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Missing 1");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");

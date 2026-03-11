@@ -10,6 +10,9 @@ type RuntimeBridgePayload = {
   loopStateText?: string;
   loopDetailText?: string;
   loopSignalText?: string;
+  loopQueueText?: string;
+  loopRuntimeText?: string;
+  loopDispatchText?: string;
 };
 
 type AdminRuntimeBridge = {
@@ -56,6 +59,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopState = byId<HTMLElement>("adminRuntimeLoopState");
   const loopDetail = byId<HTMLElement>("adminRuntimeLoopDetail");
   const loopSignal = byId<HTMLElement>("adminRuntimeLoopSignal");
+  const loopQueue = byId<HTMLElement>("adminRuntimeLoopQueue");
+  const loopRuntime = byId<HTMLElement>("adminRuntimeLoopRuntime");
+  const loopDispatch = byId<HTMLElement>("adminRuntimeLoopDispatch");
   if (!line || !eventsLine || !loopLine || !loopHint || !loopFocus || !loopOpsLine || !loopOpsHint || !loopSequence || !loopState || !loopDetail || !loopSignal) {
     return false;
   }
@@ -70,6 +76,15 @@ function render(payload: RuntimeBridgePayload): boolean {
   loopState.textContent = String(payload.loopStateText || "IDLE | FLOW WAIT");
   loopDetail.textContent = String(payload.loopDetailText || "Loop detay bekleniyor.");
   loopSignal.textContent = String(payload.loopSignalText || "Signal detay bekleniyor.");
+  if (loopQueue) {
+    loopQueue.textContent = String(payload.loopQueueText || "QUEUE | WAIT");
+  }
+  if (loopRuntime) {
+    loopRuntime.textContent = String(payload.loopRuntimeText || "RUNTIME | WAIT");
+  }
+  if (loopDispatch) {
+    loopDispatch.textContent = String(payload.loopDispatchText || "DISPATCH | WAIT");
+  }
   pulseOnce(line);
   pulseOnce(eventsLine);
   pulseOnce(loopLine);
@@ -81,6 +96,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   pulseOnce(loopState);
   pulseOnce(loopDetail);
   pulseOnce(loopSignal);
+  pulseOnce(loopQueue);
+  pulseOnce(loopRuntime);
+  pulseOnce(loopDispatch);
   return true;
 }
 

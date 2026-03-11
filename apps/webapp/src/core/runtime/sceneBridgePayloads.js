@@ -240,6 +240,9 @@ function buildSceneLoopDeckPayload(scene) {
       entryKindKey: "",
       sequenceKindKey: "",
       microflowKey: "",
+      loopRows: [],
+      loopSignalRows: [],
+      sequenceRows: [],
       detailLine: "",
       signalLine: "",
       sequenceLine: ""
@@ -263,9 +266,117 @@ function buildSceneLoopDeckPayload(scene) {
     entryKindKey: toText(selectedLoop.entryKindKey, ""),
     sequenceKindKey: toText(selectedLoop.sequenceKindKey, ""),
     microflowKey: toText(selectedLoop.microflowKey, ""),
+    loopRows: asArray(selectedLoop.loopRows).slice(0, 3),
+    loopSignalRows: asArray(selectedLoop.loopSignalRows).slice(0, 3),
+    sequenceRows: asArray(selectedLoop.sequenceRows).slice(0, 3),
     detailLine: formatLoopRows(selectedLoop.loopRows, "Loop detay bekleniyor."),
     signalLine: formatLoopRows(selectedLoop.loopSignalRows, "Signal detay bekleniyor."),
     sequenceLine: formatLoopRows(selectedLoop.sequenceRows, "Sequence detay bekleniyor.")
+  };
+}
+
+function findLoopRowByKey(rows, candidates) {
+  const patterns = asArray(candidates)
+    .map((item) => toText(item, "").toLowerCase())
+    .filter(Boolean);
+  if (!patterns.length) {
+    return null;
+  }
+  return (
+    asArray(rows)
+      .map((row) => asRecord(row))
+      .find((row) => {
+        const key = toText(row.label_key || row.key || "", "").toLowerCase();
+        return patterns.some((pattern) => key.includes(pattern));
+      }) || null
+  );
+}
+
+function readLoopRowValue(rows, candidates, fallback = "--") {
+  return toText(findLoopRowByKey(rows, candidates)?.value, fallback);
+}
+
+function buildLoopMicroLine(label, primary, secondary) {
+  return `${label} ${toText(primary, "--")} | ${toText(secondary, "--")}`.trim();
+}
+
+function buildPvpLoopMicroPanels(loopDeck, active) {
+  if (!active) {
+    return {
+      duelText: "DUEL | WAIT",
+      ladderText: "LADDER | WAIT",
+      telemetryText: "TELEMETRY | WAIT"
+    };
+  }
+  const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
+  const stageValue = toText(loopDeck.stageValue, "--");
+  const statusLabel = toText(loopDeck.loopStatusLabel, "IDLE");
+  return {
+    duelText: buildLoopMicroLine(
+      "DUEL",
+      readLoopRowValue(loopDeck.sequenceRows, ["duel_phase"], stageValue),
+      statusLabel
+    ),
+    ladderText: buildLoopMicroLine(
+      "LADDER",
+      readLoopRowValue(sharedRows, ["ladder_charge"], "--"),
+      readLoopRowValue(sharedRows, ["tick_tempo"], "--")
+    ),
+    telemetryText: buildLoopMicroLine(
+      "TELEMETRY",
+      readLoopRowValue(sharedRows, ["diag_band"], "--"),
+      readLoopRowValue(sharedRows, ["risk_band", "tick_tempo"], "--")
+    )
+  };
+}
+
+function buildVaultLoopMicroPanels(loopDeck, active) {
+  if (!active) {
+    return {
+      walletText: "WALLET | WAIT",
+      payoutText: "PAYOUT | WAIT",
+      routeText: "ROUTE | WAIT",
+      premiumText: "PREMIUM | WAIT"
+    };
+  }
+  const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
+  const walletState = readLoopRowValue(sharedRows, ["wallet_state"], loopDeck.stageValue || "--");
+  const payoutState = readLoopRowValue(sharedRows, ["payout_state"], "--");
+  const routeState = readLoopRowValue(sharedRows, ["route_state"], "--");
+  const premiumState = readLoopRowValue(sharedRows, ["premium_state"], "--");
+  return {
+    walletText: buildLoopMicroLine("WALLET", walletState, loopDeck.loopStatusLabel || "IDLE"),
+    payoutText: buildLoopMicroLine("PAYOUT", payoutState, routeState),
+    routeText: buildLoopMicroLine("ROUTE", routeState, walletState),
+    premiumText: buildLoopMicroLine("PREMIUM", premiumState, loopDeck.stageValue || loopDeck.loopStatusLabel || "--")
+  };
+}
+
+function buildAdminLoopMicroPanels(loopDeck, active) {
+  if (!active) {
+    return {
+      queueText: "QUEUE | WAIT",
+      runtimeText: "RUNTIME | WAIT",
+      dispatchText: "DISPATCH | WAIT"
+    };
+  }
+  const sharedRows = [...loopDeck.loopRows, ...loopDeck.loopSignalRows];
+  return {
+    queueText: buildLoopMicroLine(
+      "QUEUE",
+      readLoopRowValue(sharedRows, ["queue_depth"], "0"),
+      loopDeck.loopStatusLabel || "IDLE"
+    ),
+    runtimeText: buildLoopMicroLine(
+      "RUNTIME",
+      readLoopRowValue(sharedRows, ["scene_health"], "--"),
+      `ALERT ${readLoopRowValue(sharedRows, ["alerts"], "0")}`
+    ),
+    dispatchText: buildLoopMicroLine(
+      "DISPATCH",
+      readLoopRowValue(sharedRows, ["liveops_sent"], "0"),
+      loopDeck.stageValue || loopDeck.loopStatusLabel || "--"
+    )
   };
 }
 
@@ -541,7 +652,9 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
   const sessionSnapshot = asRecord(league.session_snapshot);
   const trendRows = asArray(league.trend);
   const latestReject = asRecord(asArray(pvpView.reject_mix)[0]);
+  const loopDeck = buildSceneLoopDeckPayload(scene);
   const loopPanel = buildDomainLoopPanelPayload(scene, "pvp");
+  const loopMicro = buildPvpLoopMicroPanels(loopDeck, loopPanel.active);
   const reducedMotion = Boolean(asRecord(scene).reducedMotion);
   const lowEndMode = Boolean(asRecord(scene).lowEndMode || asRecord(scene).capabilityProfile?.low_end_mode);
   const effectiveQuality = toText(asRecord(scene).effectiveQuality || "medium", "medium").toLowerCase();
@@ -1009,7 +1122,10 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopSequenceText: loopPanel.sequenceLineText,
       loopStateText: loopPanel.statusLineText,
       loopDetailText: loopPanel.detailLineText,
-      loopSignalText: loopPanel.signalLineText
+      loopSignalText: loopPanel.signalLineText,
+      loopDuelText: loopMicro.duelText,
+      loopLadderText: loopMicro.ladderText,
+      loopTelemetryText: loopMicro.telemetryText
     },
     camera: {
       mode: {
@@ -1218,7 +1334,9 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
   const chains = asArray(routeStatus.chains);
   const summary = asRecord(vaultView.summary);
   const latest = asRecord(vaultView.latest);
+  const loopDeck = buildSceneLoopDeckPayload(scene);
   const loopPanel = buildDomainLoopPanelPayload(scene, "vault");
+  const loopMicro = buildVaultLoopMicroPanels(loopDeck, loopPanel.active);
   const selectedChain = toText(summary.token_chain || summary.wallet_chain || (chains[0] && chains[0].chain) || "TON", "TON");
   const quoteUsd = Number(toNum(latest.quote_usd)).toFixed(2);
   const routeSummary = `Routes ${Math.floor(toNum(summary.route_ok))}/${Math.floor(toNum(summary.route_total))}`;
@@ -1263,6 +1381,10 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopStateText: loopPanel.statusLineText,
     loopDetailText: loopPanel.detailLineText,
     loopSignalText: loopPanel.signalLineText,
+    loopWalletText: loopMicro.walletText,
+    loopPayoutText: loopMicro.payoutText,
+    loopRouteText: loopMicro.routeText,
+    loopPremiumText: loopMicro.premiumText,
     statusChips: [
       {
         id: "tokenWalletChip",
@@ -1558,7 +1680,9 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
   const latest = asRecord(bot.latest);
   const featureFlags = asRecord(summary.feature_flags);
   const sourceMode = toText(asRecord(summary.runtime_flags).source_mode || deploy.bundle_mode || "runtime");
+  const loopDeck = buildSceneLoopDeckPayload(scene);
   const loopPanel = buildDomainLoopPanelPayload(scene, "admin");
+  const loopMicro = buildAdminLoopMicroPanels(loopDeck, loopPanel.active);
   return {
     lineText: `Queue ${queue.length} | Bundle ${toText(deploy.bundle_mode || deploy.webapp_bundle_mode || "unknown")} | Flags ${Object.keys(featureFlags).length}`,
     eventsLineText: `Bot ${toText(latest.state_key || latest.status || "idle")} | Lock ${latest.lock_acquired === true ? "yes" : "no"} | Source ${sourceMode}`,
@@ -1570,7 +1694,10 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopSequenceText: loopPanel.sequenceLineText,
     loopStateText: loopPanel.statusLineText,
     loopDetailText: loopPanel.detailLineText,
-    loopSignalText: loopPanel.signalLineText
+    loopSignalText: loopPanel.signalLineText,
+    loopQueueText: loopMicro.queueText,
+    loopRuntimeText: loopMicro.runtimeText,
+    loopDispatchText: loopMicro.dispatchText
   };
 }
 

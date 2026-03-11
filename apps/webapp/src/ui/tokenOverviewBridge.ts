@@ -31,6 +31,10 @@ export type TokenOverviewBridgePayload = {
   loopStateText?: string;
   loopDetailText?: string;
   loopSignalText?: string;
+  loopWalletText?: string;
+  loopPayoutText?: string;
+  loopRouteText?: string;
+  loopPremiumText?: string;
 };
 
 type TokenOverviewBridge = {
@@ -74,6 +78,10 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopState = byId<HTMLElement>("tokenLoopState");
   const loopDetail = byId<HTMLElement>("tokenLoopDetail");
   const loopSignal = byId<HTMLElement>("tokenLoopSignal");
+  const loopWallet = byId<HTMLElement>("tokenLoopWallet");
+  const loopPayout = byId<HTMLElement>("tokenLoopPayout");
+  const loopRoute = byId<HTMLElement>("tokenLoopRoute");
+  const loopPremium = byId<HTMLElement>("tokenLoopPremium");
   const chainSelect = byId<HTMLSelectElement>("tokenChainSelect");
   const buyBtn = byId<HTMLButtonElement>("tokenBuyBtn");
 
@@ -97,6 +105,18 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   loopState.textContent = safeText(payload.loopStateText, "IDLE | FLOW WAIT");
   loopDetail.textContent = safeText(payload.loopDetailText, "Loop detay bekleniyor.");
   loopSignal.textContent = safeText(payload.loopSignalText, "Signal detay bekleniyor.");
+  if (loopWallet) {
+    loopWallet.textContent = safeText(payload.loopWalletText, "WALLET | WAIT");
+  }
+  if (loopPayout) {
+    loopPayout.textContent = safeText(payload.loopPayoutText, "PAYOUT | WAIT");
+  }
+  if (loopRoute) {
+    loopRoute.textContent = safeText(payload.loopRouteText, "ROUTE | WAIT");
+  }
+  if (loopPremium) {
+    loopPremium.textContent = safeText(payload.loopPremiumText, "PREMIUM | WAIT");
+  }
 
   const options = Array.isArray(payload.chainOptions) ? payload.chainOptions : [];
   chainSelect.innerHTML = options

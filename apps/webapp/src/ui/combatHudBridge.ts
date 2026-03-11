@@ -94,6 +94,9 @@ type CombatHudPayload = {
   loopStateText?: string;
   loopDetailText?: string;
   loopSignalText?: string;
+  loopDuelText?: string;
+  loopLadderText?: string;
+  loopTelemetryText?: string;
   rejectCategory?: string;
   rejectTone?: string;
   ladderTone?: string;
@@ -240,6 +243,9 @@ function render(payload: CombatHudPayload): boolean {
   const loopState = byId("combatLoopState");
   const loopDetail = byId("combatLoopDetail");
   const loopSignal = byId("combatLoopSignal");
+  const loopDuel = byId("combatLoopDuel");
+  const loopLadder = byId("combatLoopLadder");
+  const loopTelemetry = byId("combatLoopTelemetry");
 
   if (!panelRoot || !chainLine || !chainTrail || !timelineLine || !timelineBadge || !timelineMeter) {
     return false;
@@ -411,6 +417,15 @@ function render(payload: CombatHudPayload): boolean {
   }
   if (loopSignal) {
     loopSignal.textContent = String(payload.loopSignalText || "Signal detay bekleniyor.");
+  }
+  if (loopDuel) {
+    loopDuel.textContent = String(payload.loopDuelText || "DUEL | WAIT");
+  }
+  if (loopLadder) {
+    loopLadder.textContent = String(payload.loopLadderText || "LADDER | WAIT");
+  }
+  if (loopTelemetry) {
+    loopTelemetry.textContent = String(payload.loopTelemetryText || "TELEMETRY | WAIT");
   }
 
   const nodeMap: Record<string, HTMLElement | null> = {
