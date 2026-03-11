@@ -77,14 +77,32 @@ export type TokenOverviewBridgePayload = {
   loopPayoutFlowText?: string;
   loopPayoutSummaryText?: string;
   loopPayoutGateText?: string;
+  loopPayoutLeadText?: string;
+  loopPayoutWindowText?: string;
+  loopPayoutPressureText?: string;
+  loopPayoutResponseText?: string;
+  loopPayoutAttentionText?: string;
+  loopPayoutCadenceText?: string;
   loopRouteFamilyText?: string;
   loopRouteFlowText?: string;
   loopRouteSummaryText?: string;
   loopRouteGateText?: string;
+  loopRouteLeadText?: string;
+  loopRouteWindowText?: string;
+  loopRoutePressureText?: string;
+  loopRouteResponseText?: string;
+  loopRouteAttentionText?: string;
+  loopRouteCadenceText?: string;
   loopPremiumFamilyText?: string;
   loopPremiumFlowText?: string;
   loopPremiumSummaryText?: string;
   loopPremiumGateText?: string;
+  loopPremiumLeadText?: string;
+  loopPremiumWindowText?: string;
+  loopPremiumPressureText?: string;
+  loopPremiumResponseText?: string;
+  loopPremiumAttentionText?: string;
+  loopPremiumCadenceText?: string;
 };
 
 type TokenOverviewBridge = {
@@ -181,14 +199,32 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopPayoutFlow = byId<HTMLElement>("tokenLoopPayoutFlow");
   const loopPayoutSummary = byId<HTMLElement>("tokenLoopPayoutSummary");
   const loopPayoutGate = byId<HTMLElement>("tokenLoopPayoutGate");
+  const loopPayoutLead = byId<HTMLElement>("tokenLoopPayoutLead");
+  const loopPayoutWindow = byId<HTMLElement>("tokenLoopPayoutWindow");
+  const loopPayoutPressure = byId<HTMLElement>("tokenLoopPayoutPressure");
+  const loopPayoutResponse = byId<HTMLElement>("tokenLoopPayoutResponse");
+  const loopPayoutAttention = byId<HTMLElement>("tokenLoopPayoutAttention");
+  const loopPayoutCadence = byId<HTMLElement>("tokenLoopPayoutCadence");
   const loopRouteFamily = byId<HTMLElement>("tokenLoopRouteFamily");
   const loopRouteFlow = byId<HTMLElement>("tokenLoopRouteFlow");
   const loopRouteSummary = byId<HTMLElement>("tokenLoopRouteSummary");
   const loopRouteGate = byId<HTMLElement>("tokenLoopRouteGate");
+  const loopRouteLead = byId<HTMLElement>("tokenLoopRouteLead");
+  const loopRouteWindow = byId<HTMLElement>("tokenLoopRouteWindow");
+  const loopRoutePressure = byId<HTMLElement>("tokenLoopRoutePressure");
+  const loopRouteResponse = byId<HTMLElement>("tokenLoopRouteResponse");
+  const loopRouteAttention = byId<HTMLElement>("tokenLoopRouteAttention");
+  const loopRouteCadence = byId<HTMLElement>("tokenLoopRouteCadence");
   const loopPremiumFamily = byId<HTMLElement>("tokenLoopPremiumFamily");
   const loopPremiumFlow = byId<HTMLElement>("tokenLoopPremiumFlow");
   const loopPremiumSummary = byId<HTMLElement>("tokenLoopPremiumSummary");
   const loopPremiumGate = byId<HTMLElement>("tokenLoopPremiumGate");
+  const loopPremiumLead = byId<HTMLElement>("tokenLoopPremiumLead");
+  const loopPremiumWindow = byId<HTMLElement>("tokenLoopPremiumWindow");
+  const loopPremiumPressure = byId<HTMLElement>("tokenLoopPremiumPressure");
+  const loopPremiumResponse = byId<HTMLElement>("tokenLoopPremiumResponse");
+  const loopPremiumAttention = byId<HTMLElement>("tokenLoopPremiumAttention");
+  const loopPremiumCadence = byId<HTMLElement>("tokenLoopPremiumCadence");
   const chainSelect = byId<HTMLSelectElement>("tokenChainSelect");
   const buyBtn = byId<HTMLButtonElement>("tokenBuyBtn");
 
@@ -336,6 +372,24 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopPayoutGate) {
     loopPayoutGate.textContent = safeText(payload.loopPayoutGateText, "GATE --");
   }
+  if (loopPayoutLead) {
+    loopPayoutLead.textContent = safeText(payload.loopPayoutLeadText, "LEAD --");
+  }
+  if (loopPayoutWindow) {
+    loopPayoutWindow.textContent = safeText(payload.loopPayoutWindowText, "WINDOW --");
+  }
+  if (loopPayoutPressure) {
+    loopPayoutPressure.textContent = safeText(payload.loopPayoutPressureText, "PRESSURE --");
+  }
+  if (loopPayoutResponse) {
+    loopPayoutResponse.textContent = safeText(payload.loopPayoutResponseText, "RESPONSE --");
+  }
+  if (loopPayoutAttention) {
+    loopPayoutAttention.textContent = safeText(payload.loopPayoutAttentionText, "ATTN --");
+  }
+  if (loopPayoutCadence) {
+    loopPayoutCadence.textContent = safeText(payload.loopPayoutCadenceText, "CADENCE --");
+  }
   if (loopRouteDetail) {
     loopRouteDetail.textContent = safeText(payload.loopRouteDetailText, "Route quorum detay bekleniyor.");
   }
@@ -351,6 +405,24 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopRouteGate) {
     loopRouteGate.textContent = safeText(payload.loopRouteGateText, "GATE --");
   }
+  if (loopRouteLead) {
+    loopRouteLead.textContent = safeText(payload.loopRouteLeadText, "LEAD --");
+  }
+  if (loopRouteWindow) {
+    loopRouteWindow.textContent = safeText(payload.loopRouteWindowText, "WINDOW --");
+  }
+  if (loopRoutePressure) {
+    loopRoutePressure.textContent = safeText(payload.loopRoutePressureText, "PRESSURE --");
+  }
+  if (loopRouteResponse) {
+    loopRouteResponse.textContent = safeText(payload.loopRouteResponseText, "RESPONSE --");
+  }
+  if (loopRouteAttention) {
+    loopRouteAttention.textContent = safeText(payload.loopRouteAttentionText, "ATTN --");
+  }
+  if (loopRouteCadence) {
+    loopRouteCadence.textContent = safeText(payload.loopRouteCadenceText, "CADENCE --");
+  }
   if (loopPremiumDetail) {
     loopPremiumDetail.textContent = safeText(payload.loopPremiumDetailText, "Premium lane detay bekleniyor.");
   }
@@ -365,6 +437,24 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   }
   if (loopPremiumGate) {
     loopPremiumGate.textContent = safeText(payload.loopPremiumGateText, "GATE --");
+  }
+  if (loopPremiumLead) {
+    loopPremiumLead.textContent = safeText(payload.loopPremiumLeadText, "LEAD --");
+  }
+  if (loopPremiumWindow) {
+    loopPremiumWindow.textContent = safeText(payload.loopPremiumWindowText, "WINDOW --");
+  }
+  if (loopPremiumPressure) {
+    loopPremiumPressure.textContent = safeText(payload.loopPremiumPressureText, "PRESSURE --");
+  }
+  if (loopPremiumResponse) {
+    loopPremiumResponse.textContent = safeText(payload.loopPremiumResponseText, "RESPONSE --");
+  }
+  if (loopPremiumAttention) {
+    loopPremiumAttention.textContent = safeText(payload.loopPremiumAttentionText, "ATTN --");
+  }
+  if (loopPremiumCadence) {
+    loopPremiumCadence.textContent = safeText(payload.loopPremiumCadenceText, "CADENCE --");
   }
 
   const options = Array.isArray(payload.chainOptions) ? payload.chainOptions : [];

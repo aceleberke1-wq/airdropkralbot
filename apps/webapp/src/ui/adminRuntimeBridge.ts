@@ -38,10 +38,22 @@ type RuntimeBridgePayload = {
   loopQueueFlowText?: string;
   loopQueueSummaryText?: string;
   loopQueueGateText?: string;
+  loopQueueLeadText?: string;
+  loopQueueWindowText?: string;
+  loopQueuePressureText?: string;
+  loopQueueResponseText?: string;
+  loopQueueAttentionText?: string;
+  loopQueueCadenceText?: string;
   loopRuntimeFamilyText?: string;
   loopRuntimeFlowText?: string;
   loopRuntimeSummaryText?: string;
   loopRuntimeGateText?: string;
+  loopRuntimeLeadText?: string;
+  loopRuntimeWindowText?: string;
+  loopRuntimePressureText?: string;
+  loopRuntimeResponseText?: string;
+  loopRuntimeAttentionText?: string;
+  loopRuntimeCadenceText?: string;
   loopDispatchFamilyText?: string;
   loopDispatchFlowText?: string;
   loopDispatchSummaryText?: string;
@@ -133,10 +145,22 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopQueueFlow = byId<HTMLElement>("adminRuntimeLoopQueueFlow");
   const loopQueueSummary = byId<HTMLElement>("adminRuntimeLoopQueueSummary");
   const loopQueueGate = byId<HTMLElement>("adminRuntimeLoopQueueGate");
+  const loopQueueLead = byId<HTMLElement>("adminRuntimeLoopQueueLead");
+  const loopQueueWindow = byId<HTMLElement>("adminRuntimeLoopQueueWindow");
+  const loopQueuePressure = byId<HTMLElement>("adminRuntimeLoopQueuePressure");
+  const loopQueueResponse = byId<HTMLElement>("adminRuntimeLoopQueueResponse");
+  const loopQueueAttention = byId<HTMLElement>("adminRuntimeLoopQueueAttention");
+  const loopQueueCadence = byId<HTMLElement>("adminRuntimeLoopQueueCadence");
   const loopRuntimeFamily = byId<HTMLElement>("adminRuntimeLoopRuntimeFamily");
   const loopRuntimeFlow = byId<HTMLElement>("adminRuntimeLoopRuntimeFlow");
   const loopRuntimeSummary = byId<HTMLElement>("adminRuntimeLoopRuntimeSummary");
   const loopRuntimeGate = byId<HTMLElement>("adminRuntimeLoopRuntimeGate");
+  const loopRuntimeLead = byId<HTMLElement>("adminRuntimeLoopRuntimeLead");
+  const loopRuntimeWindow = byId<HTMLElement>("adminRuntimeLoopRuntimeWindow");
+  const loopRuntimePressure = byId<HTMLElement>("adminRuntimeLoopRuntimePressure");
+  const loopRuntimeResponse = byId<HTMLElement>("adminRuntimeLoopRuntimeResponse");
+  const loopRuntimeAttention = byId<HTMLElement>("adminRuntimeLoopRuntimeAttention");
+  const loopRuntimeCadence = byId<HTMLElement>("adminRuntimeLoopRuntimeCadence");
   const loopDispatchFamily = byId<HTMLElement>("adminRuntimeLoopDispatchFamily");
   const loopDispatchFlow = byId<HTMLElement>("adminRuntimeLoopDispatchFlow");
   const loopDispatchSummary = byId<HTMLElement>("adminRuntimeLoopDispatchSummary");
@@ -233,6 +257,24 @@ function render(payload: RuntimeBridgePayload): boolean {
   if (loopQueueGate) {
     loopQueueGate.textContent = String(payload.loopQueueGateText || "GATE --");
   }
+  if (loopQueueLead) {
+    loopQueueLead.textContent = String(payload.loopQueueLeadText || "LEAD --");
+  }
+  if (loopQueueWindow) {
+    loopQueueWindow.textContent = String(payload.loopQueueWindowText || "WINDOW --");
+  }
+  if (loopQueuePressure) {
+    loopQueuePressure.textContent = String(payload.loopQueuePressureText || "PRESSURE --");
+  }
+  if (loopQueueResponse) {
+    loopQueueResponse.textContent = String(payload.loopQueueResponseText || "RESPONSE --");
+  }
+  if (loopQueueAttention) {
+    loopQueueAttention.textContent = String(payload.loopQueueAttentionText || "ATTN --");
+  }
+  if (loopQueueCadence) {
+    loopQueueCadence.textContent = String(payload.loopQueueCadenceText || "CADENCE --");
+  }
   if (loopRuntimeDetail) {
     loopRuntimeDetail.textContent = String(payload.loopRuntimeDetailText || "Runtime diagnostics bekleniyor.");
   }
@@ -247,6 +289,24 @@ function render(payload: RuntimeBridgePayload): boolean {
   }
   if (loopRuntimeGate) {
     loopRuntimeGate.textContent = String(payload.loopRuntimeGateText || "GATE --");
+  }
+  if (loopRuntimeLead) {
+    loopRuntimeLead.textContent = String(payload.loopRuntimeLeadText || "LEAD --");
+  }
+  if (loopRuntimeWindow) {
+    loopRuntimeWindow.textContent = String(payload.loopRuntimeWindowText || "WINDOW --");
+  }
+  if (loopRuntimePressure) {
+    loopRuntimePressure.textContent = String(payload.loopRuntimePressureText || "PRESSURE --");
+  }
+  if (loopRuntimeResponse) {
+    loopRuntimeResponse.textContent = String(payload.loopRuntimeResponseText || "RESPONSE --");
+  }
+  if (loopRuntimeAttention) {
+    loopRuntimeAttention.textContent = String(payload.loopRuntimeAttentionText || "ATTN --");
+  }
+  if (loopRuntimeCadence) {
+    loopRuntimeCadence.textContent = String(payload.loopRuntimeCadenceText || "CADENCE --");
   }
   if (loopDispatchDetail) {
     loopDispatchDetail.textContent = String(payload.loopDispatchDetailText || "Dispatch gate detay bekleniyor.");
@@ -302,7 +362,19 @@ function render(payload: RuntimeBridgePayload): boolean {
   pulseOnce(loopDispatchFocus);
   pulseOnce(loopDispatchStage);
   pulseOnce(loopQueueDetail);
+  pulseOnce(loopQueueLead);
+  pulseOnce(loopQueueWindow);
+  pulseOnce(loopQueuePressure);
+  pulseOnce(loopQueueResponse);
+  pulseOnce(loopQueueAttention);
+  pulseOnce(loopQueueCadence);
   pulseOnce(loopRuntimeDetail);
+  pulseOnce(loopRuntimeLead);
+  pulseOnce(loopRuntimeWindow);
+  pulseOnce(loopRuntimePressure);
+  pulseOnce(loopRuntimeResponse);
+  pulseOnce(loopRuntimeAttention);
+  pulseOnce(loopRuntimeCadence);
   pulseOnce(loopDispatchDetail);
   pulseOnce(loopDispatchFamily);
   pulseOnce(loopDispatchFlow);

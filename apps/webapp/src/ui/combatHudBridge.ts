@@ -132,10 +132,22 @@ type CombatHudPayload = {
   loopLadderFlowText?: string;
   loopLadderSummaryText?: string;
   loopLadderGateText?: string;
+  loopLadderLeadText?: string;
+  loopLadderWindowText?: string;
+  loopLadderPressureText?: string;
+  loopLadderResponseText?: string;
+  loopLadderAttentionText?: string;
+  loopLadderCadenceText?: string;
   loopTelemetryFamilyText?: string;
   loopTelemetryFlowText?: string;
   loopTelemetrySummaryText?: string;
   loopTelemetryGateText?: string;
+  loopTelemetryLeadText?: string;
+  loopTelemetryWindowText?: string;
+  loopTelemetryPressureText?: string;
+  loopTelemetryResponseText?: string;
+  loopTelemetryAttentionText?: string;
+  loopTelemetryCadenceText?: string;
   rejectCategory?: string;
   rejectTone?: string;
   ladderTone?: string;
@@ -267,10 +279,22 @@ function render(payload: CombatHudPayload): boolean {
   const loopLadderFlow = byId("combatLoopLadderFlow");
   const loopLadderSummary = byId("combatLoopLadderSummary");
   const loopLadderGate = byId("combatLoopLadderGate");
+  const loopLadderLead = byId("combatLoopLadderLead");
+  const loopLadderWindow = byId("combatLoopLadderWindow");
+  const loopLadderPressure = byId("combatLoopLadderPressure");
+  const loopLadderResponse = byId("combatLoopLadderResponse");
+  const loopLadderAttention = byId("combatLoopLadderAttention");
+  const loopLadderCadence = byId("combatLoopLadderCadence");
   const loopTelemetryFamily = byId("combatLoopTelemetryFamily");
   const loopTelemetryFlow = byId("combatLoopTelemetryFlow");
   const loopTelemetrySummary = byId("combatLoopTelemetrySummary");
   const loopTelemetryGate = byId("combatLoopTelemetryGate");
+  const loopTelemetryLead = byId("combatLoopTelemetryLead");
+  const loopTelemetryWindow = byId("combatLoopTelemetryWindow");
+  const loopTelemetryPressure = byId("combatLoopTelemetryPressure");
+  const loopTelemetryResponse = byId("combatLoopTelemetryResponse");
+  const loopTelemetryAttention = byId("combatLoopTelemetryAttention");
+  const loopTelemetryCadence = byId("combatLoopTelemetryCadence");
   const bossPressureLine = byId("bossPressureLine");
   const bossPressureMeter = byId("bossPressureMeter");
   const overdriveLine = byId("combatOverdriveLine");
@@ -606,6 +630,24 @@ function render(payload: CombatHudPayload): boolean {
   if (loopLadderGate) {
     loopLadderGate.textContent = String(payload.loopLadderGateText || "GATE --");
   }
+  if (loopLadderLead) {
+    loopLadderLead.textContent = String(payload.loopLadderLeadText || "LEAD --");
+  }
+  if (loopLadderWindow) {
+    loopLadderWindow.textContent = String(payload.loopLadderWindowText || "WINDOW --");
+  }
+  if (loopLadderPressure) {
+    loopLadderPressure.textContent = String(payload.loopLadderPressureText || "PRESSURE --");
+  }
+  if (loopLadderResponse) {
+    loopLadderResponse.textContent = String(payload.loopLadderResponseText || "RESPONSE --");
+  }
+  if (loopLadderAttention) {
+    loopLadderAttention.textContent = String(payload.loopLadderAttentionText || "ATTN --");
+  }
+  if (loopLadderCadence) {
+    loopLadderCadence.textContent = String(payload.loopLadderCadenceText || "CADENCE --");
+  }
   if (loopTelemetryFamily) {
     loopTelemetryFamily.textContent = String(payload.loopTelemetryFamilyText || "FLOW --");
   }
@@ -617,6 +659,24 @@ function render(payload: CombatHudPayload): boolean {
   }
   if (loopTelemetryGate) {
     loopTelemetryGate.textContent = String(payload.loopTelemetryGateText || "GATE --");
+  }
+  if (loopTelemetryLead) {
+    loopTelemetryLead.textContent = String(payload.loopTelemetryLeadText || "LEAD --");
+  }
+  if (loopTelemetryWindow) {
+    loopTelemetryWindow.textContent = String(payload.loopTelemetryWindowText || "WINDOW --");
+  }
+  if (loopTelemetryPressure) {
+    loopTelemetryPressure.textContent = String(payload.loopTelemetryPressureText || "PRESSURE --");
+  }
+  if (loopTelemetryResponse) {
+    loopTelemetryResponse.textContent = String(payload.loopTelemetryResponseText || "RESPONSE --");
+  }
+  if (loopTelemetryAttention) {
+    loopTelemetryAttention.textContent = String(payload.loopTelemetryAttentionText || "ATTN --");
+  }
+  if (loopTelemetryCadence) {
+    loopTelemetryCadence.textContent = String(payload.loopTelemetryCadenceText || "CADENCE --");
   }
   if (loopLadderDetail) {
     loopLadderDetail.textContent = String(payload.loopLadderDetailText || "Ladder snapshot bekleniyor.");
