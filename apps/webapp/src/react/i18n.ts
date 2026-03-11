@@ -444,6 +444,8 @@ const DICT = {
     admin_runtime_scene_loop_district_family_health_attention_title: "District x Aile Band x Attention",
     admin_runtime_scene_loop_district_family_attention_trend_title: "District x Aile Attention x Trend",
     admin_runtime_scene_loop_district_family_health_attention_trend_title: "District x Aile Band x Attention x Trend",
+    admin_runtime_scene_loop_district_family_health_attention_trend_matrix_title:
+      "District x Aile Risk Matrisi",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Nedenleri",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
@@ -1381,6 +1383,8 @@ const DICT = {
     admin_runtime_scene_loop_district_family_health_attention_title: "District x Family Band x Attention",
     admin_runtime_scene_loop_district_family_attention_trend_title: "District x Family Attention x Trend",
     admin_runtime_scene_loop_district_family_health_attention_trend_title: "District x Family Band x Attention x Trend",
+    admin_runtime_scene_loop_district_family_health_attention_trend_matrix_title:
+      "District x Family Risk Matrix",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Reasons",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
