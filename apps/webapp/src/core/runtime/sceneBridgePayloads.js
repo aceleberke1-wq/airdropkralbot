@@ -564,19 +564,20 @@ function buildLoopFamilyBridgeBundle(tone, rails) {
   };
 }
 
-function buildLoopFlowFamilyBridgeBundle(tone, rails) {
+function buildLoopFlowFamilyBridgeBundle(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
   const riskSummaryText = buildLoopRiskSummaryText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
+  const [entryTitle, stateTitle, resolveTitle] = normalizeLoopFlowPanelTitles(titles);
   return {
     cards: buildLoopBridgeCards(
-      buildLoopBridgeCard("ENTRY", source.leadText || source.flowText, tone, source.gateText || source.summaryText),
-      buildLoopBridgeCard("STATE", source.stateText || source.summaryText, tone, source.stageText || source.detailText),
+      buildLoopBridgeCard(entryTitle, source.leadText || source.flowText, tone, source.gateText || source.summaryText),
+      buildLoopBridgeCard(stateTitle, source.stateText || source.summaryText, tone, source.stageText || source.detailText),
       buildLoopBridgeCard("RISK", riskSummaryText, tone, riskKeyText)
     ),
     blocks: buildLoopBridgeBlocks(
-      buildLoopBridgeBlock("FOCUS", source.focusText || source.familyText, source.flowText || source.summaryText, tone, source.gateText || source.detailText),
-      buildLoopBridgeBlock("WINDOW", source.windowText || source.summaryText, source.summaryText || source.stateText, tone, source.attentionText || source.cadenceText),
+      buildLoopBridgeBlock(entryTitle, source.focusText || source.familyText, source.flowText || source.summaryText, tone, source.gateText || source.detailText),
+      buildLoopBridgeBlock(resolveTitle, source.windowText || source.summaryText, source.summaryText || source.stateText, tone, source.attentionText || source.cadenceText),
       buildLoopBridgeBlock("RISK", riskSummaryText, source.signalText || source.pressureText, tone, riskKeyText)
     )
   };
@@ -697,6 +698,23 @@ function normalizeLoopSubflowPanelTitles(titles) {
   ];
 }
 
+const LOOP_FAMILY_TITLES = Object.freeze({
+  duel: ["STANCE", "STATUS", "RESOLVE"],
+  ladder: ["RANK", "STATUS", "PUSH"],
+  telemetry: ["SCAN", "STATUS", "TRACE"],
+  loot: ["OFFER", "STATE", "REVEAL"],
+  offer: ["OFFER", "STATUS", "STACK"],
+  claim: ["CLAIM", "STATUS", "PROOF"],
+  streak: ["STREAK", "STATUS", "SYNC"],
+  wallet: ["LINK", "STATE", "ROUTE"],
+  payout: ["REQUEST", "STATE", "PROOF"],
+  route: ["ROUTE", "STATE", "COVERAGE"],
+  premium: ["PASS", "STATE", "PERK"],
+  queue: ["QUEUE", "STATUS", "REVIEW"],
+  runtime: ["RUNTIME", "STATUS", "HEALTH"],
+  dispatch: ["QUEUE", "HEALTH", "RELEASE"]
+});
+
 function buildLoopSubflowPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
   const riskKeyText = buildLoopRiskKeyText(source);
@@ -739,15 +757,16 @@ function buildLoopSubflowPanels(tone, rails, titles) {
 
 function buildLoopSubflowBundle(tone, rails, titles) {
   const source = asRecord(rails);
+  const [entryTitle, stateTitle, opsTitle] = normalizeLoopSubflowPanelTitles(titles);
   return {
     cards: buildLoopBridgeCards(
-      buildLoopBridgeCard("ENTRY", source.leadText || source.flowText, tone, source.focusText || source.gateText),
-      buildLoopBridgeCard("STATE", source.stateText || source.summaryText, tone, source.stageText || source.windowText),
+      buildLoopBridgeCard(entryTitle, source.leadText || source.flowText, tone, source.focusText || source.gateText),
+      buildLoopBridgeCard(stateTitle, source.stateText || source.summaryText, tone, source.stageText || source.windowText),
       buildLoopBridgeCard("PRESS", source.pressureText || source.signalText, tone, source.responseText || source.attentionText)
     ),
     blocks: buildLoopBridgeBlocks(
-      buildLoopBridgeBlock("FLOW", source.flowText || source.familyText, source.gateText || source.summaryText, tone, source.focusText),
-      buildLoopBridgeBlock("WINDOW", source.windowText || source.summaryText, source.responseText || source.attentionText, tone, source.stageText),
+      buildLoopBridgeBlock(entryTitle, source.flowText || source.familyText, source.gateText || source.summaryText, tone, source.focusText),
+      buildLoopBridgeBlock(opsTitle, source.windowText || source.summaryText, source.responseText || source.attentionText, tone, source.stageText),
       buildLoopBridgeBlock("OPS", source.opsText || source.detailText, source.signalText || source.pressureText, tone, source.detailText)
     ),
     panels: buildLoopSubflowPanels(tone, source, titles)
@@ -909,7 +928,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.duelOpsText,
       signalText: panels.duelSignalText,
       detailText: panels.duelDetailText
-    });
+    }, LOOP_FAMILY_TITLES.duel);
     const ladderFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.ladderTone, {
       familyText: panels.ladderFamilyText,
       flowText: panels.ladderFlowText,
@@ -927,7 +946,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.ladderOpsText,
       signalText: panels.ladderSignalText,
       detailText: panels.ladderDetailText
-    });
+    }, LOOP_FAMILY_TITLES.ladder);
     const telemetryFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.telemetryTone, {
       familyText: panels.telemetryFamilyText,
       flowText: panels.telemetryFlowText,
@@ -945,7 +964,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.telemetryOpsText,
       signalText: panels.telemetrySignalText,
       detailText: panels.telemetryDetailText
-    });
+    }, LOOP_FAMILY_TITLES.telemetry);
     panels.ladderCards = ladderBundle.cards;
     panels.ladderBlocks = ladderBundle.blocks;
     panels.telemetryCards = telemetryBundle.cards;
@@ -1022,7 +1041,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.ladderOpsText,
       signalText: panels.ladderSignalText,
       detailText: panels.ladderDetailText
-    }, ["RANK", "STATUS", "PUSH"]);
+    }, LOOP_FAMILY_TITLES.ladder);
     panels.ladderSubflowCards = ladderSubflowBundle.cards;
     panels.ladderSubflowBlocks = ladderSubflowBundle.blocks;
     panels.ladderSubflowPanels = ladderSubflowBundle.panels;
@@ -1098,7 +1117,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.telemetryOpsText,
       signalText: panels.telemetrySignalText,
       detailText: panels.telemetryDetailText
-    }, ["SCAN", "STATUS", "TRACE"]);
+    }, LOOP_FAMILY_TITLES.telemetry);
     panels.telemetrySubflowCards = telemetrySubflowBundle.cards;
     panels.telemetrySubflowBlocks = telemetrySubflowBundle.blocks;
     panels.telemetrySubflowPanels = telemetrySubflowBundle.panels;
@@ -1138,7 +1157,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.duelOpsText,
       signalText: panels.duelSignalText,
       detailText: panels.duelDetailText
-    });
+    }, LOOP_FAMILY_TITLES.duel);
     panels.duelSubflowCards = duelSubflowBundle.cards;
     panels.duelSubflowBlocks = duelSubflowBundle.blocks;
     panels.duelSubflowPanels = duelSubflowBundle.panels;
@@ -1341,7 +1360,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.duelOpsText,
     signalText: panels.duelSignalText,
     detailText: panels.duelDetailText
-  }, ["STANCE", "STATUS", "RESOLVE"]);
+  }, LOOP_FAMILY_TITLES.duel);
   const ladderFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.ladderTone, {
     familyText: panels.ladderFamilyText,
     flowText: panels.ladderFlowText,
@@ -1359,7 +1378,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.ladderOpsText,
     signalText: panels.ladderSignalText,
     detailText: panels.ladderDetailText
-  });
+  }, LOOP_FAMILY_TITLES.ladder);
   const telemetryFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.telemetryTone, {
     familyText: panels.telemetryFamilyText,
     flowText: panels.telemetryFlowText,
@@ -1377,7 +1396,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.telemetryOpsText,
     signalText: panels.telemetrySignalText,
     detailText: panels.telemetryDetailText
-  });
+  }, LOOP_FAMILY_TITLES.telemetry);
   panels.ladderCards = ladderBundle.cards;
   panels.ladderBlocks = ladderBundle.blocks;
   panels.telemetryCards = telemetryBundle.cards;
@@ -1454,7 +1473,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.ladderOpsText,
     signalText: panels.ladderSignalText,
     detailText: panels.ladderDetailText
-  }, ["RANK", "STATUS", "PUSH"]);
+  }, LOOP_FAMILY_TITLES.ladder);
   panels.ladderSubflowCards = ladderSubflowBundle.cards;
   panels.ladderSubflowBlocks = ladderSubflowBundle.blocks;
   panels.ladderSubflowPanels = ladderSubflowBundle.panels;
@@ -1530,7 +1549,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.telemetryOpsText,
     signalText: panels.telemetrySignalText,
     detailText: panels.telemetryDetailText
-  }, ["SCAN", "STATUS", "TRACE"]);
+  }, LOOP_FAMILY_TITLES.telemetry);
   panels.telemetrySubflowCards = telemetrySubflowBundle.cards;
   panels.telemetrySubflowBlocks = telemetrySubflowBundle.blocks;
   panels.telemetrySubflowPanels = telemetrySubflowBundle.panels;
@@ -1606,7 +1625,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.duelOpsText,
     signalText: panels.duelSignalText,
     detailText: panels.duelDetailText
-  }, ["STANCE", "STATUS", "RESOLVE"]);
+  }, LOOP_FAMILY_TITLES.duel);
   panels.duelSubflowCards = duelSubflowBundle.cards;
   panels.duelSubflowBlocks = duelSubflowBundle.blocks;
   panels.duelSubflowPanels = duelSubflowBundle.panels;
@@ -1753,7 +1772,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.walletOpsText,
       signalText: panels.walletSignalText,
       detailText: panels.walletDetailText
-    });
+    }, LOOP_FAMILY_TITLES.wallet);
     const payoutFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.payoutTone, {
       familyText: panels.payoutFamilyText,
       flowText: panels.payoutFlowText,
@@ -1771,7 +1790,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.payoutOpsText,
       signalText: panels.payoutSignalText,
       detailText: panels.payoutDetailText
-    });
+    }, LOOP_FAMILY_TITLES.payout);
     const routeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.routeTone, {
       familyText: panels.routeFamilyText,
       flowText: panels.routeFlowText,
@@ -1789,7 +1808,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.routeOpsText,
       signalText: panels.routeSignalText,
       detailText: panels.routeDetailText
-    });
+    }, LOOP_FAMILY_TITLES.route);
     const premiumFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.premiumTone, {
       familyText: panels.premiumFamilyText,
       flowText: panels.premiumFlowText,
@@ -1807,7 +1826,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.premiumOpsText,
       signalText: panels.premiumSignalText,
       detailText: panels.premiumDetailText
-    });
+    }, LOOP_FAMILY_TITLES.premium);
     panels.payoutCards = payoutBundle.cards;
     panels.payoutBlocks = payoutBundle.blocks;
     panels.routeCards = routeBundle.cards;
@@ -1850,7 +1869,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.payoutOpsText,
       signalText: panels.payoutSignalText,
       detailText: panels.payoutDetailText
-    });
+    }, LOOP_FAMILY_TITLES.payout);
     panels.payoutSubflowCards = payoutSubflowBundle.cards;
     panels.payoutSubflowBlocks = payoutSubflowBundle.blocks;
     panels.payoutSubflowPanels = payoutSubflowBundle.panels;
@@ -1890,7 +1909,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.routeOpsText,
       signalText: panels.routeSignalText,
       detailText: panels.routeDetailText
-    });
+    }, LOOP_FAMILY_TITLES.route);
     panels.routeSubflowCards = routeSubflowBundle.cards;
     panels.routeSubflowBlocks = routeSubflowBundle.blocks;
     panels.routeSubflowPanels = routeSubflowBundle.panels;
@@ -1930,7 +1949,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.premiumOpsText,
       signalText: panels.premiumSignalText,
       detailText: panels.premiumDetailText
-    });
+    }, LOOP_FAMILY_TITLES.premium);
     panels.premiumSubflowCards = premiumSubflowBundle.cards;
     panels.premiumSubflowBlocks = premiumSubflowBundle.blocks;
     panels.premiumSubflowPanels = premiumSubflowBundle.panels;
@@ -1970,7 +1989,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       opsText: panels.walletOpsText,
       signalText: panels.walletSignalText,
       detailText: panels.walletDetailText
-    });
+    }, LOOP_FAMILY_TITLES.wallet);
     panels.walletSubflowCards = walletSubflowBundle.cards;
     panels.walletSubflowBlocks = walletSubflowBundle.blocks;
     panels.walletSubflowPanels = walletSubflowBundle.panels;
@@ -2184,7 +2203,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.walletOpsText,
     signalText: panels.walletSignalText,
     detailText: panels.walletDetailText
-  });
+  }, LOOP_FAMILY_TITLES.wallet);
   const payoutFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.payoutTone, {
     familyText: panels.payoutFamilyText,
     flowText: panels.payoutFlowText,
@@ -2202,7 +2221,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.payoutOpsText,
     signalText: panels.payoutSignalText,
     detailText: panels.payoutDetailText
-  }, ["REQUEST", "STATE", "PROOF"]);
+  }, LOOP_FAMILY_TITLES.payout);
   const routeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.routeTone, {
     familyText: panels.routeFamilyText,
     flowText: panels.routeFlowText,
@@ -2220,7 +2239,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.routeOpsText,
     signalText: panels.routeSignalText,
     detailText: panels.routeDetailText
-  }, ["ROUTE", "STATE", "COVERAGE"]);
+  }, LOOP_FAMILY_TITLES.route);
   const premiumFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.premiumTone, {
     familyText: panels.premiumFamilyText,
     flowText: panels.premiumFlowText,
@@ -2238,7 +2257,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.premiumOpsText,
     signalText: panels.premiumSignalText,
     detailText: panels.premiumDetailText
-  }, ["PASS", "STATE", "PERK"]);
+  }, LOOP_FAMILY_TITLES.premium);
   panels.payoutCards = payoutBundle.cards;
   panels.payoutBlocks = payoutBundle.blocks;
   panels.routeCards = routeBundle.cards;
@@ -2281,7 +2300,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.payoutOpsText,
     signalText: panels.payoutSignalText,
     detailText: panels.payoutDetailText
-  }, ["REQUEST", "STATE", "PROOF"]);
+  }, LOOP_FAMILY_TITLES.payout);
   panels.payoutSubflowCards = payoutSubflowBundle.cards;
   panels.payoutSubflowBlocks = payoutSubflowBundle.blocks;
   panels.payoutSubflowPanels = payoutSubflowBundle.panels;
@@ -2321,7 +2340,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.routeOpsText,
     signalText: panels.routeSignalText,
     detailText: panels.routeDetailText
-  }, ["ROUTE", "STATE", "COVERAGE"]);
+  }, LOOP_FAMILY_TITLES.route);
   panels.routeSubflowCards = routeSubflowBundle.cards;
   panels.routeSubflowBlocks = routeSubflowBundle.blocks;
   panels.routeSubflowPanels = routeSubflowBundle.panels;
@@ -2361,7 +2380,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.premiumOpsText,
     signalText: panels.premiumSignalText,
     detailText: panels.premiumDetailText
-  }, ["PASS", "STATE", "PERK"]);
+  }, LOOP_FAMILY_TITLES.premium);
   panels.premiumSubflowCards = premiumSubflowBundle.cards;
   panels.premiumSubflowBlocks = premiumSubflowBundle.blocks;
   panels.premiumSubflowPanels = premiumSubflowBundle.panels;
@@ -2437,7 +2456,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.walletOpsText,
     signalText: panels.walletSignalText,
     detailText: panels.walletDetailText
-  }, ["LINK", "STATE", "ROUTE"]);
+  }, LOOP_FAMILY_TITLES.wallet);
   panels.walletSubflowCards = walletSubflowBundle.cards;
   panels.walletSubflowBlocks = walletSubflowBundle.blocks;
   panels.walletSubflowPanels = walletSubflowBundle.panels;
@@ -2662,7 +2681,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.dispatchOpsText,
       signalText: panels.dispatchSignalText,
       detailText: panels.dispatchDetailText
-    });
+    }, LOOP_FAMILY_TITLES.dispatch);
     const queueFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.queueTone, {
       familyText: panels.queueFamilyText,
       flowText: panels.queueFlowText,
@@ -2680,7 +2699,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.queueOpsText,
       signalText: panels.queueSignalText,
       detailText: panels.queueDetailText
-    });
+    }, LOOP_FAMILY_TITLES.queue);
     const runtimeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.runtimeTone, {
       familyText: panels.runtimeFamilyText,
       flowText: panels.runtimeFlowText,
@@ -2698,7 +2717,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.runtimeOpsText,
       signalText: panels.runtimeSignalText,
       detailText: panels.runtimeDetailText
-    });
+    }, LOOP_FAMILY_TITLES.runtime);
     panels.queueCards = queueBundle.cards;
     panels.queueBlocks = queueBundle.blocks;
     panels.runtimeCards = runtimeBundle.cards;
@@ -2739,7 +2758,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.queueOpsText,
       signalText: panels.queueSignalText,
       detailText: panels.queueDetailText
-    }, ["QUEUE", "STATUS", "REVIEW"]);
+    }, LOOP_FAMILY_TITLES.queue);
     panels.queueSubflowCards = queueSubflowBundle.cards;
     panels.queueSubflowBlocks = queueSubflowBundle.blocks;
     panels.queueSubflowPanels = queueSubflowBundle.panels;
@@ -2779,7 +2798,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.runtimeOpsText,
       signalText: panels.runtimeSignalText,
       detailText: panels.runtimeDetailText
-    }, ["RUNTIME", "STATUS", "HEALTH"]);
+    }, LOOP_FAMILY_TITLES.runtime);
     panels.runtimeSubflowCards = runtimeSubflowBundle.cards;
     panels.runtimeSubflowBlocks = runtimeSubflowBundle.blocks;
     panels.runtimeSubflowPanels = runtimeSubflowBundle.panels;
@@ -2819,7 +2838,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.dispatchOpsText,
       signalText: panels.dispatchSignalText,
       detailText: panels.dispatchDetailText
-    });
+    }, LOOP_FAMILY_TITLES.dispatch);
     panels.dispatchSubflowCards = dispatchSubflowBundle.cards;
     panels.dispatchSubflowBlocks = dispatchSubflowBundle.blocks;
     panels.dispatchSubflowPanels = dispatchSubflowBundle.panels;
@@ -2990,7 +3009,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.dispatchOpsText,
     signalText: panels.dispatchSignalText,
     detailText: panels.dispatchDetailText
-  }, ["QUEUE", "HEALTH", "RELEASE"]);
+  }, LOOP_FAMILY_TITLES.dispatch);
   const queueFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.queueTone, {
     familyText: panels.queueFamilyText,
     flowText: panels.queueFlowText,
@@ -3008,7 +3027,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.queueOpsText,
     signalText: panels.queueSignalText,
     detailText: panels.queueDetailText
-  });
+  }, LOOP_FAMILY_TITLES.queue);
   const runtimeFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.runtimeTone, {
     familyText: panels.runtimeFamilyText,
     flowText: panels.runtimeFlowText,
@@ -3026,7 +3045,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.runtimeOpsText,
     signalText: panels.runtimeSignalText,
     detailText: panels.runtimeDetailText
-  });
+  }, LOOP_FAMILY_TITLES.runtime);
   panels.queueCards = queueBundle.cards;
   panels.queueBlocks = queueBundle.blocks;
   panels.runtimeCards = runtimeBundle.cards;
@@ -3067,7 +3086,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.queueOpsText,
     signalText: panels.queueSignalText,
     detailText: panels.queueDetailText
-  }, ["QUEUE", "STATUS", "REVIEW"]);
+  }, LOOP_FAMILY_TITLES.queue);
   panels.queueSubflowCards = queueSubflowBundle.cards;
   panels.queueSubflowBlocks = queueSubflowBundle.blocks;
   panels.queueSubflowPanels = queueSubflowBundle.panels;
@@ -3107,7 +3126,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.runtimeOpsText,
     signalText: panels.runtimeSignalText,
     detailText: panels.runtimeDetailText
-  }, ["RUNTIME", "STATUS", "HEALTH"]);
+  }, LOOP_FAMILY_TITLES.runtime);
   panels.runtimeSubflowCards = runtimeSubflowBundle.cards;
   panels.runtimeSubflowBlocks = runtimeSubflowBundle.blocks;
   panels.runtimeSubflowPanels = runtimeSubflowBundle.panels;
@@ -3255,7 +3274,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.dispatchOpsText,
     signalText: panels.dispatchSignalText,
     detailText: panels.dispatchDetailText
-  }, ["QUEUE", "HEALTH", "RELEASE"]);
+  }, LOOP_FAMILY_TITLES.dispatch);
   panels.dispatchSubflowCards = dispatchSubflowBundle.cards;
   panels.dispatchSubflowBlocks = dispatchSubflowBundle.blocks;
   panels.dispatchSubflowPanels = dispatchSubflowBundle.panels;
@@ -3369,7 +3388,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.lootOpsText,
       signalText: panels.lootSignalText,
       detailText: panels.lootDetailText
-    });
+    }, LOOP_FAMILY_TITLES.loot);
     const offerBundle = buildLoopFamilyBridgeBundle(panels.offerTone, {
       familyText: panels.offerFamilyText,
       flowText: panels.offerFlowText,
@@ -3420,7 +3439,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.offerOpsText,
       signalText: panels.offerSignalText,
       detailText: panels.offerDetailText
-    });
+    }, LOOP_FAMILY_TITLES.offer);
     const claimFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.claimTone, {
       familyText: panels.claimFamilyText,
       flowText: panels.claimFlowText,
@@ -3438,7 +3457,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.claimOpsText,
       signalText: panels.claimSignalText,
       detailText: panels.claimDetailText
-    });
+    }, LOOP_FAMILY_TITLES.claim);
     const streakFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.streakTone, {
       familyText: panels.streakFamilyText,
       flowText: panels.streakFlowText,
@@ -3456,7 +3475,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.streakOpsText,
       signalText: panels.streakSignalText,
       detailText: panels.streakDetailText
-    });
+    }, LOOP_FAMILY_TITLES.streak);
     panels.offerCards = offerBundle.cards;
     panels.offerBlocks = offerBundle.blocks;
     panels.claimCards = claimBundle.cards;
@@ -3499,7 +3518,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.offerOpsText,
       signalText: panels.offerSignalText,
       detailText: panels.offerDetailText
-    }, ["OFFER", "STATUS", "STACK"]);
+    }, LOOP_FAMILY_TITLES.offer);
     panels.offerSubflowCards = offerSubflowBundle.cards;
     panels.offerSubflowBlocks = offerSubflowBundle.blocks;
     panels.offerSubflowPanels = offerSubflowBundle.panels;
@@ -3539,7 +3558,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.claimOpsText,
       signalText: panels.claimSignalText,
       detailText: panels.claimDetailText
-    }, ["CLAIM", "STATUS", "PROOF"]);
+    }, LOOP_FAMILY_TITLES.claim);
     panels.claimSubflowCards = claimSubflowBundle.cards;
     panels.claimSubflowBlocks = claimSubflowBundle.blocks;
     panels.claimSubflowPanels = claimSubflowBundle.panels;
@@ -3579,7 +3598,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.streakOpsText,
       signalText: panels.streakSignalText,
       detailText: panels.streakDetailText
-    }, ["STREAK", "STATUS", "SYNC"]);
+    }, LOOP_FAMILY_TITLES.streak);
     panels.streakSubflowCards = streakSubflowBundle.cards;
     panels.streakSubflowBlocks = streakSubflowBundle.blocks;
     panels.streakSubflowPanels = streakSubflowBundle.panels;
@@ -3636,7 +3655,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.lootOpsText,
       signalText: panels.lootSignalText,
       detailText: panels.lootDetailText
-    });
+    }, LOOP_FAMILY_TITLES.loot);
     panels.lootSubflowCards = lootSubflowBundle.cards;
     panels.lootSubflowBlocks = lootSubflowBundle.blocks;
     panels.lootSubflowPanels = lootSubflowBundle.panels;
@@ -3805,7 +3824,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.lootOpsText,
     signalText: panels.lootSignalText,
     detailText: panels.lootDetailText
-  }, ["OFFER", "STATE", "REVEAL"]);
+  }, LOOP_FAMILY_TITLES.loot);
   const offerBundle = buildLoopFamilyBridgeBundle(panels.offerTone, {
     familyText: panels.offerFamilyText,
     flowText: panels.offerFlowText,
@@ -3856,7 +3875,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.offerOpsText,
     signalText: panels.offerSignalText,
     detailText: panels.offerDetailText
-  });
+  }, LOOP_FAMILY_TITLES.offer);
   const claimFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.claimTone, {
     familyText: panels.claimFamilyText,
     flowText: panels.claimFlowText,
@@ -3874,7 +3893,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.claimOpsText,
     signalText: panels.claimSignalText,
     detailText: panels.claimDetailText
-  });
+  }, LOOP_FAMILY_TITLES.claim);
   const streakFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.streakTone, {
     familyText: panels.streakFamilyText,
     flowText: panels.streakFlowText,
@@ -3892,7 +3911,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.streakOpsText,
     signalText: panels.streakSignalText,
     detailText: panels.streakDetailText
-  });
+  }, LOOP_FAMILY_TITLES.streak);
   panels.offerCards = offerBundle.cards;
   panels.offerBlocks = offerBundle.blocks;
   panels.claimCards = claimBundle.cards;
@@ -3935,7 +3954,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.offerOpsText,
     signalText: panels.offerSignalText,
     detailText: panels.offerDetailText
-  }, ["OFFER", "STATUS", "STACK"]);
+  }, LOOP_FAMILY_TITLES.offer);
   panels.offerSubflowCards = offerSubflowBundle.cards;
   panels.offerSubflowBlocks = offerSubflowBundle.blocks;
   panels.offerSubflowPanels = offerSubflowBundle.panels;
@@ -3975,7 +3994,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.claimOpsText,
     signalText: panels.claimSignalText,
     detailText: panels.claimDetailText
-  }, ["CLAIM", "STATUS", "PROOF"]);
+  }, LOOP_FAMILY_TITLES.claim);
   panels.claimSubflowCards = claimSubflowBundle.cards;
   panels.claimSubflowBlocks = claimSubflowBundle.blocks;
   panels.claimSubflowPanels = claimSubflowBundle.panels;
@@ -4015,7 +4034,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.streakOpsText,
     signalText: panels.streakSignalText,
     detailText: panels.streakDetailText
-  }, ["STREAK", "STATUS", "SYNC"]);
+  }, LOOP_FAMILY_TITLES.streak);
   panels.streakSubflowCards = streakSubflowBundle.cards;
   panels.streakSubflowBlocks = streakSubflowBundle.blocks;
   panels.streakSubflowPanels = streakSubflowBundle.panels;
@@ -4199,7 +4218,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.lootOpsText,
     signalText: panels.lootSignalText,
     detailText: panels.lootDetailText
-  }, ["OFFER", "STATE", "REVEAL"]);
+  }, LOOP_FAMILY_TITLES.loot);
   panels.lootSubflowCards = lootSubflowBundle.cards;
   panels.lootSubflowBlocks = lootSubflowBundle.blocks;
   panels.lootSubflowPanels = lootSubflowBundle.panels;
