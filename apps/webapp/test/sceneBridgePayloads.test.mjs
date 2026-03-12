@@ -367,6 +367,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.combatHud.loopDuelRiskPanels?.[2]?.title, "TREND");
   assert.match(payloads.combatHud.loopDuelRiskPanels?.[0]?.lines?.[0] || "", /WATCH|ACTIVE|HEALTH/i);
   assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[3] || "", /MICRO DUEL FLOW \| POD DUEL POD/i);
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[4] || "", /HB [A-Z_]+ \| ATTN [A-Z_]+ \| TREND [A-Z_]+/i);
   assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[4] || "", /HEALTH .*ATTN .*TREND /i);
   assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[5] || "", /^RISK [a-z_]+:[a-z_]+:[a-z_]+$/i);
   assert.match(payloads.combatHud.loopDuelRiskCards?.[3]?.hint || "", /^[a-z_]+:[a-z_]+:[a-z_]+$/i);
@@ -1236,6 +1237,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
     /SENT 12|ALERT|WATCH|HEALTH|ENTRY DISPATCH CONSOLE/i,
   );
   assert.match(payloads.runtime.loopDispatchRiskPanels?.[2]?.lines?.[3] || "", /MICRO DISPATCH FLOW \| POD --/i);
+  assert.match(payloads.runtime.loopDispatchRiskPanels?.[2]?.lines?.[4] || "", /HB [A-Z_]+ \| ATTN [A-Z_]+ \| TREND [A-Z_]+/i);
   assert.match(payloads.runtime.loopDispatchRiskPanels?.[2]?.lines?.[4] || "", /HEALTH .*ATTN .*TREND /i);
   assert.match(payloads.runtime.loopDispatchRiskPanels?.[2]?.lines?.[5] || "", /^RISK [a-z_]+:[a-z_]+:[a-z_]+$/i);
   assert.match(payloads.runtime.loopDispatchRiskCards?.[3]?.hint || "", /^[a-z_]+:[a-z_]+:[a-z_]+$/i);
@@ -1255,7 +1257,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.runtime.loopDispatchSubflowPanels?.[2]?.title, "RELEASE");
   assert.match(payloads.runtime.loopDispatchSubflowPanels?.[1]?.lines?.[1] || "", /HEALTH WATCH|FLOW DISPATCH FLOW|ENTRY DISPATCH CONSOLE/i);
   assert.match(payloads.runtime.loopDispatchSubflowPanels?.[1]?.lines?.[2] || "", /HEALTH WATCH|ALERT 3|FLOW DISPATCH FLOW/i);
-  assert.match(payloads.runtime.loopDispatchSubflowPanels?.[2]?.lines?.[2] || "", /SEQ DISPATCH SEQUENCE|FLOW DISPATCH FLOW|HEALTH WATCH/i);
+  assert.match(payloads.runtime.loopDispatchSubflowPanels?.[2]?.lines?.[2] || "", /HB [A-Z_]+ \| ATTN [A-Z_]+ \| TREND [A-Z_]+/i);
   assert.match(payloads.runtime.loopDispatchSubflowPanels?.[2]?.lines?.[3] || "", /HEALTH .*ATTN .*TREND /i);
   assert.equal(payloads.runtime.loopDispatchBlocks?.length, 3);
   assert.equal(payloads.runtime.loopDispatchBlocks?.[0]?.title, "FLOW");

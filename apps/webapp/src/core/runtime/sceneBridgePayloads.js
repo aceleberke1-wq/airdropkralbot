@@ -377,6 +377,13 @@ function buildLoopRiskSummaryText(source) {
   return `HEALTH ${healthText} | ATTN ${attentionText} | TREND ${trendText}`;
 }
 
+function buildLoopRiskComponentText(source) {
+  const healthBandKey = inferLoopHealthBandKey(source);
+  const attentionBandKey = inferLoopAttentionBandKey(source);
+  const trendDirectionKey = inferLoopTrendDirectionKey(source);
+  return `HB ${healthBandKey.toUpperCase()} | ATTN ${attentionBandKey.toUpperCase()} | TREND ${trendDirectionKey.toUpperCase()}`;
+}
+
 function buildLoopMicroflowText(source) {
   const row = asRecord(source);
   const explicit = toText(row.microflowText, "");
@@ -608,7 +615,7 @@ function buildLoopFlowFamilyBridgeBundle(tone, rails, titles) {
 
 function buildLoopRiskBridgeBundle(tone, rails) {
   const source = { ...asRecord(rails), tone };
-  const riskSummaryText = buildLoopRiskSummaryText(source);
+  const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   return {
     cards: buildLoopBridgeCards(
@@ -627,6 +634,7 @@ function buildLoopRiskBridgeBundle(tone, rails) {
 
 function buildLoopFlowFamilyPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
+  const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   const focusKeyText = buildLoopFocusKeyText(source);
   const [commandTitle, stateTitle, signalTitle] = normalizeLoopFlowPanelTitles(titles);
@@ -659,7 +667,7 @@ function buildLoopFlowFamilyPanels(tone, rails, titles) {
         toText(source.pressureText, "PRESSURE --"),
         buildLoopAttentionText(source),
         buildLoopTrendText(source),
-        buildLoopRiskSummaryText(source),
+        buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
         `RISK ${riskKeyText}`
       ]
     }
@@ -669,6 +677,7 @@ function buildLoopFlowFamilyPanels(tone, rails, titles) {
 function buildLoopRiskPanels(tone, rails) {
   const source = { ...asRecord(rails), tone };
   const microflowText = buildLoopMicroflowText(source);
+  const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   const focusKeyText = buildLoopFocusKeyText(source);
   return [
@@ -681,7 +690,7 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.stateText || source.summaryText, "STATE --"),
         toText(source.gateText || source.leadText, "GATE --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
-        buildLoopRiskSummaryText(source),
+        buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
         `RISK ${riskKeyText}`
       ]
     },
@@ -694,7 +703,7 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.pressureText || source.signalText, "PRESSURE --"),
         toText(source.responseText || source.opsText, "RESPONSE --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
-        buildLoopRiskSummaryText(source),
+        buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
         `RISK ${riskKeyText}`
       ]
     },
@@ -707,7 +716,7 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.windowText || source.flowText, "WINDOW --"),
         toText(source.detailText || source.stageText, "DETAIL --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
-        buildLoopRiskSummaryText(source),
+        buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
         `RISK ${riskKeyText}`
       ]
     }
@@ -742,6 +751,7 @@ const LOOP_FAMILY_TITLES = Object.freeze({
 
 function buildLoopSubflowPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
+  const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   const focusKeyText = buildLoopFocusKeyText(source);
   const [entryTitle, stateTitle, opsTitle] = normalizeLoopSubflowPanelTitles(titles);
@@ -773,8 +783,8 @@ function buildLoopSubflowPanels(tone, rails, titles) {
       lines: [
         toText(source.opsText, "OPS --"),
         toText(source.signalText || source.pressureText, "SIGNAL --"),
-        buildLoopTrendText(source),
-        buildLoopRiskSummaryText(source),
+        riskComponentText,
+        buildLoopMicroDetail(buildLoopRiskSummaryText(source)),
         `RISK ${riskKeyText}`
       ]
     }
