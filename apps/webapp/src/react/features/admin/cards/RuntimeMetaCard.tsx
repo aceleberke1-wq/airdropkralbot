@@ -666,6 +666,18 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskFocusDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_focus_daily_7d
   );
+  const sceneLoopDistrictMicroflowRiskFocusKeyBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_key_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFocusKeyBreakdownDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_key_breakdown_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFocusKeyMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_key_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFocusKeyMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_key_matrix_daily_7d
+  );
   const sceneLoopDistrictMicroflowRiskLatestBandBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_latest_band_breakdown_7d
   );
@@ -1136,6 +1148,22 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusDaily}
           loopKeyField="loop_microflow_key"
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocusKeyBreakdown}
+        />
+        <DailyBreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocusKeyBreakdownDaily}
+        />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocusKeyMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocusKeyMatrixDaily}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_latest_band_title")}
