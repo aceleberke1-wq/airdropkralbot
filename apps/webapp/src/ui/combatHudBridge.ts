@@ -131,6 +131,7 @@ type CombatHudPayload = {
   loopDuelResponseText?: string;
   loopDuelAttentionText?: string;
   loopDuelCadenceText?: string;
+  loopDuelMicroflowText?: string;
   loopDuelCards?: LoopBridgeCard[];
   loopDuelBlocks?: LoopBridgeBlock[];
   loopDuelFlowCards?: LoopBridgeCard[];
@@ -157,6 +158,7 @@ type CombatHudPayload = {
   loopLadderResponseText?: string;
   loopLadderAttentionText?: string;
   loopLadderCadenceText?: string;
+  loopLadderMicroflowText?: string;
   loopTelemetryFamilyText?: string;
   loopTelemetryFlowText?: string;
   loopTelemetrySummaryText?: string;
@@ -167,6 +169,7 @@ type CombatHudPayload = {
   loopTelemetryResponseText?: string;
   loopTelemetryAttentionText?: string;
   loopTelemetryCadenceText?: string;
+  loopTelemetryMicroflowText?: string;
   loopTelemetryCards?: LoopBridgeCard[];
   loopTelemetryBlocks?: LoopBridgeBlock[];
   loopTelemetryFlowCards?: LoopBridgeCard[];
@@ -317,6 +320,7 @@ function render(payload: CombatHudPayload): boolean {
   const loopLadderGate = byId("combatLoopLadderGate");
   const loopLadderLead = byId("combatLoopLadderLead");
   const loopLadderWindow = byId("combatLoopLadderWindow");
+  const loopLadderMicroflow = byId("combatLoopLadderMicroflow");
   const loopLadderPressure = byId("combatLoopLadderPressure");
   const loopLadderResponse = byId("combatLoopLadderResponse");
   const loopLadderAttention = byId("combatLoopLadderAttention");
@@ -327,6 +331,7 @@ function render(payload: CombatHudPayload): boolean {
   const loopTelemetryGate = byId("combatLoopTelemetryGate");
   const loopTelemetryLead = byId("combatLoopTelemetryLead");
   const loopTelemetryWindow = byId("combatLoopTelemetryWindow");
+  const loopTelemetryMicroflow = byId("combatLoopTelemetryMicroflow");
   const loopTelemetryPressure = byId("combatLoopTelemetryPressure");
   const loopTelemetryResponse = byId("combatLoopTelemetryResponse");
   const loopTelemetryAttention = byId("combatLoopTelemetryAttention");
@@ -412,6 +417,7 @@ function render(payload: CombatHudPayload): boolean {
   const loopDuelGate = byId("combatLoopDuelGate");
   const loopDuelLead = byId("combatLoopDuelLead");
   const loopDuelWindow = byId("combatLoopDuelWindow");
+  const loopDuelMicroflow = byId("combatLoopDuelMicroflow");
   const loopDuelPressure = byId("combatLoopDuelPressure");
   const loopDuelResponse = byId("combatLoopDuelResponse");
   const loopDuelAttention = byId("combatLoopDuelAttention");
@@ -666,6 +672,9 @@ function render(payload: CombatHudPayload): boolean {
   if (loopDuelWindow) {
     loopDuelWindow.textContent = String(payload.loopDuelWindowText || "WINDOW --");
   }
+  if (loopDuelMicroflow) {
+    loopDuelMicroflow.textContent = String(payload.loopDuelMicroflowText || "MICRO WAIT | POD --");
+  }
   if (loopDuelPressure) {
     loopDuelPressure.textContent = String(payload.loopDuelPressureText || "PRESSURE --");
   }
@@ -708,6 +717,7 @@ function render(payload: CombatHudPayload): boolean {
   setChipTone(loopDuelGate, resolveLoopRailTone(payload.loopDuelTone, "gate"));
   setChipTone(loopDuelLead, resolveLoopRailTone(payload.loopDuelTone, "lead"));
   setChipTone(loopDuelWindow, resolveLoopRailTone(payload.loopDuelTone, "window"));
+  setChipTone(loopDuelMicroflow, resolveLoopRailTone(payload.loopDuelTone, "flow"));
   setChipTone(loopDuelPressure, resolveLoopRailTone(payload.loopDuelTone, "pressure"));
   setChipTone(loopDuelResponse, resolveLoopRailTone(payload.loopDuelTone, "response"));
   setChipTone(loopDuelAttention, resolveLoopRailTone(payload.loopDuelTone, "attention"));
@@ -730,6 +740,9 @@ function render(payload: CombatHudPayload): boolean {
   if (loopLadderWindow) {
     loopLadderWindow.textContent = String(payload.loopLadderWindowText || "WINDOW --");
   }
+  if (loopLadderMicroflow) {
+    loopLadderMicroflow.textContent = String(payload.loopLadderMicroflowText || "MICRO WAIT | POD --");
+  }
   if (loopLadderPressure) {
     loopLadderPressure.textContent = String(payload.loopLadderPressureText || "PRESSURE --");
   }
@@ -748,6 +761,7 @@ function render(payload: CombatHudPayload): boolean {
   setChipTone(loopLadderGate, resolveLoopRailTone(payload.loopLadderTone, "gate"));
   setChipTone(loopLadderLead, resolveLoopRailTone(payload.loopLadderTone, "lead"));
   setChipTone(loopLadderWindow, resolveLoopRailTone(payload.loopLadderTone, "window"));
+  setChipTone(loopLadderMicroflow, resolveLoopRailTone(payload.loopLadderTone, "flow"));
   setChipTone(loopLadderPressure, resolveLoopRailTone(payload.loopLadderTone, "pressure"));
   setChipTone(loopLadderResponse, resolveLoopRailTone(payload.loopLadderTone, "response"));
   setChipTone(loopLadderAttention, resolveLoopRailTone(payload.loopLadderTone, "attention"));
@@ -770,6 +784,9 @@ function render(payload: CombatHudPayload): boolean {
   if (loopTelemetryWindow) {
     loopTelemetryWindow.textContent = String(payload.loopTelemetryWindowText || "WINDOW --");
   }
+  if (loopTelemetryMicroflow) {
+    loopTelemetryMicroflow.textContent = String(payload.loopTelemetryMicroflowText || "MICRO WAIT | POD --");
+  }
   if (loopTelemetryPressure) {
     loopTelemetryPressure.textContent = String(payload.loopTelemetryPressureText || "PRESSURE --");
   }
@@ -788,6 +805,7 @@ function render(payload: CombatHudPayload): boolean {
   setChipTone(loopTelemetryGate, resolveLoopRailTone(payload.loopTelemetryTone, "gate"));
   setChipTone(loopTelemetryLead, resolveLoopRailTone(payload.loopTelemetryTone, "lead"));
   setChipTone(loopTelemetryWindow, resolveLoopRailTone(payload.loopTelemetryTone, "window"));
+  setChipTone(loopTelemetryMicroflow, resolveLoopRailTone(payload.loopTelemetryTone, "flow"));
   setChipTone(loopTelemetryPressure, resolveLoopRailTone(payload.loopTelemetryTone, "pressure"));
   setChipTone(loopTelemetryResponse, resolveLoopRailTone(payload.loopTelemetryTone, "response"));
   setChipTone(loopTelemetryAttention, resolveLoopRailTone(payload.loopTelemetryTone, "attention"));

@@ -387,6 +387,9 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.combatHud.loopDuelLeadText, /ENTRY DUEL CONSOLE \| FLOW DUEL FLOW \| DUEL SEQUENCE/i);
   assert.match(payloads.combatHud.loopDuelWindowText, /PHASE ENGAGE \| STATUS ACTIVE \| PERSONA (WORLD )?PERSONALITY ASSAULT/i);
   assert.match(payloads.combatHud.loopDuelPressureText, /QUEUE 3 \| RISK WATCH \| DIAG HOT/i);
+  assert.match(payloads.combatHud.loopDuelMicroflowText, /MICRO DUEL FLOW \| POD DUEL POD/i);
+  assert.equal(payloads.operations.loop.lootMicroflowText, "MICRO WAIT | POD --");
+  assert.equal(payloads.tokenOverview.loopWalletMicroflowText, "MICRO WAIT | POD --");
   assert.match(payloads.combatHud.loopDuelResponseText, /PHASE ENGAGE \| FLOW ACTIVE \| ENTRY DUEL CONSOLE/i);
   assert.match(payloads.combatHud.loopDuelAttentionText, /RISK WATCH \| QUEUE 3 \| PHASE ENGAGE/i);
   assert.match(payloads.combatHud.loopDuelCadenceText, /ENTRY DUEL CONSOLE \| FLOW DUEL FLOW \| PERSONA (WORLD )?PERSONALITY ASSAULT/i);
@@ -572,6 +575,7 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.match(payloads.tokenOverview.loopWalletLeadText, /ENTRY PAYOUT TERMINAL \| FLOW PAYOUT FLOW \| PAYOUT ROUTE/i);
   assert.match(payloads.tokenOverview.loopWalletWindowText, /STATE APPROVED \| PAYOUT OPEN \| ROUTE 2\/3/i);
   assert.match(payloads.tokenOverview.loopWalletPressureText, /STATE APPROVED \| ROUTE 2\/3 \| PASS ACTIVE/i);
+  assert.match(payloads.tokenOverview.loopWalletMicroflowText, /MICRO PAYOUT FLOW \| POD PAYOUT POD/i);
   assert.match(payloads.tokenOverview.loopWalletResponseText, /PAYOUT OPEN \| FLOW LIVE \| ENTRY PAYOUT TERMINAL/i);
   assert.match(payloads.tokenOverview.loopWalletAttentionText, /STATE APPROVED \| ENTRY PAYOUT TERMINAL \| FLOW LIVE/i);
   assert.match(payloads.tokenOverview.loopWalletCadenceText, /ENTRY PAYOUT TERMINAL \| FLOW PAYOUT FLOW \| PERSONA STABLE ROUTE/i);
@@ -751,6 +755,7 @@ test("buildPlayerBridgePayloads surfaces active tasks loop micro panels from sel
   assert.match(payloads.operations.loop.lootLeadText, /ENTRY CLAIM TERMINAL \| FLOW CLAIM FLOW \| CONTRACT SEQUENCE/i);
   assert.match(payloads.operations.loop.lootWindowText, /CLAIM 2 READY \| OFFER 4 LIVE \| STREAK 7d/i);
   assert.match(payloads.operations.loop.lootPressureText, /CLAIM 2 READY \| BAND WATCH \| OFFER 4 LIVE/i);
+  assert.match(payloads.operations.loop.lootMicroflowText, /MICRO CLAIM FLOW \| POD CLAIM POD/i);
   assert.match(payloads.operations.loop.lootResponseText, /STREAK 7d \| FLOW READY \| ENTRY CLAIM TERMINAL/i);
   assert.match(payloads.operations.loop.lootAttentionText, /CLAIM 2 READY \| BAND WATCH \| ENTRY CLAIM TERMINAL/i);
   assert.match(payloads.operations.loop.lootCadenceText, /ENTRY CLAIM TERMINAL \| FLOW CLAIM FLOW \| CLAIM 2 READY/i);
@@ -938,6 +943,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.match(payloads.runtime.loopDispatchLeadText, /ENTRY DISPATCH CONSOLE \| FLOW DISPATCH FLOW \| DISPATCH SEQUENCE/i);
   assert.match(payloads.runtime.loopDispatchWindowText, /SENT 12 \| ALERT 3 \| HEALTH WATCH/i);
   assert.match(payloads.runtime.loopDispatchPressureText, /ALERT 3 \| HEALTH WATCH \| QUEUE 2/i);
+  assert.match(payloads.runtime.loopDispatchMicroflowText, /MICRO DISPATCH FLOW \| POD --/i);
   assert.match(payloads.runtime.loopDispatchResponseText, /SENT 12 \| FLOW WATCH \| ENTRY DISPATCH CONSOLE/i);
   assert.match(payloads.runtime.loopDispatchAttentionText, /ALERT 3 \| SENT 12 \| STAGE ALERT/i);
   assert.match(payloads.runtime.loopDispatchCadenceText, /ENTRY DISPATCH CONSOLE \| FLOW DISPATCH FLOW \| SENT 12/i);

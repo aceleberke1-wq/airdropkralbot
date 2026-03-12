@@ -59,6 +59,7 @@ type LoopFamilyPanel = {
   detailText: string;
   attentionText?: string;
   cadenceText?: string;
+  microflowText?: string;
 };
 
 type LoopPayload = {
@@ -379,6 +380,7 @@ function renderLoopFamily(prefix: string, payload: LoopFamilyPanel): void {
   setNodeText(`${prefix}Detail`, payload.detailText, "Detay bekleniyor.");
   setNodeText(`${prefix}Attention`, payload.attentionText, "ATTN --");
   setNodeText(`${prefix}Cadence`, payload.cadenceText, "CADENCE --");
+  setNodeText(`${prefix}Microflow`, payload.microflowText, "MICRO WAIT | POD --");
   setChipTone(`${prefix}Family`, resolveLoopRailTone(payload.tone, "family"));
   setChipTone(`${prefix}Flow`, resolveLoopRailTone(payload.tone, "flow"));
   setChipTone(`${prefix}Summary`, resolveLoopRailTone(payload.tone, "summary"));
@@ -389,6 +391,7 @@ function renderLoopFamily(prefix: string, payload: LoopFamilyPanel): void {
   setChipTone(`${prefix}Response`, resolveLoopRailTone(payload.tone, "response"));
   setChipTone(`${prefix}Attention`, resolveLoopRailTone(payload.tone, "attention"));
   setChipTone(`${prefix}Cadence`, resolveLoopRailTone(payload.tone, "cadence"));
+  setChipTone(`${prefix}Microflow`, resolveLoopRailTone(payload.tone, "flow"));
 }
 
 function readLoopFamily(payload: LoopPayload, familyKey: string): LoopFamilyPanel {
@@ -426,7 +429,8 @@ function readLoopFamily(payload: LoopPayload, familyKey: string): LoopFamilyPane
     signalText: safeText(source[`${familyKey}SignalText`], "SIGNAL --"),
     detailText: safeText(source[`${familyKey}DetailText`], "Detay bekleniyor."),
     attentionText: safeText(source[`${familyKey}AttentionText`], "ATTN --"),
-    cadenceText: safeText(source[`${familyKey}CadenceText`], "CADENCE --")
+    cadenceText: safeText(source[`${familyKey}CadenceText`], "CADENCE --"),
+    microflowText: safeText(source[`${familyKey}MicroflowText`], "MICRO WAIT | POD --")
   };
 }
 

@@ -76,6 +76,7 @@ export type TokenOverviewBridgePayload = {
   loopWalletResponseText?: string;
   loopWalletAttentionText?: string;
   loopWalletCadenceText?: string;
+  loopWalletMicroflowText?: string;
   loopWalletCards?: LoopBridgeCard[];
   loopWalletBlocks?: LoopBridgeBlock[];
   loopWalletFlowCards?: LoopBridgeCard[];
@@ -102,6 +103,7 @@ export type TokenOverviewBridgePayload = {
   loopPayoutResponseText?: string;
   loopPayoutAttentionText?: string;
   loopPayoutCadenceText?: string;
+  loopPayoutMicroflowText?: string;
   loopRouteFamilyText?: string;
   loopRouteFlowText?: string;
   loopRouteSummaryText?: string;
@@ -112,6 +114,7 @@ export type TokenOverviewBridgePayload = {
   loopRouteResponseText?: string;
   loopRouteAttentionText?: string;
   loopRouteCadenceText?: string;
+  loopRouteMicroflowText?: string;
   loopRouteCards?: LoopBridgeCard[];
   loopRouteBlocks?: LoopBridgeBlock[];
   loopRouteFlowCards?: LoopBridgeCard[];
@@ -130,6 +133,7 @@ export type TokenOverviewBridgePayload = {
   loopPremiumResponseText?: string;
   loopPremiumAttentionText?: string;
   loopPremiumCadenceText?: string;
+  loopPremiumMicroflowText?: string;
   loopPremiumCards?: LoopBridgeCard[];
   loopPremiumBlocks?: LoopBridgeBlock[];
   loopPremiumFlowCards?: LoopBridgeCard[];
@@ -267,6 +271,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopWalletGate = byId<HTMLElement>("tokenLoopWalletGate");
   const loopWalletLead = byId<HTMLElement>("tokenLoopWalletLead");
   const loopWalletWindow = byId<HTMLElement>("tokenLoopWalletWindow");
+  const loopWalletMicroflow = byId<HTMLElement>("tokenLoopWalletMicroflow");
   const loopWalletPressure = byId<HTMLElement>("tokenLoopWalletPressure");
   const loopWalletResponse = byId<HTMLElement>("tokenLoopWalletResponse");
   const loopWalletAttention = byId<HTMLElement>("tokenLoopWalletAttention");
@@ -277,6 +282,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopPayoutGate = byId<HTMLElement>("tokenLoopPayoutGate");
   const loopPayoutLead = byId<HTMLElement>("tokenLoopPayoutLead");
   const loopPayoutWindow = byId<HTMLElement>("tokenLoopPayoutWindow");
+  const loopPayoutMicroflow = byId<HTMLElement>("tokenLoopPayoutMicroflow");
   const loopPayoutPressure = byId<HTMLElement>("tokenLoopPayoutPressure");
   const loopPayoutResponse = byId<HTMLElement>("tokenLoopPayoutResponse");
   const loopPayoutAttention = byId<HTMLElement>("tokenLoopPayoutAttention");
@@ -287,6 +293,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopRouteGate = byId<HTMLElement>("tokenLoopRouteGate");
   const loopRouteLead = byId<HTMLElement>("tokenLoopRouteLead");
   const loopRouteWindow = byId<HTMLElement>("tokenLoopRouteWindow");
+  const loopRouteMicroflow = byId<HTMLElement>("tokenLoopRouteMicroflow");
   const loopRoutePressure = byId<HTMLElement>("tokenLoopRoutePressure");
   const loopRouteResponse = byId<HTMLElement>("tokenLoopRouteResponse");
   const loopRouteAttention = byId<HTMLElement>("tokenLoopRouteAttention");
@@ -297,6 +304,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   const loopPremiumGate = byId<HTMLElement>("tokenLoopPremiumGate");
   const loopPremiumLead = byId<HTMLElement>("tokenLoopPremiumLead");
   const loopPremiumWindow = byId<HTMLElement>("tokenLoopPremiumWindow");
+  const loopPremiumMicroflow = byId<HTMLElement>("tokenLoopPremiumMicroflow");
   const loopPremiumPressure = byId<HTMLElement>("tokenLoopPremiumPressure");
   const loopPremiumResponse = byId<HTMLElement>("tokenLoopPremiumResponse");
   const loopPremiumAttention = byId<HTMLElement>("tokenLoopPremiumAttention");
@@ -421,6 +429,9 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopWalletWindow) {
     loopWalletWindow.textContent = safeText(payload.loopWalletWindowText, "WINDOW --");
   }
+  if (loopWalletMicroflow) {
+    loopWalletMicroflow.textContent = safeText(payload.loopWalletMicroflowText, "MICRO WAIT | POD --");
+  }
   if (loopWalletPressure) {
     loopWalletPressure.textContent = safeText(payload.loopWalletPressureText, "PRESSURE --");
   }
@@ -471,6 +482,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   setChipTone(loopWalletGate, resolveLoopRailTone(payload.loopWalletTone, "gate"));
   setChipTone(loopWalletLead, resolveLoopRailTone(payload.loopWalletTone, "lead"));
   setChipTone(loopWalletWindow, resolveLoopRailTone(payload.loopWalletTone, "window"));
+  setChipTone(loopWalletMicroflow, resolveLoopRailTone(payload.loopWalletTone, "flow"));
   setChipTone(loopWalletPressure, resolveLoopRailTone(payload.loopWalletTone, "pressure"));
   setChipTone(loopWalletResponse, resolveLoopRailTone(payload.loopWalletTone, "response"));
   setChipTone(loopWalletAttention, resolveLoopRailTone(payload.loopWalletTone, "attention"));
@@ -496,6 +508,9 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopPayoutWindow) {
     loopPayoutWindow.textContent = safeText(payload.loopPayoutWindowText, "WINDOW --");
   }
+  if (loopPayoutMicroflow) {
+    loopPayoutMicroflow.textContent = safeText(payload.loopPayoutMicroflowText, "MICRO WAIT | POD --");
+  }
   if (loopPayoutPressure) {
     loopPayoutPressure.textContent = safeText(payload.loopPayoutPressureText, "PRESSURE --");
   }
@@ -514,6 +529,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   setChipTone(loopPayoutGate, resolveLoopRailTone(payload.loopPayoutTone, "gate"));
   setChipTone(loopPayoutLead, resolveLoopRailTone(payload.loopPayoutTone, "lead"));
   setChipTone(loopPayoutWindow, resolveLoopRailTone(payload.loopPayoutTone, "window"));
+  setChipTone(loopPayoutMicroflow, resolveLoopRailTone(payload.loopPayoutTone, "flow"));
   setChipTone(loopPayoutPressure, resolveLoopRailTone(payload.loopPayoutTone, "pressure"));
   setChipTone(loopPayoutResponse, resolveLoopRailTone(payload.loopPayoutTone, "response"));
   setChipTone(loopPayoutAttention, resolveLoopRailTone(payload.loopPayoutTone, "attention"));
@@ -539,6 +555,9 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopRouteWindow) {
     loopRouteWindow.textContent = safeText(payload.loopRouteWindowText, "WINDOW --");
   }
+  if (loopRouteMicroflow) {
+    loopRouteMicroflow.textContent = safeText(payload.loopRouteMicroflowText, "MICRO WAIT | POD --");
+  }
   if (loopRoutePressure) {
     loopRoutePressure.textContent = safeText(payload.loopRoutePressureText, "PRESSURE --");
   }
@@ -557,6 +576,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   setChipTone(loopRouteGate, resolveLoopRailTone(payload.loopRouteTone, "gate"));
   setChipTone(loopRouteLead, resolveLoopRailTone(payload.loopRouteTone, "lead"));
   setChipTone(loopRouteWindow, resolveLoopRailTone(payload.loopRouteTone, "window"));
+  setChipTone(loopRouteMicroflow, resolveLoopRailTone(payload.loopRouteTone, "flow"));
   setChipTone(loopRoutePressure, resolveLoopRailTone(payload.loopRouteTone, "pressure"));
   setChipTone(loopRouteResponse, resolveLoopRailTone(payload.loopRouteTone, "response"));
   setChipTone(loopRouteAttention, resolveLoopRailTone(payload.loopRouteTone, "attention"));
@@ -582,6 +602,9 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   if (loopPremiumWindow) {
     loopPremiumWindow.textContent = safeText(payload.loopPremiumWindowText, "WINDOW --");
   }
+  if (loopPremiumMicroflow) {
+    loopPremiumMicroflow.textContent = safeText(payload.loopPremiumMicroflowText, "MICRO WAIT | POD --");
+  }
   if (loopPremiumPressure) {
     loopPremiumPressure.textContent = safeText(payload.loopPremiumPressureText, "PRESSURE --");
   }
@@ -600,6 +623,7 @@ function render(payload: TokenOverviewBridgePayload): boolean {
   setChipTone(loopPremiumGate, resolveLoopRailTone(payload.loopPremiumTone, "gate"));
   setChipTone(loopPremiumLead, resolveLoopRailTone(payload.loopPremiumTone, "lead"));
   setChipTone(loopPremiumWindow, resolveLoopRailTone(payload.loopPremiumTone, "window"));
+  setChipTone(loopPremiumMicroflow, resolveLoopRailTone(payload.loopPremiumTone, "flow"));
   setChipTone(loopPremiumPressure, resolveLoopRailTone(payload.loopPremiumTone, "pressure"));
   setChipTone(loopPremiumResponse, resolveLoopRailTone(payload.loopPremiumTone, "response"));
   setChipTone(loopPremiumAttention, resolveLoopRailTone(payload.loopPremiumTone, "attention"));

@@ -240,6 +240,7 @@ function buildSceneLoopDeckPayload(scene) {
       entryKindKey: "",
       sequenceKindKey: "",
       microflowKey: "",
+      protocolPodKey: "",
       personalityLabel: "",
       personalityCaption: "",
       densityLabel: "",
@@ -272,6 +273,7 @@ function buildSceneLoopDeckPayload(scene) {
     entryKindKey: toText(selectedLoop.entryKindKey, ""),
     sequenceKindKey: toText(selectedLoop.sequenceKindKey, ""),
     microflowKey: toText(selectedLoop.microflowKey, ""),
+    protocolPodKey: toText(selectedLoop.protocolPodKey, ""),
     personalityLabel,
     personalityCaption,
     densityLabel,
@@ -282,6 +284,12 @@ function buildSceneLoopDeckPayload(scene) {
     signalLine: formatLoopRows(selectedLoop.loopSignalRows, "Signal detay bekleniyor."),
     sequenceLine: formatLoopRows(selectedLoop.sequenceRows, "Sequence detay bekleniyor.")
   };
+}
+
+function buildLoopMicroflowRailText(loopDeck) {
+  const microflowLabel = formatRuntimeKeyLabel(loopDeck?.microflowKey, "WAIT");
+  const podLabel = formatRuntimeKeyLabel(loopDeck?.protocolPodKey, "--");
+  return `MICRO ${microflowLabel} | POD ${podLabel}`;
 }
 
 function findLoopRowByKey(rows, candidates) {
@@ -560,6 +568,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       duelResponseText: "PHASE -- | FLOW WAIT | ENTRY WAIT",
       duelAttentionText: "RISK -- | QUEUE -- | PHASE --",
       duelCadenceText: "ENTRY WAIT | FLOW WAIT | PERSONA --",
+      duelMicroflowText: "MICRO WAIT | POD --",
       duelCards: buildLoopBridgeCards(
         buildLoopBridgeCard("PHASE", "WAIT | STATUS --", "neutral"),
         buildLoopBridgeCard("QUEUE", "Q -- | RISK --", "neutral"),
@@ -580,6 +589,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       ladderResponseText: "TICK -- | FLOW WAIT | SEQ WAIT",
       ladderAttentionText: "CHARGE -- | TICK -- | FLOW WAIT",
       ladderCadenceText: "SEQ WAIT | FLOW WAIT | CHARGE --",
+      ladderMicroflowText: "MICRO WAIT | POD --",
       telemetryFamilyText: "FLOW WAIT | STATUS -- | DIAG --",
       telemetryFlowText: "PERSONA WAIT | SEQ WAIT | FLOW WAIT",
       telemetrySummaryText: "DIAG -- | RISK -- | FLOW WAIT",
@@ -589,7 +599,8 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       telemetryPressureText: "DIAG -- | RISK -- | QUEUE --",
       telemetryResponseText: "DIAG -- | FLOW WAIT | PERSONA WAIT",
       telemetryAttentionText: "DIAG -- | RISK -- | FLOW WAIT",
-      telemetryCadenceText: "PERSONA WAIT | FLOW WAIT | SEQ WAIT"
+      telemetryCadenceText: "PERSONA WAIT | FLOW WAIT | SEQ WAIT",
+      telemetryMicroflowText: "MICRO WAIT | POD --"
     };
     const ladderBundle = buildLoopFamilyBridgeBundle(panels.ladderTone, {
       familyText: panels.ladderFamilyText,
@@ -804,6 +815,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
   const entryLabel = formatRuntimeKeyLabel(loopDeck.entryKindKey, "ENTRY");
   const sequenceLabel = formatRuntimeKeyLabel(loopDeck.sequenceKindKey, "LOOP");
   const microflowLabel = formatRuntimeKeyLabel(loopDeck.microflowKey, "FLOW");
+  const microflowRailText = buildLoopMicroflowRailText(loopDeck);
   const personalityLabel = toText(loopDeck.personalityLabel, "");
   const duelPhase = readLoopRowValue(loopDeck.sequenceRows, ["duel_phase"], stageValue);
   const panels = {
@@ -889,6 +901,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       `DIAG ${diagBand}`
     ),
     duelResponseText: buildLoopMicroDetail(`PHASE ${duelPhase}`, `FLOW ${statusLabel}`, `ENTRY ${entryLabel}`),
+    duelMicroflowText: microflowRailText,
     duelCards: buildLoopBridgeCards(
       buildLoopBridgeCard("PHASE", `${duelPhase} | ${statusLabel}`, resolveLoopFamilyTone(duelPhase, statusLabel), `FLOW ${microflowLabel}`),
       buildLoopBridgeCard("QUEUE", `Q ${queueDepth} | RISK ${riskBand}`, resolveLoopFamilyTone(queueDepth, riskBand), `ENTRY ${entryLabel}`),
@@ -932,6 +945,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     ladderResponseText: buildLoopMicroDetail(`TICK ${tickTempo}`, `FLOW ${statusLabel}`, `SEQ ${sequenceLabel}`),
     ladderAttentionText: buildLoopAttentionDetail(`CHARGE ${ladderCharge}`, `TICK ${tickTempo}`, `FLOW ${microflowLabel}`),
     ladderCadenceText: buildLoopCadenceDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `CHARGE ${ladderCharge}`),
+    ladderMicroflowText: microflowRailText,
     ladderDetailText: buildLoopMicroDetail(`CHARGE ${ladderCharge}`, `TICK ${tickTempo}`, sequenceLabel),
     telemetryFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${statusLabel}`, `DIAG ${diagBand}`),
     telemetryFlowText: buildLoopMicroDetail(`PERSONA ${personalityLabel || "SYNC"}`, `SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`),
@@ -943,6 +957,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     telemetryResponseText: buildLoopMicroDetail(`DIAG ${diagBand}`, `FLOW ${statusLabel}`, `PERSONA ${personalityLabel || "SYNC"}`),
     telemetryAttentionText: buildLoopAttentionDetail(`DIAG ${diagBand}`, `RISK ${riskBand}`, `FLOW ${microflowLabel}`),
     telemetryCadenceText: buildLoopCadenceDetail(`PERSONA ${personalityLabel || "SYNC"}`, `FLOW ${microflowLabel}`, `SEQ ${sequenceLabel}`),
+    telemetryMicroflowText: microflowRailText,
     telemetryDetailText: buildLoopMicroDetail(`DIAG ${diagBand}`, `RISK ${riskBand}`, personalityLabel),
     duelAttentionText: buildLoopAttentionDetail(`RISK ${riskBand}`, `QUEUE ${readLoopRowValue(sharedRows, ["queue_depth"], "--")}`, `PHASE ${duelPhase}`),
     duelCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PERSONA ${personalityLabel || "SYNC"}`)
@@ -1195,6 +1210,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       walletResponseText: "PAYOUT -- | FLOW WAIT | ENTRY WAIT",
       walletAttentionText: "STATE -- | ENTRY WAIT | FLOW WAIT",
       walletCadenceText: "ENTRY WAIT | FLOW WAIT | PERSONA --",
+      walletMicroflowText: "MICRO WAIT | POD --",
       walletCards: buildLoopBridgeCards(
         buildLoopBridgeCard("WALLET", "STATE -- | FLOW WAIT", "neutral"),
         buildLoopBridgeCard("PAYOUT", "PAYOUT -- | ROUTE --", "neutral"),
@@ -1215,6 +1231,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       payoutResponseText: "PAYOUT -- | FLOW WAIT | SEQ WAIT",
       payoutAttentionText: "PAYOUT -- | ROUTE -- | FLOW WAIT",
       payoutCadenceText: "SEQ WAIT | FLOW WAIT | PAYOUT --",
+      payoutMicroflowText: "MICRO WAIT | POD --",
       routeFamilyText: "FLOW WAIT | STATUS -- | ROUTE --",
       routeFlowText: "PERSONA WAIT | FLOW WAIT | SEQ WAIT",
       routeSummaryText: "ROUTE -- | WALLET -- | FLOW WAIT",
@@ -1225,6 +1242,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       routeResponseText: "ROUTE -- | FLOW WAIT | PERSONA WAIT",
       routeAttentionText: "ROUTE -- | WALLET -- | FLOW WAIT",
       routeCadenceText: "PERSONA WAIT | FLOW WAIT | ROUTE --",
+      routeMicroflowText: "MICRO WAIT | POD --",
       premiumFamilyText: "FLOW WAIT | STATUS -- | PASS --",
       premiumFlowText: "ENTRY WAIT | FLOW WAIT | STAGE --",
       premiumSummaryText: "PASS -- | STAGE -- | FLOW WAIT",
@@ -1234,7 +1252,8 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
       premiumPressureText: "PASS -- | PAYOUT -- | ROUTE --",
       premiumResponseText: "PASS -- | FLOW WAIT | ENTRY WAIT",
       premiumAttentionText: "PASS -- | STAGE -- | FLOW WAIT",
-      premiumCadenceText: "ENTRY WAIT | FLOW WAIT | PASS --"
+      premiumCadenceText: "ENTRY WAIT | FLOW WAIT | PASS --",
+      premiumMicroflowText: "MICRO WAIT | POD --"
     };
     const payoutBundle = buildLoopFamilyBridgeBundle(panels.payoutTone, {
       familyText: panels.payoutFamilyText,
@@ -1517,6 +1536,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
   const entryLabel = formatRuntimeKeyLabel(loopDeck.entryKindKey, "ENTRY");
   const sequenceLabel = formatRuntimeKeyLabel(loopDeck.sequenceKindKey, "LOOP");
   const microflowLabel = formatRuntimeKeyLabel(loopDeck.microflowKey, "FLOW");
+  const microflowRailText = buildLoopMicroflowRailText(loopDeck);
   const personalityCaption = toText(loopDeck.personalityCaption, "");
   const stageValue = toText(loopDeck.stageValue || loopDeck.loopStatusLabel || "--", "--");
   const loopStatusLabel = toText(loopDeck.loopStatusLabel || "IDLE", "IDLE");
@@ -1603,6 +1623,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     walletResponseText: buildLoopMicroDetail(`PAYOUT ${payoutState}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     walletAttentionText: buildLoopAttentionDetail(`STATE ${walletState}`, `ENTRY ${entryLabel}`, `FLOW ${loopStatusLabel}`),
     walletCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PERSONA ${personalityCaption || "SYNC"}`),
+    walletMicroflowText: microflowRailText,
     walletCards: buildLoopBridgeCards(
       buildLoopBridgeCard("WALLET", `${walletState} | ${loopStatusLabel}`, resolveLoopFamilyTone(walletState, loopStatusLabel), `ENTRY ${entryLabel}`),
       buildLoopBridgeCard("PAYOUT", `${payoutState} | ${routeState}`, resolveLoopFamilyTone(payoutState, routeState), `SEQ ${sequenceLabel}`),
@@ -1641,6 +1662,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     payoutResponseText: buildLoopMicroDetail(`PAYOUT ${payoutState}`, `FLOW ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     payoutAttentionText: buildLoopAttentionDetail(`PAYOUT ${payoutState}`, `ROUTE ${routeState}`, `FLOW ${microflowLabel}`),
     payoutCadenceText: buildLoopCadenceDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `PAYOUT ${payoutState}`),
+    payoutMicroflowText: microflowRailText,
     routeFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `ROUTE ${routeState}`),
     routeFlowText: buildLoopMicroDetail(`PERSONA ${personalityCaption || "SYNC"}`, `FLOW ${microflowLabel}`, `SEQ ${sequenceLabel}`),
     routeSummaryText: buildLoopMicroDetail(`ROUTE ${routeState}`, `WALLET ${walletState}`, `FLOW ${microflowLabel}`),
@@ -1651,6 +1673,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     routeResponseText: buildLoopMicroDetail(`ROUTE ${routeState}`, `FLOW ${loopStatusLabel}`, `PERSONA ${personalityCaption || "SYNC"}`),
     routeAttentionText: buildLoopAttentionDetail(`ROUTE ${routeState}`, `WALLET ${walletState}`, `FLOW ${microflowLabel}`),
     routeCadenceText: buildLoopCadenceDetail(`PERSONA ${personalityCaption || "SYNC"}`, `FLOW ${microflowLabel}`, `ROUTE ${routeState}`),
+    routeMicroflowText: microflowRailText,
     premiumFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `PASS ${premiumState}`),
     premiumFlowText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `STAGE ${stageValue}`),
     premiumSummaryText: buildLoopMicroDetail(`PASS ${premiumState}`, `STAGE ${stageValue}`, `FLOW ${microflowLabel}`),
@@ -1660,7 +1683,8 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     premiumPressureText: buildLoopMicroDetail(`PASS ${premiumState}`, `PAYOUT ${payoutState}`, `ROUTE ${routeState}`),
     premiumResponseText: buildLoopMicroDetail(`PASS ${premiumState}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     premiumAttentionText: buildLoopAttentionDetail(`PASS ${premiumState}`, `STAGE ${stageValue}`, `FLOW ${microflowLabel}`),
-    premiumCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PASS ${premiumState}`)
+    premiumCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `PASS ${premiumState}`),
+    premiumMicroflowText: microflowRailText
   };
   const payoutBundle = buildLoopFamilyBridgeBundle(panels.payoutTone, {
     familyText: panels.payoutFamilyText,
@@ -1973,6 +1997,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       dispatchResponseText: "SENT -- | FLOW WAIT | ENTRY WAIT",
       dispatchAttentionText: "ALERT -- | SENT -- | STAGE --",
       dispatchCadenceText: "ENTRY WAIT | FLOW WAIT | SENT --",
+      dispatchMicroflowText: "MICRO WAIT | POD --",
       dispatchCards: buildLoopBridgeCards(
         buildLoopBridgeCard("SENT", "0 | STAGE --", "neutral"),
         buildLoopBridgeCard("ALERT", "0 | HEALTH --", "neutral"),
@@ -1993,6 +2018,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       queueResponseText: "QUEUE -- | FLOW WAIT | ENTRY WAIT",
       queueAttentionText: "QUEUE -- | ALERT -- | FLOW WAIT",
       queueCadenceText: "ENTRY WAIT | FLOW WAIT | QUEUE --",
+      queueMicroflowText: "MICRO WAIT | POD --",
       runtimeFamilyText: "FLOW WAIT | STATUS -- | HEALTH --",
       runtimeFlowText: "SEQ WAIT | FLOW WAIT | ALERT --",
       runtimeSummaryText: "HEALTH -- | ALERT -- | FLOW WAIT",
@@ -2002,7 +2028,8 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       runtimePressureText: "HEALTH -- | ALERT -- | QUEUE --",
       runtimeResponseText: "HEALTH -- | FLOW WAIT | SEQ WAIT",
       runtimeAttentionText: "HEALTH -- | ALERT -- | FLOW WAIT",
-      runtimeCadenceText: "SEQ WAIT | FLOW WAIT | HEALTH --"
+      runtimeCadenceText: "SEQ WAIT | FLOW WAIT | HEALTH --",
+      runtimeMicroflowText: "MICRO WAIT | POD --"
     };
     const queueBundle = buildLoopFamilyBridgeBundle(panels.queueTone, {
       familyText: panels.queueFamilyText,
@@ -2214,6 +2241,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
   const entryLabel = formatRuntimeKeyLabel(loopDeck.entryKindKey, "ENTRY");
   const sequenceLabel = formatRuntimeKeyLabel(loopDeck.sequenceKindKey, "LOOP");
   const microflowLabel = formatRuntimeKeyLabel(loopDeck.microflowKey, "FLOW");
+  const microflowRailText = buildLoopMicroflowRailText(loopDeck);
   const stageValue = toText(loopDeck.stageValue || loopDeck.loopStatusLabel || "--", "--");
   const loopStatusLabel = toText(loopDeck.loopStatusLabel || "IDLE", "IDLE");
   const panels = {
@@ -2279,6 +2307,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     dispatchResponseText: buildLoopMicroDetail(`SENT ${liveOpsSent}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     dispatchAttentionText: buildLoopAttentionDetail(`ALERT ${alertCount}`, `SENT ${liveOpsSent}`, `STAGE ${stageValue}`),
     dispatchCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `SENT ${liveOpsSent}`),
+    dispatchMicroflowText: microflowRailText,
     dispatchCards: buildLoopBridgeCards(
       buildLoopBridgeCard("SENT", `${liveOpsSent} | ${stageValue}`, resolveLoopFamilyTone(liveOpsSent, stageValue), `ENTRY ${entryLabel}`),
       buildLoopBridgeCard("ALERT", `${alertCount} | ${sceneHealth}`, resolveLoopFamilyTone(alertCount, sceneHealth), `SEQ ${sequenceLabel}`),
@@ -2317,6 +2346,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     queueResponseText: buildLoopMicroDetail(`QUEUE ${queueDepth}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     queueAttentionText: buildLoopAttentionDetail(`QUEUE ${queueDepth}`, `ALERT ${alertCount}`, `FLOW ${microflowLabel}`),
     queueCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `QUEUE ${queueDepth}`),
+    queueMicroflowText: microflowRailText,
     runtimeFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `HEALTH ${sceneHealth}`),
     runtimeFlowText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `ALERT ${alertCount}`),
     runtimeSummaryText: buildLoopMicroDetail(`HEALTH ${sceneHealth}`, `ALERT ${alertCount}`, `FLOW ${microflowLabel}`),
@@ -2326,7 +2356,8 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     runtimePressureText: buildLoopMicroDetail(`HEALTH ${sceneHealth}`, `ALERT ${alertCount}`, `QUEUE ${queueDepth}`),
     runtimeResponseText: buildLoopMicroDetail(`HEALTH ${sceneHealth}`, `FLOW ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     runtimeAttentionText: buildLoopAttentionDetail(`HEALTH ${sceneHealth}`, `ALERT ${alertCount}`, `FLOW ${microflowLabel}`),
-    runtimeCadenceText: buildLoopCadenceDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `HEALTH ${sceneHealth}`)
+    runtimeCadenceText: buildLoopCadenceDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `HEALTH ${sceneHealth}`),
+    runtimeMicroflowText: microflowRailText
   };
   const queueBundle = buildLoopFamilyBridgeBundle(panels.queueTone, {
     familyText: panels.queueFamilyText,
@@ -2576,6 +2607,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       lootResponseText: "STREAK -- | FLOW WAIT | ENTRY WAIT",
       lootAttentionText: "CLAIM -- | BAND -- | ENTRY WAIT",
       lootCadenceText: "ENTRY WAIT | FLOW WAIT | CLAIM --",
+      lootMicroflowText: "MICRO WAIT | POD --",
       lootCards: buildLoopBridgeCards(
         buildLoopBridgeCard("CLAIM", "0 READY | STAGE --", "neutral"),
         buildLoopBridgeCard("OFFER", "0 LIVE | BAND --", "neutral"),
@@ -2596,6 +2628,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       offerResponseText: "OFFER -- | FLOW WAIT | ENTRY WAIT",
       offerAttentionText: "OFFER -- | BAND -- | FLOW WAIT",
       offerCadenceText: "ENTRY WAIT | FLOW WAIT | OFFER --",
+      offerMicroflowText: "MICRO WAIT | POD --",
       claimFamilyText: "FLOW WAIT | STATUS -- | CLAIM --",
       claimFlowText: "SEQ WAIT | FLOW WAIT | STAGE --",
       claimSummaryText: "CLAIM -- | STAGE -- | FLOW WAIT",
@@ -2606,6 +2639,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       claimResponseText: "CLAIM -- | FLOW WAIT | SEQ WAIT",
       claimAttentionText: "CLAIM -- | STAGE -- | FLOW WAIT",
       claimCadenceText: "SEQ WAIT | FLOW WAIT | CLAIM --",
+      claimMicroflowText: "MICRO WAIT | POD --",
       streakFamilyText: "FLOW WAIT | STATUS -- | STREAK --",
       streakFlowText: "PERSONA WAIT | FLOW WAIT | OFFER --",
       streakSummaryText: "STREAK -- | OFFER -- | FLOW WAIT",
@@ -2615,7 +2649,8 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       streakPressureText: "STREAK -- | OFFER -- | BAND --",
       streakResponseText: "STREAK -- | FLOW WAIT | PERSONA WAIT",
       streakAttentionText: "STREAK -- | OFFER -- | FLOW WAIT",
-      streakCadenceText: "PERSONA WAIT | FLOW WAIT | STREAK --"
+      streakCadenceText: "PERSONA WAIT | FLOW WAIT | STREAK --",
+      streakMicroflowText: "MICRO WAIT | POD --"
     };
     const lootFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.lootTone, {
       familyText: panels.lootFamilyText,
@@ -2898,6 +2933,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
   const entryLabel = formatRuntimeKeyLabel(loopDeck.entryKindKey, "ENTRY");
   const sequenceLabel = formatRuntimeKeyLabel(loopDeck.sequenceKindKey, "LOOP");
   const microflowLabel = formatRuntimeKeyLabel(loopDeck.microflowKey, "FLOW");
+  const microflowRailText = buildLoopMicroflowRailText(loopDeck);
   const personalityCaption = toText(loopDeck.personalityCaption, "");
   const stageValue = toText(loopDeck.stageValue || loopDeck.loopStatusLabel || "--", "--");
   const loopStatusLabel = toText(loopDeck.loopStatusLabel || "IDLE", "IDLE");
@@ -2967,6 +3003,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     lootResponseText: buildLoopMicroDetail(`STREAK ${streakValue}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     lootAttentionText: buildLoopAttentionDetail(`CLAIM ${claimValue}`, `BAND ${contractBand}`, `ENTRY ${entryLabel}`),
     lootCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `CLAIM ${claimValue}`),
+    lootMicroflowText: microflowRailText,
     lootCards: buildLoopBridgeCards(
       buildLoopBridgeCard("CLAIM", `${claimValue} | ${stageValue}`, resolveLoopFamilyTone(claimValue, stageValue), `SEQ ${sequenceLabel}`),
       buildLoopBridgeCard("OFFER", `${offerValue} | ${contractBand}`, resolveLoopFamilyTone(offerValue, contractBand), `ENTRY ${entryLabel}`),
@@ -3010,6 +3047,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     offerResponseText: buildLoopMicroDetail(`OFFER ${offerValue}`, `FLOW ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     offerAttentionText: buildLoopAttentionDetail(`OFFER ${offerValue}`, `BAND ${contractBand}`, `FLOW ${microflowLabel}`),
     offerCadenceText: buildLoopCadenceDetail(`ENTRY ${entryLabel}`, `FLOW ${microflowLabel}`, `OFFER ${offerValue}`),
+    offerMicroflowText: microflowRailText,
     claimFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `CLAIM ${claimValue}`),
     claimFlowText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `STAGE ${stageValue}`),
     claimSummaryText: buildLoopMicroDetail(`CLAIM ${claimValue}`, `STAGE ${stageValue}`, `FLOW ${microflowLabel}`),
@@ -3020,6 +3058,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     claimResponseText: buildLoopMicroDetail(`CLAIM ${claimValue}`, `FLOW ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     claimAttentionText: buildLoopAttentionDetail(`CLAIM ${claimValue}`, `STAGE ${stageValue}`, `FLOW ${microflowLabel}`),
     claimCadenceText: buildLoopCadenceDetail(`SEQ ${sequenceLabel}`, `FLOW ${microflowLabel}`, `CLAIM ${claimValue}`),
+    claimMicroflowText: microflowRailText,
     streakFamilyText: buildLoopMicroDetail(`FLOW ${microflowLabel}`, `STATUS ${loopStatusLabel}`, `STREAK ${streakValue}`),
     streakFlowText: buildLoopMicroDetail(`PERSONA ${personalityCaption || "SYNC"}`, `FLOW ${microflowLabel}`, `OFFER ${offerValue}`),
     streakSummaryText: buildLoopMicroDetail(`STREAK ${streakValue}`, `OFFER ${offerValue}`, `FLOW ${microflowLabel}`),
@@ -3029,7 +3068,8 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     streakPressureText: buildLoopMicroDetail(`STREAK ${streakValue}`, `OFFER ${offerValue}`, `BAND ${contractBand}`),
     streakResponseText: buildLoopMicroDetail(`STREAK ${streakValue}`, `FLOW ${loopStatusLabel}`, `PERSONA ${personalityCaption || "SYNC"}`),
     streakAttentionText: buildLoopAttentionDetail(`STREAK ${streakValue}`, `OFFER ${offerValue}`, `FLOW ${microflowLabel}`),
-    streakCadenceText: buildLoopCadenceDetail(`PERSONA ${personalityCaption || "SYNC"}`, `FLOW ${microflowLabel}`, `STREAK ${streakValue}`)
+    streakCadenceText: buildLoopCadenceDetail(`PERSONA ${personalityCaption || "SYNC"}`, `FLOW ${microflowLabel}`, `STREAK ${streakValue}`),
+    streakMicroflowText: microflowRailText
   };
   const lootFlowBundle = buildLoopFlowFamilyBridgeBundle(panels.lootTone, {
     familyText: panels.lootFamilyText,
@@ -4087,6 +4127,7 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopDuelResponseText: loopMicro.duelResponseText,
       loopDuelAttentionText: loopMicro.duelAttentionText,
       loopDuelCadenceText: loopMicro.duelCadenceText,
+      loopDuelMicroflowText: loopMicro.duelMicroflowText,
       loopDuelCards: loopMicro.duelCards,
       loopDuelBlocks: loopMicro.duelBlocks,
       loopDuelFlowCards: loopMicro.duelFlowCards,
@@ -4105,6 +4146,7 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopLadderResponseText: loopMicro.ladderResponseText,
       loopLadderAttentionText: loopMicro.ladderAttentionText,
       loopLadderCadenceText: loopMicro.ladderCadenceText,
+      loopLadderMicroflowText: loopMicro.ladderMicroflowText,
       loopLadderCards: loopMicro.ladderCards,
       loopLadderBlocks: loopMicro.ladderBlocks,
       loopLadderFlowCards: loopMicro.ladderFlowCards,
@@ -4123,6 +4165,7 @@ function buildPvpRuntimePayload(rawRuntime, rawLive, pvpView, scene, assetMetric
       loopTelemetryResponseText: loopMicro.telemetryResponseText,
       loopTelemetryAttentionText: loopMicro.telemetryAttentionText,
       loopTelemetryCadenceText: loopMicro.telemetryCadenceText,
+      loopTelemetryMicroflowText: loopMicro.telemetryMicroflowText,
       loopTelemetryCards: loopMicro.telemetryCards,
       loopTelemetryBlocks: loopMicro.telemetryBlocks,
       loopTelemetryFlowCards: loopMicro.telemetryFlowCards,
@@ -4379,6 +4422,7 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         offerResponseText: loopMicro.offerResponseText,
         offerAttentionText: loopMicro.offerAttentionText,
         offerCadenceText: loopMicro.offerCadenceText,
+        offerMicroflowText: loopMicro.offerMicroflowText,
         offerCards: loopMicro.offerCards,
         offerBlocks: loopMicro.offerBlocks,
         offerFlowCards: loopMicro.offerFlowCards,
@@ -4397,6 +4441,7 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         claimResponseText: loopMicro.claimResponseText,
         claimAttentionText: loopMicro.claimAttentionText,
         claimCadenceText: loopMicro.claimCadenceText,
+        claimMicroflowText: loopMicro.claimMicroflowText,
         claimCards: loopMicro.claimCards,
         claimBlocks: loopMicro.claimBlocks,
         claimFlowCards: loopMicro.claimFlowCards,
@@ -4415,6 +4460,7 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         streakResponseText: loopMicro.streakResponseText,
         streakAttentionText: loopMicro.streakAttentionText,
         streakCadenceText: loopMicro.streakCadenceText,
+        streakMicroflowText: loopMicro.streakMicroflowText,
         streakCards: loopMicro.streakCards,
         streakBlocks: loopMicro.streakBlocks,
         streakFlowCards: loopMicro.streakFlowCards,
@@ -4433,6 +4479,7 @@ function buildOperationsDeckPayload(data, taskResult, homeFeed, scene) {
         lootResponseText: loopMicro.lootResponseText,
         lootAttentionText: loopMicro.lootAttentionText,
         lootCadenceText: loopMicro.lootCadenceText,
+        lootMicroflowText: loopMicro.lootMicroflowText,
         lootCards: loopMicro.lootCards,
         lootBlocks: loopMicro.lootBlocks,
         lootFlowCards: loopMicro.lootFlowCards,
@@ -4541,6 +4588,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopWalletResponseText: loopMicro.walletResponseText,
     loopWalletAttentionText: loopMicro.walletAttentionText,
     loopWalletCadenceText: loopMicro.walletCadenceText,
+    loopWalletMicroflowText: loopMicro.walletMicroflowText,
     loopWalletCards: loopMicro.walletCards,
     loopWalletBlocks: loopMicro.walletBlocks,
     loopWalletFlowCards: loopMicro.walletFlowCards,
@@ -4565,6 +4613,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopPayoutResponseText: loopMicro.payoutResponseText,
     loopPayoutAttentionText: loopMicro.payoutAttentionText,
     loopPayoutCadenceText: loopMicro.payoutCadenceText,
+    loopPayoutMicroflowText: loopMicro.payoutMicroflowText,
     loopRouteFamilyText: loopMicro.routeFamilyText,
     loopRouteFlowText: loopMicro.routeFlowText,
     loopRouteSummaryText: loopMicro.routeSummaryText,
@@ -4575,6 +4624,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopRouteResponseText: loopMicro.routeResponseText,
     loopRouteAttentionText: loopMicro.routeAttentionText,
     loopRouteCadenceText: loopMicro.routeCadenceText,
+    loopRouteMicroflowText: loopMicro.routeMicroflowText,
     loopPremiumFamilyText: loopMicro.premiumFamilyText,
     loopPremiumFlowText: loopMicro.premiumFlowText,
     loopPremiumSummaryText: loopMicro.premiumSummaryText,
@@ -4585,6 +4635,7 @@ function buildTokenOverviewPayload(vaultRoot, vaultView, scene) {
     loopPremiumResponseText: loopMicro.premiumResponseText,
     loopPremiumAttentionText: loopMicro.premiumAttentionText,
     loopPremiumCadenceText: loopMicro.premiumCadenceText,
+    loopPremiumMicroflowText: loopMicro.premiumMicroflowText,
     loopPayoutFlowCards: loopMicro.payoutFlowCards,
     loopPayoutFlowBlocks: loopMicro.payoutFlowBlocks,
     loopPayoutFlowPanels: loopMicro.payoutFlowPanels,
@@ -4947,6 +4998,7 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopQueueResponseText: loopMicro.queueResponseText,
     loopQueueAttentionText: loopMicro.queueAttentionText,
     loopQueueCadenceText: loopMicro.queueCadenceText,
+    loopQueueMicroflowText: loopMicro.queueMicroflowText,
     loopQueueCards: loopMicro.queueCards,
     loopQueueBlocks: loopMicro.queueBlocks,
     loopQueueFlowCards: loopMicro.queueFlowCards,
@@ -4965,6 +5017,7 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopRuntimeResponseText: loopMicro.runtimeResponseText,
     loopRuntimeAttentionText: loopMicro.runtimeAttentionText,
     loopRuntimeCadenceText: loopMicro.runtimeCadenceText,
+    loopRuntimeMicroflowText: loopMicro.runtimeMicroflowText,
     loopRuntimeCards: loopMicro.runtimeCards,
     loopRuntimeBlocks: loopMicro.runtimeBlocks,
     loopRuntimeFlowCards: loopMicro.runtimeFlowCards,
@@ -4983,6 +5036,7 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
     loopDispatchResponseText: loopMicro.dispatchResponseText,
     loopDispatchAttentionText: loopMicro.dispatchAttentionText,
     loopDispatchCadenceText: loopMicro.dispatchCadenceText,
+    loopDispatchMicroflowText: loopMicro.dispatchMicroflowText,
     loopDispatchCards: loopMicro.dispatchCards,
     loopDispatchBlocks: loopMicro.dispatchBlocks,
     loopDispatchFlowCards: loopMicro.dispatchFlowCards,

@@ -47,6 +47,7 @@ type RuntimeBridgePayload = {
   loopQueueResponseText?: string;
   loopQueueAttentionText?: string;
   loopQueueCadenceText?: string;
+  loopQueueMicroflowText?: string;
   loopQueueCards?: LoopBridgeCard[];
   loopQueueBlocks?: LoopBridgeBlock[];
   loopQueueFlowCards?: LoopBridgeCard[];
@@ -65,6 +66,7 @@ type RuntimeBridgePayload = {
   loopRuntimeResponseText?: string;
   loopRuntimeAttentionText?: string;
   loopRuntimeCadenceText?: string;
+  loopRuntimeMicroflowText?: string;
   loopRuntimeCards?: LoopBridgeCard[];
   loopRuntimeBlocks?: LoopBridgeBlock[];
   loopRuntimeFlowCards?: LoopBridgeCard[];
@@ -83,6 +85,7 @@ type RuntimeBridgePayload = {
   loopDispatchResponseText?: string;
   loopDispatchAttentionText?: string;
   loopDispatchCadenceText?: string;
+  loopDispatchMicroflowText?: string;
   loopDispatchCards?: LoopBridgeCard[];
   loopDispatchBlocks?: LoopBridgeBlock[];
   loopDispatchFlowCards?: LoopBridgeCard[];
@@ -207,6 +210,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopQueueGate = byId<HTMLElement>("adminRuntimeLoopQueueGate");
   const loopQueueLead = byId<HTMLElement>("adminRuntimeLoopQueueLead");
   const loopQueueWindow = byId<HTMLElement>("adminRuntimeLoopQueueWindow");
+  const loopQueueMicroflow = byId<HTMLElement>("adminRuntimeLoopQueueMicroflow");
   const loopQueuePressure = byId<HTMLElement>("adminRuntimeLoopQueuePressure");
   const loopQueueResponse = byId<HTMLElement>("adminRuntimeLoopQueueResponse");
   const loopQueueAttention = byId<HTMLElement>("adminRuntimeLoopQueueAttention");
@@ -217,6 +221,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopRuntimeGate = byId<HTMLElement>("adminRuntimeLoopRuntimeGate");
   const loopRuntimeLead = byId<HTMLElement>("adminRuntimeLoopRuntimeLead");
   const loopRuntimeWindow = byId<HTMLElement>("adminRuntimeLoopRuntimeWindow");
+  const loopRuntimeMicroflow = byId<HTMLElement>("adminRuntimeLoopRuntimeMicroflow");
   const loopRuntimePressure = byId<HTMLElement>("adminRuntimeLoopRuntimePressure");
   const loopRuntimeResponse = byId<HTMLElement>("adminRuntimeLoopRuntimeResponse");
   const loopRuntimeAttention = byId<HTMLElement>("adminRuntimeLoopRuntimeAttention");
@@ -227,6 +232,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   const loopDispatchGate = byId<HTMLElement>("adminRuntimeLoopDispatchGate");
   const loopDispatchLead = byId<HTMLElement>("adminRuntimeLoopDispatchLead");
   const loopDispatchWindow = byId<HTMLElement>("adminRuntimeLoopDispatchWindow");
+  const loopDispatchMicroflow = byId<HTMLElement>("adminRuntimeLoopDispatchMicroflow");
   const loopDispatchPressure = byId<HTMLElement>("adminRuntimeLoopDispatchPressure");
   const loopDispatchResponse = byId<HTMLElement>("adminRuntimeLoopDispatchResponse");
   const loopDispatchAttention = byId<HTMLElement>("adminRuntimeLoopDispatchAttention");
@@ -339,6 +345,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   if (loopQueueWindow) {
     loopQueueWindow.textContent = String(payload.loopQueueWindowText || "WINDOW --");
   }
+  if (loopQueueMicroflow) {
+    loopQueueMicroflow.textContent = String(payload.loopQueueMicroflowText || "MICRO WAIT | POD --");
+  }
   if (loopQueuePressure) {
     loopQueuePressure.textContent = String(payload.loopQueuePressureText || "PRESSURE --");
   }
@@ -357,6 +366,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   setChipTone(loopQueueGate, resolveLoopRailTone(payload.loopQueueTone, "gate"));
   setChipTone(loopQueueLead, resolveLoopRailTone(payload.loopQueueTone, "lead"));
   setChipTone(loopQueueWindow, resolveLoopRailTone(payload.loopQueueTone, "window"));
+  setChipTone(loopQueueMicroflow, resolveLoopRailTone(payload.loopQueueTone, "flow"));
   setChipTone(loopQueuePressure, resolveLoopRailTone(payload.loopQueueTone, "pressure"));
   setChipTone(loopQueueResponse, resolveLoopRailTone(payload.loopQueueTone, "response"));
   setChipTone(loopQueueAttention, resolveLoopRailTone(payload.loopQueueTone, "attention"));
@@ -382,6 +392,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   if (loopRuntimeWindow) {
     loopRuntimeWindow.textContent = String(payload.loopRuntimeWindowText || "WINDOW --");
   }
+  if (loopRuntimeMicroflow) {
+    loopRuntimeMicroflow.textContent = String(payload.loopRuntimeMicroflowText || "MICRO WAIT | POD --");
+  }
   if (loopRuntimePressure) {
     loopRuntimePressure.textContent = String(payload.loopRuntimePressureText || "PRESSURE --");
   }
@@ -400,6 +413,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   setChipTone(loopRuntimeGate, resolveLoopRailTone(payload.loopRuntimeTone, "gate"));
   setChipTone(loopRuntimeLead, resolveLoopRailTone(payload.loopRuntimeTone, "lead"));
   setChipTone(loopRuntimeWindow, resolveLoopRailTone(payload.loopRuntimeTone, "window"));
+  setChipTone(loopRuntimeMicroflow, resolveLoopRailTone(payload.loopRuntimeTone, "flow"));
   setChipTone(loopRuntimePressure, resolveLoopRailTone(payload.loopRuntimeTone, "pressure"));
   setChipTone(loopRuntimeResponse, resolveLoopRailTone(payload.loopRuntimeTone, "response"));
   setChipTone(loopRuntimeAttention, resolveLoopRailTone(payload.loopRuntimeTone, "attention"));
@@ -424,6 +438,9 @@ function render(payload: RuntimeBridgePayload): boolean {
   }
   if (loopDispatchWindow) {
     loopDispatchWindow.textContent = String(payload.loopDispatchWindowText || "WINDOW --");
+  }
+  if (loopDispatchMicroflow) {
+    loopDispatchMicroflow.textContent = String(payload.loopDispatchMicroflowText || "MICRO WAIT | POD --");
   }
   if (loopDispatchPressure) {
     loopDispatchPressure.textContent = String(payload.loopDispatchPressureText || "PRESSURE --");
@@ -451,6 +468,7 @@ function render(payload: RuntimeBridgePayload): boolean {
   setChipTone(loopDispatchGate, resolveLoopRailTone(payload.loopDispatchTone, "gate"));
   setChipTone(loopDispatchLead, resolveLoopRailTone(payload.loopDispatchTone, "lead"));
   setChipTone(loopDispatchWindow, resolveLoopRailTone(payload.loopDispatchTone, "window"));
+  setChipTone(loopDispatchMicroflow, resolveLoopRailTone(payload.loopDispatchTone, "flow"));
   setChipTone(loopDispatchPressure, resolveLoopRailTone(payload.loopDispatchTone, "pressure"));
   setChipTone(loopDispatchResponse, resolveLoopRailTone(payload.loopDispatchTone, "response"));
   setChipTone(loopDispatchAttention, resolveLoopRailTone(payload.loopDispatchTone, "attention"));
