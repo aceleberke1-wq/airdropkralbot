@@ -4218,6 +4218,11 @@ async function buildAdminMetrics(db) {
       scene_loop_district_microflow_risk_rows_daily_7d: [],
       scene_loop_district_microflow_risk_matrix_7d: [],
       scene_loop_district_microflow_risk_matrix_daily_7d: [],
+      scene_loop_district_microflow_risk_latest_band_breakdown_7d: [],
+      scene_loop_district_microflow_risk_attention_breakdown_7d: [],
+      scene_loop_district_microflow_risk_trend_breakdown_7d: [],
+      scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d: [],
+      scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d: [],
       scene_loop_district_microflow_risk_breakdown_7d: [],
       scene_loop_district_microflow_risk_breakdown_daily_7d: []
   };

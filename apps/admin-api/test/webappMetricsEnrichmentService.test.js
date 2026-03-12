@@ -321,6 +321,30 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_microflow_risk_matrix_daily_7d[0].loop_microflow_key, "payout");
   assert.equal(enriched.scene_loop_district_microflow_risk_matrix_daily_7d[0].risk_key, "yellow:watch:no_data");
   assert.ok(
+    enriched.scene_loop_district_microflow_risk_latest_band_breakdown_7d.some(
+      (row) => row.bucket_key === "red" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_attention_breakdown_7d.some(
+      (row) => row.bucket_key === "alert" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_trend_breakdown_7d.some(
+      (row) => row.bucket_key === "no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d.some(
+      (row) => row.bucket_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.equal(enriched.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d[0].loop_family_key, "payout_lane");
+  assert.equal(enriched.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d[0].loop_microflow_key, "payout");
+  assert.equal(enriched.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d[0].attention_band, "watch");
+  assert.ok(
     enriched.scene_loop_district_microflow_risk_breakdown_7d.some(
       (row) => row.bucket_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
     )

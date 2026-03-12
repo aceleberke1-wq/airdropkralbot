@@ -1715,6 +1715,21 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_loop_district_microflow_risk_matrix_daily_7d = buildSceneLoopDistrictMicroflowRiskMatrixDaily(
     metrics.scene_loop_district_microflow_risk_rows_daily_7d
   );
+  metrics.scene_loop_district_microflow_risk_latest_band_breakdown_7d = buildSceneLoopDistrictFamilyLatestBandBreakdown(
+    metrics.scene_loop_district_microflow_risk_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_risk_attention_breakdown_7d = buildSceneLoopDistrictFamilyAttentionBreakdown(
+    metrics.scene_loop_district_microflow_risk_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_risk_trend_breakdown_7d = buildSceneLoopDistrictFamilyTrendBreakdown(
+    metrics.scene_loop_district_microflow_risk_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d =
+    buildSceneLoopDistrictMicroflowHealthAttentionTrendBreakdown(metrics.scene_loop_district_microflow_risk_matrix_7d);
+  metrics.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d =
+    buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyBreakdown(
+      metrics.scene_loop_district_microflow_risk_matrix_daily_7d
+    );
   metrics.scene_loop_district_microflow_risk_breakdown_7d = buildSceneLoopDistrictMicroflowRiskBreakdown(
     metrics.scene_loop_district_microflow_risk_rows_7d
   );

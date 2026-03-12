@@ -601,6 +601,21 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskMatrixDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_matrix_daily_7d
   );
+  const sceneLoopDistrictMicroflowRiskLatestBandBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_latest_band_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskAttentionBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_attention_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskTrendBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_trend_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskHealthAttentionTrendBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskHealthAttentionTrendDailyMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_attention_trend_daily_matrix_7d
+  );
   const sceneLoopDistrictMicroflowRiskBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_breakdown_7d
   );
@@ -963,6 +978,27 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskMatrixDaily}
+          loopKeyField="loop_microflow_key"
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_latest_band_title")}
+          rows={sceneLoopDistrictMicroflowRiskLatestBandBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_title")}
+          rows={sceneLoopDistrictMicroflowRiskAttentionBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_title")}
+          rows={sceneLoopDistrictMicroflowRiskTrendBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthAttentionTrendBreakdown}
+        />
+        <SceneLoopDistrictFamilyDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthAttentionTrendDailyMatrix}
           loopKeyField="loop_microflow_key"
         />
         <BreakdownList
