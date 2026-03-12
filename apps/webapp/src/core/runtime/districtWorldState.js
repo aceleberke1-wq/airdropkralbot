@@ -2725,9 +2725,17 @@ function resolveProtocolPodFocusMeta(labelKey) {
 }
 
 function resolveProtocolMicroFlowMeta(labelKey) {
+  const personalityMeta = buildProtocolMicroFlowPersonality(labelKey, {});
+  const withPersonality = (meta) => ({
+    ...meta,
+    actor_motion_scalar: personalityMeta.actor_motion_scalar,
+    hotspot_motion_scalar: personalityMeta.hotspot_motion_scalar,
+    ring_pulse_scalar: personalityMeta.ring_pulse_scalar,
+    satellite_orbit_scalar: personalityMeta.satellite_orbit_scalar
+  });
   switch (labelKey) {
     case "world_modal_kind_duel_sequence":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_duel_console",
         sequence_kind_key: "world_modal_kind_duel_sequence",
         tempo_label_key: "world_sequence_tempo_burst",
@@ -2741,9 +2749,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.03,
         focus_lerp_scalar: 1.24,
         radius_lerp_scalar: 1.18
-      };
+      });
     case "world_modal_kind_ladder_sequence":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_ladder_console",
         sequence_kind_key: "world_modal_kind_ladder_sequence",
         tempo_label_key: "world_sequence_tempo_charge",
@@ -2757,9 +2765,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.02,
         focus_lerp_scalar: 1.14,
         radius_lerp_scalar: 1.12
-      };
+      });
     case "world_modal_kind_telemetry_scan":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_telemetry_console",
         sequence_kind_key: "world_modal_kind_telemetry_scan",
         tempo_label_key: "world_sequence_tempo_scan",
@@ -2773,9 +2781,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: -0.01,
         focus_lerp_scalar: 0.94,
         radius_lerp_scalar: 0.96
-      };
+      });
     case "world_modal_kind_mission_terminal":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_mission_terminal",
         sequence_kind_key: "world_modal_kind_mission_terminal",
         tempo_label_key: "world_sequence_tempo_stack",
@@ -2789,9 +2797,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.01,
         focus_lerp_scalar: 1.06,
         radius_lerp_scalar: 1.08
-      };
+      });
     case "world_modal_kind_contract_sequence":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_claim_terminal",
         sequence_kind_key: "world_modal_kind_contract_sequence",
         tempo_label_key: "world_sequence_tempo_claim",
@@ -2805,9 +2813,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.02,
         focus_lerp_scalar: 1.08,
         radius_lerp_scalar: 1.1
-      };
+      });
     case "world_modal_kind_streak_sync":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_streak_terminal",
         sequence_kind_key: "world_modal_kind_streak_sync",
         tempo_label_key: "world_sequence_tempo_sync",
@@ -2821,9 +2829,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: -0.01,
         focus_lerp_scalar: 0.92,
         radius_lerp_scalar: 0.94
-      };
+      });
     case "world_modal_kind_wallet_terminal":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_wallet_terminal",
         sequence_kind_key: "world_modal_kind_wallet_terminal",
         tempo_label_key: "world_sequence_tempo_link",
@@ -2837,9 +2845,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.01,
         focus_lerp_scalar: 1.02,
         radius_lerp_scalar: 1.04
-      };
+      });
     case "world_modal_kind_payout_route":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_payout_terminal",
         sequence_kind_key: "world_modal_kind_payout_route",
         tempo_label_key: "world_sequence_tempo_route",
@@ -2853,9 +2861,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.01,
         focus_lerp_scalar: 0.98,
         radius_lerp_scalar: 1
-      };
+      });
     case "world_modal_kind_premium_unlock":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_premium_terminal",
         sequence_kind_key: "world_modal_kind_premium_unlock",
         tempo_label_key: "world_sequence_tempo_unlock",
@@ -2869,9 +2877,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.01,
         focus_lerp_scalar: 1,
         radius_lerp_scalar: 1.04
-      };
+      });
     case "world_modal_kind_queue_review":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_queue_console",
         sequence_kind_key: "world_modal_kind_queue_review",
         tempo_label_key: "world_sequence_tempo_watch",
@@ -2885,9 +2893,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: -0.02,
         focus_lerp_scalar: 0.92,
         radius_lerp_scalar: 0.96
-      };
+      });
     case "world_modal_kind_runtime_scan":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_runtime_console",
         sequence_kind_key: "world_modal_kind_runtime_scan",
         tempo_label_key: "world_sequence_tempo_watch",
@@ -2901,9 +2909,9 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: -0.01,
         focus_lerp_scalar: 0.9,
         radius_lerp_scalar: 0.94
-      };
+      });
     case "world_modal_kind_dispatch_sequence":
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_dispatch_console",
         sequence_kind_key: "world_modal_kind_dispatch_sequence",
         tempo_label_key: "world_sequence_tempo_dispatch",
@@ -2917,10 +2925,10 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: 0.02,
         focus_lerp_scalar: 1.16,
         radius_lerp_scalar: 1.14
-      };
+      });
     case "world_modal_kind_travel_gate":
     default:
-      return {
+      return withPersonality({
         entry_kind_key: "world_entry_kind_hub_portal",
         sequence_kind_key: "world_modal_kind_travel_gate",
         tempo_label_key: "world_sequence_tempo_glide",
@@ -2934,7 +2942,7 @@ function resolveProtocolMicroFlowMeta(labelKey) {
         beta_offset: -0.01,
         focus_lerp_scalar: 0.96,
         radius_lerp_scalar: 0.98
-      };
+      });
   }
 }
 
@@ -3005,6 +3013,15 @@ function buildProtocolPodMicroFlowCards(labelKey, statusKey, toneKey, sequenceRo
       beta_offset: focusMeta.beta_offset,
       focus_lerp_scalar: focusMeta.focus_lerp_scalar,
       radius_lerp_scalar: focusMeta.radius_lerp_scalar,
+      orbit_spin_scalar: focusMeta.orbit_spin_scalar,
+      sway_scalar: focusMeta.sway_scalar,
+      alpha_lerp_scalar: focusMeta.alpha_lerp_scalar,
+      beta_lerp_scalar: focusMeta.beta_lerp_scalar,
+      hud_emphasis_scalar: focusMeta.hud_emphasis_scalar,
+      actor_motion_scalar: focusMeta.actor_motion_scalar,
+      hotspot_motion_scalar: focusMeta.hotspot_motion_scalar,
+      ring_pulse_scalar: focusMeta.ring_pulse_scalar,
+      satellite_orbit_scalar: focusMeta.satellite_orbit_scalar,
       stage_label_key: row?.label_key || labelKeyValue,
       stage_value: row?.value || "",
       stage_status_key: row?.status_key || statusKey,
@@ -4831,7 +4848,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.92,
         alpha_lerp_scalar: 1.16,
         beta_lerp_scalar: 1.12,
-        hud_emphasis_scalar: 1.18
+        hud_emphasis_scalar: 1.18,
+        actor_motion_scalar: 1.18,
+        hotspot_motion_scalar: 1.12,
+        ring_pulse_scalar: 1.16,
+        satellite_orbit_scalar: 1.14
       },
       world_modal_kind_ladder_sequence: {
         personality_key: "charge",
@@ -4842,7 +4863,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.96,
         alpha_lerp_scalar: 1.08,
         beta_lerp_scalar: 1.06,
-        hud_emphasis_scalar: 1.1
+        hud_emphasis_scalar: 1.1,
+        actor_motion_scalar: 1.1,
+        hotspot_motion_scalar: 1.06,
+        ring_pulse_scalar: 1.08,
+        satellite_orbit_scalar: 1.08
       },
       world_modal_kind_telemetry_scan: {
         personality_key: "scan",
@@ -4853,7 +4878,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.84,
         alpha_lerp_scalar: 0.94,
         beta_lerp_scalar: 0.92,
-        hud_emphasis_scalar: 0.92
+        hud_emphasis_scalar: 0.92,
+        actor_motion_scalar: 0.94,
+        hotspot_motion_scalar: 0.9,
+        ring_pulse_scalar: 0.92,
+        satellite_orbit_scalar: 0.9
       },
       world_modal_kind_mission_terminal: {
         personality_key: "stack",
@@ -4864,7 +4893,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.9,
         alpha_lerp_scalar: 1.04,
         beta_lerp_scalar: 1,
-        hud_emphasis_scalar: 1.04
+        hud_emphasis_scalar: 1.04,
+        actor_motion_scalar: 1.02,
+        hotspot_motion_scalar: 1,
+        ring_pulse_scalar: 1.02,
+        satellite_orbit_scalar: 0.98
       },
       world_modal_kind_contract_sequence: {
         personality_key: "claim",
@@ -4875,7 +4908,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.94,
         alpha_lerp_scalar: 1.12,
         beta_lerp_scalar: 1.08,
-        hud_emphasis_scalar: 1.12
+        hud_emphasis_scalar: 1.12,
+        actor_motion_scalar: 1.08,
+        hotspot_motion_scalar: 1.06,
+        ring_pulse_scalar: 1.08,
+        satellite_orbit_scalar: 1.02
       },
       world_modal_kind_streak_sync: {
         personality_key: "cadence",
@@ -4886,7 +4923,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.88,
         alpha_lerp_scalar: 0.96,
         beta_lerp_scalar: 0.94,
-        hud_emphasis_scalar: 0.96
+        hud_emphasis_scalar: 0.96,
+        actor_motion_scalar: 0.96,
+        hotspot_motion_scalar: 0.94,
+        ring_pulse_scalar: 0.94,
+        satellite_orbit_scalar: 0.92
       },
       world_modal_kind_wallet_terminal: {
         personality_key: "route",
@@ -4897,7 +4938,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.9,
         alpha_lerp_scalar: 1.02,
         beta_lerp_scalar: 1,
-        hud_emphasis_scalar: 1
+        hud_emphasis_scalar: 1,
+        actor_motion_scalar: 1,
+        hotspot_motion_scalar: 0.98,
+        ring_pulse_scalar: 1,
+        satellite_orbit_scalar: 0.98
       },
       world_modal_kind_payout_route: {
         personality_key: "payout",
@@ -4908,7 +4953,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.92,
         alpha_lerp_scalar: 1.04,
         beta_lerp_scalar: 1.02,
-        hud_emphasis_scalar: 1.04
+        hud_emphasis_scalar: 1.04,
+        actor_motion_scalar: 1.02,
+        hotspot_motion_scalar: 1,
+        ring_pulse_scalar: 1.02,
+        satellite_orbit_scalar: 1
       },
       world_modal_kind_premium_unlock: {
         personality_key: "premium",
@@ -4919,7 +4968,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.9,
         alpha_lerp_scalar: 1,
         beta_lerp_scalar: 0.98,
-        hud_emphasis_scalar: 1.02
+        hud_emphasis_scalar: 1.02,
+        actor_motion_scalar: 1,
+        hotspot_motion_scalar: 0.98,
+        ring_pulse_scalar: 1,
+        satellite_orbit_scalar: 0.98
       },
       world_modal_kind_queue_review: {
         personality_key: "watch",
@@ -4930,7 +4983,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.82,
         alpha_lerp_scalar: 0.92,
         beta_lerp_scalar: 0.9,
-        hud_emphasis_scalar: 0.94
+        hud_emphasis_scalar: 0.94,
+        actor_motion_scalar: 0.9,
+        hotspot_motion_scalar: 0.88,
+        ring_pulse_scalar: 0.9,
+        satellite_orbit_scalar: 0.88
       },
       world_modal_kind_runtime_scan: {
         personality_key: "audit",
@@ -4941,7 +4998,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.8,
         alpha_lerp_scalar: 0.9,
         beta_lerp_scalar: 0.9,
-        hud_emphasis_scalar: 0.9
+        hud_emphasis_scalar: 0.9,
+        actor_motion_scalar: 0.88,
+        hotspot_motion_scalar: 0.86,
+        ring_pulse_scalar: 0.88,
+        satellite_orbit_scalar: 0.86
       },
       world_modal_kind_dispatch_sequence: {
         personality_key: "dispatch",
@@ -4952,7 +5013,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
         sway_scalar: 0.94,
         alpha_lerp_scalar: 1.08,
         beta_lerp_scalar: 1.04,
-        hud_emphasis_scalar: 1.08
+        hud_emphasis_scalar: 1.08,
+        actor_motion_scalar: 1.04,
+        hotspot_motion_scalar: 1,
+        ring_pulse_scalar: 1.04,
+        satellite_orbit_scalar: 1.02
       }
     }[sequenceKindKey] || {
       personality_key: "glide",
@@ -4963,7 +5028,11 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
       sway_scalar: 0.86,
       alpha_lerp_scalar: 0.98,
       beta_lerp_scalar: 0.96,
-      hud_emphasis_scalar: 0.98
+      hud_emphasis_scalar: 0.98,
+      actor_motion_scalar: 0.98,
+      hotspot_motion_scalar: 0.94,
+      ring_pulse_scalar: 0.98,
+      satellite_orbit_scalar: 0.96
     };
 
   return {
@@ -4973,7 +5042,15 @@ function buildProtocolMicroFlowPersonality(sequenceKindKey, input) {
     sway_scalar: clamp(toNum(personality.sway_scalar, 1) * compactDamp, 0.78, 1.12),
     alpha_lerp_scalar: clamp(toNum(personality.alpha_lerp_scalar, 1) * cinematicBoost, 0.84, 1.22),
     beta_lerp_scalar: clamp(toNum(personality.beta_lerp_scalar, 1) * cinematicBoost, 0.84, 1.18),
-    hud_emphasis_scalar: clamp(toNum(personality.hud_emphasis_scalar, 1) * compactDamp, 0.88, 1.22)
+    hud_emphasis_scalar: clamp(toNum(personality.hud_emphasis_scalar, 1) * compactDamp, 0.88, 1.22),
+    actor_motion_scalar: clamp(toNum(personality.actor_motion_scalar, 1) * cinematicBoost, 0.82, 1.24),
+    hotspot_motion_scalar: clamp(toNum(personality.hotspot_motion_scalar, 1) * compactDamp, 0.8, 1.18),
+    ring_pulse_scalar: clamp(toNum(personality.ring_pulse_scalar, 1) * cinematicBoost, 0.84, 1.2),
+    satellite_orbit_scalar: clamp(
+      toNum(personality.satellite_orbit_scalar, 1) * cinematicBoost * compactDamp,
+      0.82,
+      1.18
+    )
   };
 }
 
@@ -5032,7 +5109,11 @@ function enrichDistrictInteractionModal(interactionModal, input) {
                 sway_scalar: loopPersonality.sway_scalar,
                 alpha_lerp_scalar: loopPersonality.alpha_lerp_scalar,
                 beta_lerp_scalar: loopPersonality.beta_lerp_scalar,
-                hud_emphasis_scalar: loopPersonality.hud_emphasis_scalar
+                hud_emphasis_scalar: loopPersonality.hud_emphasis_scalar,
+                actor_motion_scalar: loopPersonality.actor_motion_scalar,
+                hotspot_motion_scalar: loopPersonality.hotspot_motion_scalar,
+                ring_pulse_scalar: loopPersonality.ring_pulse_scalar,
+                satellite_orbit_scalar: loopPersonality.satellite_orbit_scalar
               };
             })
           };

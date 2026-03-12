@@ -168,6 +168,10 @@ type ProtocolCardFlowPod = {
     alpha_lerp_scalar?: number;
     beta_lerp_scalar?: number;
     hud_emphasis_scalar?: number;
+    actor_motion_scalar?: number;
+    hotspot_motion_scalar?: number;
+    ring_pulse_scalar?: number;
+    satellite_orbit_scalar?: number;
     stage_label_key?: string;
     stage_value?: string;
     stage_status_key?: string;
@@ -1162,6 +1166,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const microflowHudEmphasisScalar = Number.isFinite(Number(microflowFocus?.hud_emphasis_scalar))
             ? Number(microflowFocus?.hud_emphasis_scalar)
             : 1;
+          const microflowActorMotionScalar = Number.isFinite(Number(microflowFocus?.actor_motion_scalar))
+            ? Number(microflowFocus?.actor_motion_scalar)
+            : 1;
+          const microflowHotspotMotionScalar = Number.isFinite(Number(microflowFocus?.hotspot_motion_scalar))
+            ? Number(microflowFocus?.hotspot_motion_scalar)
+            : 1;
+          const microflowRingPulseScalar = Number.isFinite(Number(microflowFocus?.ring_pulse_scalar))
+            ? Number(microflowFocus?.ring_pulse_scalar)
+            : 1;
+          const microflowSatelliteOrbitScalar = Number.isFinite(Number(microflowFocus?.satellite_orbit_scalar))
+            ? Number(microflowFocus?.satellite_orbit_scalar)
+            : 1;
           const motionScalar =
             (worldState.reduced_motion ? 0.22 : 1) *
             directorProfile.motion_scalar *
@@ -1170,23 +1186,33 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const focusHotspot =
             worldState.hotspots.find((hotspot) => hotspot.key === hoveredHotspotKey) || activeHotspot;
           ring.rotation.z =
-            now * worldState.orbit_speed * 22 * directorProfile.orbit_spin_scalar * microflowOrbitSpinScalar;
+            now *
+            worldState.orbit_speed *
+            22 *
+            directorProfile.orbit_spin_scalar *
+            microflowOrbitSpinScalar *
+            microflowRingPulseScalar;
           if (outerRing) {
             outerRing.rotation.y =
-              now * worldState.orbit_speed * 14 * directorProfile.orbit_spin_scalar * microflowOrbitSpinScalar;
+              now *
+              worldState.orbit_speed *
+              14 *
+              directorProfile.orbit_spin_scalar *
+              microflowOrbitSpinScalar *
+              microflowRingPulseScalar;
           }
           coreOrb.position.y =
             1.2 +
-            Math.sin(now * 1.4) * 0.12 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar;
+            Math.sin(now * 1.4) * 0.12 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
           const orbScale =
             1 +
             worldState.ambient_energy * 0.16 +
-            Math.sin(now * 1.7) * 0.04 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar;
+            Math.sin(now * 1.7) * 0.04 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
           coreOrb.scaling.setAll(orbScale);
           point.intensity =
             1.1 +
             worldState.ambient_energy * 0.6 +
-            Math.sin(now) * 0.08 * motionScalar * microflowHudEmphasisScalar;
+            Math.sin(now) * 0.08 * motionScalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
           const targetAlpha =
             cameraProfile.alpha_base +
             now * worldState.orbit_speed * cameraProfile.orbit_scalar +
@@ -1213,30 +1239,54 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             camera.radius += (desiredRadius - camera.radius) * cameraProfile.radius_lerp * microflowRadiusLerpScalar;
           }
           satellites.forEach((entry, index) => {
-            const radiusPulse = theme.satellite_radius + Math.sin(now * (0.8 + index * 0.07)) * 0.06 * motionScalar;
+            const radiusPulse =
+              theme.satellite_radius +
+              Math.sin(now * (0.8 + index * 0.07)) * 0.06 * motionScalar * microflowSatelliteOrbitScalar;
             entry.orb.position.x =
-              Math.cos(entry.baseAngle + now * worldState.orbit_speed * 10 * directorProfile.orbit_spin_scalar) * radiusPulse;
+              Math.cos(
+                entry.baseAngle +
+                  now *
+                    worldState.orbit_speed *
+                    10 *
+                    directorProfile.orbit_spin_scalar *
+                    microflowSatelliteOrbitScalar
+              ) * radiusPulse;
             entry.orb.position.z =
-              Math.sin(entry.baseAngle + now * worldState.orbit_speed * 10 * directorProfile.orbit_spin_scalar) * radiusPulse;
-            entry.orb.position.y = theme.satellite_height + Math.sin(now * (1 + index * 0.09)) * 0.06 * motionScalar;
+              Math.sin(
+                entry.baseAngle +
+                  now *
+                    worldState.orbit_speed *
+                    10 *
+                    directorProfile.orbit_spin_scalar *
+                    microflowSatelliteOrbitScalar
+              ) * radiusPulse;
+            entry.orb.position.y =
+              theme.satellite_height +
+              Math.sin(now * (1 + index * 0.09)) * 0.06 * motionScalar * microflowSatelliteOrbitScalar;
           });
           actorHandles.forEach((entry, index) => {
-            entry.animate?.(now, motionScalar, index);
+            entry.animate?.(now, motionScalar * microflowActorMotionScalar, index);
           });
           clusterHandles.forEach((entry) => {
-            entry.animate(now, motionScalar);
+            entry.animate(now, motionScalar * microflowHotspotMotionScalar);
           });
           hotspotHandles.forEach((entry) => {
-            entry.animate(now, motionScalar);
+            entry.animate(now, motionScalar * microflowHotspotMotionScalar);
           });
           nodeHandles.forEach((entry, index) => {
             const activePulse = entry.isActive ? 0.16 : 0.04;
             entry.orb.position.y =
               1.15 +
               entry.node.energy * 0.95 +
-              Math.sin(now * (1.2 + index * 0.17)) * (0.18 + activePulse) * motionScalar * directorProfile.node_pulse_scalar;
+              Math.sin(now * (1.2 + index * 0.17)) *
+                (0.18 + activePulse) *
+                motionScalar *
+                directorProfile.node_pulse_scalar *
+                microflowRingPulseScalar;
             entry.pillar.scaling.y =
-              1 + entry.node.energy * 0.65 + Math.sin(now * (0.8 + index * 0.11)) * 0.04 * motionScalar * directorProfile.node_pulse_scalar;
+              1 +
+              entry.node.energy * 0.65 +
+              Math.sin(now * (0.8 + index * 0.11)) * 0.04 * motionScalar * directorProfile.node_pulse_scalar * microflowRingPulseScalar;
             entry.orb.scaling.setAll(
               1 +
                 Math.sin(now * (1.4 + index * 0.12)) * activePulse * motionScalar * directorProfile.node_pulse_scalar +
