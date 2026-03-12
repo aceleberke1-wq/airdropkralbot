@@ -1312,6 +1312,72 @@ function buildSceneLoopDistrictMicroflowRiskMatrixDaily(rows, limit = 24) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
+function buildSceneLoopDistrictMicroflowRiskPriority(rows, limit = 18) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      district_key: String(row?.district_key || "unknown"),
+      loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+      loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+      risk_key: String(row?.risk_key || "no_data:no_data:no_data"),
+      latest_health_band: String(row?.latest_health_band || row?.health_band || "no_data"),
+      attention_band: String(row?.attention_band || "no_data"),
+      trend_direction: String(row?.trend_direction || "no_data"),
+      trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+      priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+      item_count: Math.max(0, Math.floor(toNum(row?.item_count, 0))),
+      day_count: Math.max(0, Math.floor(toNum(row?.day_count, 0))),
+      latest_day: row?.latest_day ? String(row.latest_day) : null
+    }))
+    .sort((left, right) => {
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const dayGap = toNum(right.day_count, 0) - toNum(left.day_count, 0);
+      if (Math.abs(dayGap) > 0.0001) return dayGap;
+      const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
+      if (Math.abs(itemGap) > 0.0001) return itemGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
+}
+
+function buildSceneLoopDistrictMicroflowRiskPriorityDaily(rows, limit = 24) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      day: String(row?.day || ""),
+      district_key: String(row?.district_key || "unknown"),
+      loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+      loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+      risk_key: String(row?.risk_key || "no_data:no_data:no_data"),
+      latest_health_band: String(row?.latest_health_band || row?.health_band || "no_data"),
+      attention_band: String(row?.attention_band || "no_data"),
+      trend_direction: String(row?.trend_direction || "no_data"),
+      trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+      priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+      item_count: Math.max(0, Math.floor(toNum(row?.item_count, 1))),
+      day_count: Math.max(0, Math.floor(toNum(row?.day_count, 1)))
+    }))
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
+}
+
 function buildSceneLoopDistrictMicroflowRiskBreakdown(rows, limit = 18) {
   const counters = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -1756,6 +1822,12 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   );
   metrics.scene_loop_district_microflow_risk_matrix_daily_7d = buildSceneLoopDistrictMicroflowRiskMatrixDaily(
     metrics.scene_loop_district_microflow_risk_rows_daily_7d
+  );
+  metrics.scene_loop_district_microflow_risk_priority_7d = buildSceneLoopDistrictMicroflowRiskPriority(
+    metrics.scene_loop_district_microflow_risk_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_risk_priority_daily_7d = buildSceneLoopDistrictMicroflowRiskPriorityDaily(
+    metrics.scene_loop_district_microflow_risk_matrix_daily_7d
   );
   metrics.scene_loop_district_microflow_risk_latest_band_breakdown_7d = buildSceneLoopDistrictFamilyLatestBandBreakdown(
     metrics.scene_loop_district_microflow_risk_matrix_7d
