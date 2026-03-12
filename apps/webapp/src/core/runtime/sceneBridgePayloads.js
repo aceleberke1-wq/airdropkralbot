@@ -354,6 +354,33 @@ function buildLoopRiskSummaryText(source) {
   return `HEALTH ${healthText} | ATTN ${attentionText} | TREND ${trendText}`;
 }
 
+function buildLoopMicroflowText(source) {
+  const row = asRecord(source);
+  const explicit = toText(row.microflowText, "");
+  if (explicit) {
+    return explicit;
+  }
+  const derivedSource = [
+    row.familyText,
+    row.flowText,
+    row.summaryText,
+    row.gateText,
+    row.stateText,
+    row.leadText,
+    row.windowText
+  ]
+    .map((value) => toText(value, ""))
+    .filter(Boolean)
+    .join(" | ");
+  const match = derivedSource.match(/FLOW ([A-Z ]+? FLOW)\b/i);
+  if (!match?.[1]) {
+    return "MICRO WAIT | POD --";
+  }
+  const microflowLabel = match[1].trim().toUpperCase();
+  const podLabel = microflowLabel === "DISPATCH FLOW" ? "--" : microflowLabel.replace(/\s+FLOW$/, " POD");
+  return `MICRO ${microflowLabel} | POD ${podLabel}`;
+}
+
 function buildLoopBridgeCard(title, value, tone, hint = "") {
   return {
     title: toText(title, "FLOW"),
@@ -428,7 +455,8 @@ function buildLoopRiskBridgeBundle(tone, rails) {
     cards: buildLoopBridgeCards(
       buildLoopBridgeCard("HEALTH", buildLoopHealthText(source), tone, source.stateText || source.summaryText),
       buildLoopBridgeCard("ATTN", buildLoopAttentionText(source), tone, source.pressureText || source.signalText),
-      buildLoopBridgeCard("TREND", buildLoopTrendText(source), tone, source.windowText || source.cadenceText)
+      buildLoopBridgeCard("TREND", buildLoopTrendText(source), tone, source.windowText || source.cadenceText),
+      buildLoopBridgeCard("MICRO", buildLoopMicroflowText(source), tone, riskSummaryText)
     ),
     blocks: buildLoopBridgeBlocks(
       buildLoopBridgeBlock("HEALTH", buildLoopHealthText(source), source.stateText || source.summaryText, tone, source.gateText || source.leadText),
@@ -477,6 +505,7 @@ function buildLoopFlowFamilyPanels(tone, rails) {
 
 function buildLoopRiskPanels(tone, rails) {
   const source = asRecord(rails);
+  const microflowText = buildLoopMicroflowText(source);
   return [
     {
       title: "HEALTH",
@@ -486,6 +515,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopHealthText(source),
         toText(source.stateText || source.summaryText, "STATE --"),
         toText(source.gateText || source.leadText, "GATE --"),
+        microflowText,
         buildLoopRiskSummaryText(source)
       ]
     },
@@ -497,6 +527,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopAttentionText(source),
         toText(source.pressureText || source.signalText, "PRESSURE --"),
         toText(source.responseText || source.opsText, "RESPONSE --"),
+        microflowText,
         buildLoopRiskSummaryText(source)
       ]
     },
@@ -508,6 +539,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopTrendText(source),
         toText(source.windowText || source.flowText, "WINDOW --"),
         toText(source.detailText || source.stageText, "DETAIL --"),
+        microflowText,
         buildLoopRiskSummaryText(source)
       ]
     }
