@@ -7,9 +7,14 @@ export type LoopBridgeCard = {
   risk_key?: string;
   risk_focus_key?: string;
   family_key?: string;
+  flow_key?: string;
   microflow_key?: string;
+  risk_health_band_key?: string;
+  risk_attention_band_key?: string;
+  risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  risk_context?: LoopBridgeRiskContext;
 };
 
 export type LoopBridgeBlock = {
@@ -22,9 +27,14 @@ export type LoopBridgeBlock = {
   risk_key?: string;
   risk_focus_key?: string;
   family_key?: string;
+  flow_key?: string;
   microflow_key?: string;
+  risk_health_band_key?: string;
+  risk_attention_band_key?: string;
+  risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  risk_context?: LoopBridgeRiskContext;
 };
 
 export type LoopBridgePanel = {
@@ -36,7 +46,26 @@ export type LoopBridgePanel = {
   risk_key?: string;
   risk_focus_key?: string;
   family_key?: string;
+  flow_key?: string;
   microflow_key?: string;
+  risk_health_band_key?: string;
+  risk_attention_band_key?: string;
+  risk_trend_direction_key?: string;
+  entry_kind_key?: string;
+  sequence_kind_key?: string;
+  risk_context?: LoopBridgeRiskContext;
+};
+
+export type LoopBridgeRiskContext = {
+  family_key?: string;
+  flow_key?: string;
+  microflow_key?: string;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  risk_health_band_key?: string;
+  risk_attention_band_key?: string;
+  risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
 };
@@ -61,19 +90,29 @@ type LoopBridgeMeta = {
   risk_key?: string;
   risk_focus_key?: string;
   family_key?: string;
+  flow_key?: string;
   microflow_key?: string;
+  risk_health_band_key?: string;
+  risk_attention_band_key?: string;
+  risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  risk_context?: LoopBridgeRiskContext;
 };
 
 function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
-  const focusKey = safeText(meta.focus_key);
-  const riskKey = safeText(meta.risk_key);
-  const riskFocusKey = safeText(meta.risk_focus_key);
-  const familyKey = safeText(meta.family_key);
-  const microflowKey = safeText(meta.microflow_key);
-  const entryKindKey = safeText(meta.entry_kind_key);
-  const sequenceKindKey = safeText(meta.sequence_kind_key);
+  const riskContext = meta.risk_context ?? {};
+  const focusKey = safeText(meta.focus_key || riskContext.focus_key);
+  const riskKey = safeText(meta.risk_key || riskContext.risk_key);
+  const riskFocusKey = safeText(meta.risk_focus_key || riskContext.risk_focus_key);
+  const familyKey = safeText(meta.family_key || riskContext.family_key);
+  const flowKey = safeText(meta.flow_key || riskContext.flow_key);
+  const microflowKey = safeText(meta.microflow_key || riskContext.microflow_key);
+  const riskHealthBandKey = safeText(meta.risk_health_band_key || riskContext.risk_health_band_key);
+  const riskAttentionBandKey = safeText(meta.risk_attention_band_key || riskContext.risk_attention_band_key);
+  const riskTrendDirectionKey = safeText(meta.risk_trend_direction_key || riskContext.risk_trend_direction_key);
+  const entryKindKey = safeText(meta.entry_kind_key || riskContext.entry_kind_key);
+  const sequenceKindKey = safeText(meta.sequence_kind_key || riskContext.sequence_kind_key);
   if (focusKey) {
     article.dataset.focusKey = focusKey;
   }
@@ -86,8 +125,20 @@ function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
   if (familyKey) {
     article.dataset.familyKey = familyKey;
   }
+  if (flowKey) {
+    article.dataset.flowKey = flowKey;
+  }
   if (microflowKey) {
     article.dataset.microflowKey = microflowKey;
+  }
+  if (riskHealthBandKey) {
+    article.dataset.riskHealthBandKey = riskHealthBandKey;
+  }
+  if (riskAttentionBandKey) {
+    article.dataset.riskAttentionBandKey = riskAttentionBandKey;
+  }
+  if (riskTrendDirectionKey) {
+    article.dataset.riskTrendDirectionKey = riskTrendDirectionKey;
   }
   if (entryKindKey) {
     article.dataset.entryKindKey = entryKindKey;

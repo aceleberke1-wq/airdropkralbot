@@ -1689,13 +1689,32 @@ function buildSceneLoopDimensionBreakdown(rows, field, limit = 18) {
   const counters = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const key = String(row?.[field] || "unknown");
-    counters.set(key, (counters.get(key) || 0) + 1);
+    const day = String(row?.day || "");
+    const priorityScore = Math.max(0, Math.floor(toNum(row?.priority_score, 0)));
+    const context = buildSceneLoopRiskContext(row);
+    if (!counters.has(key)) {
+      counters.set(key, {
+        bucket_key: key,
+        item_count: 0,
+        priority_score: 0,
+        latest_day: day || null,
+        ...context
+      });
+    }
+    const current = counters.get(key);
+    current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
+    const latestDay = String(current.latest_day || "");
+    const shouldReplace =
+      !latestDay ||
+      (day && day.localeCompare(latestDay) > 0) ||
+      (day === latestDay && priorityScore > toNum(current.priority_score, 0));
+    if (shouldReplace) {
+      Object.assign(current, context);
+      current.latest_day = day || null;
+    }
+    current.priority_score = Math.max(toNum(current.priority_score, 0), priorityScore);
   });
-  return [...counters.entries()]
-    .map(([bucket_key, item_count]) => ({
-      bucket_key,
-      item_count: Math.max(0, Math.floor(toNum(item_count, 0)))
-    }))
+  return [...counters.values()]
     .sort((left, right) => {
       const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
       if (Math.abs(itemGap) > 0.0001) return itemGap;
@@ -1710,11 +1729,23 @@ function buildSceneLoopDimensionBreakdownDaily(rows, field, limit = 24) {
     const day = String(row?.day || "");
     const bucketKey = String(row?.[field] || "unknown");
     const compositeKey = `${day}:${bucketKey}`;
+    const priorityScore = Math.max(0, Math.floor(toNum(row?.priority_score, 0)));
+    const context = buildSceneLoopRiskContext(row);
     if (!counters.has(compositeKey)) {
-      counters.set(compositeKey, { day, bucket_key: bucketKey, item_count: 0 });
+      counters.set(compositeKey, {
+        day,
+        bucket_key: bucketKey,
+        item_count: 0,
+        priority_score: 0,
+        ...context
+      });
     }
     const current = counters.get(compositeKey);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
+    if (priorityScore >= toNum(current.priority_score, 0)) {
+      Object.assign(current, context);
+    }
+    current.priority_score = Math.max(toNum(current.priority_score, 0), priorityScore);
   });
   return [...counters.values()]
     .sort((left, right) => {

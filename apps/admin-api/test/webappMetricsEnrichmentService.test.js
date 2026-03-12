@@ -493,7 +493,11 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   );
   assert.ok(
     enriched.scene_loop_district_microflow_risk_focus_key_breakdown_7d.some(
-      (row) => row.bucket_key === "exchange_district:wallet_link:wallet" && Number(row.item_count || 0) >= 1
+      (row) =>
+        row.bucket_key === "exchange_district:wallet_link:wallet" &&
+        Number(row.item_count || 0) >= 1 &&
+        row.focus_key === "exchange_district:wallet_link:wallet" &&
+        row.risk_context?.sequence_kind_key === "world_modal_kind_wallet_terminal"
     )
   );
   assert.ok(
@@ -501,7 +505,9 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
       (row) =>
         row.day === "2026-03-08" &&
         row.bucket_key === "exchange_district:payout_lane:payout" &&
-        Number(row.item_count || 0) >= 1
+        Number(row.item_count || 0) >= 1 &&
+        row.focus_key === "exchange_district:payout_lane:payout" &&
+        row.risk_context?.entry_kind_key === "world_entry_kind_payout_terminal"
     )
   );
   assert.ok(
@@ -559,7 +565,11 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   );
   assert.ok(
     enriched.scene_loop_district_microflow_risk_entry_kind_breakdown_7d.some(
-      (row) => row.bucket_key === "world_entry_kind_wallet_terminal" && Number(row.item_count || 0) >= 1
+      (row) =>
+        row.bucket_key === "world_entry_kind_wallet_terminal" &&
+        Number(row.item_count || 0) >= 1 &&
+        row.entry_kind_key === "world_entry_kind_wallet_terminal" &&
+        row.risk_context?.focus_key === "exchange_district:wallet_link:wallet"
     )
   );
   assert.ok(
@@ -567,7 +577,9 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
       (row) =>
         row.day === "2026-03-08" &&
         row.bucket_key === "world_entry_kind_payout_terminal" &&
-        Number(row.item_count || 0) >= 1
+        Number(row.item_count || 0) >= 1 &&
+        row.entry_kind_key === "world_entry_kind_payout_terminal" &&
+        row.risk_context?.risk_focus_key === "exchange_district:payout_lane:payout|yellow:watch:no_data"
     )
   );
   assert.ok(
@@ -585,7 +597,11 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   );
   assert.ok(
     enriched.scene_loop_district_microflow_risk_sequence_kind_breakdown_7d.some(
-      (row) => row.bucket_key === "world_modal_kind_wallet_terminal" && Number(row.item_count || 0) >= 1
+      (row) =>
+        row.bucket_key === "world_modal_kind_wallet_terminal" &&
+        Number(row.item_count || 0) >= 1 &&
+        row.sequence_kind_key === "world_modal_kind_wallet_terminal" &&
+        row.risk_context?.flow_key === "wallet_link:wallet"
     )
   );
   assert.ok(
@@ -593,7 +609,9 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
       (row) =>
         row.day === "2026-03-08" &&
         row.bucket_key === "world_modal_kind_payout_route" &&
-        Number(row.item_count || 0) >= 1
+        Number(row.item_count || 0) >= 1 &&
+        row.sequence_kind_key === "world_modal_kind_payout_route" &&
+        row.risk_context?.flow_key === "payout_lane:payout"
     )
   );
   assert.ok(

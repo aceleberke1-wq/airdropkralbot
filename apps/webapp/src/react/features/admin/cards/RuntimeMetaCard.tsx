@@ -113,6 +113,7 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
         {props.rows.slice(0, 6).map((row, index) => (
           <span className="akrChip" key={`${props.title}_${String(row.bucket_key || index)}`}>
             {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
+            {renderRiskContextSuffix(row)}
           </span>
         ))}
       </div>
@@ -136,6 +137,7 @@ function DailyBreakdownList(props: { title: string; rows: Array<Record<string, u
         {props.rows.slice(0, 12).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}_${String(row.bucket_key || index)}`}>
             {String(row.day || "-")} | {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
+            {renderRiskContextSuffix(row)}
           </p>
         ))}
       </div>

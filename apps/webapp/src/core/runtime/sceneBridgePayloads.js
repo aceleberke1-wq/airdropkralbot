@@ -549,6 +549,172 @@ function buildLoopRiskFocusKeyText(source, familyKey = "") {
   return focusKeyText || riskKeyText || "";
 }
 
+function buildLoopFlowKeyText(source, familyKey = "") {
+  const row = asRecord(source);
+  const focusKeyText = buildLoopFocusKeyText(row, familyKey);
+  const family_key =
+    toText(row.familyKey || row.family_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[1], "").toLowerCase() ||
+    toText(familyKey, "").toLowerCase();
+  const microflow_key =
+    toText(row.microflowKey || row.microflow_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[2], "").toLowerCase();
+  if (family_key && microflow_key) {
+    return `${family_key}:${microflow_key}`;
+  }
+  return family_key || microflow_key || "";
+}
+
+function normalizeLoopBridgeContextKey(value) {
+  return toText(value, "")
+    .toLowerCase()
+    .replace(/^world_(entry|modal|sequence)_kind_/, "")
+    .replace(/^world_modal_lane_/, "")
+    .replace(/_(flow|pod|sequence|terminal|console|route)$/g, "")
+    .replace(/__+/g, "_")
+    .trim();
+}
+
+function resolveLoopBridgeEntryKindKey(familyKey, microflowKey) {
+  const microflow = normalizeLoopBridgeContextKey(microflowKey);
+  const family = normalizeLoopBridgeContextKey(familyKey);
+  switch (microflow) {
+    case "duel":
+      return "world_entry_kind_duel_console";
+    case "ladder":
+      return "world_entry_kind_ladder_console";
+    case "telemetry":
+    case "tick":
+      return "world_entry_kind_telemetry_console";
+    case "offer":
+    case "mission":
+      return "world_entry_kind_mission_terminal";
+    case "claim":
+      return "world_entry_kind_claim_terminal";
+    case "streak":
+      return "world_entry_kind_streak_terminal";
+    case "wallet":
+      return "world_entry_kind_wallet_terminal";
+    case "payout":
+      return "world_entry_kind_payout_terminal";
+    case "premium":
+      return "world_entry_kind_premium_terminal";
+    case "route":
+      return "world_entry_kind_rewards_vault";
+    case "queue":
+      return "world_entry_kind_queue_console";
+    case "runtime":
+      return "world_entry_kind_runtime_console";
+    case "dispatch":
+      return "world_entry_kind_dispatch_console";
+    case "travel":
+    case "season":
+      return "world_entry_kind_hub_portal";
+    default:
+      break;
+  }
+  switch (family) {
+    case "duel":
+      return "world_entry_kind_duel_console";
+    case "ladder":
+      return "world_entry_kind_ladder_console";
+    case "telemetry":
+      return "world_entry_kind_telemetry_console";
+    case "offer":
+    case "loot":
+      return "world_entry_kind_mission_terminal";
+    case "claim":
+      return "world_entry_kind_claim_terminal";
+    case "streak":
+      return "world_entry_kind_streak_terminal";
+    case "wallet":
+      return "world_entry_kind_wallet_terminal";
+    case "payout":
+      return "world_entry_kind_payout_terminal";
+    case "route":
+      return "world_entry_kind_rewards_vault";
+    case "premium":
+      return "world_entry_kind_premium_terminal";
+    case "queue":
+      return "world_entry_kind_queue_console";
+    case "runtime":
+      return "world_entry_kind_runtime_console";
+    case "dispatch":
+      return "world_entry_kind_dispatch_console";
+    default:
+      return "world_entry_kind_hub_portal";
+  }
+}
+
+function resolveLoopBridgeSequenceKindKey(familyKey, microflowKey) {
+  const microflow = normalizeLoopBridgeContextKey(microflowKey);
+  const family = normalizeLoopBridgeContextKey(familyKey);
+  switch (microflow) {
+    case "duel":
+      return "world_modal_kind_duel_sequence";
+    case "ladder":
+      return "world_modal_kind_ladder_sequence";
+    case "telemetry":
+    case "tick":
+      return "world_modal_kind_telemetry_scan";
+    case "offer":
+    case "mission":
+      return "world_modal_kind_mission_terminal";
+    case "claim":
+      return "world_modal_kind_contract_sequence";
+    case "streak":
+      return "world_modal_kind_streak_sync";
+    case "wallet":
+      return "world_modal_kind_wallet_terminal";
+    case "payout":
+    case "route":
+      return "world_modal_kind_payout_route";
+    case "premium":
+      return "world_modal_kind_premium_unlock";
+    case "queue":
+      return "world_modal_kind_queue_review";
+    case "runtime":
+      return "world_modal_kind_runtime_scan";
+    case "dispatch":
+      return "world_modal_kind_dispatch_sequence";
+    case "travel":
+    case "season":
+      return "world_modal_kind_travel_gate";
+    default:
+      break;
+  }
+  switch (family) {
+    case "duel":
+      return "world_modal_kind_duel_sequence";
+    case "ladder":
+      return "world_modal_kind_ladder_sequence";
+    case "telemetry":
+      return "world_modal_kind_telemetry_scan";
+    case "offer":
+    case "loot":
+      return "world_modal_kind_mission_terminal";
+    case "claim":
+      return "world_modal_kind_contract_sequence";
+    case "streak":
+      return "world_modal_kind_streak_sync";
+    case "wallet":
+      return "world_modal_kind_wallet_terminal";
+    case "payout":
+    case "route":
+      return "world_modal_kind_payout_route";
+    case "premium":
+      return "world_modal_kind_premium_unlock";
+    case "queue":
+      return "world_modal_kind_queue_review";
+    case "runtime":
+      return "world_modal_kind_runtime_scan";
+    case "dispatch":
+      return "world_modal_kind_dispatch_sequence";
+    default:
+      return "world_modal_kind_travel_gate";
+  }
+}
+
 function buildLoopBridgeMeta(source, familyKey = "") {
   const row = asRecord(source);
   const focus_key = buildLoopFocusKeyText(row, familyKey);
@@ -561,16 +727,42 @@ function buildLoopBridgeMeta(source, familyKey = "") {
   const microflow_key =
     toText(row.microflowKey || row.microflow_key, "").toLowerCase() ||
     toText(focus_key.split(":")[2], "").toLowerCase();
-  const entry_kind_key = toText(row.entryKindKey || row.entry_kind_key, "").toLowerCase();
-  const sequence_kind_key = toText(row.sequenceKindKey || row.sequence_kind_key, "").toLowerCase();
+  const flow_key = buildLoopFlowKeyText(row, familyKey);
+  const entry_kind_key =
+    toText(row.entryKindKey || row.entry_kind_key, "").toLowerCase() ||
+    resolveLoopBridgeEntryKindKey(family_key, microflow_key);
+  const sequence_kind_key =
+    toText(row.sequenceKindKey || row.sequence_kind_key, "").toLowerCase() ||
+    resolveLoopBridgeSequenceKindKey(family_key, microflow_key);
+  const risk_health_band_key = inferLoopHealthBandKey(row);
+  const risk_attention_band_key = inferLoopAttentionBandKey(row);
+  const risk_trend_direction_key = inferLoopTrendDirectionKey(row);
+  const risk_context = {
+    family_key,
+    flow_key,
+    microflow_key,
+    focus_key,
+    risk_key,
+    risk_focus_key,
+    risk_health_band_key,
+    risk_attention_band_key,
+    risk_trend_direction_key,
+    entry_kind_key,
+    sequence_kind_key
+  };
   return {
     focus_key,
     risk_key,
     risk_focus_key,
     family_key,
+    flow_key,
     microflow_key,
+    risk_health_band_key,
+    risk_attention_band_key,
+    risk_trend_direction_key,
     entry_kind_key,
-    sequence_kind_key
+    sequence_kind_key,
+    risk_context
   };
 }
 
