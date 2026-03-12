@@ -88,7 +88,10 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_tone_label_key, "world_hud_tone_central_hub");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].personality_label_key, "world_personality_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].personality_band_key, "glide");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_layout_key, "hub_glide");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "cool");
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].actor_motion_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_orbit_bias_scalar > 1);
   assert.ok(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].actor_motion_scalar >
       state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hotspot_motion_scalar
@@ -195,9 +198,13 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].director_pace_label_key, "world_director_pace_arena");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].personality_label_key, "world_personality_assault");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].personality_band_key, "aggressive");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_layout_key, "arena_stack");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "hot");
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].orbit_spin_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].ring_pulse_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].satellite_orbit_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_drift_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_target_lift_scalar > 1);
   assert.ok(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].actor_motion_scalar >
       state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hotspot_motion_scalar
@@ -281,7 +288,11 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_tone_label_key, "world_hud_tone_ops_citadel");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].personality_label_key, "world_personality_dispatch");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].personality_band_key, "overwatch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_layout_key, "ops_grid");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "hot");
   assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].ring_pulse_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].camera_target_lift_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].camera_orbit_bias_scalar < 1);
   assert.ok(
     state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].actor_motion_scalar >
       state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hotspot_motion_scalar

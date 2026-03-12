@@ -172,6 +172,12 @@ type ProtocolCardFlowPod = {
     hotspot_motion_scalar?: number;
     ring_pulse_scalar?: number;
     satellite_orbit_scalar?: number;
+    hud_layout_key?: string;
+    hud_emphasis_band_key?: string;
+    camera_drift_scalar?: number;
+    camera_tilt_scalar?: number;
+    camera_target_lift_scalar?: number;
+    camera_orbit_bias_scalar?: number;
     stage_label_key?: string;
     stage_value?: string;
     stage_status_key?: string;
@@ -1178,6 +1184,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const microflowSatelliteOrbitScalar = Number.isFinite(Number(microflowFocus?.satellite_orbit_scalar))
             ? Number(microflowFocus?.satellite_orbit_scalar)
             : 1;
+          const microflowCameraDriftScalar = Number.isFinite(Number(microflowFocus?.camera_drift_scalar))
+            ? Number(microflowFocus?.camera_drift_scalar)
+            : 1;
+          const microflowCameraTiltScalar = Number.isFinite(Number(microflowFocus?.camera_tilt_scalar))
+            ? Number(microflowFocus?.camera_tilt_scalar)
+            : 1;
+          const microflowCameraTargetLiftScalar = Number.isFinite(Number(microflowFocus?.camera_target_lift_scalar))
+            ? Number(microflowFocus?.camera_target_lift_scalar)
+            : 1;
+          const microflowCameraOrbitBiasScalar = Number.isFinite(Number(microflowFocus?.camera_orbit_bias_scalar))
+            ? Number(microflowFocus?.camera_orbit_bias_scalar)
+            : 1;
           const motionScalar =
             (worldState.reduced_motion ? 0.22 : 1) *
             directorProfile.motion_scalar *
@@ -1215,12 +1233,14 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             Math.sin(now) * 0.08 * motionScalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
           const targetAlpha =
             cameraProfile.alpha_base +
-            now * worldState.orbit_speed * cameraProfile.orbit_scalar +
+            now * worldState.orbit_speed * cameraProfile.orbit_scalar * microflowCameraOrbitBiasScalar +
+            Math.sin(now * 0.27) * 0.018 * cameraProfile.sway_scalar * motionScalar * microflowCameraDriftScalar +
             (focusHotspot?.camera_alpha_offset || 0) +
             microflowAlphaOffset;
           const targetBeta =
             cameraProfile.beta_base +
-            Math.sin(now * 0.32) * 0.03 * cameraProfile.sway_scalar * motionScalar * microflowSwayScalar +
+            Math.sin(now * 0.32) * 0.03 * cameraProfile.sway_scalar * motionScalar * microflowSwayScalar * microflowCameraTiltScalar +
+            Math.cos(now * 0.23) * 0.014 * motionScalar * microflowCameraTiltScalar +
             (focusHotspot?.camera_beta_offset || 0) +
             microflowBetaOffset;
           camera.alpha +=
@@ -1230,12 +1250,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           if (focusHotspot) {
             camera.target.x += (focusHotspot.x - camera.target.x) * cameraProfile.focus_lerp * microflowFocusLerpScalar;
             camera.target.y +=
-              (focusHotspot.focus_y + podFocusYOffset + microflowFocusYOffset - camera.target.y) *
+              (focusHotspot.focus_y * microflowCameraTargetLiftScalar + podFocusYOffset + microflowFocusYOffset - camera.target.y) *
               cameraProfile.focus_lerp *
               microflowFocusLerpScalar;
             camera.target.z += (focusHotspot.z - camera.target.z) * cameraProfile.focus_lerp * microflowFocusLerpScalar;
             const desiredRadius =
-              cameraProfile.radius * focusHotspot.camera_radius_scale * podRadiusScale * microflowRadiusScale;
+              cameraProfile.radius * focusHotspot.camera_radius_scale * podRadiusScale * microflowRadiusScale * microflowCameraOrbitBiasScalar;
             camera.radius += (desiredRadius - camera.radius) * cameraProfile.radius_lerp * microflowRadiusLerpScalar;
           }
           satellites.forEach((entry, index) => {
@@ -1334,13 +1354,20 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-district={worldState.district_key}
       data-personality={selectedMicroflow?.personality_key || ""}
       data-personality-band={selectedMicroflow?.personality_band_key || ""}
+      data-hud-layout={selectedMicroflow?.hud_layout_key || worldState.hud_profile.hud_profile_key}
+      data-hud-emphasis={selectedMicroflow?.hud_emphasis_band_key || ""}
     >
       <canvas
         ref={canvasRef}
         className="akrSceneWorldCanvas"
         aria-label={`${t(props.lang, "world_scene_title")} ${t(props.lang, worldState.district_label_key as never)}`}
       />
-      <div className="akrSceneWorldHud akrGlass" data-tone={selectedMicroflow?.personality_band_key || ""}>
+      <div
+        className="akrSceneWorldHud akrGlass"
+        data-tone={selectedMicroflow?.personality_band_key || ""}
+        data-hud-layout={selectedMicroflow?.hud_layout_key || worldState.hud_profile.hud_profile_key}
+        data-hud-emphasis={selectedMicroflow?.hud_emphasis_band_key || ""}
+      >
         <strong>{t(props.lang, worldState.district_label_key as never)}</strong>
         <span>{t(props.lang, worldState.mode_label_key as never)}</span>
         {worldState.hud_profile.show_density_chip ? (

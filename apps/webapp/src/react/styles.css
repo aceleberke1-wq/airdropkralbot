@@ -151,6 +151,57 @@ body {
   border-color: rgba(123, 230, 255, 0.22);
 }
 
+.akrSceneWorldHud[data-hud-layout="hub_glide"] {
+  max-width: min(680px, calc(100vw - 32px));
+}
+
+.akrSceneWorldHud[data-hud-layout="arena_stack"] {
+  max-width: min(720px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(28, 11, 28, 0.8), rgba(54, 14, 28, 0.62));
+}
+
+.akrSceneWorldHud[data-hud-layout="arena_scope"] {
+  max-width: min(720px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(7, 22, 36, 0.82), rgba(8, 34, 52, 0.58));
+}
+
+.akrSceneWorldHud[data-hud-layout="mission_stack"] {
+  max-width: min(700px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(19, 28, 24, 0.8), rgba(20, 45, 33, 0.56));
+}
+
+.akrSceneWorldHud[data-hud-layout="mission_sync"] {
+  max-width: min(700px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(9, 30, 28, 0.8), rgba(12, 48, 46, 0.56));
+}
+
+.akrSceneWorldHud[data-hud-layout="exchange_ledger"] {
+  max-width: min(720px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(32, 21, 11, 0.82), rgba(54, 35, 12, 0.58));
+}
+
+.akrSceneWorldHud[data-hud-layout="ops_grid"] {
+  max-width: min(760px, calc(100vw - 32px));
+  background: linear-gradient(135deg, rgba(12, 16, 28, 0.84), rgba(16, 24, 46, 0.62));
+}
+
+.akrSceneWorldHud[data-hud-emphasis="hot"] {
+  box-shadow: 0 18px 42px rgba(88, 18, 28, 0.34);
+}
+
+.akrSceneWorldHud[data-hud-emphasis="warm"] {
+  box-shadow: 0 18px 42px rgba(80, 42, 12, 0.28);
+}
+
+.akrSceneWorldHud[data-hud-emphasis="cool"] {
+  box-shadow: 0 18px 42px rgba(10, 42, 64, 0.28);
+}
+
+.akrSceneWorldHud[data-hud-emphasis="low"] {
+  box-shadow: 0 16px 34px rgba(8, 14, 26, 0.22);
+  opacity: 0.96;
+}
+
 .akrSceneWorldHud strong {
   color: var(--akr-accent-2);
   text-transform: uppercase;
