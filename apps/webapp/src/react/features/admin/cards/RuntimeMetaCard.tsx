@@ -96,6 +96,29 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
   );
 }
 
+function DailyBreakdownList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 12).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}_${String(row.bucket_key || index)}`}>
+            {String(row.day || "-")} | {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SceneDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
   if (!props.rows.length) {
     return (
@@ -567,6 +590,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskRowsDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_rows_daily_7d
   );
+  const sceneLoopDistrictMicroflowRiskBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskBreakdownDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_breakdown_daily_7d
+  );
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
   const liveOpsSceneRuntime = asRecord(liveOpsKpi?.scene_runtime);
@@ -914,6 +943,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_rows_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskRowsDaily}
           loopKeyField="loop_microflow_key"
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_breakdown_title")}
+          rows={sceneLoopDistrictMicroflowRiskBreakdown}
+        />
+        <DailyBreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskBreakdownDaily}
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>

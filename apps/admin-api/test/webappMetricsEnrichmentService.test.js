@@ -306,4 +306,24 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_microflow_risk_rows_daily_7d[0].loop_microflow_key, "payout");
   assert.equal(enriched.scene_loop_district_microflow_risk_rows_daily_7d[0].risk_key, "yellow:watch:no_data");
   assert.ok(enriched.scene_loop_district_microflow_risk_rows_daily_7d[0].priority_score > 2000);
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_breakdown_7d.some(
+      (row) => row.bucket_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_breakdown_7d.some(
+      (row) => row.bucket_key === "yellow:watch:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_breakdown_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "yellow:watch:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_breakdown_daily_7d.some(
+      (row) => row.day === "2026-03-07" && row.bucket_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
 });

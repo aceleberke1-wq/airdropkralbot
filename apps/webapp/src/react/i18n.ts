@@ -475,6 +475,10 @@ const DICT = {
       "District x Mikroakis Risk Satirlari",
     admin_runtime_scene_loop_district_microflow_risk_rows_daily_title:
       "District x Mikroakis Gunluk Risk Satirlari",
+    admin_runtime_scene_loop_district_microflow_risk_breakdown_title:
+      "District x Mikroakis Risk Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:
+      "District x Mikroakis Gunluk Risk Dagilimi",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Nedenleri",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
@@ -1443,6 +1447,10 @@ const DICT = {
       "District x Microflow Risk Rows",
     admin_runtime_scene_loop_district_microflow_risk_rows_daily_title:
       "District x Microflow Daily Risk Rows",
+    admin_runtime_scene_loop_district_microflow_risk_breakdown_title:
+      "District x Microflow Risk Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:
+      "District x Microflow Daily Risk Breakdown",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Reasons",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
