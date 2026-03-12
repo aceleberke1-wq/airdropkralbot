@@ -150,8 +150,18 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
       { day: "2026-03-08", district_key: "exchange_district", loop_family_key: "payout_flow", total_count: 3, live_count: 2, blocked_count: 1 },
       { day: "2026-03-07", district_key: "exchange_district", loop_family_key: "wallet_flow", total_count: 2, live_count: 1, blocked_count: 0 }
     ],
+    scene_loop_district_microflow_daily_breakdown_7d: [
+      { day: "2026-03-08", district_key: "arena_prime", loop_microflow_key: "world_modal_lane_duel_sync:duel", total_count: 4, live_count: 3, blocked_count: 1 },
+      { day: "2026-03-07", district_key: "arena_prime", loop_microflow_key: "world_modal_lane_duel_sync:duel", total_count: 2, live_count: 1, blocked_count: 1 },
+      { day: "2026-03-08", district_key: "exchange_district", loop_microflow_key: "world_modal_lane_payout_lane:payout", total_count: 3, live_count: 2, blocked_count: 1 },
+      { day: "2026-03-07", district_key: "exchange_district", loop_microflow_key: "world_modal_lane_wallet_link:wallet", total_count: 2, live_count: 1, blocked_count: 0 }
+    ],
     scene_loop_district_breakdown_24h: [{ bucket_key: "arena_prime", item_count: 6 }],
     scene_loop_family_breakdown_24h: [{ bucket_key: "duel_flow", item_count: 4 }, { bucket_key: "payout_flow", item_count: 3 }],
+    scene_loop_microflow_breakdown_24h: [
+      { bucket_key: "world_modal_lane_duel_sync:duel", item_count: 4 },
+      { bucket_key: "world_modal_lane_payout_lane:payout", item_count: 3 }
+    ],
     scene_loop_status_breakdown_24h: [{ bucket_key: "active", item_count: 8 }],
     scene_loop_sequence_breakdown_24h: [{ bucket_key: "world_modal_kind_duel_sequence", item_count: 4 }],
     scene_loop_entry_breakdown_24h: [{ bucket_key: "world_entry_kind_duel_console", item_count: 4 }]
@@ -263,4 +273,18 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_family_attention_priority_daily_7d[0].loop_family_key, "payout");
   assert.equal(enriched.scene_loop_district_family_attention_priority_daily_7d[0].attention_band, "watch");
   assert.ok(enriched.scene_loop_district_family_attention_priority_daily_7d[0].priority_score > 2000);
+  assert.equal(enriched.scene_loop_microflow_breakdown_24h[0].bucket_key, "duel");
+  assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].district_key, "arena_prime");
+  assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].loop_microflow_key, "duel");
+  assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].latest_health_band, "yellow");
+  assert.equal(enriched.scene_loop_district_microflow_latest_band_breakdown_7d[0].bucket_key, "yellow");
+  assert.equal(enriched.scene_loop_district_microflow_trend_breakdown_7d[0].bucket_key, "no_data");
+  assert.equal(enriched.scene_loop_district_microflow_attention_breakdown_7d[0].bucket_key, "watch");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].district_key, "exchange_district");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].loop_microflow_key, "wallet");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].attention_band, "alert");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d[0].loop_microflow_key, "payout");
+  assert.equal(enriched.scene_loop_district_microflow_attention_priority_7d[0].loop_microflow_key, "wallet");
+  assert.equal(enriched.scene_loop_district_microflow_attention_priority_daily_7d[0].loop_microflow_key, "payout");
 });

@@ -454,6 +454,19 @@ const DICT = {
       "District x Aile Attention Priority",
     admin_runtime_scene_loop_district_family_attention_priority_daily_title:
       "District x Aile Gunluk Attention Priority",
+    admin_runtime_scene_loop_microflow_title: "Loop Mikroakis Dagilimi",
+    admin_runtime_scene_loop_district_microflow_matrix_title: "District x Mikroakis Matrisi",
+    admin_runtime_scene_loop_district_microflow_latest_band_title: "District x Mikroakis Son Band",
+    admin_runtime_scene_loop_district_microflow_trend_title: "District x Mikroakis Trend",
+    admin_runtime_scene_loop_district_microflow_attention_title: "District x Mikroakis Attention",
+    admin_runtime_scene_loop_district_microflow_health_attention_trend_matrix_title:
+      "District x Mikroakis Risk Matrisi",
+    admin_runtime_scene_loop_district_microflow_health_attention_trend_daily_matrix_title:
+      "District x Mikroakis Gunluk Risk Matrisi",
+    admin_runtime_scene_loop_district_microflow_attention_priority_title:
+      "District x Mikroakis Attention Priority",
+    admin_runtime_scene_loop_district_microflow_attention_priority_daily_title:
+      "District x Mikroakis Gunluk Attention Priority",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Nedenleri",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
@@ -1401,6 +1414,19 @@ const DICT = {
       "District x Family Attention Priority",
     admin_runtime_scene_loop_district_family_attention_priority_daily_title:
       "District x Family Daily Attention Priority",
+    admin_runtime_scene_loop_microflow_title: "Loop Microflow Breakdown",
+    admin_runtime_scene_loop_district_microflow_matrix_title: "District x Microflow Matrix",
+    admin_runtime_scene_loop_district_microflow_latest_band_title: "District x Microflow Latest Band",
+    admin_runtime_scene_loop_district_microflow_trend_title: "District x Microflow Trend",
+    admin_runtime_scene_loop_district_microflow_attention_title: "District x Microflow Attention",
+    admin_runtime_scene_loop_district_microflow_health_attention_trend_matrix_title:
+      "District x Microflow Risk Matrix",
+    admin_runtime_scene_loop_district_microflow_health_attention_trend_daily_matrix_title:
+      "District x Microflow Daily Risk Matrix",
+    admin_runtime_scene_loop_district_microflow_attention_priority_title:
+      "District x Microflow Attention Priority",
+    admin_runtime_scene_loop_district_microflow_attention_priority_daily_title:
+      "District x Microflow Daily Attention Priority",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Reasons",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",

@@ -4182,8 +4182,10 @@ async function buildAdminMetrics(db) {
       scene_loop_daily_breakdown_7d: [],
       scene_loop_district_daily_breakdown_7d: [],
       scene_loop_district_family_daily_breakdown_7d: [],
+      scene_loop_district_microflow_daily_breakdown_7d: [],
       scene_loop_district_breakdown_24h: [],
       scene_loop_family_breakdown_24h: [],
+      scene_loop_microflow_breakdown_24h: [],
       scene_loop_status_breakdown_24h: [],
       scene_loop_sequence_breakdown_24h: [],
       scene_loop_entry_breakdown_24h: [],
@@ -4199,7 +4201,16 @@ async function buildAdminMetrics(db) {
       scene_loop_district_family_health_attention_trend_daily_breakdown_7d: [],
       scene_loop_district_family_health_attention_trend_daily_matrix_7d: [],
       scene_loop_district_family_attention_priority_7d: [],
-      scene_loop_district_family_attention_priority_daily_7d: []
+      scene_loop_district_family_attention_priority_daily_7d: [],
+      scene_loop_district_microflow_matrix_7d: [],
+      scene_loop_district_microflow_latest_band_breakdown_7d: [],
+      scene_loop_district_microflow_trend_breakdown_7d: [],
+      scene_loop_district_microflow_attention_breakdown_7d: [],
+      scene_loop_district_microflow_health_attention_trend_matrix_7d: [],
+      scene_loop_district_microflow_health_attention_trend_daily_breakdown_7d: [],
+      scene_loop_district_microflow_health_attention_trend_daily_matrix_7d: [],
+      scene_loop_district_microflow_attention_priority_7d: [],
+      scene_loop_district_microflow_attention_priority_daily_7d: []
   };
 
   const coreRes = await db.query(
@@ -4533,6 +4544,48 @@ async function buildAdminMetrics(db) {
          ) AS scene_loop_district_family_daily_breakdown_7d,
          (
            SELECT COALESCE(
+             json_agg(
+               json_build_object(
+                 'day', day,
+                 'district_key', district_key,
+                 'loop_microflow_key', loop_microflow_key,
+                 'total_count', total_count,
+                 'live_count', live_count,
+                 'blocked_count', blocked_count
+               )
+               ORDER BY day DESC, total_count DESC, district_key, loop_microflow_key
+             ),
+             '[]'::json
+           )
+           FROM (
+             SELECT
+               to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+               COALESCE(NULLIF(lower(payload_json->>'district_key'), ''), 'unknown') AS district_key,
+               COALESCE(
+                 NULLIF(lower(payload_json->>'microflow_key'), ''),
+                 NULLIF(lower(payload_json->>'protocol_pod_key'), ''),
+                 NULLIF(lower(payload_json->>'entry_kind_key'), ''),
+                 'unknown'
+               ) AS loop_microflow_key,
+               COUNT(*)::int AS total_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+                   IN ('active', 'ready', 'open', 'live', 'available', 'engaged', 'armed')
+               )::int AS live_count,
+               COUNT(*) FILTER (
+                 WHERE COALESCE(NULLIF(lower(payload_json->>'loop_status_key'), ''), 'unknown')
+                   IN ('blocked', 'locked', 'review', 'failed', 'cooldown')
+               )::int AS blocked_count
+             FROM v5_webapp_ui_events
+             WHERE created_at >= now() - interval '7 days'
+               AND event_key = 'runtime.scene.loop'
+             GROUP BY 1, 2, 3
+             ORDER BY day DESC, total_count DESC, district_key, loop_microflow_key
+             LIMIT 126
+           ) district_microflow_daily_rows
+         ) AS scene_loop_district_microflow_daily_breakdown_7d,
+         (
+           SELECT COALESCE(
              json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
              '[]'::json
            )
@@ -4564,6 +4617,25 @@ async function buildAdminMetrics(db) {
              LIMIT 8
            ) family_rows
          ) AS scene_loop_family_breakdown_24h,
+         (
+           SELECT COALESCE(
+             json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
+             '[]'::json
+           )
+           FROM (
+             SELECT COALESCE(
+                      NULLIF(lower(payload_json->>'microflow_key'), ''),
+                      NULLIF(lower(payload_json->>'protocol_pod_key'), ''),
+                      NULLIF(lower(payload_json->>'entry_kind_key'), ''),
+                      'unknown'
+                    ) AS bucket_key,
+                    COUNT(*)::int AS item_count
+             FROM scoped
+             GROUP BY 1
+             ORDER BY item_count DESC, bucket_key
+             LIMIT 10
+           ) microflow_rows
+         ) AS scene_loop_microflow_breakdown_24h,
          (
            SELECT COALESCE(
              json_agg(json_build_object('bucket_key', bucket_key, 'item_count', item_count) ORDER BY item_count DESC, bucket_key),
@@ -4622,11 +4694,17 @@ async function buildAdminMetrics(db) {
     metrics.scene_loop_district_family_daily_breakdown_7d = Array.isArray(sceneLoopRow.scene_loop_district_family_daily_breakdown_7d)
       ? sceneLoopRow.scene_loop_district_family_daily_breakdown_7d
       : [];
+    metrics.scene_loop_district_microflow_daily_breakdown_7d = Array.isArray(sceneLoopRow.scene_loop_district_microflow_daily_breakdown_7d)
+      ? sceneLoopRow.scene_loop_district_microflow_daily_breakdown_7d
+      : [];
     metrics.scene_loop_district_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_district_breakdown_24h)
       ? sceneLoopRow.scene_loop_district_breakdown_24h
       : [];
     metrics.scene_loop_family_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_family_breakdown_24h)
       ? sceneLoopRow.scene_loop_family_breakdown_24h
+      : [];
+    metrics.scene_loop_microflow_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_microflow_breakdown_24h)
+      ? sceneLoopRow.scene_loop_microflow_breakdown_24h
       : [];
     metrics.scene_loop_status_breakdown_24h = Array.isArray(sceneLoopRow.scene_loop_status_breakdown_24h)
       ? sceneLoopRow.scene_loop_status_breakdown_24h

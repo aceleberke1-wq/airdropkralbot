@@ -135,6 +135,22 @@ function normalizeSceneLoopFamilyKey(value) {
     .replace(/__+/g, "_") || "unknown";
 }
 
+function normalizeSceneLoopMicroflowKey(value) {
+  const source = String(value || "unknown").trim().toLowerCase();
+  if (!source) {
+    return "unknown";
+  }
+  const tail = source.includes(":") ? source.split(":").pop() || source : source;
+  const normalized =
+    tail
+      .replace(/^world_(entry|modal|sequence)_kind_/, "")
+      .replace(/^world_modal_lane_/, "")
+      .replace(/_(flow|pod|sequence|terminal|console|route)$/g, "")
+      .replace(/__+/g, "_")
+      .trim() || normalizeSceneLoopFamilyKey(source);
+  return normalized || "unknown";
+}
+
 function normalizeSceneLoopDistrictFamilyDailyRows(rows, limit = 84) {
   const source = Array.isArray(rows) ? rows : [];
   return source
@@ -158,6 +174,47 @@ function normalizeSceneLoopDistrictFamilyDailyRows(rows, limit = 84) {
       };
     })
     .slice(0, Math.max(1, Math.floor(toNum(limit, 84))));
+}
+
+function normalizeSceneLoopDistrictMicroflowDailyRows(rows, limit = 126) {
+  const source = Array.isArray(rows) ? rows : [];
+  return source
+    .map((row) => ({
+      day: String(row?.day || ""),
+      district_key: String(row?.district_key || "unknown"),
+      loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0)))
+    }))
+    .filter((row) => row.day && row.district_key && row.loop_microflow_key)
+    .map((row) => {
+      const liveShare = toRate(row.live_count, row.total_count);
+      const blockedShare = toRate(row.blocked_count, row.total_count);
+      return {
+        ...row,
+        live_share: liveShare,
+        blocked_share: blockedShare,
+        health_band: resolveSceneLoopDistrictHealthBand(row.total_count, liveShare, blockedShare)
+      };
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 126))));
+}
+
+function toSceneLoopFamilyRowsFromMicroflow(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    loop_family_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key ?? row?.loop_family_key)
+  }));
+}
+
+function mapSceneLoopFamilyRowToMicroflow(row) {
+  const source = row && typeof row === "object" ? row : {};
+  const { loop_family_key, ...rest } = source;
+  return {
+    ...rest,
+    loop_microflow_key: normalizeSceneLoopMicroflowKey(loop_family_key)
+  };
 }
 
 function resolveSceneLoopDistrictHealthBand(totalCount, liveShare, blockedShare) {
@@ -755,6 +812,42 @@ function buildSceneLoopDistrictFamilyAttentionPriorityDaily(rows, limit = 18) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
 }
 
+function buildSceneLoopDistrictMicroflowMatrix(rows, limit = 18) {
+  return buildSceneLoopDistrictFamilyMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
+function buildSceneLoopDistrictMicroflowHealthAttentionTrendMatrix(rows, limit = 18) {
+  return buildSceneLoopDistrictFamilyHealthAttentionTrendMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
+function buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyBreakdown(rows, limit = 24) {
+  return buildSceneLoopDistrictFamilyHealthAttentionTrendDailyBreakdown(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
+function buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix(rows, limit = 24) {
+  return buildSceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
+function buildSceneLoopDistrictMicroflowAttentionPriority(rows, limit = 18) {
+  return buildSceneLoopDistrictFamilyAttentionPriority(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
+function buildSceneLoopDistrictMicroflowAttentionPriorityDaily(rows, limit = 24) {
+  return buildSceneLoopDistrictFamilyAttentionPriorityDaily(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
+    mapSceneLoopFamilyRowToMicroflow
+  );
+}
+
 function resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare) {
   const latestBand = String(latestHealthBand || "no_data");
   const trend = String(trendDirection || "no_data");
@@ -970,6 +1063,9 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_loop_district_family_daily_breakdown_7d = normalizeSceneLoopDistrictFamilyDailyRows(
     metrics.scene_loop_district_family_daily_breakdown_7d
   );
+  metrics.scene_loop_district_microflow_daily_breakdown_7d = normalizeSceneLoopDistrictMicroflowDailyRows(
+    metrics.scene_loop_district_microflow_daily_breakdown_7d
+  );
   metrics.scene_loop_events_7d = metrics.scene_loop_daily_breakdown_7d.reduce(
     (sum, row) => sum + Math.max(0, Math.floor(toNum(row.total_count, 0))),
     0
@@ -1025,6 +1121,13 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
       bucket_key: normalizeSceneLoopFamilyKey(row?.bucket_key)
     }))
   );
+  metrics.scene_loop_microflow_breakdown_24h = normalizeBreakdownRows(
+    (Array.isArray(metrics.scene_loop_microflow_breakdown_24h) ? metrics.scene_loop_microflow_breakdown_24h : []).map((row) => ({
+      ...row,
+      bucket_key: normalizeSceneLoopMicroflowKey(row?.bucket_key)
+    })),
+    10
+  );
   metrics.scene_loop_status_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_status_breakdown_24h);
   metrics.scene_loop_sequence_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_sequence_breakdown_24h);
   metrics.scene_loop_entry_breakdown_24h = normalizeBreakdownRows(metrics.scene_loop_entry_breakdown_24h);
@@ -1064,6 +1167,32 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   );
   metrics.scene_loop_district_family_attention_priority_daily_7d = buildSceneLoopDistrictFamilyAttentionPriorityDaily(
     metrics.scene_loop_district_family_health_attention_trend_daily_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_matrix_7d = buildSceneLoopDistrictMicroflowMatrix(
+    metrics.scene_loop_district_microflow_daily_breakdown_7d
+  );
+  metrics.scene_loop_district_microflow_latest_band_breakdown_7d = buildSceneLoopDistrictFamilyLatestBandBreakdown(
+    metrics.scene_loop_district_microflow_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_trend_breakdown_7d = buildSceneLoopDistrictFamilyTrendBreakdown(
+    metrics.scene_loop_district_microflow_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_attention_breakdown_7d = buildSceneLoopDistrictFamilyAttentionBreakdown(
+    metrics.scene_loop_district_microflow_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_health_attention_trend_matrix_7d =
+    buildSceneLoopDistrictMicroflowHealthAttentionTrendMatrix(metrics.scene_loop_district_microflow_matrix_7d);
+  metrics.scene_loop_district_microflow_health_attention_trend_daily_breakdown_7d =
+    buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyBreakdown(metrics.scene_loop_district_microflow_daily_breakdown_7d);
+  metrics.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d =
+    buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix(
+      metrics.scene_loop_district_microflow_health_attention_trend_daily_breakdown_7d
+    );
+  metrics.scene_loop_district_microflow_attention_priority_7d = buildSceneLoopDistrictMicroflowAttentionPriority(
+    metrics.scene_loop_district_microflow_health_attention_trend_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_attention_priority_daily_7d = buildSceneLoopDistrictMicroflowAttentionPriorityDaily(
+    metrics.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d
   );
   metrics.scene_runtime_daily_breakdown_7d = normalizeSceneDailyRows(metrics.scene_runtime_daily_breakdown_7d);
   const sceneDailyRows = metrics.scene_runtime_daily_breakdown_7d;
@@ -1150,6 +1279,7 @@ module.exports = {
   normalizeSceneDailyRows,
   normalizeSceneLoopDailyRows,
   normalizeSceneLoopDistrictDailyRows,
+  normalizeSceneLoopDistrictMicroflowDailyRows,
   resolveSceneLoopHealthBand,
   resolveSceneLoopDistrictHealthBand,
   resolveSceneLoopDistrictAttentionBand,
@@ -1170,6 +1300,12 @@ module.exports = {
   buildSceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix,
   buildSceneLoopDistrictFamilyAttentionPriority,
   buildSceneLoopDistrictFamilyAttentionPriorityDaily,
+  buildSceneLoopDistrictMicroflowMatrix,
+  buildSceneLoopDistrictMicroflowHealthAttentionTrendMatrix,
+  buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyBreakdown,
+  buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix,
+  buildSceneLoopDistrictMicroflowAttentionPriority,
+  buildSceneLoopDistrictMicroflowAttentionPriorityDaily,
   resolveSceneLoopTrendDirection,
   buildSceneBandBreakdown,
   buildSceneLoopBandBreakdown,

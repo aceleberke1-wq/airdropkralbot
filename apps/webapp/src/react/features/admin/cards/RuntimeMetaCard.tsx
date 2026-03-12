@@ -173,7 +173,11 @@ function SceneLoopDistrictMatrixList(props: { title: string; rows: Array<Record<
   );
 }
 
-function SceneLoopDistrictFamilyMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+function SceneLoopDistrictFamilyMatrixList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  loopKeyField?: string;
+}) {
   if (!props.rows.length) {
     return (
       <div>
@@ -186,25 +190,32 @@ function SceneLoopDistrictFamilyMatrixList(props: { title: string; rows: Array<R
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 12).map((row, index) => (
-          <p
-            className="akrMutedLine"
-            key={`${props.title}_${String(row.district_key || index)}_${String(row.loop_family_key || "family")}`}
-          >
-            {String(row.district_key || "-")} / {String(row.loop_family_key || "-")} | latest{" "}
-            {String(row.latest_health_band || row.health_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
-            {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))} | live{" "}
-            {Math.floor(Number(row.live_count || 0))} | blocked {Math.floor(Number(row.blocked_count || 0))} | attn{" "}
-            {String(row.attention_band || "no_data")} | G/Y/R {Math.floor(Number(row.green_days || 0))}/
-            {Math.floor(Number(row.yellow_days || 0))}/{Math.floor(Number(row.red_days || 0))}
-          </p>
-        ))}
+        {(() => {
+          const loopKeyField = props.loopKeyField || "loop_family_key";
+          return props.rows.slice(0, 12).map((row, index) => (
+            <p
+              className="akrMutedLine"
+              key={`${props.title}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
+            >
+              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | latest{" "}
+              {String(row.latest_health_band || row.health_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
+              {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))} | live{" "}
+              {Math.floor(Number(row.live_count || 0))} | blocked {Math.floor(Number(row.blocked_count || 0))} | attn{" "}
+              {String(row.attention_band || "no_data")} | G/Y/R {Math.floor(Number(row.green_days || 0))}/
+              {Math.floor(Number(row.yellow_days || 0))}/{Math.floor(Number(row.red_days || 0))}
+            </p>
+          ));
+        })()}
       </div>
     </div>
   );
 }
 
-function SceneLoopDistrictFamilyDailyMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+function SceneLoopDistrictFamilyDailyMatrixList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  loopKeyField?: string;
+}) {
   if (!props.rows.length) {
     return (
       <div>
@@ -217,24 +228,31 @@ function SceneLoopDistrictFamilyDailyMatrixList(props: { title: string; rows: Ar
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 18).map((row, index) => (
-          <p
-            className="akrMutedLine"
-            key={`${props.title}_${String(row.day || index)}_${String(row.district_key || "district")}_${String(row.loop_family_key || "family")}`}
-          >
-            {String(row.day || "-")} | {String(row.district_key || "-")} / {String(row.loop_family_key || "-")} | latest{" "}
-            {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
-            {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | loops{" "}
-            {Math.floor(Number(row.total_count || 0))} | live {Math.floor(Number(row.live_count || 0))} | blocked{" "}
-            {Math.floor(Number(row.blocked_count || 0))}
-          </p>
-        ))}
+        {(() => {
+          const loopKeyField = props.loopKeyField || "loop_family_key";
+          return props.rows.slice(0, 18).map((row, index) => (
+            <p
+              className="akrMutedLine"
+              key={`${props.title}_${String(row.day || index)}_${String(row.district_key || "district")}_${String(row[loopKeyField] || "family")}`}
+            >
+              {String(row.day || "-")} | {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | latest{" "}
+              {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
+              {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | loops{" "}
+              {Math.floor(Number(row.total_count || 0))} | live {Math.floor(Number(row.live_count || 0))} | blocked{" "}
+              {Math.floor(Number(row.blocked_count || 0))}
+            </p>
+          ));
+        })()}
       </div>
     </div>
   );
 }
 
-function SceneLoopDistrictFamilyPriorityList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+function SceneLoopDistrictFamilyPriorityList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  loopKeyField?: string;
+}) {
   if (!props.rows.length) {
     return (
       <div>
@@ -247,18 +265,21 @@ function SceneLoopDistrictFamilyPriorityList(props: { title: string; rows: Array
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 12).map((row, index) => (
-          <p
-            className="akrMutedLine"
-            key={`${props.title}_${String(row.day || "latest")}_${String(row.district_key || index)}_${String(row.loop_family_key || "family")}`}
-          >
-            {row.day ? `${String(row.day)} | ` : ""}
-            {String(row.district_key || "-")} / {String(row.loop_family_key || "-")} | priority{" "}
-            {Math.floor(Number(row.priority_score || 0))} | latest {String(row.latest_health_band || row.health_band || "no_data")} |
-            {" "}attn {String(row.attention_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
-            {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))}
-          </p>
-        ))}
+        {(() => {
+          const loopKeyField = props.loopKeyField || "loop_family_key";
+          return props.rows.slice(0, 12).map((row, index) => (
+            <p
+              className="akrMutedLine"
+              key={`${props.title}_${String(row.day || "latest")}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
+            >
+              {row.day ? `${String(row.day)} | ` : ""}
+              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | priority{" "}
+              {Math.floor(Number(row.priority_score || 0))} | latest {String(row.latest_health_band || row.health_band || "no_data")} |{" "}
+              attn {String(row.attention_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
+              {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))}
+            </p>
+          ));
+        })()}
       </div>
     </div>
   );
@@ -501,6 +522,29 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   );
   const sceneLoopDistrictFamilyAttentionPriorityDaily = asRows(
     props.metricsData?.scene_loop_district_family_attention_priority_daily_7d
+  );
+  const sceneLoopMicroflowBreakdown = asRows(props.metricsData?.scene_loop_microflow_breakdown_24h);
+  const sceneLoopDistrictMicroflowMatrix = asRows(props.metricsData?.scene_loop_district_microflow_matrix_7d);
+  const sceneLoopDistrictMicroflowLatestBandBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_latest_band_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowTrendBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_trend_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowAttentionBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_attention_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowHealthAttentionTrendMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_health_attention_trend_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowAttentionPriority = asRows(
+    props.metricsData?.scene_loop_district_microflow_attention_priority_7d
+  );
+  const sceneLoopDistrictMicroflowAttentionPriorityDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_attention_priority_daily_7d
   );
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
@@ -789,6 +833,44 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_priority_daily_title")}
           rows={sceneLoopDistrictFamilyAttentionPriorityDaily}
+        />
+        <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_microflow_title")} rows={sceneLoopMicroflowBreakdown} />
+        <SceneLoopDistrictFamilyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_matrix_title")}
+          rows={sceneLoopDistrictMicroflowMatrix}
+          loopKeyField="loop_microflow_key"
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_latest_band_title")}
+          rows={sceneLoopDistrictMicroflowLatestBandBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_trend_title")}
+          rows={sceneLoopDistrictMicroflowTrendBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_title")}
+          rows={sceneLoopDistrictMicroflowAttentionBreakdown}
+        />
+        <SceneLoopDistrictFamilyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_trend_matrix_title")}
+          rows={sceneLoopDistrictMicroflowHealthAttentionTrendMatrix}
+          loopKeyField="loop_microflow_key"
+        />
+        <SceneLoopDistrictFamilyDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_trend_daily_matrix_title")}
+          rows={sceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix}
+          loopKeyField="loop_microflow_key"
+        />
+        <SceneLoopDistrictFamilyPriorityList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_priority_title")}
+          rows={sceneLoopDistrictMicroflowAttentionPriority}
+          loopKeyField="loop_microflow_key"
+        />
+        <SceneLoopDistrictFamilyPriorityList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_priority_daily_title")}
+          rows={sceneLoopDistrictMicroflowAttentionPriorityDaily}
+          loopKeyField="loop_microflow_key"
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>
