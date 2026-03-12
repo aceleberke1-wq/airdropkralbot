@@ -481,8 +481,12 @@ const DICT = {
       "District x Mikroakis Gunluk Risk Matrix",
     admin_runtime_scene_loop_district_microflow_risk_priority_title:
       "District x Mikroakis Risk Priority",
+    admin_runtime_scene_loop_district_microflow_risk_focus_title:
+      "District x Mikroakis Risk Focus",
     admin_runtime_scene_loop_district_microflow_risk_priority_daily_title:
       "District x Mikroakis Gunluk Risk Priority",
+    admin_runtime_scene_loop_district_microflow_risk_focus_daily_title:
+      "District x Mikroakis Gunluk Risk Focus",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Mikroakis Risk Son Band",
     admin_runtime_scene_loop_district_microflow_risk_health_band_title:
@@ -1519,8 +1523,12 @@ const DICT = {
       "District x Microflow Daily Risk Matrix",
     admin_runtime_scene_loop_district_microflow_risk_priority_title:
       "District x Microflow Risk Priority",
+    admin_runtime_scene_loop_district_microflow_risk_focus_title:
+      "District x Microflow Risk Focus",
     admin_runtime_scene_loop_district_microflow_risk_priority_daily_title:
       "District x Microflow Daily Risk Priority",
+    admin_runtime_scene_loop_district_microflow_risk_focus_daily_title:
+      "District x Microflow Daily Risk Focus",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Microflow Risk Latest Band",
     admin_runtime_scene_loop_district_microflow_risk_health_band_title:

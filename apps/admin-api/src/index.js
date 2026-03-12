@@ -4220,6 +4220,8 @@ async function buildAdminMetrics(db) {
       scene_loop_district_microflow_risk_matrix_daily_7d: [],
       scene_loop_district_microflow_risk_priority_7d: [],
       scene_loop_district_microflow_risk_priority_daily_7d: [],
+      scene_loop_district_microflow_risk_focus_7d: [],
+      scene_loop_district_microflow_risk_focus_daily_7d: [],
       scene_loop_district_microflow_risk_latest_band_breakdown_7d: [],
       scene_loop_district_microflow_risk_health_band_breakdown_7d: [],
       scene_loop_district_microflow_risk_health_band_breakdown_daily_7d: [],

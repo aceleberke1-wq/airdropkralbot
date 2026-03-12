@@ -304,6 +304,7 @@ function SceneLoopDistrictFamilyPriorityList(props: {
               {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")}
               {showFamilyHint && row.loop_family_key ? ` | family ${String(row.loop_family_key)}` : ""} | priority{" "}
               {Math.floor(Number(row.priority_score || 0))}
+              {row.focus_key ? ` | focus ${String(row.focus_key)}` : ""}
               {row.risk_key ? ` | risk ${String(row.risk_key)}` : ""}
               {row.latest_day && !row.day ? ` | latest ${String(row.latest_day)}` : ""}
               {row.day_count ? ` | days ${Math.floor(Number(row.day_count || 0))}` : ""}
@@ -658,6 +659,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   );
   const sceneLoopDistrictMicroflowRiskPriorityDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_priority_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFocus = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFocusDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_focus_daily_7d
   );
   const sceneLoopDistrictMicroflowRiskLatestBandBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_latest_band_breakdown_7d
@@ -1116,8 +1123,18 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           loopKeyField="loop_microflow_key"
         />
         <SceneLoopDistrictFamilyPriorityList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocus}
+          loopKeyField="loop_microflow_key"
+        />
+        <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskPriorityDaily}
+          loopKeyField="loop_microflow_key"
+        />
+        <SceneLoopDistrictFamilyPriorityList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskFocusDaily}
           loopKeyField="loop_microflow_key"
         />
         <BreakdownList
