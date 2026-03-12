@@ -1423,6 +1423,40 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(120, 181, 225, 0.18);
   background: rgba(6, 20, 41, 0.38);
+  appearance: none;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.akrSceneInteractionModalLane:hover,
+.akrSceneInteractionModalLane.is-selected {
+  border-color: rgba(111, 232, 255, 0.42);
+  background: rgba(10, 28, 56, 0.68);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(8, 18, 38, 0.24);
+}
+
+.akrSceneInteractionModalLane:disabled,
+.akrSceneInteractionModalLane.is-passive {
+  cursor: default;
+}
+
+.akrSceneInteractionModalLane b,
+.akrSceneInteractionModalLane small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: #74d8ff;
+}
+
+.akrSceneInteractionModalLane small {
+  color: #9fd3ea;
+  word-break: break-word;
 }
 
 .akrSceneInteractionModalLane span,

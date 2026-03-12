@@ -140,6 +140,26 @@ type ProtocolCardActionItem = {
   action_context?: ClusterActionItem["action_context"];
 };
 
+type InteractionModalLaneCard = {
+  card_key: string;
+  label_key: string;
+  value: string;
+  status_key: string;
+  tone_key?: string;
+  protocol_card_key?: string;
+  protocol_pod_key?: string;
+  family_key?: string;
+  flow_key?: string;
+  microflow_key?: string;
+  action_key?: string;
+  action_label_key?: string;
+  hint_label_key?: string;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  action_context?: ClusterActionItem["action_context"];
+};
+
 type ProtocolCardFlowPod = {
   pod_key: string;
   label_key: string;
@@ -158,6 +178,9 @@ type ProtocolCardFlowPod = {
   stage_label_key?: string;
   stage_value?: string;
   stage_status_key?: string;
+  family_key?: string;
+  flow_key?: string;
+  microflow_key?: string;
   focus_key?: string;
   risk_key?: string;
   risk_focus_key?: string;
@@ -293,6 +316,9 @@ type ProtocolCard = {
   action_key?: string;
   action_label_key?: string;
   is_actionable?: boolean;
+  family_key?: string;
+  flow_key?: string;
+  microflow_key?: string;
   focus_key?: string;
   risk_key?: string;
   risk_focus_key?: string;
@@ -493,6 +519,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     }
     return flows.find((flow) => flow.microflow_key === activeMicroflowKey) || flows[0] || null;
   }, [activeMicroflowKey, selectedProtocolPod]);
+  const selectedModalLane = useMemo(() => {
+    const cards = (worldState.interaction_modal?.modal_cards as Array<InteractionModalLaneCard> | undefined) || [];
+    if (!cards.length) {
+      return null;
+    }
+    return (
+      cards.find((card) => card.protocol_pod_key && card.protocol_pod_key === selectedProtocolPod?.pod_key) ||
+      cards.find((card) => card.protocol_card_key && card.protocol_card_key === selectedProtocolCard?.card_key) ||
+      cards[0] ||
+      null
+    );
+  }, [selectedProtocolCard, selectedProtocolPod, worldState.interaction_modal?.modal_cards]);
   const selectedLoopActionContext = useMemo(
     () => ({
       focusKey: String(selectedMicroflow?.action_context?.focus_key || selectedMicroflow?.focus_key || ""),
@@ -547,6 +585,20 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     }),
     [selectedLoopActionContext]
   );
+  const activateModalLane = useCallback((card: InteractionModalLaneCard | null) => {
+    if (!card) {
+      return;
+    }
+    if (card.protocol_card_key) {
+      setActiveProtocolCardKey(card.protocol_card_key);
+    }
+    if (card.protocol_pod_key) {
+      setActiveProtocolPodKey(card.protocol_pod_key);
+    }
+    if (card.microflow_key) {
+      setActiveMicroflowKey(card.microflow_key);
+    }
+  }, []);
 
   useEffect(() => {
     setTerminalOpen(false);
@@ -2166,15 +2218,32 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 <strong>{worldState.interaction_modal.modal_cards.length}</strong>
               </div>
               <div className="akrSceneInteractionModalLaneGrid">
-                {worldState.interaction_modal.modal_cards.map(
-                  (card: { card_key: string; label_key: string; value: string; status_key: string; tone_key?: string }) => (
-                    <div key={`${worldState.interaction_modal.modal_key}:${card.card_key}`} className={`akrSceneInteractionModalLane is-${card.status_key}`}>
-                      <span>{t(props.lang, card.label_key as never)}</span>
-                      <strong>{card.value}</strong>
-                      {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
-                    </div>
-                  )
-                )}
+                {worldState.interaction_modal.modal_cards.map((card: InteractionModalLaneCard) => (
+                  <button
+                    key={`${worldState.interaction_modal.modal_key}:${card.card_key}`}
+                    type="button"
+                    className={`akrSceneInteractionModalLane is-${card.status_key} ${
+                      selectedModalLane?.card_key === card.card_key ? "is-selected" : ""
+                    } ${card.protocol_card_key || card.protocol_pod_key ? "is-actionable" : "is-passive"}`}
+                    data-focus-key={card.focus_key || ""}
+                    data-risk-key={card.risk_key || ""}
+                    data-risk-focus-key={card.risk_focus_key || ""}
+                    data-family-key={card.family_key || ""}
+                    data-microflow-key={card.microflow_key || ""}
+                    onMouseEnter={() => activateModalLane(card)}
+                    onFocus={() => activateModalLane(card)}
+                    onClick={() => activateModalLane(card)}
+                    aria-pressed={selectedModalLane?.card_key === card.card_key}
+                  >
+                    <span>{t(props.lang, card.label_key as never)}</span>
+                    <strong>{card.value}</strong>
+                    {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
+                    {card.action_label_key ? <b>{t(props.lang, card.action_label_key as never)}</b> : null}
+                    {selectedModalLane?.card_key === card.card_key && card.risk_focus_key ? (
+                      <small>{card.risk_focus_key}</small>
+                    ) : null}
+                  </button>
+                ))}
               </div>
             </div>
           ) : null}
@@ -2243,6 +2312,30 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                   <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
                     <span>{t(props.lang, "world_modal_section_protocol" as never)}</span>
                     <strong>{t(props.lang, selectedProtocolCard.tone_key as never)}</strong>
+                  </div>
+                ) : null}
+                {selectedProtocolCard.family_key ? (
+                  <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
+                    <span>Family</span>
+                    <strong>{selectedProtocolCard.family_key}</strong>
+                  </div>
+                ) : null}
+                {selectedProtocolCard.microflow_key ? (
+                  <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
+                    <span>Micro</span>
+                    <strong>{selectedProtocolCard.microflow_key}</strong>
+                  </div>
+                ) : null}
+                {selectedProtocolCard.focus_key ? (
+                  <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
+                    <span>Focus</span>
+                    <strong>{selectedProtocolCard.focus_key}</strong>
+                  </div>
+                ) : null}
+                {selectedProtocolCard.risk_focus_key ? (
+                  <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
+                    <span>RFK</span>
+                    <strong>{selectedProtocolCard.risk_focus_key}</strong>
                   </div>
                 ) : null}
                 {selectedProtocolCard.action_items?.length ? (
@@ -2366,6 +2459,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           <strong>{t(props.lang, selectedProtocolPod.tone_key as never)}</strong>
                         </div>
                       ) : null}
+                      {selectedProtocolPod.family_key ? (
+                        <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                          <span>Family</span>
+                          <strong>{selectedProtocolPod.family_key}</strong>
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.microflow_key ? (
+                        <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                          <span>Micro</span>
+                          <strong>{selectedProtocolPod.microflow_key}</strong>
+                        </div>
+                      ) : null}
                       {selectedProtocolPod.entry_kind_key ? (
                         <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
                           <span>{t(props.lang, "world_modal_chip_entry_kind" as never)}</span>
@@ -2394,6 +2499,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                         <div className="akrSceneInteractionModalChip is-tempo">
                           <span>{t(props.lang, "world_modal_section_actions" as never)}</span>
                           <strong>{selectedProtocolPod.action_items.length}</strong>
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.focus_key ? (
+                        <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                          <span>Focus</span>
+                          <strong>{selectedProtocolPod.focus_key}</strong>
+                        </div>
+                      ) : null}
+                      {selectedProtocolPod.risk_focus_key ? (
+                        <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
+                          <span>RFK</span>
+                          <strong>{selectedProtocolPod.risk_focus_key}</strong>
                         </div>
                       ) : null}
                     </div>
