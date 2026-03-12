@@ -493,6 +493,18 @@ const DICT = {
       "District x Mikroakis Risk Dagilimi",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:
       "District x Mikroakis Gunluk Risk Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_district_title:
+      "Mikroakis Risk District Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_district_daily_title:
+      "Mikroakis Gunluk Risk District Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_family_title:
+      "Mikroakis Risk Family Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_family_daily_title:
+      "Mikroakis Gunluk Risk Family Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_microflow_title:
+      "Mikroakis Risk Mikroakis Dagilimi",
+    admin_runtime_scene_loop_district_microflow_risk_microflow_daily_title:
+      "Mikroakis Gunluk Risk Mikroakis Dagilimi",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Nedenleri",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",
@@ -1479,6 +1491,18 @@ const DICT = {
       "District x Microflow Risk Breakdown",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:
       "District x Microflow Daily Risk Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_district_title:
+      "Microflow Risk District Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_district_daily_title:
+      "Microflow Daily Risk District Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_family_title:
+      "Microflow Risk Family Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_family_daily_title:
+      "Microflow Daily Risk Family Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_microflow_title:
+      "Microflow Risk Microflow Breakdown",
+    admin_runtime_scene_loop_district_microflow_risk_microflow_daily_title:
+      "Microflow Daily Risk Microflow Breakdown",
     admin_runtime_scene_loop_alarm_reasons_7d: "Loop Alarm Reasons",
     admin_runtime_live_ops_kpi_title: "Live Ops Dispatch KPI",
     admin_runtime_live_ops_campaign_label: "Campaign",

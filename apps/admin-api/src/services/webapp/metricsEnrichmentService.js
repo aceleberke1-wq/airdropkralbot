@@ -1351,6 +1351,48 @@ function buildSceneLoopDistrictMicroflowRiskBreakdownDaily(rows, limit = 24) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
+function buildSceneLoopDimensionBreakdown(rows, field, limit = 18) {
+  const counters = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = String(row?.[field] || "unknown");
+    counters.set(key, (counters.get(key) || 0) + 1);
+  });
+  return [...counters.entries()]
+    .map(([bucket_key, item_count]) => ({
+      bucket_key,
+      item_count: Math.max(0, Math.floor(toNum(item_count, 0)))
+    }))
+    .sort((left, right) => {
+      const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
+      if (Math.abs(itemGap) > 0.0001) return itemGap;
+      return String(left.bucket_key || "").localeCompare(String(right.bucket_key || ""));
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
+}
+
+function buildSceneLoopDimensionBreakdownDaily(rows, field, limit = 24) {
+  const counters = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const day = String(row?.day || "");
+    const bucketKey = String(row?.[field] || "unknown");
+    const compositeKey = `${day}:${bucketKey}`;
+    if (!counters.has(compositeKey)) {
+      counters.set(compositeKey, { day, bucket_key: bucketKey, item_count: 0 });
+    }
+    const current = counters.get(compositeKey);
+    current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
+  });
+  return [...counters.values()]
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
+      if (Math.abs(itemGap) > 0.0001) return itemGap;
+      return String(left.bucket_key || "").localeCompare(String(right.bucket_key || ""));
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
+}
+
 function resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare) {
   const latestBand = String(latestHealthBand || "no_data");
   const trend = String(trendDirection || "no_data");
@@ -1735,6 +1777,30 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   );
   metrics.scene_loop_district_microflow_risk_breakdown_daily_7d = buildSceneLoopDistrictMicroflowRiskBreakdownDaily(
     metrics.scene_loop_district_microflow_risk_rows_daily_7d
+  );
+  metrics.scene_loop_district_microflow_risk_district_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "district_key"
+  );
+  metrics.scene_loop_district_microflow_risk_district_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "district_key"
+  );
+  metrics.scene_loop_district_microflow_risk_family_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "loop_family_key"
+  );
+  metrics.scene_loop_district_microflow_risk_family_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_family_key"
+  );
+  metrics.scene_loop_district_microflow_risk_microflow_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "loop_microflow_key"
+  );
+  metrics.scene_loop_district_microflow_risk_microflow_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_microflow_key"
   );
   metrics.scene_runtime_daily_breakdown_7d = normalizeSceneDailyRows(metrics.scene_runtime_daily_breakdown_7d);
   const sceneDailyRows = metrics.scene_runtime_daily_breakdown_7d;
