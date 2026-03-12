@@ -504,6 +504,15 @@ function buildLoopRiskKeyText(source) {
   return `${inferLoopHealthBandKey(row)}:${inferLoopAttentionBandKey(row)}:${inferLoopTrendDirectionKey(row)}`;
 }
 
+function normalizeLoopFlowPanelTitles(titles) {
+  const source = Array.isArray(titles) ? titles : [];
+  return [
+    toText(source[0], "COMMAND"),
+    toText(source[1], "STATE"),
+    toText(source[2], "SIGNAL")
+  ];
+}
+
 function buildLoopBridgeCard(title, value, tone, hint = "") {
   return {
     title: toText(title, "FLOW"),
@@ -592,12 +601,13 @@ function buildLoopRiskBridgeBundle(tone, rails) {
   };
 }
 
-function buildLoopFlowFamilyPanels(tone, rails) {
+function buildLoopFlowFamilyPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
   const riskKeyText = buildLoopRiskKeyText(source);
+  const [commandTitle, stateTitle, signalTitle] = normalizeLoopFlowPanelTitles(titles);
   return [
     {
-      title: "COMMAND",
+      title: commandTitle,
       tone,
       hint: toText(source.familyText, ""),
       lines: [
@@ -607,7 +617,7 @@ function buildLoopFlowFamilyPanels(tone, rails) {
       ]
     },
     {
-      title: "STATE",
+      title: stateTitle,
       tone,
       hint: toText(source.gateText, ""),
       lines: [
@@ -617,7 +627,7 @@ function buildLoopFlowFamilyPanels(tone, rails) {
       ]
     },
     {
-      title: "SIGNAL",
+      title: signalTitle,
       tone,
       hint: toText(source.opsText || source.responseText || source.pressureText, ""),
       lines: [
@@ -1100,7 +1110,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
       opsText: panels.duelOpsText,
       signalText: panels.duelSignalText,
       detailText: panels.duelDetailText
-    });
+    }, ["STANCE", "STATUS", "RESOLVE"]);
     const duelSubflowBundle = buildLoopSubflowBundle(panels.duelTone, {
       familyText: panels.duelFamilyText,
       flowText: panels.duelFlowText,
@@ -1551,7 +1561,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     opsText: panels.duelOpsText,
     signalText: panels.duelSignalText,
     detailText: panels.duelDetailText
-  });
+  }, ["STANCE", "STATUS", "RESOLVE"]);
   panels.duelRiskPanels = buildLoopRiskPanels(panels.duelTone, {
     familyText: panels.duelFamilyText,
     flowText: panels.duelFlowText,
@@ -2382,7 +2392,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.walletOpsText,
     signalText: panels.walletSignalText,
     detailText: panels.walletDetailText
-  });
+  }, ["LINK", "STATE", "ROUTE"]);
   panels.walletRiskPanels = buildLoopRiskPanels(panels.walletTone, {
     familyText: panels.walletFamilyText,
     flowText: panels.walletFlowText,
@@ -2399,7 +2409,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     opsText: panels.walletOpsText,
     signalText: panels.walletSignalText,
     detailText: panels.walletDetailText
-  });
+  }, ["LINK", "STATE", "ROUTE"]);
   const walletSubflowBundle = buildLoopSubflowBundle(panels.walletTone, {
     familyText: panels.walletFamilyText,
     flowText: panels.walletFlowText,
@@ -2781,7 +2791,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
       opsText: panels.dispatchOpsText,
       signalText: panels.dispatchSignalText,
       detailText: panels.dispatchDetailText
-    });
+    }, ["QUEUE", "HEALTH", "RELEASE"]);
     const dispatchSubflowBundle = buildLoopSubflowBundle(panels.dispatchTone, {
       familyText: panels.dispatchFamilyText,
       flowText: panels.dispatchFlowText,
@@ -3200,7 +3210,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     opsText: panels.dispatchOpsText,
     signalText: panels.dispatchSignalText,
     detailText: panels.dispatchDetailText
-  });
+  }, ["QUEUE", "HEALTH", "RELEASE"]);
   panels.dispatchRiskPanels = buildLoopRiskPanels(panels.dispatchTone, {
     familyText: panels.dispatchFamilyText,
     flowText: panels.dispatchFlowText,
@@ -3581,7 +3591,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
       opsText: panels.lootOpsText,
       signalText: panels.lootSignalText,
       detailText: panels.lootDetailText
-    });
+    }, ["OFFER", "STATE", "REVEAL"]);
     panels.lootRiskPanels = buildLoopRiskPanels(panels.lootTone, {
       familyText: panels.lootFamilyText,
       flowText: panels.lootFlowText,
@@ -4144,7 +4154,7 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     opsText: panels.lootOpsText,
     signalText: panels.lootSignalText,
     detailText: panels.lootDetailText
-  });
+  }, ["OFFER", "STATE", "REVEAL"]);
   panels.lootRiskPanels = buildLoopRiskPanels(panels.lootTone, {
     familyText: panels.lootFamilyText,
     flowText: panels.lootFlowText,
