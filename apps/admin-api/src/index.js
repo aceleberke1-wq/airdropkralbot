@@ -4229,10 +4229,16 @@ async function buildAdminMetrics(db) {
       scene_loop_district_microflow_risk_breakdown_daily_7d: [],
       scene_loop_district_microflow_risk_district_breakdown_7d: [],
       scene_loop_district_microflow_risk_district_breakdown_daily_7d: [],
+      scene_loop_district_microflow_risk_district_matrix_7d: [],
+      scene_loop_district_microflow_risk_district_matrix_daily_7d: [],
       scene_loop_district_microflow_risk_family_breakdown_7d: [],
       scene_loop_district_microflow_risk_family_breakdown_daily_7d: [],
+      scene_loop_district_microflow_risk_family_matrix_7d: [],
+      scene_loop_district_microflow_risk_family_matrix_daily_7d: [],
       scene_loop_district_microflow_risk_microflow_breakdown_7d: [],
-      scene_loop_district_microflow_risk_microflow_breakdown_daily_7d: []
+      scene_loop_district_microflow_risk_microflow_breakdown_daily_7d: [],
+      scene_loop_district_microflow_risk_microflow_matrix_7d: [],
+      scene_loop_district_microflow_risk_microflow_matrix_daily_7d: []
   };
 
   const coreRes = await db.query(

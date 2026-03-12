@@ -393,6 +393,22 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     )
   );
   assert.ok(
+    enriched.scene_loop_district_microflow_risk_district_matrix_7d.some(
+      (row) =>
+        row.bucket_key === "exchange_district" &&
+        row.risk_key === "red:alert:no_data" &&
+        Number(row.day_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_district_matrix_daily_7d.some(
+      (row) =>
+        row.day === "2026-03-08" &&
+        row.bucket_key === "exchange_district" &&
+        row.risk_key === "yellow:watch:no_data"
+    )
+  );
+  assert.ok(
     enriched.scene_loop_district_microflow_risk_family_breakdown_7d.some(
       (row) => row.bucket_key === "wallet_link" && Number(row.item_count || 0) >= 1
     )
@@ -403,6 +419,16 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     )
   );
   assert.ok(
+    enriched.scene_loop_district_microflow_risk_family_matrix_7d.some(
+      (row) => row.bucket_key === "wallet_link" && row.risk_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_family_matrix_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "payout_lane" && row.risk_key === "yellow:watch:no_data"
+    )
+  );
+  assert.ok(
     enriched.scene_loop_district_microflow_risk_microflow_breakdown_7d.some(
       (row) => row.bucket_key === "wallet" && Number(row.item_count || 0) >= 1
     )
@@ -410,6 +436,16 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.ok(
     enriched.scene_loop_district_microflow_risk_microflow_breakdown_daily_7d.some(
       (row) => row.day === "2026-03-08" && row.bucket_key === "payout" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_microflow_matrix_7d.some(
+      (row) => row.bucket_key === "wallet" && row.risk_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_microflow_matrix_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "payout" && row.risk_key === "yellow:watch:no_data"
     )
   );
 });

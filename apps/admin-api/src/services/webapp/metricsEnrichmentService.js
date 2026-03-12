@@ -1459,6 +1459,93 @@ function buildSceneLoopDimensionBreakdownDaily(rows, field, limit = 24) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
+function buildSceneLoopDimensionRiskMatrix(rows, field, limit = 18) {
+  const grouped = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const bucketKey = String(row?.[field] || "unknown");
+    const riskKey = String(row?.risk_key || "no_data:no_data:no_data");
+    const day = String(row?.day || "");
+    const compositeKey = `${bucketKey}:${riskKey}`;
+    if (!grouped.has(compositeKey)) {
+      grouped.set(compositeKey, {
+        bucket_key: bucketKey,
+        risk_key: riskKey,
+        latest_health_band: String(row?.latest_health_band || row?.health_band || "no_data"),
+        attention_band: String(row?.attention_band || "no_data"),
+        trend_direction: String(row?.trend_direction || "no_data"),
+        trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+        total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+        live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+        blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+        priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+        item_count: 0,
+        day_count: 0,
+        latest_day: day || null
+      });
+    }
+    const current = grouped.get(compositeKey);
+    current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
+    if (day) {
+      current.day_count = Math.max(0, Math.floor(toNum(current.day_count, 0)) + 1);
+    }
+    if (!current.latest_day || day.localeCompare(current.latest_day) > 0) {
+      current.latest_day = day || null;
+      current.latest_health_band = String(row?.latest_health_band || row?.health_band || "no_data");
+      current.attention_band = String(row?.attention_band || "no_data");
+      current.trend_direction = String(row?.trend_direction || "no_data");
+      current.trend_delta = Math.floor(toNum(row?.trend_delta, 0));
+      current.total_count = Math.max(0, Math.floor(toNum(row?.total_count, 0)));
+      current.live_count = Math.max(0, Math.floor(toNum(row?.live_count, 0)));
+      current.blocked_count = Math.max(0, Math.floor(toNum(row?.blocked_count, 0)));
+    }
+    current.priority_score = Math.max(current.priority_score, Math.max(0, Math.floor(toNum(row?.priority_score, 0))));
+  });
+  return [...grouped.values()]
+    .sort((left, right) => {
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const dayGap = toNum(right.day_count, 0) - toNum(left.day_count, 0);
+      if (Math.abs(dayGap) > 0.0001) return dayGap;
+      const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
+      if (Math.abs(itemGap) > 0.0001) return itemGap;
+      return `${String(left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.bucket_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
+}
+
+function buildSceneLoopDimensionRiskMatrixDaily(rows, field, limit = 24) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      day: String(row?.day || ""),
+      bucket_key: String(row?.[field] || "unknown"),
+      risk_key: String(row?.risk_key || "no_data:no_data:no_data"),
+      latest_health_band: String(row?.latest_health_band || row?.health_band || "no_data"),
+      attention_band: String(row?.attention_band || "no_data"),
+      trend_direction: String(row?.trend_direction || "no_data"),
+      trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+      priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+      item_count: 1,
+      day_count: 1
+    }))
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.bucket_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
+}
+
 function resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare) {
   const latestBand = String(latestHealthBand || "no_data");
   const trend = String(trendDirection || "no_data");
@@ -1874,6 +1961,30 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
     metrics.scene_loop_district_microflow_risk_rows_daily_7d,
     "loop_microflow_key"
   );
+  metrics.scene_loop_district_microflow_risk_district_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "district_key"
+  );
+  metrics.scene_loop_district_microflow_risk_district_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "district_key"
+  );
+  metrics.scene_loop_district_microflow_risk_family_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_family_key"
+  );
+  metrics.scene_loop_district_microflow_risk_family_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_family_key"
+  );
+  metrics.scene_loop_district_microflow_risk_microflow_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_microflow_key"
+  );
+  metrics.scene_loop_district_microflow_risk_microflow_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "loop_microflow_key"
+  );
   metrics.scene_runtime_daily_breakdown_7d = normalizeSceneDailyRows(metrics.scene_runtime_daily_breakdown_7d);
   const sceneDailyRows = metrics.scene_runtime_daily_breakdown_7d;
   const latestSceneDay = sceneDailyRows[0] || null;
@@ -1996,6 +2107,8 @@ module.exports = {
   buildSceneLoopDistrictMicroflowRiskMatrixDaily,
   buildSceneLoopDistrictMicroflowRiskBreakdown,
   buildSceneLoopDistrictMicroflowRiskBreakdownDaily,
+  buildSceneLoopDimensionRiskMatrix,
+  buildSceneLoopDimensionRiskMatrixDaily,
   resolveSceneLoopTrendDirection,
   buildSceneBandBreakdown,
   buildSceneLoopBandBreakdown,

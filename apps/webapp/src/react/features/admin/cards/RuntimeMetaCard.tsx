@@ -319,6 +319,58 @@ function SceneLoopDistrictFamilyPriorityList(props: {
   );
 }
 
+function SceneLoopRiskDimensionMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 12).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.bucket_key || index)}_${String(row.risk_key || index)}`}>
+            {String(row.bucket_key || "-")} | risk {String(row.risk_key || "no_data")} | latest{" "}
+            {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
+            {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | days{" "}
+            {Math.floor(Number(row.day_count || 0))} | hits {Math.floor(Number(row.item_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SceneLoopRiskDimensionDailyMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
+  if (!props.rows.length) {
+    return (
+      <div>
+        <strong>{props.title}</strong>
+        <p className="akrMutedLine">-</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <strong>{props.title}</strong>
+      <div className="akrStack">
+        {props.rows.slice(0, 18).map((row, index) => (
+          <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}_${String(row.bucket_key || index)}_${String(row.risk_key || index)}`}>
+            {String(row.day || "-")} | {String(row.bucket_key || "-")} | risk {String(row.risk_key || "no_data")} | latest{" "}
+            {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
+            {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | hits{" "}
+            {Math.floor(Number(row.item_count || 0))}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SkipDailyTrendList(props: { title: string; rows: Array<Record<string, unknown>> }) {
   if (!props.rows.length) {
     return (
@@ -634,17 +686,35 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskDistrictBreakdownDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_district_breakdown_daily_7d
   );
+  const sceneLoopDistrictMicroflowRiskDistrictMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_district_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskDistrictMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_district_matrix_daily_7d
+  );
   const sceneLoopDistrictMicroflowRiskFamilyBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_family_breakdown_7d
   );
   const sceneLoopDistrictMicroflowRiskFamilyBreakdownDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_family_breakdown_daily_7d
   );
+  const sceneLoopDistrictMicroflowRiskFamilyMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_family_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskFamilyMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_family_matrix_daily_7d
+  );
   const sceneLoopDistrictMicroflowRiskMicroflowBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_microflow_breakdown_7d
   );
   const sceneLoopDistrictMicroflowRiskMicroflowBreakdownDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_microflow_breakdown_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskMicroflowMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_microflow_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskMicroflowMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_microflow_matrix_daily_7d
   );
   const liveOpsKpi = asRecord((props.opsKpiRunData as Record<string, unknown> | null)?.live_ops_campaign) ||
     asRecord((props.opsKpiData as Record<string, unknown> | null)?.live_ops_campaign);
@@ -1051,6 +1121,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskDistrictBreakdownDaily}
         />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskDistrictMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskDistrictMatrixDaily}
+        />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyBreakdown}
@@ -1059,6 +1137,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyBreakdownDaily}
         />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskFamilyMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskFamilyMatrixDaily}
+        />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowBreakdown}
@@ -1066,6 +1152,14 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowBreakdownDaily}
+        />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskMicroflowMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskMicroflowMatrixDaily}
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>
