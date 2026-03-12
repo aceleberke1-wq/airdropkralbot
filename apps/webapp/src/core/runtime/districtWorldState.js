@@ -13,6 +13,13 @@ function toText(value, fallback = "") {
   return normalized || fallback;
 }
 
+function toKeyToken(value, fallback = "") {
+  return toText(value, fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function toNum(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -54,6 +61,137 @@ function resolveDistrictKey(workspace, tab) {
     return "exchange_district";
   }
   return "central_hub";
+}
+
+function resolveProtocolMicroFlowFamilyFromSequence(sequenceKindKey) {
+  switch (toText(sequenceKindKey, "")) {
+    case "world_modal_kind_duel_sequence":
+      return "duel";
+    case "world_modal_kind_ladder_sequence":
+      return "ladder";
+    case "world_modal_kind_telemetry_scan":
+      return "telemetry";
+    case "world_modal_kind_mission_terminal":
+      return "offer";
+    case "world_modal_kind_contract_sequence":
+      return "claim";
+    case "world_modal_kind_streak_sync":
+      return "streak";
+    case "world_modal_kind_wallet_terminal":
+      return "wallet";
+    case "world_modal_kind_payout_route":
+      return "route";
+    case "world_modal_kind_premium_unlock":
+      return "premium";
+    case "world_modal_kind_queue_review":
+      return "queue";
+    case "world_modal_kind_runtime_scan":
+      return "runtime";
+    case "world_modal_kind_dispatch_sequence":
+      return "dispatch";
+    case "world_modal_kind_loot_reveal":
+      return "loot";
+    case "world_modal_kind_travel_gate":
+      return "travel";
+    default:
+      return "";
+  }
+}
+
+function resolveProtocolMicroFlowFamilyKey(microflow) {
+  const row = asRecord(microflow);
+  const explicit = toKeyToken(row.family_key || row.familyKey, "");
+  if (explicit) {
+    return explicit;
+  }
+  const microflowKey = toText(row.microflow_key || row.microflowKey, "");
+  const suffix = toKeyToken(microflowKey.split(":").pop(), "");
+  if (suffix && suffix !== "sequence" && suffix !== "stack" && suffix !== "scan" && suffix !== "watch") {
+    return suffix;
+  }
+  if (suffix === "stack") {
+    return "offer";
+  }
+  if (suffix === "scan" || suffix === "watch") {
+    return "telemetry";
+  }
+  const fromSequence = resolveProtocolMicroFlowFamilyFromSequence(row.sequence_kind_key || row.sequenceKindKey);
+  if (fromSequence) {
+    return fromSequence;
+  }
+  return suffix || "flow";
+}
+
+function resolveProtocolMicroFlowFlowKey(microflow) {
+  const row = asRecord(microflow);
+  const explicit = toKeyToken(row.flow_key || row.flowKey, "");
+  if (explicit) {
+    return explicit;
+  }
+  const familyKey = resolveProtocolMicroFlowFamilyKey(row);
+  return familyKey ? `${familyKey}_flow` : "flow";
+}
+
+function resolveProtocolMicroFlowRiskBands(loopState, microflow) {
+  const primaryStatus = toKeyToken(asRecord(loopState).loop_status_key || asRecord(microflow).status_key, "");
+  const rowStatuses = [
+    ...asList(asRecord(loopState).loop_rows).map((row) => toKeyToken(asRecord(row).status_key, "")),
+    ...asList(asRecord(loopState).loop_signal_rows).map((row) => toKeyToken(asRecord(row).status_key, ""))
+  ].filter(Boolean);
+  const statuses = [primaryStatus, ...rowStatuses];
+  const has = (key) => statuses.includes(key);
+  if (has("alert")) {
+    return {
+      risk_health_band_key: "red",
+      risk_attention_band_key: "alert",
+      risk_trend_direction_key: "degrading"
+    };
+  }
+  if (has("locked")) {
+    return {
+      risk_health_band_key: "yellow",
+      risk_attention_band_key: "watch",
+      risk_trend_direction_key: "degrading"
+    };
+  }
+  if (has("watch")) {
+    return {
+      risk_health_band_key: "yellow",
+      risk_attention_band_key: "watch",
+      risk_trend_direction_key: "flat"
+    };
+  }
+  if (has("live") || has("ready")) {
+    return {
+      risk_health_band_key: "green",
+      risk_attention_band_key: "stable",
+      risk_trend_direction_key: "flat"
+    };
+  }
+  if (has("idle")) {
+    return {
+      risk_health_band_key: "yellow",
+      risk_attention_band_key: "watch",
+      risk_trend_direction_key: "flat"
+    };
+  }
+  return {
+    risk_health_band_key: "no_data",
+    risk_attention_band_key: "no_data",
+    risk_trend_direction_key: "no_data"
+  };
+}
+
+function buildProtocolMicroFlowFocusKey(districtKey, microflow) {
+  const safeDistrictKey = toKeyToken(districtKey, "");
+  const familyKey = resolveProtocolMicroFlowFamilyKey(microflow);
+  const flowKey = resolveProtocolMicroFlowFlowKey(microflow);
+  return [safeDistrictKey, familyKey, flowKey].filter(Boolean).join(":");
+}
+
+function buildProtocolMicroFlowRiskKey(loopState, microflow) {
+  const bands = resolveProtocolMicroFlowRiskBands(loopState, microflow);
+  return [bands.risk_health_band_key, bands.risk_attention_band_key, bands.risk_trend_direction_key].filter(Boolean).join(":");
 }
 
 function resolveDistrictLabelKey(districtKey) {
@@ -3001,8 +3139,11 @@ function buildProtocolPodMicroFlowCards(labelKey, statusKey, toneKey, sequenceRo
       return null;
     }
     const focusMeta = resolveProtocolMicroFlowMeta(labelKeyValue);
+    const familyKey = toKeyToken(cardKey, "flow");
     return {
       microflow_key: `${labelKey}:${cardKey}`,
+      family_key: familyKey,
+      flow_key: `${familyKey}_flow`,
       label_key: labelKeyValue,
       value: row?.value || "",
       status_key: row?.status_key || statusKey,
@@ -5741,6 +5882,17 @@ function enrichDistrictInteractionModal(interactionModal, input) {
   if (!modal.modal_key || !Array.isArray(modal.protocol_cards) || !modal.protocol_cards.length) {
     return interactionModal;
   }
+  const districtKey =
+    toKeyToken(toText(modal.modal_key, "").split(":")[0], "") ||
+    resolveDistrictKey(normalizeWorkspace(input.workspace), normalizeTab(input.tab));
+  const buildContextActionItems = (items, actionContext) =>
+    asList(items).map((item) => ({
+      ...item,
+      action_context: actionContext ? { ...actionContext } : undefined,
+      focus_key: actionContext?.focus_key || "",
+      risk_key: actionContext?.risk_key || "",
+      risk_focus_key: actionContext?.risk_focus_key || ""
+    }));
   return {
     ...interactionModal,
     protocol_cards: modal.protocol_cards.map((card) => {
@@ -5749,102 +5901,154 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       if (!flowPods.length) {
         return card;
       }
+      const enrichedFlowPods = flowPods.map((pod) => {
+        const flowPod = asRecord(pod);
+        const microflows = asList(flowPod.microflow_cards);
+        if (!microflows.length) {
+          return pod;
+        }
+        const enrichedMicroflows = microflows.map((flow) => {
+          const microflow = asRecord(flow);
+          const loopState = buildProtocolMicroFlowLiveState(toText(microflow.sequence_kind_key, ""), input);
+          const loopPersonality = buildProtocolMicroFlowPersonality(toText(microflow.sequence_kind_key, ""), input);
+          if (!loopState) {
+            return flow;
+          }
+          const familyKey = resolveProtocolMicroFlowFamilyKey(microflow);
+          const flowKey = resolveProtocolMicroFlowFlowKey({
+            ...microflow,
+            family_key: familyKey
+          });
+          const focusKey = buildProtocolMicroFlowFocusKey(districtKey, {
+            ...microflow,
+            family_key: familyKey,
+            flow_key: flowKey
+          });
+          const riskKey = buildProtocolMicroFlowRiskKey(loopState, microflow);
+          const riskFocusKey = focusKey && riskKey ? `${focusKey}|${riskKey}` : focusKey || riskKey || "";
+          const riskBands = resolveProtocolMicroFlowRiskBands(loopState, microflow);
+          return {
+            ...flow,
+            family_key: familyKey,
+            flow_key: flowKey,
+            focus_key: focusKey,
+            risk_key: riskKey,
+            risk_focus_key: riskFocusKey,
+            action_context: {
+              district_key: districtKey,
+              family_key: familyKey,
+              flow_key: flowKey,
+              focus_key: focusKey,
+              risk_key: riskKey,
+              risk_focus_key: riskFocusKey,
+              risk_health_band_key: riskBands.risk_health_band_key,
+              risk_attention_band_key: riskBands.risk_attention_band_key,
+              risk_trend_direction_key: riskBands.risk_trend_direction_key,
+              entry_kind_key: toText(microflow.entry_kind_key, ""),
+              sequence_kind_key: toText(microflow.sequence_kind_key, "")
+            },
+            risk_health_band_key: riskBands.risk_health_band_key,
+            risk_attention_band_key: riskBands.risk_attention_band_key,
+            risk_trend_direction_key: riskBands.risk_trend_direction_key,
+            loop_status_key: loopState.loop_status_key,
+            loop_status_label_key: loopState.loop_status_label_key,
+            loop_stage_value: loopState.loop_stage_value,
+            loop_rows: asList(loopState.loop_rows).slice(0, 3),
+            loop_signal_rows: asList(loopState.loop_signal_rows).slice(0, 2),
+            stage_value: loopState.loop_stage_value || microflow.stage_value,
+            stage_status_key: loopState.loop_status_key || microflow.stage_status_key,
+            motion_scalar: toNum(microflow.motion_scalar, 1) * toNum(loopState.loop_motion_scalar, 1),
+            camera_radius_scale: toNum(microflow.camera_radius_scale, 1) * toNum(loopState.loop_radius_scale, 1),
+            camera_focus_y_offset: toNum(microflow.camera_focus_y_offset, 0) + toNum(loopState.loop_focus_y_offset, 0),
+            alpha_offset: toNum(microflow.alpha_offset, 0) + toNum(loopState.loop_alpha_offset, 0),
+            beta_offset: toNum(microflow.beta_offset, 0) + toNum(loopState.loop_beta_offset, 0),
+            focus_lerp_scalar: toNum(microflow.focus_lerp_scalar, 1) * toNum(loopState.loop_focus_lerp_scalar, 1),
+            radius_lerp_scalar: toNum(microflow.radius_lerp_scalar, 1) * toNum(loopState.loop_radius_lerp_scalar, 1),
+            personality_key: loopPersonality.personality_key,
+            personality_label_key: loopPersonality.personality_label_key,
+            personality_caption_key: loopPersonality.personality_caption_key,
+            personality_band_key: loopPersonality.personality_band_key,
+            density_label_key: loopPersonality.density_label_key,
+            light_profile_key: loopPersonality.light_profile_key,
+            surface_glow_band_key: loopPersonality.surface_glow_band_key,
+            chrome_band_key: loopPersonality.chrome_band_key,
+            composition_profile_key: loopPersonality.composition_profile_key,
+            camera_frame_key: loopPersonality.camera_frame_key,
+            hud_anchor_key: loopPersonality.hud_anchor_key,
+            rail_anchor_key: loopPersonality.rail_anchor_key,
+            sheet_anchor_key: loopPersonality.sheet_anchor_key,
+            entry_anchor_key: loopPersonality.entry_anchor_key,
+            console_anchor_key: loopPersonality.console_anchor_key,
+            modal_anchor_key: loopPersonality.modal_anchor_key,
+            hud_focus_mode_key: loopPersonality.hud_focus_mode_key,
+            rail_presence_key: loopPersonality.rail_presence_key,
+            sheet_presence_key: loopPersonality.sheet_presence_key,
+            entry_presence_key: loopPersonality.entry_presence_key,
+            console_presence_key: loopPersonality.console_presence_key,
+            modal_presence_key: loopPersonality.modal_presence_key,
+            hud_density_profile_key: loopPersonality.hud_density_profile_key,
+            rail_layout_key: loopPersonality.rail_layout_key,
+            console_layout_key: loopPersonality.console_layout_key,
+            modal_layout_key: loopPersonality.modal_layout_key,
+            focus_hold_scalar: loopPersonality.focus_hold_scalar,
+            camera_heading_offset: loopPersonality.camera_heading_offset,
+            camera_target_x_offset: loopPersonality.camera_target_x_offset,
+            camera_bank_scalar: loopPersonality.camera_bank_scalar,
+            camera_fov_scalar: loopPersonality.camera_fov_scalar,
+            focus_spread_scalar: loopPersonality.focus_spread_scalar,
+            hud_width_scalar: loopPersonality.hud_width_scalar,
+            rail_width_scalar: loopPersonality.rail_width_scalar,
+            sheet_width_scalar: loopPersonality.sheet_width_scalar,
+            entry_width_scalar: loopPersonality.entry_width_scalar,
+            console_width_scalar: loopPersonality.console_width_scalar,
+            modal_width_scalar: loopPersonality.modal_width_scalar,
+            surface_gap_scalar: loopPersonality.surface_gap_scalar,
+            surface_stack_scalar: loopPersonality.surface_stack_scalar,
+            light_intensity_scalar: loopPersonality.light_intensity_scalar,
+            glow_intensity_scalar: loopPersonality.glow_intensity_scalar,
+            surface_glow_scalar: loopPersonality.surface_glow_scalar,
+            chrome_opacity_scalar: loopPersonality.chrome_opacity_scalar,
+            hud_layout_key: loopPersonality.hud_layout_key,
+            hud_emphasis_band_key: loopPersonality.hud_emphasis_band_key,
+            camera_drift_scalar: loopPersonality.camera_drift_scalar,
+            camera_tilt_scalar: loopPersonality.camera_tilt_scalar,
+            camera_target_lift_scalar: loopPersonality.camera_target_lift_scalar,
+            camera_orbit_bias_scalar: loopPersonality.camera_orbit_bias_scalar,
+            orbit_spin_scalar: loopPersonality.orbit_spin_scalar,
+            sway_scalar: loopPersonality.sway_scalar,
+            alpha_lerp_scalar: loopPersonality.alpha_lerp_scalar,
+            beta_lerp_scalar: loopPersonality.beta_lerp_scalar,
+            hud_emphasis_scalar: loopPersonality.hud_emphasis_scalar,
+            actor_motion_scalar: loopPersonality.actor_motion_scalar,
+            hotspot_motion_scalar: loopPersonality.hotspot_motion_scalar,
+            ring_pulse_scalar: loopPersonality.ring_pulse_scalar,
+            satellite_orbit_scalar: loopPersonality.satellite_orbit_scalar
+          };
+        });
+        const primaryMicroflow = asRecord(
+          enrichedMicroflows.find((flow) => asRecord(flow).action_context) || enrichedMicroflows[0]
+        );
+        const podActionContext = asRecord(primaryMicroflow.action_context);
+        return {
+          ...pod,
+          focus_key: toText(primaryMicroflow.focus_key, ""),
+          risk_key: toText(primaryMicroflow.risk_key, ""),
+          risk_focus_key: toText(primaryMicroflow.risk_focus_key, ""),
+          action_context: podActionContext,
+          microflow_cards: enrichedMicroflows,
+          action_items: buildContextActionItems(flowPod.action_items, podActionContext)
+        };
+      });
+      const primaryPod = asRecord(enrichedFlowPods.find((pod) => asRecord(pod).action_context) || enrichedFlowPods[0]);
+      const cardActionContext = asRecord(primaryPod.action_context);
       return {
         ...card,
-        flow_pods: flowPods.map((pod) => {
-          const flowPod = asRecord(pod);
-          const microflows = asList(flowPod.microflow_cards);
-          if (!microflows.length) {
-            return pod;
-          }
-          return {
-            ...pod,
-            microflow_cards: microflows.map((flow) => {
-              const microflow = asRecord(flow);
-              const loopState = buildProtocolMicroFlowLiveState(toText(microflow.sequence_kind_key, ""), input);
-              const loopPersonality = buildProtocolMicroFlowPersonality(toText(microflow.sequence_kind_key, ""), input);
-              if (!loopState) {
-                return flow;
-              }
-              return {
-                ...flow,
-                loop_status_key: loopState.loop_status_key,
-                loop_status_label_key: loopState.loop_status_label_key,
-                loop_stage_value: loopState.loop_stage_value,
-                loop_rows: asList(loopState.loop_rows).slice(0, 3),
-                loop_signal_rows: asList(loopState.loop_signal_rows).slice(0, 2),
-                stage_value: loopState.loop_stage_value || microflow.stage_value,
-                stage_status_key: loopState.loop_status_key || microflow.stage_status_key,
-                motion_scalar: toNum(microflow.motion_scalar, 1) * toNum(loopState.loop_motion_scalar, 1),
-                camera_radius_scale: toNum(microflow.camera_radius_scale, 1) * toNum(loopState.loop_radius_scale, 1),
-                camera_focus_y_offset: toNum(microflow.camera_focus_y_offset, 0) + toNum(loopState.loop_focus_y_offset, 0),
-                alpha_offset: toNum(microflow.alpha_offset, 0) + toNum(loopState.loop_alpha_offset, 0),
-                beta_offset: toNum(microflow.beta_offset, 0) + toNum(loopState.loop_beta_offset, 0),
-                focus_lerp_scalar: toNum(microflow.focus_lerp_scalar, 1) * toNum(loopState.loop_focus_lerp_scalar, 1),
-                radius_lerp_scalar: toNum(microflow.radius_lerp_scalar, 1) * toNum(loopState.loop_radius_lerp_scalar, 1),
-                personality_key: loopPersonality.personality_key,
-                personality_label_key: loopPersonality.personality_label_key,
-                personality_caption_key: loopPersonality.personality_caption_key,
-                personality_band_key: loopPersonality.personality_band_key,
-                density_label_key: loopPersonality.density_label_key,
-                light_profile_key: loopPersonality.light_profile_key,
-                surface_glow_band_key: loopPersonality.surface_glow_band_key,
-                chrome_band_key: loopPersonality.chrome_band_key,
-                composition_profile_key: loopPersonality.composition_profile_key,
-                camera_frame_key: loopPersonality.camera_frame_key,
-                hud_anchor_key: loopPersonality.hud_anchor_key,
-                rail_anchor_key: loopPersonality.rail_anchor_key,
-                sheet_anchor_key: loopPersonality.sheet_anchor_key,
-                entry_anchor_key: loopPersonality.entry_anchor_key,
-                console_anchor_key: loopPersonality.console_anchor_key,
-                modal_anchor_key: loopPersonality.modal_anchor_key,
-                hud_focus_mode_key: loopPersonality.hud_focus_mode_key,
-                rail_presence_key: loopPersonality.rail_presence_key,
-                sheet_presence_key: loopPersonality.sheet_presence_key,
-                entry_presence_key: loopPersonality.entry_presence_key,
-                console_presence_key: loopPersonality.console_presence_key,
-                modal_presence_key: loopPersonality.modal_presence_key,
-                hud_density_profile_key: loopPersonality.hud_density_profile_key,
-                rail_layout_key: loopPersonality.rail_layout_key,
-                console_layout_key: loopPersonality.console_layout_key,
-                modal_layout_key: loopPersonality.modal_layout_key,
-                focus_hold_scalar: loopPersonality.focus_hold_scalar,
-                camera_heading_offset: loopPersonality.camera_heading_offset,
-                camera_target_x_offset: loopPersonality.camera_target_x_offset,
-                camera_bank_scalar: loopPersonality.camera_bank_scalar,
-                camera_fov_scalar: loopPersonality.camera_fov_scalar,
-                focus_spread_scalar: loopPersonality.focus_spread_scalar,
-                hud_width_scalar: loopPersonality.hud_width_scalar,
-                rail_width_scalar: loopPersonality.rail_width_scalar,
-                sheet_width_scalar: loopPersonality.sheet_width_scalar,
-                entry_width_scalar: loopPersonality.entry_width_scalar,
-                console_width_scalar: loopPersonality.console_width_scalar,
-                modal_width_scalar: loopPersonality.modal_width_scalar,
-                surface_gap_scalar: loopPersonality.surface_gap_scalar,
-                surface_stack_scalar: loopPersonality.surface_stack_scalar,
-                light_intensity_scalar: loopPersonality.light_intensity_scalar,
-                glow_intensity_scalar: loopPersonality.glow_intensity_scalar,
-                surface_glow_scalar: loopPersonality.surface_glow_scalar,
-                chrome_opacity_scalar: loopPersonality.chrome_opacity_scalar,
-                hud_layout_key: loopPersonality.hud_layout_key,
-                hud_emphasis_band_key: loopPersonality.hud_emphasis_band_key,
-                camera_drift_scalar: loopPersonality.camera_drift_scalar,
-                camera_tilt_scalar: loopPersonality.camera_tilt_scalar,
-                camera_target_lift_scalar: loopPersonality.camera_target_lift_scalar,
-                camera_orbit_bias_scalar: loopPersonality.camera_orbit_bias_scalar,
-                orbit_spin_scalar: loopPersonality.orbit_spin_scalar,
-                sway_scalar: loopPersonality.sway_scalar,
-                alpha_lerp_scalar: loopPersonality.alpha_lerp_scalar,
-                beta_lerp_scalar: loopPersonality.beta_lerp_scalar,
-                hud_emphasis_scalar: loopPersonality.hud_emphasis_scalar,
-                actor_motion_scalar: loopPersonality.actor_motion_scalar,
-                hotspot_motion_scalar: loopPersonality.hotspot_motion_scalar,
-                ring_pulse_scalar: loopPersonality.ring_pulse_scalar,
-                satellite_orbit_scalar: loopPersonality.satellite_orbit_scalar
-              };
-            })
-          };
-        })
+        focus_key: toText(primaryPod.focus_key, ""),
+        risk_key: toText(primaryPod.risk_key, ""),
+        risk_focus_key: toText(primaryPod.risk_focus_key, ""),
+        action_context: cardActionContext,
+        flow_pods: enrichedFlowPods,
+        action_items: buildContextActionItems(protocolCard.action_items, cardActionContext)
       };
     })
   };

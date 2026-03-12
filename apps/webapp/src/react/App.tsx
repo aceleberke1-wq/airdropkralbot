@@ -571,6 +571,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       laneKey: string;
       label: string;
       labelKey?: string;
+      focusKey?: string;
+      riskKey?: string;
+      riskFocusKey?: string;
       sourceType?: string;
       actorKey?: string;
       interactionKind?: string;
@@ -637,6 +640,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           cluster_key: String(payload.clusterKey || ""),
           interaction_kind: String(payload.interactionKind || "open"),
           is_secondary: Boolean(payload.isSecondary),
+          source_focus_key: String(payload.focusKey || ""),
+          source_risk_key: String(payload.riskKey || ""),
+          source_risk_focus_key: String(payload.riskFocusKey || ""),
           node_label: payload.label,
           node_label_key: String(payload.labelKey || ""),
           target_workspace: target.workspace,
@@ -657,6 +663,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       protocolCardKey: string;
       protocolPodKey: string;
       microflowKey: string;
+      focusKey?: string;
+      riskKey?: string;
+      riskFocusKey?: string;
       entryKindKey: string;
       sequenceKindKey: string;
       loopStatusKey: string;
@@ -688,7 +697,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         tab_key: payload.workspace === "admin" ? "admin" : nextTab,
         panel_key: payload.workspace === "admin" ? UI_SURFACE_KEY.PANEL_ADMIN : UI_SURFACE_KEY.SHELL,
         route_key: payload.workspace === "admin" ? "admin.home" : `player.${nextTab}`,
-        focus_key: payload.microflowKey,
+        focus_key: payload.focusKey || payload.microflowKey,
         funnel_key: resolveWorkspaceFunnelKey(payload.workspace, nextTab),
         surface_key: "scene_world",
         payload_json: {
@@ -698,6 +707,9 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           protocol_card_key: payload.protocolCardKey,
           protocol_pod_key: payload.protocolPodKey,
           microflow_key: payload.microflowKey,
+          focus_key: String(payload.focusKey || ""),
+          risk_key: String(payload.riskKey || ""),
+          risk_focus_key: String(payload.riskFocusKey || ""),
           entry_kind_key: payload.entryKindKey,
           sequence_kind_key: payload.sequenceKindKey,
           loop_status_key: payload.loopStatusKey,

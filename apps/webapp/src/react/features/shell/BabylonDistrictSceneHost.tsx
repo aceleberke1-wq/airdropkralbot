@@ -32,6 +32,9 @@ type BabylonDistrictSceneHostProps = {
     protocolCardKey: string;
     protocolPodKey: string;
     microflowKey: string;
+    focusKey?: string;
+    riskKey?: string;
+    riskFocusKey?: string;
     entryKindKey: string;
     sequenceKindKey: string;
     loopStatusKey: string;
@@ -59,6 +62,9 @@ type BabylonDistrictSceneHostProps = {
     laneKey: string;
     label: string;
     labelKey?: string;
+    focusKey?: string;
+    riskKey?: string;
+    riskFocusKey?: string;
     sourceType?: string;
     actorKey?: string;
     interactionKind?: string;
@@ -103,6 +109,22 @@ type ClusterActionItem = {
   };
   is_secondary: boolean;
   is_primary_surface_action?: boolean;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  action_context?: {
+    district_key?: string;
+    family_key?: string;
+    flow_key?: string;
+    focus_key?: string;
+    risk_key?: string;
+    risk_focus_key?: string;
+    risk_health_band_key?: string;
+    risk_attention_band_key?: string;
+    risk_trend_direction_key?: string;
+    entry_kind_key?: string;
+    sequence_kind_key?: string;
+  };
 };
 
 type ProtocolCardActionItem = {
@@ -112,6 +134,10 @@ type ProtocolCardActionItem = {
   hint_label_key?: string;
   tone_key?: string;
   intent_profile_key?: string;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  action_context?: ClusterActionItem["action_context"];
 };
 
 type ProtocolCardFlowPod = {
@@ -132,6 +158,10 @@ type ProtocolCardFlowPod = {
   stage_label_key?: string;
   stage_value?: string;
   stage_status_key?: string;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  action_context?: ClusterActionItem["action_context"];
   rows?: Array<{ label_key: string; value: string; status_key: string }>;
   signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   flow_rows?: Array<{ label_key: string; value: string; status_key: string }>;
@@ -145,6 +175,27 @@ type ProtocolCardFlowPod = {
     action_key?: string;
     action_label_key?: string;
     hint_label_key?: string;
+    family_key?: string;
+    flow_key?: string;
+    focus_key?: string;
+    risk_key?: string;
+    risk_focus_key?: string;
+    risk_health_band_key?: string;
+    risk_attention_band_key?: string;
+    risk_trend_direction_key?: string;
+    action_context?: {
+      district_key?: string;
+      family_key?: string;
+      flow_key?: string;
+      focus_key?: string;
+      risk_key?: string;
+      risk_focus_key?: string;
+      risk_health_band_key?: string;
+      risk_attention_band_key?: string;
+      risk_trend_direction_key?: string;
+      entry_kind_key?: string;
+      sequence_kind_key?: string;
+    };
     entry_kind_key?: string;
     sequence_kind_key?: string;
     tempo_label_key?: string;
@@ -242,6 +293,10 @@ type ProtocolCard = {
   action_key?: string;
   action_label_key?: string;
   is_actionable?: boolean;
+  focus_key?: string;
+  risk_key?: string;
+  risk_focus_key?: string;
+  action_context?: ClusterActionItem["action_context"];
   preview_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   flow_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
@@ -438,6 +493,60 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     }
     return flows.find((flow) => flow.microflow_key === activeMicroflowKey) || flows[0] || null;
   }, [activeMicroflowKey, selectedProtocolPod]);
+  const selectedLoopActionContext = useMemo(
+    () => ({
+      focusKey: String(selectedMicroflow?.action_context?.focus_key || selectedMicroflow?.focus_key || ""),
+      riskKey: String(selectedMicroflow?.action_context?.risk_key || selectedMicroflow?.risk_key || ""),
+      riskFocusKey: String(selectedMicroflow?.action_context?.risk_focus_key || selectedMicroflow?.risk_focus_key || "")
+    }),
+    [selectedMicroflow]
+  );
+  const resolveSceneActionContext = useCallback(
+    (
+      action?:
+        | {
+            action_context?: ClusterActionItem["action_context"];
+            focus_key?: string;
+            risk_key?: string;
+            risk_focus_key?: string;
+          }
+        | null,
+      fallback?:
+        | {
+            action_context?: ClusterActionItem["action_context"];
+            focus_key?: string;
+            risk_key?: string;
+            risk_focus_key?: string;
+          }
+        | null
+    ) => ({
+      focusKey: String(
+        action?.action_context?.focus_key ||
+          action?.focus_key ||
+          fallback?.action_context?.focus_key ||
+          fallback?.focus_key ||
+          selectedLoopActionContext.focusKey ||
+          ""
+      ),
+      riskKey: String(
+        action?.action_context?.risk_key ||
+          action?.risk_key ||
+          fallback?.action_context?.risk_key ||
+          fallback?.risk_key ||
+          selectedLoopActionContext.riskKey ||
+          ""
+      ),
+      riskFocusKey: String(
+        action?.action_context?.risk_focus_key ||
+          action?.risk_focus_key ||
+          fallback?.action_context?.risk_focus_key ||
+          fallback?.risk_focus_key ||
+          selectedLoopActionContext.riskFocusKey ||
+          ""
+      )
+    }),
+    [selectedLoopActionContext]
+  );
 
   useEffect(() => {
     setTerminalOpen(false);
@@ -507,6 +616,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       protocol_card_key: selectedProtocolCard.card_key,
       protocol_pod_key: selectedProtocolPod.pod_key,
       microflow_key: selectedMicroflow.microflow_key,
+      focus_key: selectedMicroflow.focus_key || "",
+      risk_key: selectedMicroflow.risk_key || "",
+      risk_focus_key: selectedMicroflow.risk_focus_key || "",
       loop_status_key: selectedMicroflow.loop_status_key || selectedMicroflow.status_key || "",
       loop_stage_value: selectedMicroflow.loop_stage_value || selectedMicroflow.stage_value || "",
       sequence_kind_key: selectedMicroflow.sequence_kind_key || "",
@@ -530,6 +642,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       protocolCardKey: selectedProtocolCard.card_key,
       protocolPodKey: selectedProtocolPod.pod_key,
       microflowKey: selectedMicroflow.microflow_key,
+      focusKey: selectedMicroflow.focus_key || undefined,
+      riskKey: selectedMicroflow.risk_key || undefined,
+      riskFocusKey: selectedMicroflow.risk_focus_key || undefined,
       entryKindKey: String(selectedMicroflow.entry_kind_key || ""),
       sequenceKindKey: String(selectedMicroflow.sequence_kind_key || ""),
       loopStatusKey: String(selectedMicroflow.loop_status_key || selectedMicroflow.status_key || ""),
@@ -570,6 +685,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       laneKey: string;
       label: string;
       labelKey?: string;
+      focusKey?: string;
+      riskKey?: string;
+      riskFocusKey?: string;
       sourceType?: string;
       actorKey?: string;
       interactionKind?: string;
@@ -1651,6 +1769,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     interactionKind: action.interaction_kind,
                     clusterKey: action.cluster_key,
                     isSecondary: action.is_secondary,
+                    ...resolveSceneActionContext(action),
                     workspace: props.workspace,
                     tab: props.tab,
                     districtKey: worldState.district_key
@@ -1819,6 +1938,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     interactionKind: action.interaction_kind,
                     clusterKey: action.cluster_key,
                     isSecondary: action.is_secondary,
+                    ...resolveSceneActionContext(action),
                     workspace: props.workspace,
                     tab: props.tab,
                     districtKey: worldState.district_key
@@ -1956,6 +2076,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       interactionKind: action.interaction_kind,
                       clusterKey: action.cluster_key,
                       isSecondary: action.is_secondary,
+                      ...resolveSceneActionContext(action),
                       workspace: props.workspace,
                       tab: props.tab,
                       districtKey: worldState.district_key
@@ -2087,6 +2208,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                             actorKey: worldState.active_hotspot_key,
                             interactionKind: "protocol",
                             clusterKey: worldState.active_cluster_key,
+                            ...resolveSceneActionContext(card),
                             workspace: props.workspace,
                             tab: props.tab,
                             districtKey: worldState.district_key
@@ -2401,6 +2523,24 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                 <strong>{selectedMicroflow.loop_stage_value}</strong>
                               </div>
                             ) : null}
+                            {selectedMicroflow.focus_key ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}>
+                                <span>Focus</span>
+                                <strong>{selectedMicroflow.focus_key}</strong>
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.risk_key ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}>
+                                <span>Risk</span>
+                                <strong>{selectedMicroflow.risk_key}</strong>
+                              </div>
+                            ) : null}
+                            {selectedMicroflow.risk_focus_key ? (
+                              <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}>
+                                <span>RFK</span>
+                                <strong>{selectedMicroflow.risk_focus_key}</strong>
+                              </div>
+                            ) : null}
                           </div>
                           <div className="akrSceneInteractionModalGrid">
                             {selectedMicroflow.loop_rows?.length ? (
@@ -2465,6 +2605,17 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                 ))}
                               </div>
                             ) : null}
+                            {selectedMicroflow.risk_focus_key ? (
+                              <div className="akrSceneInteractionModalRows">
+                                <div
+                                  key={`${selectedMicroflow.microflow_key}:risk-focus`}
+                                  className={`akrSceneInteractionModalRow is-${selectedMicroflow.loop_status_key || selectedMicroflow.status_key}`}
+                                >
+                                  <span>Risk focus</span>
+                                  <strong>{selectedMicroflow.risk_focus_key}</strong>
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                           {selectedMicroflow.action_key ? (
                             <div className="akrSceneInteractionModalActionGrid">
@@ -2476,11 +2627,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                     actionKey: selectedMicroflow.action_key || "",
                                     nodeKey: selectedMicroflow.microflow_key,
                                     laneKey: "modal_protocol_microflow_focus",
-                                    label: selectedMicroflow.value || selectedProtocolPod.value,
-                                    labelKey: selectedMicroflow.label_key,
-                                    sourceType: "district_scene_protocol_microflow_focus",
-                                    actorKey: worldState.active_hotspot_key,
-                                    interactionKind: "protocol_microflow_focus",
+                                  label: selectedMicroflow.value || selectedProtocolPod.value,
+                                  labelKey: selectedMicroflow.label_key,
+                                  ...resolveSceneActionContext(selectedMicroflow),
+                                  sourceType: "district_scene_protocol_microflow_focus",
+                                  actorKey: worldState.active_hotspot_key,
+                                  interactionKind: "protocol_microflow_focus",
                                     clusterKey: worldState.active_cluster_key,
                                     workspace: props.workspace,
                                     tab: props.tab,
@@ -2552,6 +2704,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                 actorKey: worldState.active_hotspot_key,
                                 interactionKind: "protocol_pod_focus",
                                 clusterKey: worldState.active_cluster_key,
+                                ...resolveSceneActionContext(action, selectedProtocolPod),
                                 workspace: props.workspace,
                                 tab: props.tab,
                                 districtKey: worldState.district_key
@@ -2591,6 +2744,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                             actorKey: worldState.active_hotspot_key,
                             interactionKind: "protocol_focus",
                             clusterKey: worldState.active_cluster_key,
+                            ...resolveSceneActionContext(action, selectedProtocolCard),
                             workspace: props.workspace,
                             tab: props.tab,
                             districtKey: worldState.district_key
@@ -2662,6 +2816,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       interactionKind: action.interaction_kind,
                       clusterKey: action.cluster_key,
                       isSecondary: action.is_secondary,
+                      ...resolveSceneActionContext(action),
                       workspace: props.workspace,
                       tab: props.tab,
                       districtKey: worldState.district_key
