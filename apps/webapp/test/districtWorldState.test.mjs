@@ -91,12 +91,17 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].light_profile_key, "hub_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].surface_glow_band_key, "cool");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].chrome_band_key, "glide");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].composition_profile_key, "hub_glide");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_frame_key, "hub_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_density_profile_key, "spread");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].rail_layout_key, "hub_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].modal_layout_key, "hub_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_layout_key, "hub_glide");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "cool");
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].focus_hold_scalar < 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_fov_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].focus_spread_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].surface_stack_scalar < 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].light_intensity_scalar > 0.95);
   assert.ok(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].glow_intensity_scalar >=
@@ -213,12 +218,17 @@ test("buildDistrictWorldState trims pvp nodes on low-end profile", () => {
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].light_profile_key, "arena_flare");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].surface_glow_band_key, "hot");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].chrome_band_key, "strike");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].composition_profile_key, "arena_press");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_frame_key, "arena_press");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_density_profile_key, "focus");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].rail_layout_key, "arena_strike");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].modal_layout_key, "arena_focus");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_layout_key, "arena_stack");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "hot");
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].focus_hold_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].camera_fov_scalar < 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].focus_spread_scalar < 1);
+  assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].surface_stack_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].light_intensity_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].glow_intensity_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].orbit_spin_scalar > 1);
@@ -312,12 +322,17 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].light_profile_key, "ops_console");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].surface_glow_band_key, "hot");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].chrome_band_key, "dispatch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].composition_profile_key, "ops_dispatch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].camera_frame_key, "ops_dispatch");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_density_profile_key, "console");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].rail_layout_key, "ops_dispatch");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].modal_layout_key, "ops_dispatch");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_layout_key, "ops_grid");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].hud_emphasis_band_key, "hot");
   assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].focus_hold_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].camera_fov_scalar < 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].focus_spread_scalar < 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].surface_stack_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].light_intensity_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].glow_intensity_scalar > 1);
   assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].ring_pulse_scalar > 1);

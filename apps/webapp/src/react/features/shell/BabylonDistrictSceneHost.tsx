@@ -159,11 +159,23 @@ type ProtocolCardFlowPod = {
     light_profile_key?: string;
     surface_glow_band_key?: string;
     chrome_band_key?: string;
+    composition_profile_key?: string;
+    camera_frame_key?: string;
     hud_density_profile_key?: string;
     rail_layout_key?: string;
     console_layout_key?: string;
     modal_layout_key?: string;
     focus_hold_scalar?: number;
+    camera_fov_scalar?: number;
+    focus_spread_scalar?: number;
+    hud_width_scalar?: number;
+    rail_width_scalar?: number;
+    sheet_width_scalar?: number;
+    entry_width_scalar?: number;
+    console_width_scalar?: number;
+    modal_width_scalar?: number;
+    surface_gap_scalar?: number;
+    surface_stack_scalar?: number;
     light_intensity_scalar?: number;
     glow_intensity_scalar?: number;
     surface_glow_scalar?: number;
@@ -625,6 +637,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         camera.upperRadiusLimit = cameraProfile.radius + cameraProfile.upper_radius_delta;
         camera.wheelDeltaPercentage = 0.01;
         camera.panningSensibility = 0;
+        const cameraBaseFov = camera.fov;
 
         const hemi = new HemisphericLight("akrDistrictHemi", new Vector3(0, 1, 0), scene);
         const hemiBaseIntensity = worldState.low_end_mode ? 0.7 : 0.92;
@@ -1224,6 +1237,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const microflowFocusHoldScalar = Number.isFinite(Number(microflowFocus?.focus_hold_scalar))
             ? Number(microflowFocus?.focus_hold_scalar)
             : 1;
+          const microflowCameraFovScalar = Number.isFinite(Number(microflowFocus?.camera_fov_scalar))
+            ? Number(microflowFocus?.camera_fov_scalar)
+            : 1;
+          const microflowFocusSpreadScalar = Number.isFinite(Number(microflowFocus?.focus_spread_scalar))
+            ? Number(microflowFocus?.focus_spread_scalar)
+            : 1;
           const microflowLightIntensityScalar = Number.isFinite(Number(microflowFocus?.light_intensity_scalar))
             ? Number(microflowFocus?.light_intensity_scalar)
             : 1;
@@ -1275,6 +1294,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           if (glow) {
             glow.intensity = glowBaseIntensity * microflowGlowIntensityScalar * microflowSurfaceGlowScalar;
           }
+          camera.fov +=
+            (cameraBaseFov * microflowCameraFovScalar - camera.fov) *
+            Math.min(0.18, 0.08 * microflowFocusHoldScalar);
           groundMaterial.alpha = Math.min(0.98, 0.84 * microflowChromeOpacityScalar);
           groundMaterial.emissiveColor = groundEmissiveBase.scale(microflowSurfaceGlowScalar);
           ringMaterial.emissiveColor = ringEmissiveBase.scale(microflowSurfaceGlowScalar);
@@ -1324,7 +1346,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               microflowFocusLerpScalar *
               microflowFocusHoldScalar;
             const desiredRadius =
-              cameraProfile.radius * focusHotspot.camera_radius_scale * podRadiusScale * microflowRadiusScale * microflowCameraOrbitBiasScalar;
+              cameraProfile.radius *
+              focusHotspot.camera_radius_scale *
+              podRadiusScale *
+              microflowRadiusScale *
+              microflowCameraOrbitBiasScalar *
+              microflowFocusSpreadScalar;
             camera.radius +=
               (desiredRadius - camera.radius) *
               cameraProfile.radius_lerp *
@@ -1431,6 +1458,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-light-profile={selectedMicroflow?.light_profile_key || ""}
       data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
       data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+      data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
+      data-camera-frame={selectedMicroflow?.camera_frame_key || ""}
       data-hud-layout={selectedMicroflow?.hud_layout_key || worldState.hud_profile.hud_profile_key}
       data-hud-emphasis={selectedMicroflow?.hud_emphasis_band_key || ""}
       data-hud-density={selectedMicroflow?.hud_density_profile_key || ""}
@@ -1439,7 +1468,15 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-console-layout={selectedMicroflow?.console_layout_key || ""}
       style={
         {
-          "--akr-scene-chrome-opacity": String(selectedMicroflow?.chrome_opacity_scalar || 1)
+          "--akr-scene-chrome-opacity": String(selectedMicroflow?.chrome_opacity_scalar || 1),
+          "--akr-scene-hud-width-scale": String(selectedMicroflow?.hud_width_scalar || 1),
+          "--akr-scene-rail-width-scale": String(selectedMicroflow?.rail_width_scalar || 1),
+          "--akr-scene-sheet-width-scale": String(selectedMicroflow?.sheet_width_scalar || 1),
+          "--akr-scene-entry-width-scale": String(selectedMicroflow?.entry_width_scalar || 1),
+          "--akr-scene-console-width-scale": String(selectedMicroflow?.console_width_scalar || 1),
+          "--akr-scene-modal-width-scale": String(selectedMicroflow?.modal_width_scalar || 1),
+          "--akr-scene-surface-gap-scale": String(selectedMicroflow?.surface_gap_scalar || 1),
+          "--akr-scene-surface-stack-scale": String(selectedMicroflow?.surface_stack_scalar || 1)
         } as React.CSSProperties
       }
     >
@@ -1454,6 +1491,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         data-light-profile={selectedMicroflow?.light_profile_key || ""}
         data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
         data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+        data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         data-hud-layout={selectedMicroflow?.hud_layout_key || worldState.hud_profile.hud_profile_key}
         data-hud-emphasis={selectedMicroflow?.hud_emphasis_band_key || ""}
         data-hud-density={selectedMicroflow?.hud_density_profile_key || ""}
@@ -1535,6 +1573,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         >
           <div className="akrSceneWorldRailHeader">
             <strong>
@@ -1596,6 +1635,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         >
           <div className="akrSceneWorldSheetHeader">
             <strong>
@@ -1635,6 +1675,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         >
           <div className="akrSceneEntrySurfaceHeader">
             <span>{t(props.lang, worldState.interaction_surface.surface_kind_key as never)}</span>
@@ -1753,6 +1794,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         >
           <div className="akrSceneTerminalConsoleHeader">
             <div className="akrSceneTerminalConsoleTitle">
@@ -1889,6 +1931,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         >
           <div className="akrSceneInteractionModalHeader">
             <div className="akrSceneInteractionModalTitle">

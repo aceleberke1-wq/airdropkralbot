@@ -98,6 +98,14 @@ body {
   overflow: hidden;
   opacity: 0.96;
   --akr-scene-chrome-opacity: 1;
+  --akr-scene-hud-width-scale: 1;
+  --akr-scene-rail-width-scale: 1;
+  --akr-scene-sheet-width-scale: 1;
+  --akr-scene-entry-width-scale: 1;
+  --akr-scene-console-width-scale: 1;
+  --akr-scene-modal-width-scale: 1;
+  --akr-scene-surface-gap-scale: 1;
+  --akr-scene-surface-stack-scale: 1;
 }
 
 .akrSceneWorldCanvas {
@@ -141,15 +149,19 @@ body {
   pointer-events: auto;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   align-items: center;
-  padding: 10px 14px;
+  padding: calc(10px * var(--akr-scene-surface-stack-scale)) calc(14px * var(--akr-scene-surface-stack-scale));
   border-radius: 14px;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.74rem;
   color: #dff6ff;
   background: linear-gradient(135deg, rgba(8, 21, 44, 0.68), rgba(9, 30, 54, 0.52));
   filter: saturate(calc(1 * var(--akr-scene-chrome-opacity))) contrast(calc(0.98 + (var(--akr-scene-chrome-opacity) * 0.06)));
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 12px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.14)));
+  transform-origin: left bottom;
 }
 
 .akrSceneWorldHud[data-light-profile="arena_flare"] {
@@ -195,37 +207,52 @@ body {
 }
 
 .akrSceneWorldHud[data-hud-layout="hub_glide"] {
-  max-width: min(680px, calc(100vw - 32px));
+  max-width: min(calc(680px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
 }
 
 .akrSceneWorldHud[data-hud-layout="arena_stack"] {
-  max-width: min(720px, calc(100vw - 32px));
+  max-width: min(calc(720px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(28, 11, 28, 0.8), rgba(54, 14, 28, 0.62));
 }
 
 .akrSceneWorldHud[data-hud-layout="arena_scope"] {
-  max-width: min(720px, calc(100vw - 32px));
+  max-width: min(calc(720px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(7, 22, 36, 0.82), rgba(8, 34, 52, 0.58));
 }
 
 .akrSceneWorldHud[data-hud-layout="mission_stack"] {
-  max-width: min(700px, calc(100vw - 32px));
+  max-width: min(calc(700px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(19, 28, 24, 0.8), rgba(20, 45, 33, 0.56));
 }
 
 .akrSceneWorldHud[data-hud-layout="mission_sync"] {
-  max-width: min(700px, calc(100vw - 32px));
+  max-width: min(calc(700px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(9, 30, 28, 0.8), rgba(12, 48, 46, 0.56));
 }
 
 .akrSceneWorldHud[data-hud-layout="exchange_ledger"] {
-  max-width: min(720px, calc(100vw - 32px));
+  max-width: min(calc(720px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(32, 21, 11, 0.82), rgba(54, 35, 12, 0.58));
 }
 
 .akrSceneWorldHud[data-hud-layout="ops_grid"] {
-  max-width: min(760px, calc(100vw - 32px));
+  max-width: min(calc(760px * var(--akr-scene-hud-width-scale)), calc(100vw - 32px));
   background: linear-gradient(135deg, rgba(12, 16, 28, 0.84), rgba(16, 24, 46, 0.62));
+}
+
+.akrSceneWorldHud[data-composition-profile="arena_press"],
+.akrSceneWorldHud[data-composition-profile="arena_charge"] {
+  justify-content: space-between;
+}
+
+.akrSceneWorldHud[data-composition-profile="arena_scope"],
+.akrSceneWorldHud[data-composition-profile="ops_scope"] {
+  justify-content: flex-start;
+  letter-spacing: 0.02em;
+}
+
+.akrSceneWorldHud[data-composition-profile="ops_dispatch"] {
+  align-items: stretch;
 }
 
 .akrSceneWorldHud[data-hud-emphasis="hot"] {
@@ -287,12 +314,16 @@ body {
   right: max(16px, calc((100vw - 1180px) / 2 + 16px));
   bottom: 16px;
   pointer-events: auto;
-  width: min(360px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(calc(360px * var(--akr-scene-rail-width-scale)), calc(100vw - 32px));
+  padding: calc(12px * var(--akr-scene-surface-stack-scale));
   border-radius: 16px;
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   filter: saturate(calc(1 * var(--akr-scene-chrome-opacity)));
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 10px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.12)));
+  transform-origin: right bottom;
 }
 
 .akrSceneWorldRail[data-chrome-band="strike"] {
@@ -340,6 +371,16 @@ body {
 .akrSceneWorldRail[data-rail-layout="ops_watch"],
 .akrSceneWorldRail[data-rail-layout="ops_dispatch"] {
   background: linear-gradient(180deg, rgba(12, 18, 34, 0.94), rgba(10, 14, 24, 0.84));
+}
+
+.akrSceneWorldRail[data-composition-profile="arena_press"],
+.akrSceneWorldRail[data-composition-profile="ops_dispatch"] {
+  border-radius: 18px 18px 24px 18px;
+}
+
+.akrSceneWorldRail[data-composition-profile="arena_scope"],
+.akrSceneWorldRail[data-composition-profile="ops_scope"] {
+  border-radius: 14px;
 }
 
 .akrSceneWorldRailHeader {
@@ -455,13 +496,17 @@ body {
   position: fixed;
   left: max(16px, calc((100vw - 1180px) / 2 + 16px));
   top: 18px;
-  width: min(320px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(calc(320px * var(--akr-scene-sheet-width-scale)), calc(100vw - 32px));
+  padding: calc(12px * var(--akr-scene-surface-stack-scale));
   border-radius: 16px;
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   pointer-events: auto;
   filter: saturate(calc(1 * var(--akr-scene-chrome-opacity)));
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 8px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.1)));
+  transform-origin: left top;
 }
 
 .akrSceneWorldSheet[data-sheet-layout="arena_strike"],
@@ -550,12 +595,16 @@ body {
   position: fixed;
   left: max(16px, calc((100vw - 1180px) / 2 + 16px));
   top: 252px;
-  width: min(320px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(calc(320px * var(--akr-scene-entry-width-scale)), calc(100vw - 32px));
+  padding: calc(12px * var(--akr-scene-surface-stack-scale));
   border-radius: 16px;
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   pointer-events: auto;
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 10px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.12)));
+  transform-origin: left top;
 }
 
 .akrSceneEntrySurface[data-light-profile="arena_flare"],
@@ -863,12 +912,16 @@ body {
   position: fixed;
   right: max(16px, calc((100vw - 1180px) / 2 + 16px));
   top: 252px;
-  width: min(360px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(calc(360px * var(--akr-scene-console-width-scale)), calc(100vw - 32px));
+  padding: calc(12px * var(--akr-scene-surface-stack-scale));
   border-radius: 16px;
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   pointer-events: auto;
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 8px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.12)));
+  transform-origin: right top;
 }
 
 .akrSceneTerminalConsole[data-console-layout="arena_strike"],
@@ -1089,12 +1142,16 @@ body {
   position: fixed;
   right: max(16px, calc((100vw - 1180px) / 2 + 16px));
   top: 610px;
-  width: min(360px, calc(100vw - 32px));
-  padding: 12px;
+  width: min(calc(360px * var(--akr-scene-modal-width-scale)), calc(100vw - 32px));
+  padding: calc(12px * var(--akr-scene-surface-stack-scale));
   border-radius: 16px;
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--akr-scene-surface-gap-scale));
   pointer-events: auto;
+  transform:
+    translateY(calc((1 - var(--akr-scene-surface-stack-scale)) * 6px))
+    scale(calc(0.98 + ((var(--akr-scene-surface-stack-scale) - 1) * 0.14)));
+  transform-origin: right top;
 }
 
 .akrSceneInteractionModal[data-modal-layout="arena_focus"],
