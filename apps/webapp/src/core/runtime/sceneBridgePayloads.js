@@ -534,6 +534,15 @@ function buildLoopRiskKeyText(source) {
   return `${inferLoopHealthBandKey(row)}:${inferLoopAttentionBandKey(row)}:${inferLoopTrendDirectionKey(row)}`;
 }
 
+function buildLoopRiskFocusKeyText(source, familyKey = "") {
+  const focusKeyText = buildLoopFocusKeyText(source, familyKey);
+  const riskKeyText = buildLoopRiskKeyText(source);
+  if (focusKeyText && riskKeyText) {
+    return `${focusKeyText}|${riskKeyText}`;
+  }
+  return focusKeyText || riskKeyText || "";
+}
+
 function normalizeLoopFlowPanelTitles(titles) {
   const source = Array.isArray(titles) ? titles : [];
   return [
@@ -663,6 +672,7 @@ function buildLoopFlowFamilyPanels(tone, rails, titles) {
   const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   const focusKeyText = buildLoopFocusKeyText(source);
+  const riskFocusKeyText = buildLoopRiskFocusKeyText(source);
   const [commandTitle, stateTitle, signalTitle] = normalizeLoopFlowPanelTitles(titles);
   return [
     {
@@ -694,7 +704,8 @@ function buildLoopFlowFamilyPanels(tone, rails, titles) {
         buildLoopAttentionText(source),
         buildLoopTrendText(source),
         buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
-        `RISK ${riskKeyText}`
+        `RISK ${riskKeyText}`,
+        riskFocusKeyText ? `RFK ${riskFocusKeyText}` : ""
       ]
     }
   ];
@@ -706,6 +717,7 @@ function buildLoopRiskPanels(tone, rails) {
   const riskComponentText = buildLoopRiskComponentText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
   const focusKeyText = buildLoopFocusKeyText(source);
+  const riskFocusKeyText = buildLoopRiskFocusKeyText(source);
   return [
     {
       title: "HEALTH",
@@ -717,7 +729,8 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.gateText || source.leadText, "GATE --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
-        `RISK ${riskKeyText}`
+        `RISK ${riskKeyText}`,
+        riskFocusKeyText ? `RFK ${riskFocusKeyText}` : ""
       ]
     },
     {
@@ -730,7 +743,8 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.responseText || source.opsText, "RESPONSE --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
-        `RISK ${riskKeyText}`
+        `RISK ${riskKeyText}`,
+        riskFocusKeyText ? `RFK ${riskFocusKeyText}` : ""
       ]
     },
     {
@@ -743,7 +757,8 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.detailText || source.stageText, "DETAIL --"),
         buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopMicroDetail(riskComponentText, buildLoopRiskSummaryText(source)),
-        `RISK ${riskKeyText}`
+        `RISK ${riskKeyText}`,
+        riskFocusKeyText ? `RFK ${riskFocusKeyText}` : ""
       ]
     }
   ];
