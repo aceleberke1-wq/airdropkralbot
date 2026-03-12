@@ -131,6 +131,7 @@ function normalizeSceneLoopFamilyKey(value) {
     .trim()
     .toLowerCase()
     .replace(/^world_(entry|modal|sequence)_kind_/, "")
+    .replace(/^world_modal_lane_/, "")
     .replace(/_(flow|pod|sequence|terminal|console|route)$/g, "")
     .replace(/__+/g, "_") || "unknown";
 }
@@ -149,6 +150,15 @@ function normalizeSceneLoopMicroflowKey(value) {
       .replace(/__+/g, "_")
       .trim() || normalizeSceneLoopFamilyKey(source);
   return normalized || "unknown";
+}
+
+function normalizeSceneLoopMicroflowFamilyKey(value) {
+  const source = String(value || "unknown").trim().toLowerCase();
+  if (!source) {
+    return "unknown";
+  }
+  const head = source.includes(":") ? source.split(":")[0] || source : source;
+  return normalizeSceneLoopFamilyKey(head);
 }
 
 function normalizeSceneLoopDistrictFamilyDailyRows(rows, limit = 84) {
@@ -182,6 +192,7 @@ function normalizeSceneLoopDistrictMicroflowDailyRows(rows, limit = 126) {
     .map((row) => ({
       day: String(row?.day || ""),
       district_key: String(row?.district_key || "unknown"),
+      loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_microflow_key ?? row?.loop_family_key),
       loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
       total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
       live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
@@ -204,16 +215,18 @@ function normalizeSceneLoopDistrictMicroflowDailyRows(rows, limit = 126) {
 function toSceneLoopFamilyRowsFromMicroflow(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     ...row,
-    loop_family_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key ?? row?.loop_family_key)
+    loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key)
   }));
 }
 
 function mapSceneLoopFamilyRowToMicroflow(row) {
   const source = row && typeof row === "object" ? row : {};
   const { loop_family_key, ...rest } = source;
+  const rawMicroflowKey = source.loop_microflow_key ?? loop_family_key;
   return {
     ...rest,
-    loop_microflow_key: normalizeSceneLoopMicroflowKey(loop_family_key)
+    loop_family_key: normalizeSceneLoopFamilyKey(loop_family_key),
+    loop_microflow_key: normalizeSceneLoopMicroflowKey(rawMicroflowKey)
   };
 }
 
@@ -813,9 +826,72 @@ function buildSceneLoopDistrictFamilyAttentionPriorityDaily(rows, limit = 18) {
 }
 
 function buildSceneLoopDistrictMicroflowMatrix(rows, limit = 18) {
-  return buildSceneLoopDistrictFamilyMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  const source = Array.isArray(rows) ? rows : [];
+  const grouped = new Map();
+  source.forEach((row) => {
+    const districtKey = String(row?.district_key || "unknown");
+    const loopMicroflowKey = normalizeSceneLoopMicroflowKey(row?.loop_microflow_key);
+    const loopFamilyKey = normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key);
+    const compositeKey = `${districtKey}:${loopMicroflowKey}`;
+    if (!grouped.has(compositeKey)) {
+      grouped.set(compositeKey, { districtKey, loopMicroflowKey, loopFamilyKey, rows: [] });
+    }
+    grouped.get(compositeKey).rows.push(row);
+  });
+  return Array.from(grouped.values())
+    .map(({ districtKey, loopMicroflowKey, loopFamilyKey, rows: microflowRows }) => {
+      const sortedRows = [...microflowRows].sort((left, right) => String(right.day || "").localeCompare(String(left.day || "")));
+      const totalCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.total_count, 0))), 0);
+      const liveCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.live_count, 0))), 0);
+      const blockedCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.blocked_count, 0))), 0);
+      const liveShare = toRate(liveCount, totalCount);
+      const blockedShare = toRate(blockedCount, totalCount);
+      const latestRow = sortedRows[0] || null;
+      const earliestRow = sortedRows[sortedRows.length - 1] || null;
+      const greenDays = sortedRows.filter((row) => String(row?.health_band || "") === "green").length;
+      const yellowDays = sortedRows.filter((row) => String(row?.health_band || "") === "yellow").length;
+      const redDays = sortedRows.filter((row) => String(row?.health_band || "") === "red").length;
+      return {
+        district_key: districtKey,
+        loop_family_key: loopFamilyKey,
+        loop_microflow_key: loopMicroflowKey,
+        total_count: totalCount,
+        live_count: liveCount,
+        blocked_count: blockedCount,
+        live_share: liveShare,
+        blocked_share: blockedShare,
+        day_count: sortedRows.length,
+        latest_day: latestRow?.day || null,
+        latest_total_count: Math.max(0, Math.floor(toNum(latestRow?.total_count, 0))),
+        latest_health_band: String(latestRow?.health_band || "no_data"),
+        green_days: greenDays,
+        yellow_days: yellowDays,
+        red_days: redDays,
+        health_band: resolveSceneLoopDistrictHealthBand(totalCount, liveShare, blockedShare),
+        attention_band: resolveSceneLoopDistrictAttentionBand(
+          String(latestRow?.health_band || "no_data"),
+          resolveSceneLoopTrendDirection(latestRow?.total_count, earliestRow?.total_count, sortedRows.length),
+          blockedShare
+        ),
+        trend_direction: resolveSceneLoopTrendDirection(
+          latestRow?.total_count,
+          earliestRow?.total_count,
+          sortedRows.length
+        ),
+        trend_delta: Math.max(
+          -9999,
+          Math.min(9999, Math.floor(toNum(latestRow?.total_count, 0) - toNum(earliestRow?.total_count, 0)))
+        )
+      };
+    })
+    .sort((left, right) => {
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
 }
 
 function buildSceneLoopDistrictMicroflowHealthAttentionBreakdown(rows, limit = 18) {
@@ -838,33 +914,228 @@ function buildSceneLoopDistrictMicroflowHealthAttentionTrendBreakdown(rows, limi
 }
 
 function buildSceneLoopDistrictMicroflowHealthAttentionTrendMatrix(rows, limit = 18) {
-  return buildSceneLoopDistrictFamilyHealthAttentionTrendMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const latestHealthBand = String(row?.latest_health_band || row?.health_band || "no_data");
+      const attentionBand = String(row?.attention_band || "no_data");
+      const trendDirection = String(row?.trend_direction || "no_data");
+      return {
+        district_key: String(row?.district_key || "unknown"),
+        loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+        loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+        latest_health_band: latestHealthBand,
+        attention_band: attentionBand,
+        trend_direction: trendDirection,
+        trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+        total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+        live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+        blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+        attention_rank: rankSceneLoopAttentionBand(attentionBand),
+        health_rank: rankSceneLoopHealthBand(latestHealthBand),
+        trend_rank: rankSceneLoopTrendDirection(trendDirection)
+      };
+    })
+    .sort((left, right) => {
+      const attentionGap = toNum(right.attention_rank, 0) - toNum(left.attention_rank, 0);
+      if (Math.abs(attentionGap) > 0.0001) return attentionGap;
+      const healthGap = toNum(right.health_rank, 0) - toNum(left.health_rank, 0);
+      if (Math.abs(healthGap) > 0.0001) return healthGap;
+      const trendGap = toNum(right.trend_rank, 0) - toNum(left.trend_rank, 0);
+      if (Math.abs(trendGap) > 0.0001) return trendGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
 }
 
 function buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyBreakdown(rows, limit = 24) {
-  return buildSceneLoopDistrictFamilyHealthAttentionTrendDailyBreakdown(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  const source = Array.isArray(rows) ? rows : [];
+  const grouped = new Map();
+  source.forEach((row) => {
+    const districtKey = String(row?.district_key || "unknown");
+    const loopMicroflowKey = normalizeSceneLoopMicroflowKey(row?.loop_microflow_key);
+    const loopFamilyKey = normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key);
+    const compositeKey = `${districtKey}:${loopMicroflowKey}`;
+    if (!grouped.has(compositeKey)) {
+      grouped.set(compositeKey, { districtKey, loopMicroflowKey, loopFamilyKey, rows: [] });
+    }
+    grouped.get(compositeKey).rows.push(row);
+  });
+  const output = [];
+  grouped.forEach(({ districtKey, loopMicroflowKey, loopFamilyKey, rows: microflowRows }) => {
+    const sortedRows = [...microflowRows].sort((left, right) => String(right.day || "").localeCompare(String(left.day || "")));
+    sortedRows.forEach((row, index) => {
+      const liveCount = Math.max(0, Math.floor(toNum(row?.live_count, 0)));
+      const blockedCount = Math.max(0, Math.floor(toNum(row?.blocked_count, 0)));
+      const totalCount = Math.max(0, Math.floor(toNum(row?.total_count, 0)));
+      const liveShare = toRate(liveCount, totalCount);
+      const blockedShare = toRate(blockedCount, totalCount);
+      const olderRow = sortedRows[index + 1] || null;
+      const trendDirection = resolveSceneLoopTrendDirection(totalCount, olderRow?.total_count, olderRow ? 2 : 1);
+      const latestHealthBand = resolveSceneLoopDistrictHealthBand(totalCount, liveShare, blockedShare);
+      const attentionBand = resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare);
+      output.push({
+        day: String(row?.day || ""),
+        district_key: districtKey,
+        loop_family_key: loopFamilyKey,
+        loop_microflow_key: loopMicroflowKey,
+        total_count: totalCount,
+        live_count: liveCount,
+        blocked_count: blockedCount,
+        live_share: liveShare,
+        blocked_share: blockedShare,
+        latest_health_band: latestHealthBand,
+        attention_band: attentionBand,
+        trend_direction: trendDirection,
+        trend_delta: Math.max(
+          -9999,
+          Math.min(9999, Math.floor(toNum(row?.total_count, 0) - toNum(olderRow?.total_count, 0)))
+        )
+      });
+    });
+  });
+  return output
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const attentionGap = rankSceneLoopAttentionBand(right.attention_band) - rankSceneLoopAttentionBand(left.attention_band);
+      if (attentionGap !== 0) return attentionGap;
+      const healthGap = rankSceneLoopHealthBand(right.latest_health_band) - rankSceneLoopHealthBand(left.latest_health_band);
+      if (healthGap !== 0) return healthGap;
+      const trendGap = rankSceneLoopTrendDirection(right.trend_direction) - rankSceneLoopTrendDirection(left.trend_direction);
+      if (trendGap !== 0) return trendGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
 function buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix(rows, limit = 24) {
-  return buildSceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const latestHealthBand = String(row?.latest_health_band || row?.health_band || "no_data");
+      const attentionBand = String(row?.attention_band || "no_data");
+      const trendDirection = String(row?.trend_direction || "no_data");
+      return {
+        day: String(row?.day || ""),
+        district_key: String(row?.district_key || "unknown"),
+        loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+        loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+        latest_health_band: latestHealthBand,
+        attention_band: attentionBand,
+        trend_direction: trendDirection,
+        trend_delta: Math.max(-9999, Math.min(9999, Math.floor(toNum(row?.trend_delta, 0)))),
+        total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+        live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+        blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+        attention_rank: rankSceneLoopAttentionBand(attentionBand),
+        health_rank: rankSceneLoopHealthBand(latestHealthBand),
+        trend_rank: rankSceneLoopTrendDirection(trendDirection)
+      };
+    })
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const attentionGap = toNum(right.attention_rank, 0) - toNum(left.attention_rank, 0);
+      if (Math.abs(attentionGap) > 0.0001) return attentionGap;
+      const healthGap = toNum(right.health_rank, 0) - toNum(left.health_rank, 0);
+      if (Math.abs(healthGap) > 0.0001) return healthGap;
+      const trendGap = toNum(right.trend_rank, 0) - toNum(left.trend_rank, 0);
+      if (Math.abs(trendGap) > 0.0001) return trendGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
 function buildSceneLoopDistrictMicroflowAttentionPriority(rows, limit = 18) {
-  return buildSceneLoopDistrictFamilyAttentionPriority(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const latestHealthBand = String(row?.latest_health_band || row?.health_band || "no_data");
+      const attentionBand = String(row?.attention_band || "no_data");
+      const trendDirection = String(row?.trend_direction || "no_data");
+      const attentionRank = rankSceneLoopAttentionBand(attentionBand);
+      const healthRank = rankSceneLoopHealthBand(latestHealthBand);
+      const trendRank = rankSceneLoopTrendDirection(trendDirection);
+      const totalCount = Math.max(0, Math.floor(toNum(row?.total_count, 0)));
+      return {
+        district_key: String(row?.district_key || "unknown"),
+        loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+        loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+        latest_health_band: latestHealthBand,
+        attention_band: attentionBand,
+        trend_direction: trendDirection,
+        trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+        total_count: totalCount,
+        live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+        blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+        priority_score: buildSceneLoopPriorityScore(attentionRank, healthRank, trendRank, totalCount),
+        attention_rank: attentionRank,
+        health_rank: healthRank,
+        trend_rank: trendRank
+      };
+    })
+    .sort((left, right) => {
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
 }
 
 function buildSceneLoopDistrictMicroflowAttentionPriorityDaily(rows, limit = 24) {
-  return buildSceneLoopDistrictFamilyAttentionPriorityDaily(toSceneLoopFamilyRowsFromMicroflow(rows), limit).map(
-    mapSceneLoopFamilyRowToMicroflow
-  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const latestHealthBand = String(row?.latest_health_band || row?.health_band || "no_data");
+      const attentionBand = String(row?.attention_band || "no_data");
+      const trendDirection = String(row?.trend_direction || "no_data");
+      const attentionRank = rankSceneLoopAttentionBand(attentionBand);
+      const healthRank = rankSceneLoopHealthBand(latestHealthBand);
+      const trendRank = rankSceneLoopTrendDirection(trendDirection);
+      const totalCount = Math.max(0, Math.floor(toNum(row?.total_count, 0)));
+      return {
+        day: String(row?.day || ""),
+        district_key: String(row?.district_key || "unknown"),
+        loop_family_key: normalizeSceneLoopMicroflowFamilyKey(row?.loop_family_key ?? row?.loop_microflow_key),
+        loop_microflow_key: normalizeSceneLoopMicroflowKey(row?.loop_microflow_key),
+        latest_health_band: latestHealthBand,
+        attention_band: attentionBand,
+        trend_direction: trendDirection,
+        trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+        total_count: totalCount,
+        live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+        blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+        priority_score: buildSceneLoopPriorityScore(attentionRank, healthRank, trendRank, totalCount),
+        attention_rank: attentionRank,
+        health_rank: healthRank,
+        trend_rank: trendRank
+      };
+    })
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right.loop_microflow_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
 function resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare) {
@@ -1305,6 +1576,9 @@ module.exports = {
   normalizeSceneLoopDailyRows,
   normalizeSceneLoopDistrictDailyRows,
   normalizeSceneLoopDistrictMicroflowDailyRows,
+  normalizeSceneLoopFamilyKey,
+  normalizeSceneLoopMicroflowKey,
+  normalizeSceneLoopMicroflowFamilyKey,
   resolveSceneLoopHealthBand,
   resolveSceneLoopDistrictHealthBand,
   resolveSceneLoopDistrictAttentionBand,

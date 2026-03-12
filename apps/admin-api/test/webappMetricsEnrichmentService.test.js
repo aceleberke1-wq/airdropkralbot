@@ -275,6 +275,7 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.ok(enriched.scene_loop_district_family_attention_priority_daily_7d[0].priority_score > 2000);
   assert.equal(enriched.scene_loop_microflow_breakdown_24h[0].bucket_key, "duel");
   assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].district_key, "arena_prime");
+  assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].loop_family_key, "duel_sync");
   assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].loop_microflow_key, "duel");
   assert.equal(enriched.scene_loop_district_microflow_matrix_7d[0].latest_health_band, "yellow");
   assert.equal(enriched.scene_loop_district_microflow_latest_band_breakdown_7d[0].bucket_key, "yellow");
@@ -284,10 +285,14 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   assert.equal(enriched.scene_loop_district_microflow_attention_trend_breakdown_7d[0].bucket_key, "alert:no_data");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_breakdown_7d[0].bucket_key, "red:alert:no_data");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].district_key, "exchange_district");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].loop_family_key, "wallet_link");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].loop_microflow_key, "wallet");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_matrix_7d[0].attention_band, "alert");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d[0].day, "2026-03-08");
+  assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d[0].loop_family_key, "payout_lane");
   assert.equal(enriched.scene_loop_district_microflow_health_attention_trend_daily_matrix_7d[0].loop_microflow_key, "payout");
+  assert.equal(enriched.scene_loop_district_microflow_attention_priority_7d[0].loop_family_key, "wallet_link");
   assert.equal(enriched.scene_loop_district_microflow_attention_priority_7d[0].loop_microflow_key, "wallet");
+  assert.equal(enriched.scene_loop_district_microflow_attention_priority_daily_7d[0].loop_family_key, "payout_lane");
   assert.equal(enriched.scene_loop_district_microflow_attention_priority_daily_7d[0].loop_microflow_key, "payout");
 });

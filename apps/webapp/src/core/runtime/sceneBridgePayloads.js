@@ -332,6 +332,21 @@ function buildLoopCadenceDetail(...segments) {
   return buildLoopMicroDetail(...segments);
 }
 
+function buildLoopHealthText(source) {
+  const row = asRecord(source);
+  return toText(row.gateText || row.summaryText || row.stateText, "HEALTH --");
+}
+
+function buildLoopAttentionText(source) {
+  const row = asRecord(source);
+  return toText(row.attentionText || row.pressureText || row.responseText, "ATTN --");
+}
+
+function buildLoopTrendText(source) {
+  const row = asRecord(source);
+  return toText(row.cadenceText || row.responseText || row.windowText, "TREND --");
+}
+
 function buildLoopBridgeCard(title, value, tone, hint = "") {
   return {
     title: toText(title, "FLOW"),
@@ -416,18 +431,18 @@ function buildLoopFlowFamilyPanels(tone, rails) {
       hint: toText(source.gateText, ""),
       lines: [
         toText(source.stateText || source.summaryText, "STATE --"),
-        toText(source.summaryText, "SUMMARY --"),
+        buildLoopHealthText(source),
         toText(source.stageText || source.detailText, "STAGE --")
       ]
     },
     {
       title: "SIGNAL",
       tone,
-      hint: toText(source.responseText || source.pressureText, ""),
+      hint: toText(source.opsText || source.responseText || source.pressureText, ""),
       lines: [
         toText(source.pressureText, "PRESSURE --"),
-        toText(source.attentionText || source.cadenceText, "ATTN --"),
-        toText(source.opsText || source.signalText || source.detailText, "OPS --")
+        buildLoopAttentionText(source),
+        buildLoopTrendText(source)
       ]
     }
   ];
@@ -452,8 +467,8 @@ function buildLoopSubflowPanels(tone, rails) {
       hint: toText(source.stageText || source.stateText, ""),
       lines: [
         toText(source.stateText, "STATE --"),
-        toText(source.summaryText, "SUMMARY --"),
-        toText(source.responseText || source.gateText, "RESPONSE --")
+        buildLoopHealthText(source),
+        buildLoopAttentionText(source)
       ]
     },
     {
@@ -463,7 +478,7 @@ function buildLoopSubflowPanels(tone, rails) {
       lines: [
         toText(source.opsText, "OPS --"),
         toText(source.signalText || source.pressureText, "SIGNAL --"),
-        toText(source.attentionText || source.cadenceText, "ATTN --")
+        buildLoopTrendText(source)
       ]
     }
   ];

@@ -192,12 +192,14 @@ function SceneLoopDistrictFamilyMatrixList(props: {
       <div className="akrStack">
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
+          const showFamilyHint = loopKeyField !== "loop_family_key";
           return props.rows.slice(0, 12).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
             >
-              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | latest{" "}
+              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")}
+              {showFamilyHint && row.loop_family_key ? ` | family ${String(row.loop_family_key)}` : ""} | latest{" "}
               {String(row.latest_health_band || row.health_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
               {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))} | live{" "}
               {Math.floor(Number(row.live_count || 0))} | blocked {Math.floor(Number(row.blocked_count || 0))} | attn{" "}
@@ -230,12 +232,14 @@ function SceneLoopDistrictFamilyDailyMatrixList(props: {
       <div className="akrStack">
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
+          const showFamilyHint = loopKeyField !== "loop_family_key";
           return props.rows.slice(0, 18).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.day || index)}_${String(row.district_key || "district")}_${String(row[loopKeyField] || "family")}`}
             >
-              {String(row.day || "-")} | {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | latest{" "}
+              {String(row.day || "-")} | {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")}
+              {showFamilyHint && row.loop_family_key ? ` | family ${String(row.loop_family_key)}` : ""} | latest{" "}
               {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
               {String(row.trend_direction || "no_data")} ({Math.floor(Number(row.trend_delta || 0))}) | loops{" "}
               {Math.floor(Number(row.total_count || 0))} | live {Math.floor(Number(row.live_count || 0))} | blocked{" "}
@@ -267,13 +271,15 @@ function SceneLoopDistrictFamilyPriorityList(props: {
       <div className="akrStack">
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
+          const showFamilyHint = loopKeyField !== "loop_family_key";
           return props.rows.slice(0, 12).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.day || "latest")}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
             >
               {row.day ? `${String(row.day)} | ` : ""}
-              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")} | priority{" "}
+              {String(row.district_key || "-")} / {String(row[loopKeyField] || "-")}
+              {showFamilyHint && row.loop_family_key ? ` | family ${String(row.loop_family_key)}` : ""} | priority{" "}
               {Math.floor(Number(row.priority_score || 0))} | latest {String(row.latest_health_band || row.health_band || "no_data")} |{" "}
               attn {String(row.attention_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
               {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))}
