@@ -381,6 +381,129 @@ function buildLoopMicroflowText(source) {
   return `MICRO ${microflowLabel} | POD ${podLabel}`;
 }
 
+function buildLoopRiskHeuristicText(source, ...fields) {
+  const row = asRecord(source);
+  return fields
+    .map((field) => toText(row[field], ""))
+    .filter(Boolean)
+    .join(" | ")
+    .toLowerCase();
+}
+
+function inferLoopHealthBandKey(source) {
+  const explicit = toText(source?.riskHealthBand || source?.latest_health_band || source?.health_band, "").toLowerCase();
+  if (explicit) {
+    return explicit;
+  }
+  const text = buildLoopRiskHeuristicText(source, "summaryText", "stateText", "gateText", "detailText");
+  const tone = toText(source?.tone, "").toLowerCase();
+  if (
+    text.includes("alert") ||
+    text.includes("critical") ||
+    text.includes("blocked") ||
+    text.includes("reject") ||
+    text.includes("manual") ||
+    text.includes("fail") ||
+    tone === "critical"
+  ) {
+    return "red";
+  }
+  if (
+    text.includes("watch") ||
+    text.includes("hot") ||
+    text.includes("queue") ||
+    text.includes("review") ||
+    text.includes("pending") ||
+    text.includes("pressure") ||
+    tone === "pressure"
+  ) {
+    return "yellow";
+  }
+  if (
+    text.includes("stable") ||
+    text.includes("live") ||
+    text.includes("open") ||
+    text.includes("approved") ||
+    text.includes("active") ||
+    text.includes("clear") ||
+    tone === "advantage"
+  ) {
+    return "green";
+  }
+  return "no_data";
+}
+
+function inferLoopAttentionBandKey(source) {
+  const explicit = toText(source?.riskAttentionBand || source?.attention_band, "").toLowerCase();
+  if (explicit) {
+    return explicit;
+  }
+  const text = buildLoopRiskHeuristicText(source, "pressureText", "responseText", "signalText", "opsText");
+  if (
+    text.includes("alert") ||
+    text.includes("critical") ||
+    text.includes("blocked") ||
+    text.includes("manual") ||
+    text.includes("reject")
+  ) {
+    return "alert";
+  }
+  if (
+    text.includes("watch") ||
+    text.includes("hot") ||
+    text.includes("queue") ||
+    text.includes("pressure") ||
+    text.includes("pending") ||
+    text.includes("review")
+  ) {
+    return "watch";
+  }
+  if (
+    text.includes("stable") ||
+    text.includes("live") ||
+    text.includes("open") ||
+    text.includes("approved") ||
+    text.includes("active") ||
+    text.includes("clear")
+  ) {
+    return "stable";
+  }
+  return "no_data";
+}
+
+function inferLoopTrendDirectionKey(source) {
+  const explicit = toText(source?.riskTrendDirection || source?.trend_direction, "").toLowerCase();
+  if (explicit) {
+    return explicit;
+  }
+  const text = buildLoopRiskHeuristicText(source, "cadenceText", "windowText", "responseText", "detailText");
+  if (
+    text.includes("degrading") ||
+    text.includes("decline") ||
+    text.includes("stalled") ||
+    text.includes("blocked") ||
+    text.includes("alert")
+  ) {
+    return "degrading";
+  }
+  if (text.includes("improving") || text.includes("recovered") || text.includes("clear trend")) {
+    return "improving";
+  }
+  if (text.includes("steady") || text.includes("flat") || text.includes("stable")) {
+    return "flat";
+  }
+  return "no_data";
+}
+
+function buildLoopRiskKeyText(source) {
+  const row = asRecord(source);
+  const explicit = toText(row.riskKey || row.risk_key, "");
+  if (explicit) {
+    return explicit.toLowerCase();
+  }
+  return `${inferLoopHealthBandKey(row)}:${inferLoopAttentionBandKey(row)}:${inferLoopTrendDirectionKey(row)}`;
+}
+
 function buildLoopBridgeCard(title, value, tone, hint = "") {
   return {
     title: toText(title, "FLOW"),
@@ -415,59 +538,63 @@ function buildLoopBridgeBlocks(...blocks) {
 }
 
 function buildLoopFamilyBridgeBundle(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
   const riskSummaryText = buildLoopRiskSummaryText(source);
+  const riskKeyText = buildLoopRiskKeyText(source);
   return {
     cards: buildLoopBridgeCards(
       buildLoopBridgeCard("SUMMARY", source.summaryText, tone, source.familyText),
       buildLoopBridgeCard("GATE", source.gateText, tone, source.flowText),
-      buildLoopBridgeCard("RISK", riskSummaryText, tone, source.pressureText || source.responseText)
+      buildLoopBridgeCard("RISK", riskSummaryText, tone, riskKeyText)
     ),
     blocks: buildLoopBridgeBlocks(
       buildLoopBridgeBlock("FLOW", source.familyText, source.flowText, tone, source.summaryText),
       buildLoopBridgeBlock("GATE", source.summaryText, source.gateText, tone, source.windowText),
-      buildLoopBridgeBlock("RISK", buildLoopHealthText(source), buildLoopAttentionText(source), tone, buildLoopTrendText(source))
+      buildLoopBridgeBlock("RISK", buildLoopHealthText(source), buildLoopAttentionText(source), tone, riskKeyText)
     )
   };
 }
 
 function buildLoopFlowFamilyBridgeBundle(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
   const riskSummaryText = buildLoopRiskSummaryText(source);
+  const riskKeyText = buildLoopRiskKeyText(source);
   return {
     cards: buildLoopBridgeCards(
       buildLoopBridgeCard("ENTRY", source.leadText || source.flowText, tone, source.gateText || source.summaryText),
       buildLoopBridgeCard("STATE", source.stateText || source.summaryText, tone, source.stageText || source.detailText),
-      buildLoopBridgeCard("RISK", riskSummaryText, tone, source.attentionText || source.cadenceText)
+      buildLoopBridgeCard("RISK", riskSummaryText, tone, riskKeyText)
     ),
     blocks: buildLoopBridgeBlocks(
       buildLoopBridgeBlock("FOCUS", source.focusText || source.familyText, source.flowText || source.summaryText, tone, source.gateText || source.detailText),
       buildLoopBridgeBlock("WINDOW", source.windowText || source.summaryText, source.summaryText || source.stateText, tone, source.attentionText || source.cadenceText),
-      buildLoopBridgeBlock("RISK", riskSummaryText, source.signalText || source.pressureText, tone, source.detailText || source.opsText)
+      buildLoopBridgeBlock("RISK", riskSummaryText, source.signalText || source.pressureText, tone, riskKeyText)
     )
   };
 }
 
 function buildLoopRiskBridgeBundle(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
   const riskSummaryText = buildLoopRiskSummaryText(source);
+  const riskKeyText = buildLoopRiskKeyText(source);
   return {
     cards: buildLoopBridgeCards(
       buildLoopBridgeCard("HEALTH", buildLoopHealthText(source), tone, source.stateText || source.summaryText),
       buildLoopBridgeCard("ATTN", buildLoopAttentionText(source), tone, source.pressureText || source.signalText),
       buildLoopBridgeCard("TREND", buildLoopTrendText(source), tone, source.windowText || source.cadenceText),
-      buildLoopBridgeCard("MICRO", buildLoopMicroflowText(source), tone, riskSummaryText)
+      buildLoopBridgeCard("MICRO", buildLoopMicroflowText(source), tone, riskKeyText)
     ),
     blocks: buildLoopBridgeBlocks(
       buildLoopBridgeBlock("HEALTH", buildLoopHealthText(source), source.stateText || source.summaryText, tone, source.gateText || source.leadText),
       buildLoopBridgeBlock("ATTN", buildLoopAttentionText(source), source.pressureText || source.signalText, tone, source.responseText || source.opsText),
-      buildLoopBridgeBlock("TREND", buildLoopTrendText(source), source.windowText || source.flowText, tone, riskSummaryText)
+      buildLoopBridgeBlock("TREND", buildLoopTrendText(source), source.windowText || source.flowText, tone, riskKeyText)
     )
   };
 }
 
 function buildLoopFlowFamilyPanels(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
+  const riskKeyText = buildLoopRiskKeyText(source);
   return [
     {
       title: "COMMAND",
@@ -497,15 +624,17 @@ function buildLoopFlowFamilyPanels(tone, rails) {
         toText(source.pressureText, "PRESSURE --"),
         buildLoopAttentionText(source),
         buildLoopTrendText(source),
-        buildLoopRiskSummaryText(source)
+        buildLoopRiskSummaryText(source),
+        `RISK ${riskKeyText}`
       ]
     }
   ];
 }
 
 function buildLoopRiskPanels(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
   const microflowText = buildLoopMicroflowText(source);
+  const riskKeyText = buildLoopRiskKeyText(source);
   return [
     {
       title: "HEALTH",
@@ -516,7 +645,8 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.stateText || source.summaryText, "STATE --"),
         toText(source.gateText || source.leadText, "GATE --"),
         microflowText,
-        buildLoopRiskSummaryText(source)
+        buildLoopRiskSummaryText(source),
+        `RISK ${riskKeyText}`
       ]
     },
     {
@@ -528,7 +658,8 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.pressureText || source.signalText, "PRESSURE --"),
         toText(source.responseText || source.opsText, "RESPONSE --"),
         microflowText,
-        buildLoopRiskSummaryText(source)
+        buildLoopRiskSummaryText(source),
+        `RISK ${riskKeyText}`
       ]
     },
     {
@@ -540,14 +671,16 @@ function buildLoopRiskPanels(tone, rails) {
         toText(source.windowText || source.flowText, "WINDOW --"),
         toText(source.detailText || source.stageText, "DETAIL --"),
         microflowText,
-        buildLoopRiskSummaryText(source)
+        buildLoopRiskSummaryText(source),
+        `RISK ${riskKeyText}`
       ]
     }
   ];
 }
 
 function buildLoopSubflowPanels(tone, rails) {
-  const source = asRecord(rails);
+  const source = { ...asRecord(rails), tone };
+  const riskKeyText = buildLoopRiskKeyText(source);
   return [
     {
       title: "ENTRY",
@@ -577,7 +710,8 @@ function buildLoopSubflowPanels(tone, rails) {
         toText(source.opsText, "OPS --"),
         toText(source.signalText || source.pressureText, "SIGNAL --"),
         buildLoopTrendText(source),
-        buildLoopRiskSummaryText(source)
+        buildLoopRiskSummaryText(source),
+        `RISK ${riskKeyText}`
       ]
     }
   ];

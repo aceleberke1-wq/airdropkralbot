@@ -131,7 +131,7 @@ export function renderLoopBridgePanels(host: HTMLElement | null, panels: LoopBri
 
     const list = document.createElement("ul");
     list.className = "akrBridgeFlowPanelList";
-    const lines = Array.isArray(panel.lines) ? panel.lines.filter(Boolean).slice(0, 4) : [];
+    const lines = Array.isArray(panel.lines) ? panel.lines.filter(Boolean).slice(0, 6) : [];
     lines.forEach((lineText) => {
       const item = document.createElement("li");
       item.textContent = safeText(lineText, "--");
