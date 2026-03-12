@@ -324,6 +324,29 @@ function buildLoopMicroDetail(...segments) {
     .join(" | ");
 }
 
+function buildLoopFocusKeyText(source, familyKey = "") {
+  const row = asRecord(source);
+  const explicit = toText(row.focusKey || row.focus_key, "");
+  if (explicit) {
+    return explicit.toLowerCase();
+  }
+  const focusText = toText(row.focusText, "");
+  const embeddedMatch = focusText.match(/\bKEY\s+([A-Z0-9:_-]+)\b/i);
+  if (embeddedMatch?.[1]) {
+    return embeddedMatch[1].toLowerCase();
+  }
+  const districtKey = toText(row.districtKey || row.district_key, "").toLowerCase();
+  const resolvedFamilyKey = toText(row.familyKey || row.family_key || familyKey, "").toLowerCase();
+  const microflowKey = toText(row.microflowKey || row.microflow_key, "").toLowerCase();
+  const parts = [districtKey, resolvedFamilyKey, microflowKey].filter(Boolean);
+  return parts.length >= 2 ? parts.join(":") : "";
+}
+
+function buildLoopFocusDetail(source, familyKey, ...segments) {
+  const focusKeyText = buildLoopFocusKeyText(source, familyKey);
+  return buildLoopMicroDetail(...segments, focusKeyText ? `KEY ${focusKeyText}` : "");
+}
+
 function buildLoopAttentionDetail(...segments) {
   return buildLoopMicroDetail(...segments);
 }
@@ -605,6 +628,7 @@ function buildLoopRiskBridgeBundle(tone, rails) {
 function buildLoopFlowFamilyPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
   const riskKeyText = buildLoopRiskKeyText(source);
+  const focusKeyText = buildLoopFocusKeyText(source);
   const [commandTitle, stateTitle, signalTitle] = normalizeLoopFlowPanelTitles(titles);
   return [
     {
@@ -614,7 +638,7 @@ function buildLoopFlowFamilyPanels(tone, rails, titles) {
       lines: [
         toText(source.leadText, "LEAD --"),
         toText(source.windowText, "WINDOW --"),
-        toText(source.flowText, "FLOW --")
+        buildLoopMicroDetail(toText(source.flowText, "FLOW --"), focusKeyText ? `FOCUS ${focusKeyText}` : "")
       ]
     },
     {
@@ -646,6 +670,7 @@ function buildLoopRiskPanels(tone, rails) {
   const source = { ...asRecord(rails), tone };
   const microflowText = buildLoopMicroflowText(source);
   const riskKeyText = buildLoopRiskKeyText(source);
+  const focusKeyText = buildLoopFocusKeyText(source);
   return [
     {
       title: "HEALTH",
@@ -655,7 +680,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopHealthText(source),
         toText(source.stateText || source.summaryText, "STATE --"),
         toText(source.gateText || source.leadText, "GATE --"),
-        microflowText,
+        buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopRiskSummaryText(source),
         `RISK ${riskKeyText}`
       ]
@@ -668,7 +693,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopAttentionText(source),
         toText(source.pressureText || source.signalText, "PRESSURE --"),
         toText(source.responseText || source.opsText, "RESPONSE --"),
-        microflowText,
+        buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopRiskSummaryText(source),
         `RISK ${riskKeyText}`
       ]
@@ -681,7 +706,7 @@ function buildLoopRiskPanels(tone, rails) {
         buildLoopTrendText(source),
         toText(source.windowText || source.flowText, "WINDOW --"),
         toText(source.detailText || source.stageText, "DETAIL --"),
-        microflowText,
+        buildLoopMicroDetail(microflowText, focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         buildLoopRiskSummaryText(source),
         `RISK ${riskKeyText}`
       ]
@@ -718,6 +743,7 @@ const LOOP_FAMILY_TITLES = Object.freeze({
 function buildLoopSubflowPanels(tone, rails, titles) {
   const source = { ...asRecord(rails), tone };
   const riskKeyText = buildLoopRiskKeyText(source);
+  const focusKeyText = buildLoopFocusKeyText(source);
   const [entryTitle, stateTitle, opsTitle] = normalizeLoopSubflowPanelTitles(titles);
   return [
     {
@@ -726,7 +752,7 @@ function buildLoopSubflowPanels(tone, rails, titles) {
       hint: toText(source.focusText, ""),
       lines: [
         toText(source.leadText, "LEAD --"),
-        toText(source.flowText, "FLOW --"),
+        buildLoopMicroDetail(toText(source.flowText, "FLOW --"), focusKeyText ? `FOCUS ${focusKeyText}` : ""),
         toText(source.windowText, "WINDOW --")
       ]
     },
@@ -1196,13 +1222,17 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
     duelTone: resolveLoopFamilyTone(statusLabel, riskBand, duelPhase),
     ladderTone: resolveLoopFamilyTone(ladderCharge, tickTempo, statusLabel, stageValue),
     telemetryTone: resolveLoopFamilyTone(diagBand, riskBand, personalityLabel),
-    duelFocusText: buildLoopMicroDetail(
+    duelFocusText: buildLoopFocusDetail(
+      loopDeck,
+      "duel",
       `ENTRY ${entryLabel}`,
       `FOCUS ${microflowLabel}`,
       `PERSONA ${personalityLabel || "SYNC"}`
     ),
-    ladderFocusText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FOCUS ${microflowLabel}`, `CHARGE ${ladderCharge}`),
-    telemetryFocusText: buildLoopMicroDetail(
+    ladderFocusText: buildLoopFocusDetail(loopDeck, "ladder", `SEQ ${sequenceLabel}`, `FOCUS ${microflowLabel}`, `CHARGE ${ladderCharge}`),
+    telemetryFocusText: buildLoopFocusDetail(
+      loopDeck,
+      "telemetry",
       `PERSONA ${personalityLabel || "SYNC"}`,
       `FOCUS ${diagBand}`,
       `FLOW ${microflowLabel}`
@@ -2016,14 +2046,16 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
     payoutTone: resolveLoopFamilyTone(payoutState, routeState, stageValue),
     routeTone: resolveLoopFamilyTone(routeState, personalityCaption, loopStatusLabel),
     premiumTone: resolveLoopFamilyTone(premiumState, stageValue, loopStatusLabel),
-    walletFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${walletState}`, `FLOW ${microflowLabel}`),
-    payoutFocusText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FOCUS ${payoutState}`, `ROUTE ${routeState}`),
-    routeFocusText: buildLoopMicroDetail(
+    walletFocusText: buildLoopFocusDetail(loopDeck, "wallet", `ENTRY ${entryLabel}`, `FOCUS ${walletState}`, `FLOW ${microflowLabel}`),
+    payoutFocusText: buildLoopFocusDetail(loopDeck, "payout", `SEQ ${sequenceLabel}`, `FOCUS ${payoutState}`, `ROUTE ${routeState}`),
+    routeFocusText: buildLoopFocusDetail(
+      loopDeck,
+      "route",
       `PERSONA ${personalityCaption || "SYNC"}`,
       `FOCUS ${routeState}`,
       `FLOW ${microflowLabel}`
     ),
-    premiumFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${premiumState}`, `FLOW ${microflowLabel}`),
+    premiumFocusText: buildLoopFocusDetail(loopDeck, "premium", `ENTRY ${entryLabel}`, `FOCUS ${premiumState}`, `FLOW ${microflowLabel}`),
     walletStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     payoutStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     routeStageText: buildLoopMicroDetail(
@@ -2874,9 +2906,9 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
     queueTone: resolveLoopFamilyTone(queueDepth, loopStatusLabel),
     runtimeTone: resolveLoopFamilyTone(sceneHealth, alertCount, loopStatusLabel),
     dispatchTone: resolveLoopFamilyTone(liveOpsSent, stageValue, loopStatusLabel),
-    queueFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${queueDepth}`, `FLOW ${microflowLabel}`),
-    runtimeFocusText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FOCUS ${sceneHealth}`, `ALERT ${alertCount}`),
-    dispatchFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${liveOpsSent}`, `STAGE ${stageValue}`),
+    queueFocusText: buildLoopFocusDetail(loopDeck, "queue", `ENTRY ${entryLabel}`, `FOCUS ${queueDepth}`, `FLOW ${microflowLabel}`),
+    runtimeFocusText: buildLoopFocusDetail(loopDeck, "runtime", `SEQ ${sequenceLabel}`, `FOCUS ${sceneHealth}`, `ALERT ${alertCount}`),
+    dispatchFocusText: buildLoopFocusDetail(loopDeck, "dispatch", `ENTRY ${entryLabel}`, `FOCUS ${liveOpsSent}`, `STAGE ${stageValue}`),
     queueStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     runtimeStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     dispatchStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `SENT ${liveOpsSent}`),
@@ -3685,14 +3717,16 @@ function buildOperationsLoopMicroPanels(loopDeck, active) {
     claimTone: resolveLoopFamilyTone(claimValue, stageValue, contractBand),
     streakTone: resolveLoopFamilyTone(streakValue, loopStatusLabel, personalityCaption),
     lootTone: resolveLoopFamilyTone(lootValue, contractBand, stageValue, loopStatusLabel),
-    offerFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${offerValue}`, `FLOW ${microflowLabel}`),
-    claimFocusText: buildLoopMicroDetail(`SEQ ${sequenceLabel}`, `FOCUS ${claimValue}`, `STAGE ${stageValue}`),
-    streakFocusText: buildLoopMicroDetail(
+    offerFocusText: buildLoopFocusDetail(loopDeck, "offer", `ENTRY ${entryLabel}`, `FOCUS ${offerValue}`, `FLOW ${microflowLabel}`),
+    claimFocusText: buildLoopFocusDetail(loopDeck, "claim", `SEQ ${sequenceLabel}`, `FOCUS ${claimValue}`, `STAGE ${stageValue}`),
+    streakFocusText: buildLoopFocusDetail(
+      loopDeck,
+      "streak",
       `PERSONA ${personalityCaption || "SYNC"}`,
       `FOCUS ${streakValue}`,
       `FLOW ${microflowLabel}`
     ),
-    lootFocusText: buildLoopMicroDetail(`ENTRY ${entryLabel}`, `FOCUS ${lootValue}`, `FLOW ${microflowLabel}`),
+    lootFocusText: buildLoopFocusDetail(loopDeck, "loot", `ENTRY ${entryLabel}`, `FOCUS ${lootValue}`, `FLOW ${microflowLabel}`),
     offerStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `ENTRY ${entryLabel}`),
     claimStageText: buildLoopMicroDetail(`STAGE ${stageValue}`, `STATUS ${loopStatusLabel}`, `SEQ ${sequenceLabel}`),
     streakStageText: buildLoopMicroDetail(

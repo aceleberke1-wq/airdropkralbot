@@ -338,6 +338,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.match(payloads.combatHud.loopFocusText, /ARENA PRIME|DUEL|ENTRY|PERSONALITY ASSAULT/i);
   assert.match(payloads.combatHud.loopSequenceText, /DUEL PHASE ENGAGE/i);
   assert.match(payloads.combatHud.loopStateText, /ACTIVE|ENGAGE|DUEL/i);
+  assert.match(payloads.combatHud.loopDuelFocusText, /KEY arena_prime:duel:duel_flow/i);
   assert.equal(payloads.combatHud.loopDuelCards?.length, 3);
   assert.equal(payloads.combatHud.loopDuelCards?.[0]?.title, "PHASE");
   assert.match(payloads.combatHud.loopDuelCards?.[0]?.value || "", /ENGAGE|ACTIVE/i);
@@ -612,6 +613,7 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.equal(payloads.tokenOverview.loopWalletTone, "advantage");
   assert.equal(payloads.tokenOverview.loopPayoutTone, "pressure");
   assert.match(payloads.tokenOverview.loopWalletFocusText, /ENTRY PAYOUT TERMINAL \| FOCUS APPROVED \| FLOW PAYOUT FLOW/i);
+  assert.match(payloads.tokenOverview.loopWalletFocusText, /KEY exchange_district:wallet:payout_flow/i);
   assert.match(payloads.tokenOverview.loopPayoutFocusText, /SEQ PAYOUT ROUTE \| FOCUS OPEN \| ROUTE 2\/3/i);
   assert.match(payloads.tokenOverview.loopRouteFocusText, /PERSONA STABLE ROUTE \| FOCUS 2\/3 \| FLOW PAYOUT FLOW/i);
   assert.match(payloads.tokenOverview.loopPremiumStageText, /STAGE SUBMIT \| STATUS LIVE \| PASS ACTIVE/i);
@@ -848,6 +850,7 @@ test("buildPlayerBridgePayloads surfaces active tasks loop micro panels from sel
     payloads.operations.loop.streakFocusText,
     /PERSONA (WORLD )?PERSONALITY CAPTION CADENCE \| FOCUS 7d \| FLOW CLAIM FLOW/i
   );
+  assert.match(payloads.operations.loop.lootFocusText, /KEY mission_quarter:loot:claim_flow/i);
   assert.match(payloads.operations.loop.lootStageText, /STAGE 2 READY \| STATUS READY \| CLAIM 2 READY/i);
   assert.match(payloads.operations.loop.offerStateText, /FLOW CLAIM FLOW \| ENTRY CLAIM TERMINAL \| OFFER 4 LIVE/i);
   assert.match(payloads.operations.loop.claimStateText, /FLOW CLAIM FLOW \| SEQ CONTRACT SEQUENCE \| CLAIM 2 READY/i);
@@ -1110,6 +1113,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.runtime.loopQueueTone, "pressure");
   assert.equal(payloads.runtime.loopRuntimeTone, "pressure");
   assert.match(payloads.runtime.loopQueueFocusText, /ENTRY DISPATCH CONSOLE \| FOCUS 2 \| FLOW DISPATCH FLOW/i);
+  assert.match(payloads.runtime.loopQueueFocusText, /KEY ops_citadel:queue:dispatch_flow/i);
   assert.match(payloads.runtime.loopRuntimeFocusText, /SEQ DISPATCH SEQUENCE \| FOCUS WATCH \| ALERT 3/i);
   assert.match(payloads.runtime.loopDispatchStageText, /STAGE ALERT \| STATUS WATCH \| SENT 12/i);
   assert.match(payloads.runtime.loopQueueStateText, /FLOW DISPATCH FLOW \| ENTRY DISPATCH CONSOLE \| QUEUE 2/i);
