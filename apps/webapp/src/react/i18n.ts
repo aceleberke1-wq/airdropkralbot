@@ -475,6 +475,10 @@ const DICT = {
       "District x Mikroakis Risk Satirlari",
     admin_runtime_scene_loop_district_microflow_risk_rows_daily_title:
       "District x Mikroakis Gunluk Risk Satirlari",
+    admin_runtime_scene_loop_district_microflow_risk_matrix_title:
+      "District x Mikroakis Risk Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_matrix_daily_title:
+      "District x Mikroakis Gunluk Risk Matrix",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_title:
       "District x Mikroakis Risk Dagilimi",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:
@@ -1447,6 +1451,10 @@ const DICT = {
       "District x Microflow Risk Rows",
     admin_runtime_scene_loop_district_microflow_risk_rows_daily_title:
       "District x Microflow Daily Risk Rows",
+    admin_runtime_scene_loop_district_microflow_risk_matrix_title:
+      "District x Microflow Risk Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_matrix_daily_title:
+      "District x Microflow Daily Risk Matrix",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_title:
       "District x Microflow Risk Breakdown",
     admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title:

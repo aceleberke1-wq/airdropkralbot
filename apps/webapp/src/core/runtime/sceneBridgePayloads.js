@@ -1198,7 +1198,43 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
   panels.telemetryBlocks = telemetryBundle.blocks;
   panels.ladderFlowCards = ladderFlowBundle.cards;
   panels.ladderFlowBlocks = ladderFlowBundle.blocks;
+  const ladderRiskBundle = buildLoopRiskBridgeBundle(panels.ladderTone, {
+    familyText: panels.ladderFamilyText,
+    flowText: panels.ladderFlowText,
+    summaryText: panels.ladderSummaryText,
+    gateText: panels.ladderGateText,
+    leadText: panels.ladderLeadText,
+    windowText: panels.ladderWindowText,
+    pressureText: panels.ladderPressureText,
+    responseText: panels.ladderResponseText,
+    attentionText: panels.ladderAttentionText,
+    cadenceText: panels.ladderCadenceText,
+    stateText: panels.ladderStateText,
+    stageText: panels.ladderStageText,
+    opsText: panels.ladderOpsText,
+    signalText: panels.ladderSignalText,
+    detailText: panels.ladderDetailText
+  });
+  panels.ladderRiskCards = ladderRiskBundle.cards;
+  panels.ladderRiskBlocks = ladderRiskBundle.blocks;
   panels.ladderFlowPanels = buildLoopFlowFamilyPanels(panels.ladderTone, {
+    familyText: panels.ladderFamilyText,
+    flowText: panels.ladderFlowText,
+    summaryText: panels.ladderSummaryText,
+    gateText: panels.ladderGateText,
+    leadText: panels.ladderLeadText,
+    windowText: panels.ladderWindowText,
+    pressureText: panels.ladderPressureText,
+    responseText: panels.ladderResponseText,
+    attentionText: panels.ladderAttentionText,
+    cadenceText: panels.ladderCadenceText,
+    stateText: panels.ladderStateText,
+    stageText: panels.ladderStageText,
+    opsText: panels.ladderOpsText,
+    signalText: panels.ladderSignalText,
+    detailText: panels.ladderDetailText
+  });
+  panels.ladderRiskPanels = buildLoopRiskPanels(panels.ladderTone, {
     familyText: panels.ladderFamilyText,
     flowText: panels.ladderFlowText,
     summaryText: panels.ladderSummaryText,
@@ -1238,7 +1274,43 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
   panels.ladderSubflowPanels = ladderSubflowBundle.panels;
   panels.telemetryFlowCards = telemetryFlowBundle.cards;
   panels.telemetryFlowBlocks = telemetryFlowBundle.blocks;
+  const telemetryRiskBundle = buildLoopRiskBridgeBundle(panels.telemetryTone, {
+    familyText: panels.telemetryFamilyText,
+    flowText: panels.telemetryFlowText,
+    summaryText: panels.telemetrySummaryText,
+    gateText: panels.telemetryGateText,
+    leadText: panels.telemetryLeadText,
+    windowText: panels.telemetryWindowText,
+    pressureText: panels.telemetryPressureText,
+    responseText: panels.telemetryResponseText,
+    attentionText: panels.telemetryAttentionText,
+    cadenceText: panels.telemetryCadenceText,
+    stateText: panels.telemetryStateText,
+    stageText: panels.telemetryStageText,
+    opsText: panels.telemetryOpsText,
+    signalText: panels.telemetrySignalText,
+    detailText: panels.telemetryDetailText
+  });
+  panels.telemetryRiskCards = telemetryRiskBundle.cards;
+  panels.telemetryRiskBlocks = telemetryRiskBundle.blocks;
   panels.telemetryFlowPanels = buildLoopFlowFamilyPanels(panels.telemetryTone, {
+    familyText: panels.telemetryFamilyText,
+    flowText: panels.telemetryFlowText,
+    summaryText: panels.telemetrySummaryText,
+    gateText: panels.telemetryGateText,
+    leadText: panels.telemetryLeadText,
+    windowText: panels.telemetryWindowText,
+    pressureText: panels.telemetryPressureText,
+    responseText: panels.telemetryResponseText,
+    attentionText: panels.telemetryAttentionText,
+    cadenceText: panels.telemetryCadenceText,
+    stateText: panels.telemetryStateText,
+    stageText: panels.telemetryStageText,
+    opsText: panels.telemetryOpsText,
+    signalText: panels.telemetrySignalText,
+    detailText: panels.telemetryDetailText
+  });
+  panels.telemetryRiskPanels = buildLoopRiskPanels(panels.telemetryTone, {
     familyText: panels.telemetryFamilyText,
     flowText: panels.telemetryFlowText,
     summaryText: panels.telemetrySummaryText,
