@@ -485,10 +485,34 @@ const DICT = {
       "District x Mikroakis Gunluk Risk Priority",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Mikroakis Risk Son Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_title:
+      "District x Mikroakis Risk Health Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_daily_title:
+      "District x Mikroakis Gunluk Risk Health Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_title:
+      "District x Mikroakis Risk Health Band Matrisi",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_daily_title:
+      "District x Mikroakis Gunluk Risk Health Band Matrisi",
     admin_runtime_scene_loop_district_microflow_risk_attention_title:
       "District x Mikroakis Risk Attention",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_title:
+      "District x Mikroakis Risk Attention Band",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_daily_title:
+      "District x Mikroakis Gunluk Risk Attention Band",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_title:
+      "District x Mikroakis Risk Attention Band Matrisi",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_daily_title:
+      "District x Mikroakis Gunluk Risk Attention Band Matrisi",
     admin_runtime_scene_loop_district_microflow_risk_trend_title:
       "District x Mikroakis Risk Trend",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_title:
+      "District x Mikroakis Risk Trend Direction",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_daily_title:
+      "District x Mikroakis Gunluk Risk Trend Direction",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_title:
+      "District x Mikroakis Risk Trend Direction Matrisi",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_daily_title:
+      "District x Mikroakis Gunluk Risk Trend Direction Matrisi",
     admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_title:
       "District x Mikroakis Risk Health x Attention x Trend",
     admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_daily_title:
@@ -1499,10 +1523,34 @@ const DICT = {
       "District x Microflow Daily Risk Priority",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Microflow Risk Latest Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_title:
+      "District x Microflow Risk Health Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_daily_title:
+      "District x Microflow Daily Risk Health Band",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_title:
+      "District x Microflow Risk Health Band Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_daily_title:
+      "District x Microflow Daily Risk Health Band Matrix",
     admin_runtime_scene_loop_district_microflow_risk_attention_title:
       "District x Microflow Risk Attention",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_title:
+      "District x Microflow Risk Attention Band",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_daily_title:
+      "District x Microflow Daily Risk Attention Band",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_title:
+      "District x Microflow Risk Attention Band Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_daily_title:
+      "District x Microflow Daily Risk Attention Band Matrix",
     admin_runtime_scene_loop_district_microflow_risk_trend_title:
       "District x Microflow Risk Trend",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_title:
+      "District x Microflow Risk Trend Direction",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_daily_title:
+      "District x Microflow Daily Risk Trend Direction",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_title:
+      "District x Microflow Risk Trend Direction Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_daily_title:
+      "District x Microflow Daily Risk Trend Direction Matrix",
     admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_title:
       "District x Microflow Risk Health x Attention x Trend",
     admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_daily_title:

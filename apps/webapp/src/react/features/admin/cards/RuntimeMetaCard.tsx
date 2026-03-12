@@ -662,11 +662,47 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskLatestBandBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_latest_band_breakdown_7d
   );
+  const sceneLoopDistrictMicroflowRiskHealthBandBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_band_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskHealthBandBreakdownDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_band_breakdown_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskHealthBandMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_band_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskHealthBandMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_health_band_matrix_daily_7d
+  );
   const sceneLoopDistrictMicroflowRiskAttentionBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_attention_breakdown_7d
   );
+  const sceneLoopDistrictMicroflowRiskAttentionBandBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_attention_band_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskAttentionBandBreakdownDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_attention_band_breakdown_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskAttentionBandMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_attention_band_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskAttentionBandMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_attention_band_matrix_daily_7d
+  );
   const sceneLoopDistrictMicroflowRiskTrendBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_trend_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskTrendDirectionBreakdown = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_trend_direction_breakdown_7d
+  );
+  const sceneLoopDistrictMicroflowRiskTrendDirectionBreakdownDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_trend_direction_breakdown_daily_7d
+  );
+  const sceneLoopDistrictMicroflowRiskTrendDirectionMatrix = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_trend_direction_matrix_7d
+  );
+  const sceneLoopDistrictMicroflowRiskTrendDirectionMatrixDaily = asRows(
+    props.metricsData?.scene_loop_district_microflow_risk_trend_direction_matrix_daily_7d
   );
   const sceneLoopDistrictMicroflowRiskHealthAttentionTrendBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d
@@ -1089,12 +1125,60 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           rows={sceneLoopDistrictMicroflowRiskLatestBandBreakdown}
         />
         <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthBandBreakdown}
+        />
+        <DailyBreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthBandBreakdownDaily}
+        />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthBandMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskHealthBandMatrixDaily}
+        />
+        <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBreakdown}
         />
         <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_title")}
+          rows={sceneLoopDistrictMicroflowRiskAttentionBandBreakdown}
+        />
+        <DailyBreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskAttentionBandBreakdownDaily}
+        />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskAttentionBandMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskAttentionBandMatrixDaily}
+        />
+        <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendBreakdown}
+        />
+        <BreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_title")}
+          rows={sceneLoopDistrictMicroflowRiskTrendDirectionBreakdown}
+        />
+        <DailyBreakdownList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskTrendDirectionBreakdownDaily}
+        />
+        <SceneLoopRiskDimensionMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_title")}
+          rows={sceneLoopDistrictMicroflowRiskTrendDirectionMatrix}
+        />
+        <SceneLoopRiskDimensionDailyMatrixList
+          title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_daily_title")}
+          rows={sceneLoopDistrictMicroflowRiskTrendDirectionMatrixDaily}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_title")}

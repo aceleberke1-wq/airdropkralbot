@@ -1919,11 +1919,59 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
   metrics.scene_loop_district_microflow_risk_latest_band_breakdown_7d = buildSceneLoopDistrictFamilyLatestBandBreakdown(
     metrics.scene_loop_district_microflow_risk_matrix_7d
   );
+  metrics.scene_loop_district_microflow_risk_health_band_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "latest_health_band"
+  );
+  metrics.scene_loop_district_microflow_risk_health_band_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "latest_health_band"
+  );
+  metrics.scene_loop_district_microflow_risk_health_band_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "latest_health_band"
+  );
+  metrics.scene_loop_district_microflow_risk_health_band_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "latest_health_band"
+  );
   metrics.scene_loop_district_microflow_risk_attention_breakdown_7d = buildSceneLoopDistrictFamilyAttentionBreakdown(
     metrics.scene_loop_district_microflow_risk_matrix_7d
   );
+  metrics.scene_loop_district_microflow_risk_attention_band_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "attention_band"
+  );
+  metrics.scene_loop_district_microflow_risk_attention_band_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "attention_band"
+  );
+  metrics.scene_loop_district_microflow_risk_attention_band_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "attention_band"
+  );
+  metrics.scene_loop_district_microflow_risk_attention_band_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "attention_band"
+  );
   metrics.scene_loop_district_microflow_risk_trend_breakdown_7d = buildSceneLoopDistrictFamilyTrendBreakdown(
     metrics.scene_loop_district_microflow_risk_matrix_7d
+  );
+  metrics.scene_loop_district_microflow_risk_trend_direction_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "trend_direction"
+  );
+  metrics.scene_loop_district_microflow_risk_trend_direction_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "trend_direction"
+  );
+  metrics.scene_loop_district_microflow_risk_trend_direction_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "trend_direction"
+  );
+  metrics.scene_loop_district_microflow_risk_trend_direction_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "trend_direction"
   );
   metrics.scene_loop_district_microflow_risk_health_attention_trend_breakdown_7d =
     buildSceneLoopDistrictMicroflowHealthAttentionTrendBreakdown(metrics.scene_loop_district_microflow_risk_matrix_7d);

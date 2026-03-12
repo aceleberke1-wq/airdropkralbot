@@ -448,4 +448,64 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
       (row) => row.day === "2026-03-08" && row.bucket_key === "payout" && row.risk_key === "yellow:watch:no_data"
     )
   );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_health_band_breakdown_7d.some(
+      (row) => row.bucket_key === "red" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_health_band_breakdown_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "yellow" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_health_band_matrix_7d.some(
+      (row) => row.bucket_key === "red" && row.risk_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_health_band_matrix_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "yellow" && row.risk_key === "yellow:watch:no_data"
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_attention_band_breakdown_7d.some(
+      (row) => row.bucket_key === "alert" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_attention_band_breakdown_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "watch" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_attention_band_matrix_7d.some(
+      (row) => row.bucket_key === "alert" && row.risk_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_attention_band_matrix_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "watch" && row.risk_key === "yellow:watch:no_data"
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_trend_direction_breakdown_7d.some(
+      (row) => row.bucket_key === "no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_trend_direction_breakdown_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_trend_direction_matrix_7d.some(
+      (row) => row.bucket_key === "no_data" && row.risk_key === "red:alert:no_data" && Number(row.item_count || 0) >= 1
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_trend_direction_matrix_daily_7d.some(
+      (row) => row.day === "2026-03-08" && row.bucket_key === "no_data" && row.risk_key === "yellow:watch:no_data"
+    )
+  );
 });
