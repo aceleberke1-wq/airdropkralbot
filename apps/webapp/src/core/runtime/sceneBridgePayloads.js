@@ -278,6 +278,8 @@ function buildSceneLoopDeckPayload(scene) {
       riskHealthBandKey: "",
       riskAttentionBandKey: "",
       riskTrendDirectionKey: "",
+      actionContextSignature: "",
+      actionContext: null,
       riskContextSignature: "",
       riskContext: null,
       loopRows: [],
@@ -308,6 +310,7 @@ function buildSceneLoopDeckPayload(scene) {
     },
     selectedLoopFamilyKey
   );
+  const providedActionContext = asRecord(selectedLoop.actionContext || selectedLoop.action_context);
   const providedRiskContext = asRecord(selectedLoop.riskContext || selectedLoop.risk_context);
   return {
     lineText: `${districtLabel} | ${entryLabel} | ${statusLabel}${personalityLabel ? ` | ${personalityLabel}` : ""} | ${sequenceLabel} ${stageLabel} | ${microflowLabel}`,
@@ -342,6 +345,11 @@ function buildSceneLoopDeckPayload(scene) {
       selectedLoop.riskTrendDirectionKey || selectedLoop.risk_trend_direction_key || loopMeta.risk_trend_direction_key,
       ""
     ),
+    actionContextSignature: toText(
+      selectedLoop.actionContextSignature || selectedLoop.action_context_signature || loopMeta.action_context_signature,
+      ""
+    ),
+    actionContext: Object.keys(providedActionContext).length ? providedActionContext : loopMeta.action_context || null,
     riskContextSignature: toText(
       selectedLoop.riskContextSignature || selectedLoop.risk_context_signature || loopMeta.risk_context_signature,
       ""
@@ -6818,6 +6826,8 @@ function buildPlayerBridgePayloads(options = {}) {
     sceneStatus: {
       ...(buildSceneStatusPayload(profileMetrics) || {}),
       loopLine: sceneLoopDeck.lineText,
+      actionContext: sceneLoopDeck.actionContext,
+      actionContextSignature: sceneLoopDeck.actionContextSignature,
       loopContext: sceneLoopDeck.riskContext,
       riskContextSignature: sceneLoopDeck.riskContextSignature,
       focusKey: sceneLoopDeck.focusKey,

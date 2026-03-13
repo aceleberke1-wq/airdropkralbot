@@ -333,9 +333,28 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.sceneStatus.riskAttentionBandKey, "no_data");
   assert.equal(payloads.sceneStatus.riskTrendDirectionKey, "no_data");
   assert.equal(
+    payloads.sceneStatus.actionContextSignature,
+    "duel:duel_flow|arena_prime:duel:duel_flow|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
+  );
+  assert.equal(
     payloads.sceneStatus.riskContextSignature,
     "duel:duel_flow|arena_prime:duel:duel_flow|no_data:no_data:no_data|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
   );
+  assert.deepEqual(payloads.sceneStatus.actionContext, {
+    family_key: "duel",
+    flow_key: "duel:duel_flow",
+    microflow_key: "duel_flow",
+    focus_key: "arena_prime:duel:duel_flow",
+    risk_key: "no_data:no_data:no_data",
+    risk_focus_key: "arena_prime:duel:duel_flow|no_data:no_data:no_data",
+    risk_health_band_key: "no_data",
+    risk_attention_band_key: "no_data",
+    risk_trend_direction_key: "no_data",
+    entry_kind_key: "world_entry_kind_duel_console",
+    sequence_kind_key: "world_modal_kind_duel_sequence",
+    action_context_signature:
+      "duel:duel_flow|arena_prime:duel:duel_flow|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
+  });
   assert.deepEqual(payloads.sceneStatus.loopContext, {
     family_key: "duel",
     flow_key: "duel:duel_flow",

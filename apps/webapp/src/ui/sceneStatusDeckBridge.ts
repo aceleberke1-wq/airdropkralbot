@@ -20,6 +20,7 @@ export type SceneStatusDeckBridgePayload = {
   profileLine?: string;
   loopLine?: string;
   liteBadge?: SceneLiteBadgePayload;
+  actionContextSignature?: string;
   riskContextSignature?: string;
   focusKey?: string;
   riskKey?: string;
@@ -32,6 +33,20 @@ export type SceneStatusDeckBridgePayload = {
   riskHealthBandKey?: string;
   riskAttentionBandKey?: string;
   riskTrendDirectionKey?: string;
+  actionContext?: {
+    family_key?: string;
+    flow_key?: string;
+    microflow_key?: string;
+    focus_key?: string;
+    risk_key?: string;
+    risk_focus_key?: string;
+    action_context_signature?: string;
+    risk_health_band_key?: string;
+    risk_attention_band_key?: string;
+    risk_trend_direction_key?: string;
+    entry_kind_key?: string;
+    sequence_kind_key?: string;
+  } | null;
   loopContext?: {
     family_key?: string;
     flow_key?: string;
@@ -108,19 +123,30 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
     return false;
   }
   const loopContext = payload.loopContext || {};
+  const actionContext = payload.actionContext || {};
+  const actionContextSignature = String(
+    payload.actionContextSignature || actionContext.action_context_signature || ""
+  ).trim();
   const riskContextSignature = String(payload.riskContextSignature || loopContext.risk_context_signature || "").trim();
-  const focusKey = String(payload.focusKey || loopContext.focus_key || "").trim();
-  const riskKey = String(payload.riskKey || loopContext.risk_key || "").trim();
-  const riskFocusKey = String(payload.riskFocusKey || loopContext.risk_focus_key || "").trim();
-  const familyKey = String(payload.familyKey || loopContext.family_key || "").trim();
-  const flowKey = String(payload.flowKey || loopContext.flow_key || "").trim();
-  const microflowKey = String(payload.microflowKey || loopContext.microflow_key || "").trim();
-  const entryKindKey = String(payload.entryKindKey || loopContext.entry_kind_key || "").trim();
-  const sequenceKindKey = String(payload.sequenceKindKey || loopContext.sequence_kind_key || "").trim();
-  const riskHealthBandKey = String(payload.riskHealthBandKey || loopContext.risk_health_band_key || "").trim();
-  const riskAttentionBandKey = String(payload.riskAttentionBandKey || loopContext.risk_attention_band_key || "").trim();
-  const riskTrendDirectionKey = String(payload.riskTrendDirectionKey || loopContext.risk_trend_direction_key || "").trim();
+  const focusKey = String(payload.focusKey || actionContext.focus_key || loopContext.focus_key || "").trim();
+  const riskKey = String(payload.riskKey || actionContext.risk_key || loopContext.risk_key || "").trim();
+  const riskFocusKey = String(payload.riskFocusKey || actionContext.risk_focus_key || loopContext.risk_focus_key || "").trim();
+  const familyKey = String(payload.familyKey || actionContext.family_key || loopContext.family_key || "").trim();
+  const flowKey = String(payload.flowKey || actionContext.flow_key || loopContext.flow_key || "").trim();
+  const microflowKey = String(payload.microflowKey || actionContext.microflow_key || loopContext.microflow_key || "").trim();
+  const entryKindKey = String(payload.entryKindKey || actionContext.entry_kind_key || loopContext.entry_kind_key || "").trim();
+  const sequenceKindKey = String(payload.sequenceKindKey || actionContext.sequence_kind_key || loopContext.sequence_kind_key || "").trim();
+  const riskHealthBandKey = String(
+    payload.riskHealthBandKey || actionContext.risk_health_band_key || loopContext.risk_health_band_key || ""
+  ).trim();
+  const riskAttentionBandKey = String(
+    payload.riskAttentionBandKey || actionContext.risk_attention_band_key || loopContext.risk_attention_band_key || ""
+  ).trim();
+  const riskTrendDirectionKey = String(
+    payload.riskTrendDirectionKey || actionContext.risk_trend_direction_key || loopContext.risk_trend_direction_key || ""
+  ).trim();
 
+  deck.dataset.actionContextSignature = actionContextSignature;
   deck.dataset.riskContextSignature = riskContextSignature;
   deck.dataset.focusKey = focusKey;
   deck.dataset.riskKey = riskKey;
@@ -141,6 +167,7 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   const loopLineNode = byId<HTMLElement>("sceneLoopLine");
   if (loopLineNode) {
     loopLineNode.textContent = String(payload.loopLine || "Loop state bekleniyor.");
+    loopLineNode.dataset.actionContextSignature = actionContextSignature;
     loopLineNode.dataset.riskContextSignature = riskContextSignature;
     loopLineNode.dataset.focusKey = focusKey;
     loopLineNode.dataset.riskKey = riskKey;
@@ -153,7 +180,14 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
     loopLineNode.dataset.riskHealthBandKey = riskHealthBandKey;
     loopLineNode.dataset.riskAttentionBandKey = riskAttentionBandKey;
     loopLineNode.dataset.riskTrendDirectionKey = riskTrendDirectionKey;
-    loopLineNode.title = riskContextSignature ? `RCS ${riskContextSignature}` : "";
+    const titleParts = [];
+    if (actionContextSignature) {
+      titleParts.push(`ACS ${actionContextSignature}`);
+    }
+    if (riskContextSignature) {
+      titleParts.push(`RCS ${riskContextSignature}`);
+    }
+    loopLineNode.title = titleParts.join(" | ");
   }
   renderLiteBadge(payload.liteBadge);
   return true;
