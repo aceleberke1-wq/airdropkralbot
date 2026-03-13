@@ -928,6 +928,41 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     },
     [resolveSceneActionContext]
   );
+  const renderSceneActionContextChips = useCallback(
+    (action?: SceneActionLike | null, fallback?: SceneActionLike | null) => {
+      const context = resolveSceneActionContext(action, fallback);
+      const chips = [
+        context.flowKey ? { label: "FLOW", value: context.flowKey, tone: "flow" } : null,
+        context.entryKindKey ? { label: "ENTRY", value: context.entryKindKey, tone: "entry" } : null,
+        context.sequenceKindKey ? { label: "SEQ", value: context.sequenceKindKey, tone: "sequence" } : null,
+        context.riskHealthBandKey ? { label: "HB", value: context.riskHealthBandKey, tone: context.riskHealthBandKey } : null,
+        context.riskAttentionBandKey
+          ? { label: "ATTN", value: context.riskAttentionBandKey, tone: context.riskAttentionBandKey }
+          : null,
+        context.riskTrendDirectionKey ? { label: "TREND", value: context.riskTrendDirectionKey, tone: "trend" } : null,
+        context.actionContextSignature
+          ? { label: "ACS", value: context.actionContextSignature, tone: "signature" }
+          : null,
+        context.riskContextSignature
+          ? { label: "RCS", value: context.riskContextSignature, tone: "signature" }
+          : null
+      ].filter(Boolean) as Array<{ label: string; value: string; tone: string }>;
+      if (!chips.length) {
+        return null;
+      }
+      return (
+        <div className="akrSceneActionContextChips">
+          {chips.map((chip) => (
+            <div key={`${chip.label}:${chip.value}`} className={`akrSceneActionContextChip is-${chip.tone}`}>
+              <span>{chip.label}</span>
+              <strong>{chip.value}</strong>
+            </div>
+          ))}
+        </div>
+      );
+    },
+    [resolveSceneActionContext]
+  );
 
   useEffect(() => {
     setTerminalOpen(false);
@@ -2258,6 +2293,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             </div>
           ) : null}
           {renderSceneActionContextMeta(worldState.interaction_sheet)}
+          {renderSceneActionContextChips(worldState.interaction_sheet)}
           <div className="akrSceneWorldSheetRows">
             {worldState.interaction_sheet.rows.map((row: { label_key: string; value: string }) => (
               <div key={`${worldState.interaction_sheet.sheet_key}:${row.label_key}`} className="akrSceneWorldSheetRow">
@@ -2330,6 +2366,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             </div>
           ) : null}
           {renderSceneActionContextMeta(worldState.interaction_surface)}
+          {renderSceneActionContextChips(worldState.interaction_surface)}
           {worldState.interaction_entry ? (
             <div
               className={`akrSceneEntrySurfaceMode is-${worldState.interaction_entry.entry_class_key} is-${worldState.interaction_entry.status_key}`}
@@ -2350,6 +2387,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 </div>
               ) : null}
               {renderSceneActionContextMeta(worldState.interaction_entry)}
+              {renderSceneActionContextChips(worldState.interaction_entry)}
               <div className="akrSceneEntrySurfaceModeRows">
                 {worldState.interaction_entry.preview_rows.map((row: { label_key: string; value: string; status_key: string }) => (
                   <div key={`${worldState.interaction_entry.entry_key}:${row.label_key}`} className={`akrSceneEntrySurfaceModeRow is-${row.status_key}`}>
@@ -2460,6 +2498,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               <span>{t(props.lang, worldState.interaction_terminal.intent_tone_key as never)}</span>
             ) : null}
           </div>
+          {renderSceneActionContextMeta(worldState.interaction_terminal)}
+          {renderSceneActionContextChips(worldState.interaction_terminal)}
           {worldState.interaction_terminal.focus_key || worldState.interaction_terminal.risk_focus_key ? (
             <div className="akrSceneTerminalConsoleContext">
               {worldState.interaction_terminal.focus_key ? (
@@ -2622,6 +2662,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             </div>
           ) : null}
           {renderSceneActionContextMeta(worldState.interaction_modal)}
+          {renderSceneActionContextChips(worldState.interaction_modal)}
           <div className="akrSceneInteractionModalGrid">
             <section className="akrSceneInteractionModalSection">
               <div className="akrSceneInteractionModalSectionHeader">
@@ -2746,6 +2787,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 <strong>{selectedProtocolCard.status_label_key ? t(props.lang, selectedProtocolCard.status_label_key as never) : selectedProtocolCard.value}</strong>
               </div>
               {renderSceneActionContextMeta(selectedProtocolCard)}
+              {renderSceneActionContextChips(selectedProtocolCard)}
               <div className="akrSceneInteractionModalChips">
                 <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
                   <span>{t(props.lang, selectedProtocolCard.label_key as never)}</span>
@@ -2897,6 +2939,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       <strong>{selectedProtocolPod.status_label_key ? t(props.lang, selectedProtocolPod.status_label_key as never) : selectedProtocolPod.value}</strong>
                     </div>
                     {renderSceneActionContextMeta(selectedProtocolPod, selectedProtocolCard)}
+                    {renderSceneActionContextChips(selectedProtocolPod, selectedProtocolCard)}
                     <div className="akrSceneInteractionModalChips">
                       <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
                         <span>{t(props.lang, selectedProtocolPod.label_key as never)}</span>
@@ -3040,6 +3083,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                             </strong>
                           </div>
                           {renderSceneActionContextMeta(selectedMicroflow, selectedProtocolPod)}
+                          {renderSceneActionContextChips(selectedMicroflow, selectedProtocolPod)}
                           <div className="akrSceneInteractionModalChips">
                             {selectedMicroflow.entry_kind_key ? (
                               <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.status_key}`}>

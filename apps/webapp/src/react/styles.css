@@ -534,6 +534,67 @@ body {
   word-break: break-word;
 }
 
+.akrSceneActionContextChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.akrSceneActionContextChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 208, 255, 0.18);
+  background: rgba(6, 18, 28, 0.76);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: #9edfff;
+  word-break: break-word;
+}
+
+.akrSceneActionContextChip span {
+  opacity: 0.72;
+}
+
+.akrSceneActionContextChip strong {
+  color: #f3fdff;
+  font-weight: 600;
+}
+
+.akrSceneActionContextChip.is-flow,
+.akrSceneActionContextChip.is-entry,
+.akrSceneActionContextChip.is-sequence,
+.akrSceneActionContextChip.is-signature,
+.akrSceneActionContextChip.is-trend {
+  border-color: rgba(110, 208, 255, 0.28);
+}
+
+.akrSceneActionContextChip.is-green {
+  border-color: rgba(62, 224, 160, 0.34);
+  color: #9df3ca;
+}
+
+.akrSceneActionContextChip.is-yellow,
+.akrSceneActionContextChip.is-watch {
+  border-color: rgba(255, 196, 90, 0.34);
+  color: #ffe29d;
+}
+
+.akrSceneActionContextChip.is-red,
+.akrSceneActionContextChip.is-alert {
+  border-color: rgba(255, 104, 142, 0.34);
+  color: #ffc0d0;
+}
+
+.akrSceneActionContextChip.is-no_data {
+  border-style: dashed;
+  color: #b8cfdd;
+}
+
 .akrSceneWorldAction.isPrimary {
   border-color: rgba(0, 214, 255, 0.28);
 }
