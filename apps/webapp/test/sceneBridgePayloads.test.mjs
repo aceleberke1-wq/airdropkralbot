@@ -444,6 +444,11 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
     payloads.combatHud.loopDuelRiskBlocks?.[2]?.hint || "",
     /FOCUS arena_prime:duel:duel_flow \| RISK [a-z_]+:[a-z_]+:[a-z_]+/i
   );
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[7] || "", /FAMILY duel/i);
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[7] || "", /MICRO duel_flow/i);
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[7] || "", /FLOW duel:duel_flow/i);
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[7] || "", /ENTRY world_entry_kind_duel_console/i);
+  assert.match(payloads.combatHud.loopDuelRiskPanels?.[2]?.lines?.[7] || "", /SEQ world_modal_kind_duel_sequence/i);
   assert.match(payloads.combatHud.loopDuelFlowPanels?.[1]?.lines?.[1] || "", /HEALTH|ENTRY|FLOW/i);
   assert.match(payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[1] || "", /ATTN|ENGAGE|WATCH|FLOW/i);
   assert.match(payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[2] || "", /TREND|SEQ|FLOW|HEALTH/i);
@@ -454,7 +459,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   );
   assert.match(
     payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[6] || "",
-    /^FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
+    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
   );
   assert.match(
     payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[7] || "",
@@ -568,7 +573,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   );
   assert.match(
     payloads.combatHud.loopLadderSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
+    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
   );
   assert.match(payloads.combatHud.loopTelemetryFamilyText, /FLOW DUEL FLOW \| STATUS ACTIVE \| DIAG HOT/i);
   assert.match(payloads.combatHud.loopTelemetryFlowText, /PERSONA (WORLD )?PERSONALITY ASSAULT \| SEQ DUEL SEQUENCE \| FLOW DUEL FLOW/i);
@@ -790,7 +795,7 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.match(payloads.tokenOverview.loopPayoutSubflowPanels?.[2]?.lines?.[3] || "", /HEALTH .*ATTN .*TREND /i);
   assert.match(
     payloads.tokenOverview.loopPayoutSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FLOW wallet:payout_flow \| ENTRY world_entry_kind_payout_terminal \| SEQ world_modal_kind_payout_route$/i
+    /^FAMILY wallet \| MICRO payout_flow \| FLOW wallet:payout_flow \| ENTRY world_entry_kind_payout_terminal \| SEQ world_modal_kind_payout_route$/i
   );
   assert.match(payloads.tokenOverview.loopRouteFamilyText, /FLOW PAYOUT FLOW \| STATUS LIVE \| ROUTE 2\/3/i);
   assert.match(payloads.tokenOverview.loopRouteFlowText, /PERSONA STABLE ROUTE \| FLOW PAYOUT FLOW \| SEQ PAYOUT ROUTE/i);
@@ -1469,7 +1474,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   );
   assert.match(
     payloads.runtime.loopDispatchSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FLOW queue:dispatch_flow \| ENTRY world_entry_kind_dispatch_console \| SEQ world_modal_kind_dispatch_sequence$/i
+    /^FAMILY queue \| MICRO dispatch_flow \| FLOW queue:dispatch_flow \| ENTRY world_entry_kind_dispatch_console \| SEQ world_modal_kind_dispatch_sequence$/i
   );
   assert.equal(payloads.runtime.loopDispatchBlocks?.length, 3);
   assert.equal(payloads.runtime.loopDispatchBlocks?.[0]?.title, "FLOW");

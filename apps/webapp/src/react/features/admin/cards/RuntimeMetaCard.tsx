@@ -53,6 +53,12 @@ function formatStamp(value: unknown): string {
 function renderRiskContextSuffix(row: Record<string, unknown>): string {
   const riskContext = asRecord(row.risk_context) || row;
   const parts: string[] = [];
+  if (riskContext.family_key) {
+    parts.push(`family ${String(riskContext.family_key)}`);
+  }
+  if (riskContext.microflow_key) {
+    parts.push(`micro ${String(riskContext.microflow_key)}`);
+  }
   if (riskContext.flow_key) {
     parts.push(`flow ${String(riskContext.flow_key)}`);
   }
@@ -70,6 +76,15 @@ function renderRiskContextSuffix(row: Record<string, unknown>): string {
   }
   if (riskContext.risk_focus_key) {
     parts.push(`risk-focus ${String(riskContext.risk_focus_key)}`);
+  }
+  if (riskContext.risk_health_band_key) {
+    parts.push(`health ${String(riskContext.risk_health_band_key)}`);
+  }
+  if (riskContext.risk_attention_band_key) {
+    parts.push(`attention ${String(riskContext.risk_attention_band_key)}`);
+  }
+  if (riskContext.risk_trend_direction_key) {
+    parts.push(`trend ${String(riskContext.risk_trend_direction_key)}`);
   }
   const riskContextSignature = String(riskContext.risk_context_signature || row.risk_context_signature || "").trim();
   if (riskContextSignature) {

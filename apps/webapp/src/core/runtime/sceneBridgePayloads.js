@@ -663,11 +663,34 @@ function buildLoopSequenceKindKeyText(source, familyKey = "") {
   );
 }
 
+function buildLoopFamilyKeyText(source, familyKey = "") {
+  const row = asRecord(source);
+  const focusKeyText = buildLoopFocusKeyText(row, familyKey);
+  return (
+    toText(row.familyKey || row.family_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[1], "").toLowerCase() ||
+    toText(familyKey, "").toLowerCase()
+  );
+}
+
+function buildLoopMicroflowKeyText(source, familyKey = "") {
+  const row = asRecord(source);
+  const focusKeyText = buildLoopFocusKeyText(row, familyKey);
+  return (
+    toText(row.microflowKey || row.microflow_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[2], "").toLowerCase()
+  );
+}
+
 function buildLoopContractContextText(source, familyKey = "") {
+  const familyKeyText = buildLoopFamilyKeyText(source, familyKey);
+  const microflowKeyText = buildLoopMicroflowKeyText(source, familyKey);
   const flowKeyText = buildLoopFlowKeyText(source, familyKey);
   const entryKindKeyText = buildLoopEntryKindKeyText(source, familyKey);
   const sequenceKindKeyText = buildLoopSequenceKindKeyText(source, familyKey);
   return buildLoopMicroDetail(
+    familyKeyText ? `FAMILY ${familyKeyText}` : "",
+    microflowKeyText ? `MICRO ${microflowKeyText}` : "",
     flowKeyText ? `FLOW ${flowKeyText}` : "",
     entryKindKeyText ? `ENTRY ${entryKindKeyText}` : "",
     sequenceKindKeyText ? `SEQ ${sequenceKindKeyText}` : ""
