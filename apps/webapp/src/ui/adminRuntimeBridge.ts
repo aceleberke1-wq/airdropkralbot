@@ -1,5 +1,14 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
+import {
+  applyLoopBridgeHostMeta,
+  renderLoopBridgeBlocks,
+  renderLoopBridgeCards,
+  renderLoopBridgePanels,
+  resolveLoopBridgeMeta,
+  type LoopBridgeBlock,
+  type LoopBridgeCard,
+  type LoopBridgePanel
+} from "./loopBridgeCards.js";
 
 type RuntimeBridgePayload = {
   lineText: string;
@@ -273,6 +282,22 @@ function render(payload: RuntimeBridgePayload): boolean {
     loopQueue.textContent = String(payload.loopQueueText || "QUEUE | WAIT");
   }
   setTone(loopQueuePanel, payload.loopQueueTone);
+  applyLoopBridgeHostMeta(
+    loopQueuePanel,
+    resolveLoopBridgeMeta(
+      payload.loopQueueCards,
+      payload.loopQueueBlocks,
+      payload.loopQueueFlowCards,
+      payload.loopQueueFlowBlocks,
+      payload.loopQueueFlowPanels,
+      payload.loopQueueRiskCards,
+      payload.loopQueueRiskBlocks,
+      payload.loopQueueRiskPanels,
+      payload.loopQueueSubflowCards,
+      payload.loopQueueSubflowBlocks,
+      payload.loopQueueSubflowPanels
+    )
+  );
   renderLoopBridgeCards(loopQueueCards, payload.loopQueueCards);
   renderLoopBridgeBlocks(loopQueueBlocks, payload.loopQueueBlocks);
   renderLoopBridgeCards(loopQueueFlowCards, payload.loopQueueFlowCards);
@@ -294,6 +319,22 @@ function render(payload: RuntimeBridgePayload): boolean {
     loopRuntime.textContent = String(payload.loopRuntimeText || "RUNTIME | WAIT");
   }
   setTone(loopRuntimePanel, payload.loopRuntimeTone);
+  applyLoopBridgeHostMeta(
+    loopRuntimePanel,
+    resolveLoopBridgeMeta(
+      payload.loopRuntimeCards,
+      payload.loopRuntimeBlocks,
+      payload.loopRuntimeFlowCards,
+      payload.loopRuntimeFlowBlocks,
+      payload.loopRuntimeFlowPanels,
+      payload.loopRuntimeRiskCards,
+      payload.loopRuntimeRiskBlocks,
+      payload.loopRuntimeRiskPanels,
+      payload.loopRuntimeSubflowCards,
+      payload.loopRuntimeSubflowBlocks,
+      payload.loopRuntimeSubflowPanels
+    )
+  );
   renderLoopBridgeCards(loopRuntimeCards, payload.loopRuntimeCards);
   renderLoopBridgeBlocks(loopRuntimeBlocks, payload.loopRuntimeBlocks);
   renderLoopBridgeCards(loopRuntimeFlowCards, payload.loopRuntimeFlowCards);
@@ -315,6 +356,22 @@ function render(payload: RuntimeBridgePayload): boolean {
     loopDispatch.textContent = String(payload.loopDispatchText || "DISPATCH | WAIT");
   }
   setTone(loopDispatchPanel, payload.loopDispatchTone);
+  applyLoopBridgeHostMeta(
+    loopDispatchPanel,
+    resolveLoopBridgeMeta(
+      payload.loopDispatchCards,
+      payload.loopDispatchBlocks,
+      payload.loopDispatchFlowCards,
+      payload.loopDispatchFlowBlocks,
+      payload.loopDispatchFlowPanels,
+      payload.loopDispatchRiskCards,
+      payload.loopDispatchRiskBlocks,
+      payload.loopDispatchRiskPanels,
+      payload.loopDispatchSubflowCards,
+      payload.loopDispatchSubflowBlocks,
+      payload.loopDispatchSubflowPanels
+    )
+  );
   if (loopDispatchFocus) {
     loopDispatchFocus.textContent = String(payload.loopDispatchFocusText || "ENTRY WAIT | FOCUS WAIT | STAGE --");
   }

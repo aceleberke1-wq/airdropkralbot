@@ -1,5 +1,14 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
+import {
+  applyLoopBridgeHostMeta,
+  renderLoopBridgeBlocks,
+  renderLoopBridgeCards,
+  renderLoopBridgePanels,
+  resolveLoopBridgeMeta,
+  type LoopBridgeBlock,
+  type LoopBridgeCard,
+  type LoopBridgePanel
+} from "./loopBridgeCards.js";
 
 type ChainOption = {
   chain: string;
@@ -360,6 +369,22 @@ function render(payload: TokenOverviewBridgePayload): boolean {
     loopWallet.textContent = safeText(payload.loopWalletText, "WALLET | WAIT");
   }
   setTone(loopWalletPanel, payload.loopWalletTone);
+  applyLoopBridgeHostMeta(
+    loopWalletPanel,
+    resolveLoopBridgeMeta(
+      payload.loopWalletCards,
+      payload.loopWalletBlocks,
+      payload.loopWalletFlowCards,
+      payload.loopWalletFlowBlocks,
+      payload.loopWalletFlowPanels,
+      payload.loopWalletRiskCards,
+      payload.loopWalletRiskBlocks,
+      payload.loopWalletRiskPanels,
+      payload.loopWalletSubflowCards,
+      payload.loopWalletSubflowBlocks,
+      payload.loopWalletSubflowPanels
+    )
+  );
   if (loopWalletFocus) {
     loopWalletFocus.textContent = safeText(payload.loopWalletFocusText, "ENTRY WAIT | FOCUS WAIT | FLOW WAIT");
   }
@@ -370,6 +395,22 @@ function render(payload: TokenOverviewBridgePayload): boolean {
     loopPayout.textContent = safeText(payload.loopPayoutText, "PAYOUT | WAIT");
   }
   setTone(loopPayoutPanel, payload.loopPayoutTone);
+  applyLoopBridgeHostMeta(
+    loopPayoutPanel,
+    resolveLoopBridgeMeta(
+      payload.loopPayoutCards,
+      payload.loopPayoutBlocks,
+      payload.loopPayoutFlowCards,
+      payload.loopPayoutFlowBlocks,
+      payload.loopPayoutFlowPanels,
+      payload.loopPayoutRiskCards,
+      payload.loopPayoutRiskBlocks,
+      payload.loopPayoutRiskPanels,
+      payload.loopPayoutSubflowCards,
+      payload.loopPayoutSubflowBlocks,
+      payload.loopPayoutSubflowPanels
+    )
+  );
   if (loopPayoutFocus) {
     loopPayoutFocus.textContent = safeText(payload.loopPayoutFocusText, "SEQ WAIT | FOCUS WAIT | ROUTE --");
   }
@@ -380,6 +421,22 @@ function render(payload: TokenOverviewBridgePayload): boolean {
     loopRoute.textContent = safeText(payload.loopRouteText, "ROUTE | WAIT");
   }
   setTone(loopRoutePanel, payload.loopRouteTone);
+  applyLoopBridgeHostMeta(
+    loopRoutePanel,
+    resolveLoopBridgeMeta(
+      payload.loopRouteCards,
+      payload.loopRouteBlocks,
+      payload.loopRouteFlowCards,
+      payload.loopRouteFlowBlocks,
+      payload.loopRouteFlowPanels,
+      payload.loopRouteRiskCards,
+      payload.loopRouteRiskBlocks,
+      payload.loopRouteRiskPanels,
+      payload.loopRouteSubflowCards,
+      payload.loopRouteSubflowBlocks,
+      payload.loopRouteSubflowPanels
+    )
+  );
   if (loopRouteFocus) {
     loopRouteFocus.textContent = safeText(payload.loopRouteFocusText, "PERSONA WAIT | FOCUS -- | FLOW WAIT");
   }
@@ -390,6 +447,22 @@ function render(payload: TokenOverviewBridgePayload): boolean {
     loopPremium.textContent = safeText(payload.loopPremiumText, "PREMIUM | WAIT");
   }
   setTone(loopPremiumPanel, payload.loopPremiumTone);
+  applyLoopBridgeHostMeta(
+    loopPremiumPanel,
+    resolveLoopBridgeMeta(
+      payload.loopPremiumCards,
+      payload.loopPremiumBlocks,
+      payload.loopPremiumFlowCards,
+      payload.loopPremiumFlowBlocks,
+      payload.loopPremiumFlowPanels,
+      payload.loopPremiumRiskCards,
+      payload.loopPremiumRiskBlocks,
+      payload.loopPremiumRiskPanels,
+      payload.loopPremiumSubflowCards,
+      payload.loopPremiumSubflowBlocks,
+      payload.loopPremiumSubflowPanels
+    )
+  );
   if (loopPremiumFocus) {
     loopPremiumFocus.textContent = safeText(payload.loopPremiumFocusText, "ENTRY WAIT | FOCUS WAIT | FLOW WAIT");
   }

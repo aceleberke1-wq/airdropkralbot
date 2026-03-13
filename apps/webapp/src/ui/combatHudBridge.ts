@@ -1,5 +1,14 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
+import {
+  applyLoopBridgeHostMeta,
+  renderLoopBridgeBlocks,
+  renderLoopBridgeCards,
+  renderLoopBridgePanels,
+  resolveLoopBridgeMeta,
+  type LoopBridgeBlock,
+  type LoopBridgeCard,
+  type LoopBridgePanel
+} from "./loopBridgeCards.js";
 
 type CombatTrailRow = {
   action: string;
@@ -616,6 +625,22 @@ function render(payload: CombatHudPayload): boolean {
     loopDuel.textContent = String(payload.loopDuelText || "DUEL | WAIT");
   }
   setTone(loopDuelPanel, payload.loopDuelTone);
+  applyLoopBridgeHostMeta(
+    loopDuelPanel,
+    resolveLoopBridgeMeta(
+      payload.loopDuelCards,
+      payload.loopDuelBlocks,
+      payload.loopDuelFlowCards,
+      payload.loopDuelFlowBlocks,
+      payload.loopDuelFlowPanels,
+      payload.loopDuelRiskCards,
+      payload.loopDuelRiskBlocks,
+      payload.loopDuelRiskPanels,
+      payload.loopDuelSubflowCards,
+      payload.loopDuelSubflowBlocks,
+      payload.loopDuelSubflowPanels
+    )
+  );
   if (loopDuelFocus) {
     loopDuelFocus.textContent = String(payload.loopDuelFocusText || "ENTRY WAIT | FOCUS WAIT | PERSONA --");
   }
@@ -626,6 +651,22 @@ function render(payload: CombatHudPayload): boolean {
     loopLadder.textContent = String(payload.loopLadderText || "LADDER | WAIT");
   }
   setTone(loopLadderPanel, payload.loopLadderTone);
+  applyLoopBridgeHostMeta(
+    loopLadderPanel,
+    resolveLoopBridgeMeta(
+      payload.loopLadderCards,
+      payload.loopLadderBlocks,
+      payload.loopLadderFlowCards,
+      payload.loopLadderFlowBlocks,
+      payload.loopLadderFlowPanels,
+      payload.loopLadderRiskCards,
+      payload.loopLadderRiskBlocks,
+      payload.loopLadderRiskPanels,
+      payload.loopLadderSubflowCards,
+      payload.loopLadderSubflowBlocks,
+      payload.loopLadderSubflowPanels
+    )
+  );
   if (loopLadderFocus) {
     loopLadderFocus.textContent = String(payload.loopLadderFocusText || "SEQ WAIT | FOCUS WAIT | FLOW WAIT");
   }
@@ -636,6 +677,22 @@ function render(payload: CombatHudPayload): boolean {
     loopTelemetry.textContent = String(payload.loopTelemetryText || "TELEMETRY | WAIT");
   }
   setTone(loopTelemetryPanel, payload.loopTelemetryTone);
+  applyLoopBridgeHostMeta(
+    loopTelemetryPanel,
+    resolveLoopBridgeMeta(
+      payload.loopTelemetryCards,
+      payload.loopTelemetryBlocks,
+      payload.loopTelemetryFlowCards,
+      payload.loopTelemetryFlowBlocks,
+      payload.loopTelemetryFlowPanels,
+      payload.loopTelemetryRiskCards,
+      payload.loopTelemetryRiskBlocks,
+      payload.loopTelemetryRiskPanels,
+      payload.loopTelemetrySubflowCards,
+      payload.loopTelemetrySubflowBlocks,
+      payload.loopTelemetrySubflowPanels
+    )
+  );
   if (loopTelemetryFocus) {
     loopTelemetryFocus.textContent = String(payload.loopTelemetryFocusText || "PERSONA WAIT | FOCUS -- | FLOW WAIT");
   }

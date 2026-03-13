@@ -111,7 +111,7 @@ function normalizeTone(value: unknown): string {
   return "neutral";
 }
 
-type LoopBridgeMeta = {
+export type LoopBridgeMeta = {
   contract_ready?: boolean;
   contract_missing_keys?: string[];
   action_context_signature?: string;
@@ -131,6 +131,32 @@ type LoopBridgeMeta = {
   action_context?: LoopBridgeActionContext;
   risk_context?: LoopBridgeRiskContext;
 };
+
+const BRIDGE_META_DATASET_KEYS = [
+  "contractReady",
+  "contractMissingKeys",
+  "actionContextSignature",
+  "riskContextSignature",
+  "focusKey",
+  "riskKey",
+  "riskFocusKey",
+  "familyKey",
+  "flowKey",
+  "microflowKey",
+  "riskHealthBandKey",
+  "riskAttentionBandKey",
+  "riskTrendDirectionKey",
+  "contractStateKey",
+  "entryKindKey",
+  "sequenceKindKey"
+];
+
+function resetBridgeMeta(node: HTMLElement): void {
+  BRIDGE_META_DATASET_KEYS.forEach((key) => {
+    delete node.dataset[key];
+  });
+  node.classList.remove("is-contract-ready", "is-contract-missing");
+}
 
 function resolveBridgeContractReady(meta: LoopBridgeMeta): boolean {
   if (typeof meta.contract_ready === "boolean") {
@@ -253,6 +279,58 @@ function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
   }
   if (sequenceKindKey) {
     article.dataset.sequenceKindKey = sequenceKindKey;
+  }
+}
+
+function hasBridgeMeta(meta: LoopBridgeMeta | null | undefined): boolean {
+  if (!meta) {
+    return false;
+  }
+  return Boolean(
+    meta.contract_ready !== undefined ||
+      (Array.isArray(meta.contract_missing_keys) && meta.contract_missing_keys.length) ||
+      safeText(meta.action_context_signature) ||
+      safeText(meta.risk_context_signature) ||
+      safeText(meta.focus_key) ||
+      safeText(meta.risk_key) ||
+      safeText(meta.risk_focus_key) ||
+      safeText(meta.family_key) ||
+      safeText(meta.flow_key) ||
+      safeText(meta.microflow_key) ||
+      safeText(meta.risk_health_band_key) ||
+      safeText(meta.risk_attention_band_key) ||
+      safeText(meta.risk_trend_direction_key) ||
+      safeText(meta.contract_state_key) ||
+      safeText(meta.entry_kind_key) ||
+      safeText(meta.sequence_kind_key) ||
+      meta.action_context ||
+      meta.risk_context
+  );
+}
+
+export function resolveLoopBridgeMeta(
+  ...collections: Array<Array<LoopBridgeMeta | null | undefined> | undefined>
+): LoopBridgeMeta | null {
+  for (const collection of collections) {
+    if (!Array.isArray(collection)) {
+      continue;
+    }
+    for (const item of collection) {
+      if (hasBridgeMeta(item || null)) {
+        return item || null;
+      }
+    }
+  }
+  return null;
+}
+
+export function applyLoopBridgeHostMeta(host: HTMLElement | null, meta: LoopBridgeMeta | null | undefined): void {
+  if (!host) {
+    return;
+  }
+  resetBridgeMeta(host);
+  if (hasBridgeMeta(meta || null)) {
+    applyBridgeMeta(host, meta || {});
   }
 }
 

@@ -1,5 +1,14 @@
 import { resolveLoopRailTone } from "../core/runtime/loopRailTone.js";
-import { renderLoopBridgeBlocks, renderLoopBridgeCards, renderLoopBridgePanels, type LoopBridgeBlock, type LoopBridgeCard, type LoopBridgePanel } from "./loopBridgeCards.js";
+import {
+  applyLoopBridgeHostMeta,
+  renderLoopBridgeBlocks,
+  renderLoopBridgeCards,
+  renderLoopBridgePanels,
+  resolveLoopBridgeMeta,
+  type LoopBridgeBlock,
+  type LoopBridgeCard,
+  type LoopBridgePanel
+} from "./loopBridgeCards.js";
 
 type OfferItem = {
   id: number | string;
@@ -358,6 +367,22 @@ function setNodeText(id: string, value: unknown, fallback: string): void {
 
 function renderLoopFamily(prefix: string, payload: LoopFamilyPanel): void {
   setPanelTone(`${prefix}Panel`, payload.tone);
+  applyLoopBridgeHostMeta(
+    byId<HTMLElement>(`${prefix}Panel`),
+    resolveLoopBridgeMeta(
+      payload.cards,
+      payload.blocks,
+      payload.flowCards,
+      payload.flowBlocks,
+      payload.flowPanels,
+      payload.riskCards,
+      payload.riskBlocks,
+      payload.riskPanels,
+      payload.subflowCards,
+      payload.subflowBlocks,
+      payload.subflowPanels
+    )
+  );
   setNodeText(prefix, payload.text, "WAIT");
   renderLoopBridgeCards(byId<HTMLElement>(`${prefix}Cards`), payload.cards);
   renderLoopBridgeBlocks(byId<HTMLElement>(`${prefix}Blocks`), payload.blocks);
