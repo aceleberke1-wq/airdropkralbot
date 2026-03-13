@@ -258,6 +258,10 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.action_context?.district_key, "central_hub");
   assert.equal(state.interaction_modal.action_context?.focus_key, "central_hub:travel:travel_flow");
   assert.equal(state.interaction_modal.action_context?.risk_focus_key, "central_hub:travel:travel_flow|green:stable:flat");
+  assert.equal(state.interaction_modal.action_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_modal.action_context?.contract_missing_keys, []);
+  assert.equal(state.interaction_modal.risk_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_modal.risk_context?.contract_missing_keys, []);
   assert.equal(
     state.interaction_modal.action_context_signature,
     "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
@@ -333,6 +337,22 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(state.interaction_modal.modal_cards[0].family_key, "travel");
   assert.equal(state.interaction_modal.modal_cards[0].flow_key, "travel_flow");
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.interaction_modal.modal_cards[0].action_items[0].risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].sequence_kind_key, "world_modal_kind_travel_gate");
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].contract_ready, true);
+  assert.equal(
+    state.interaction_modal.modal_cards[0].action_items[0].action_context?.action_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.modal_cards[0].action_items[0].risk_context?.risk_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
   assert.equal(state.interaction_modal.protocol_cards[0].label_key, "world_modal_protocol_travel_vector");
   assert.equal(state.interaction_modal.protocol_cards[0].action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
   assert.equal(state.interaction_modal.protocol_cards[2].label_key, "world_modal_protocol_risk_watch");
@@ -474,6 +494,34 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_glow_band_key, "stable");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_motion_band_key, "steady");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_light_scalar, 1);
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].focus_key,
+    "central_hub:travel:travel_flow"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].entry_kind_key,
+    "world_entry_kind_hub_portal"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].sequence_kind_key,
+    "world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].contract_ready,
+    true
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].action_context?.action_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].risk_context?.risk_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_glow_scalar, 1);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_motion_scalar, 1);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].entry_kind_key, "world_entry_kind_hub_portal");
@@ -584,7 +632,7 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(
     state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.action_items[0].entry_kind_key,
-    "world_entry_kind_travel_gate"
+    "world_entry_kind_hub_portal"
   );
   assert.equal(
     state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.action_items[0].sequence_kind_key,
@@ -604,7 +652,7 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(
     state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.intent_slots[0].entry_kind_key,
-    "world_entry_kind_travel_gate"
+    "world_entry_kind_hub_portal"
   );
   assert.equal(
     state.interaction_clusters.find((cluster) => cluster.cluster_key === "hub_gate_north")?.intent_slots[0].sequence_kind_key,
@@ -1089,6 +1137,10 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
     state.interaction_modal.risk_context_signature,
     "queue_flow|ops_citadel:queue:queue_flow|yellow:watch:flat|world_entry_kind_queue_console|world_modal_kind_queue_review"
   );
+  assert.equal(state.interaction_modal.action_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_modal.action_context?.contract_missing_keys, []);
+  assert.equal(state.interaction_modal.risk_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_modal.risk_context?.contract_missing_keys, []);
   assert.equal(state.interaction_modal.action_items[0].focus_key, "ops_citadel:queue:queue_flow");
   assert.equal(
     state.interaction_modal.action_items[0].risk_focus_key,

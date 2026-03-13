@@ -6549,6 +6549,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         );
         const flowActionContext = asRecord(flowContextMeta.action_context);
         return applyResolvedActionRiskMeta(flow, flowContextMeta, flowActionContext, {
+          action_items: buildContextActionItems(microflow.action_items, flowActionContext),
           district_key: districtKey,
           family_key: familyKey,
           flow_key: flowKey,
@@ -6703,6 +6704,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     return applyResolvedActionRiskMeta(card, modalContextMeta, modalActionContext, {
       protocol_card_key: toText(protocolCard.card_key, ""),
       protocol_pod_key: toText(protocolPod.pod_key, ""),
+      action_items: buildContextActionItems(modalCard.action_items, modalActionContext),
       action_key: toText(microflow.action_key, toText(protocolCard.action_key, "")),
       action_label_key: toText(microflow.action_label_key, toText(protocolCard.action_label_key, "")),
       hint_label_key: toText(microflow.hint_label_key, toText(modalActionContext.hint_label_key, "")),
@@ -6714,11 +6716,23 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       contract_missing_keys: modalContextMeta.contract_missing_keys
     });
   });
-  return {
-    ...interactionModal,
+  const primaryModalSource = asRecord(
+    enrichedModalCards.find((card) => asRecord(card).action_context) ||
+      enrichedProtocolCards.find((card) => asRecord(card).action_context) ||
+      enrichedProtocolCards[0] ||
+      {}
+  );
+  const modalRootContextMeta = buildInteractionContextMeta(primaryModalSource, modal);
+  const modalRootActionContext = asRecord(modalRootContextMeta.action_context);
+  return applyResolvedActionRiskMeta(interactionModal, modalRootContextMeta, modalRootActionContext, {
     modal_cards: enrichedModalCards,
-    protocol_cards: enrichedProtocolCards
-  };
+    protocol_cards: enrichedProtocolCards,
+    action_items: buildContextActionItems(modal.action_items, modalRootActionContext),
+    context_lookup_required: true,
+    context_lookup_resolved: true,
+    contract_ready: modalRootContextMeta.contract_ready,
+    contract_missing_keys: modalRootContextMeta.contract_missing_keys
+  });
 }
 
 function buildInteractionActionContextLookup(interactionModal) {
@@ -6742,10 +6756,18 @@ function buildInteractionActionContextLookup(interactionModal) {
     asList(protocolCard.flow_pods).forEach((pod) => {
       const protocolPod = asRecord(pod);
       asList(protocolPod.action_items).forEach((item) => register(asRecord(item).action_key, item));
-      asList(protocolPod.microflow_cards).forEach((flow) => register(asRecord(flow).action_key, flow));
+      asList(protocolPod.microflow_cards).forEach((flow) => {
+        const protocolFlow = asRecord(flow);
+        register(protocolFlow.action_key, flow);
+        asList(protocolFlow.action_items).forEach((item) => register(asRecord(item).action_key, item));
+      });
     });
   });
-  asList(modal.modal_cards).forEach((card) => register(asRecord(card).action_key, card));
+  asList(modal.modal_cards).forEach((card) => {
+    const modalCard = asRecord(card);
+    register(modalCard.action_key, card);
+    asList(modalCard.action_items).forEach((item) => register(asRecord(item).action_key, item));
+  });
   return lookup;
 }
 
