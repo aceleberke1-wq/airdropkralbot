@@ -577,7 +577,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       focusKey?: string;
       riskKey?: string;
       riskFocusKey?: string;
+      actionContextSignature?: string;
       riskContextSignature?: string;
+      actionContext?: Record<string, unknown> | null;
+      riskContext?: Record<string, unknown> | null;
       riskHealthBandKey?: string;
       riskAttentionBandKey?: string;
       riskTrendDirectionKey?: string;
@@ -655,6 +658,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           source_focus_key: String(payload.focusKey || ""),
           source_risk_key: String(payload.riskKey || ""),
           source_risk_focus_key: String(payload.riskFocusKey || ""),
+          source_action_context_signature: String(payload.actionContextSignature || ""),
           source_risk_context_signature: String(payload.riskContextSignature || ""),
           source_risk_health_band_key: String(payload.riskHealthBandKey || ""),
           source_risk_attention_band_key: String(payload.riskAttentionBandKey || ""),
@@ -684,7 +688,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       focusKey?: string;
       riskKey?: string;
       riskFocusKey?: string;
+      actionContextSignature?: string;
       riskContextSignature?: string;
+      actionContext?: Record<string, unknown> | null;
+      riskContext?: Record<string, unknown> | null;
       entryKindKey: string;
       sequenceKindKey: string;
       loopStatusKey: string;
@@ -729,7 +736,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           focus_key: String(payload.focusKey || ""),
           risk_key: String(payload.riskKey || ""),
           risk_focus_key: String(payload.riskFocusKey || ""),
+          action_context_signature: String(payload.actionContextSignature || ""),
           risk_context_signature: String(payload.riskContextSignature || ""),
+          action_context: payload.actionContext || null,
+          risk_context: payload.riskContext || null,
           entry_kind_key: payload.entryKindKey,
           sequence_kind_key: payload.sequenceKindKey,
           loop_status_key: payload.loopStatusKey,

@@ -35,7 +35,10 @@ type BabylonDistrictSceneHostProps = {
     focusKey?: string;
     riskKey?: string;
     riskFocusKey?: string;
+    actionContextSignature?: string;
     riskContextSignature?: string;
+    actionContext?: RiskContext | null;
+    riskContext?: RiskContext | null;
     entryKindKey: string;
     sequenceKindKey: string;
     loopStatusKey: string;
@@ -926,6 +929,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       focus_key: selectedMicroflow.focus_key || "",
       risk_key: selectedMicroflow.risk_key || "",
       risk_focus_key: selectedMicroflow.risk_focus_key || "",
+      action_context_signature: selectedMicroflow.action_context_signature || "",
       risk_context_signature: selectedMicroflow.risk_context_signature || "",
       loop_status_key: selectedMicroflow.loop_status_key || selectedMicroflow.status_key || "",
       loop_stage_value: selectedMicroflow.loop_stage_value || selectedMicroflow.stage_value || "",
@@ -953,7 +957,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       focusKey: selectedMicroflow.focus_key || undefined,
       riskKey: selectedMicroflow.risk_key || undefined,
       riskFocusKey: selectedMicroflow.risk_focus_key || undefined,
+      actionContextSignature: selectedMicroflow.action_context_signature || undefined,
       riskContextSignature: selectedMicroflow.risk_context_signature || undefined,
+      actionContext:
+        selectedMicroflow.action_context && typeof selectedMicroflow.action_context === "object"
+          ? (selectedMicroflow.action_context as RiskContext)
+          : null,
+      riskContext:
+        selectedMicroflow.risk_context && typeof selectedMicroflow.risk_context === "object"
+          ? (selectedMicroflow.risk_context as RiskContext)
+          : null,
       entryKindKey: String(selectedMicroflow.entry_kind_key || ""),
       sequenceKindKey: String(selectedMicroflow.sequence_kind_key || ""),
       loopStatusKey: String(selectedMicroflow.loop_status_key || selectedMicroflow.status_key || ""),
