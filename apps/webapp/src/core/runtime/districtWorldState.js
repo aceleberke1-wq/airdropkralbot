@@ -290,11 +290,36 @@ function buildActionContextSignature(source, fallback = {}) {
   return [flowKey, focusKey, entryKindKey, sequenceKindKey].filter(Boolean).join("|");
 }
 
+function buildSceneContractMeta(source, fallback = {}) {
+  const primary = asRecord(source);
+  const secondary = asRecord(fallback);
+  const resolved = {
+    flow_key: toText(primary.flow_key, toText(secondary.flow_key, "")),
+    focus_key: toText(primary.focus_key, toText(secondary.focus_key, "")),
+    risk_key: toText(primary.risk_key, toText(secondary.risk_key, "")),
+    risk_focus_key: toText(primary.risk_focus_key, toText(secondary.risk_focus_key, "")),
+    entry_kind_key: toText(primary.entry_kind_key, toText(secondary.entry_kind_key, "")),
+    sequence_kind_key: toText(primary.sequence_kind_key, toText(secondary.sequence_kind_key, "")),
+    action_context_signature: toText(
+      primary.action_context_signature,
+      toText(secondary.action_context_signature, "")
+    ),
+    risk_context_signature: toText(primary.risk_context_signature, toText(secondary.risk_context_signature, ""))
+  };
+  const contractMissingKeys = Object.entries(resolved)
+    .filter(([, value]) => !toText(value, ""))
+    .map(([key]) => key);
+  return {
+    contract_ready: contractMissingKeys.length === 0,
+    contract_missing_keys: contractMissingKeys
+  };
+}
+
 function buildActionContextShape(source, fallback = {}) {
   const primary = asRecord(source);
   const secondary = asRecord(fallback);
   const actionContextSignature = buildActionContextSignature(primary, secondary);
-  return {
+  const shape = {
     district_key: toText(primary.district_key, toText(secondary.district_key, "")),
     family_key: toText(primary.family_key, toText(secondary.family_key, "")),
     flow_key: toText(primary.flow_key, toText(secondary.flow_key, "")),
@@ -321,13 +346,17 @@ function buildActionContextShape(source, fallback = {}) {
     ),
     action_context_signature: actionContextSignature
   };
+  return {
+    ...shape,
+    ...buildSceneContractMeta(shape)
+  };
 }
 
 function buildRiskContextShape(source, fallback = {}) {
   const primary = asRecord(source);
   const secondary = asRecord(fallback);
   const riskContextSignature = buildRiskContextSignature(primary, secondary);
-  return {
+  const shape = {
     district_key: toText(primary.district_key, toText(secondary.district_key, "")),
     family_key: toText(primary.family_key, toText(secondary.family_key, "")),
     flow_key: toText(primary.flow_key, toText(secondary.flow_key, "")),
@@ -354,6 +383,10 @@ function buildRiskContextShape(source, fallback = {}) {
     ),
     risk_context_signature: riskContextSignature
   };
+  return {
+    ...shape,
+    ...buildSceneContractMeta(shape)
+  };
 }
 
 function applyResolvedInteractionContext(target, rootContext, actionContext, riskContext, overrides = {}) {
@@ -378,6 +411,21 @@ function applyResolvedInteractionContext(target, rootContext, actionContext, ris
     risk_context_signature: toText(
       resolvedRiskContext.risk_context_signature,
       toText(base.risk_context_signature, "")
+    ),
+    ...buildSceneContractMeta(
+      {
+        ...base,
+        ...mergedContext,
+        action_context_signature: toText(
+          resolvedActionContext.action_context_signature,
+          toText(base.action_context_signature, "")
+        ),
+        risk_context_signature: toText(
+          resolvedRiskContext.risk_context_signature,
+          toText(base.risk_context_signature, "")
+        )
+      },
+      base
     )
   };
 }
@@ -389,7 +437,7 @@ function applyResolvedActionRiskMeta(target, contextSource, fallback = {}, overr
   const patch = asRecord(overrides);
   const actionContext = buildActionContextShape(primary, secondary);
   const riskContext = buildRiskContextShape(primary, secondary);
-  return {
+  const resolved = {
     ...base,
     ...patch,
     district_key: toText(patch.district_key, toText(actionContext.district_key, toText(base.district_key, ""))),
@@ -432,6 +480,10 @@ function applyResolvedActionRiskMeta(target, contextSource, fallback = {}, overr
       patch.risk_context_signature,
       toText(riskContext.risk_context_signature, toText(base.risk_context_signature, ""))
     )
+  };
+  return {
+    ...resolved,
+    ...buildSceneContractMeta(resolved, base)
   };
 }
 

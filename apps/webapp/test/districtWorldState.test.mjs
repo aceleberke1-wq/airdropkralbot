@@ -138,6 +138,12 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     state.interaction_surface.risk_context?.risk_context_signature,
     "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
   );
+  assert.equal(state.interaction_surface.contract_ready, true);
+  assert.deepEqual(state.interaction_surface.contract_missing_keys, []);
+  assert.equal(state.interaction_surface.action_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_surface.action_context?.contract_missing_keys, []);
+  assert.equal(state.interaction_surface.risk_context?.contract_ready, true);
+  assert.deepEqual(state.interaction_surface.risk_context?.contract_missing_keys, []);
   assert.equal(state.interaction_surface.action_items[0].action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
   assert.equal(state.interaction_surface.action_items[0].family_key, "travel");
   assert.equal(state.interaction_surface.action_items[0].flow_key, "travel_flow");
@@ -257,6 +263,10 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     state.interaction_modal.modal_cards[0].risk_context?.risk_context_signature,
     "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
   );
+  assert.equal(state.interaction_modal.modal_cards[0].contract_ready, true);
+  assert.deepEqual(state.interaction_modal.modal_cards[0].contract_missing_keys, []);
+  assert.equal(state.interaction_modal.modal_cards[0].action_context?.contract_ready, true);
+  assert.equal(state.interaction_modal.modal_cards[0].risk_context?.contract_ready, true);
   assert.equal(state.interaction_modal.modal_cards[0].protocol_card_key, state.interaction_modal.protocol_cards[0].card_key);
   assert.equal(state.interaction_modal.modal_cards[0].protocol_pod_key, state.interaction_modal.protocol_cards[0].flow_pods[0].pod_key);
   assert.equal(
