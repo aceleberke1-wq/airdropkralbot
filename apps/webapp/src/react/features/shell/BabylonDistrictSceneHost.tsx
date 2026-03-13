@@ -863,6 +863,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const buildSceneActionDataAttrs = useCallback(
     (action?: SceneActionLike | null, fallback?: SceneActionLike | null) => {
       const context = resolveSceneActionContext(action, fallback);
+      const contractReady = Boolean(
+        context.flowKey &&
+          context.focusKey &&
+          context.riskKey &&
+          context.riskFocusKey &&
+          context.entryKindKey &&
+          context.sequenceKindKey &&
+          context.actionContextSignature &&
+          context.riskContextSignature
+      );
       return {
         "data-family-key": context.familyKey || "",
         "data-flow-key": context.flowKey || "",
@@ -876,8 +886,25 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         "data-sequence-kind-key": context.sequenceKindKey || "",
         "data-risk-health-band": context.riskHealthBandKey || "",
         "data-risk-attention-band": context.riskAttentionBandKey || "",
-        "data-risk-trend-direction": context.riskTrendDirectionKey || ""
+        "data-risk-trend-direction": context.riskTrendDirectionKey || "",
+        "data-contract-ready": contractReady ? "true" : "false"
       };
+    },
+    [resolveSceneActionContext]
+  );
+  const hasSceneActionContract = useCallback(
+    (action?: SceneActionLike | null, fallback?: SceneActionLike | null) => {
+      const context = resolveSceneActionContext(action, fallback);
+      return Boolean(
+        context.flowKey &&
+          context.focusKey &&
+          context.riskKey &&
+          context.riskFocusKey &&
+          context.entryKindKey &&
+          context.sequenceKindKey &&
+          context.actionContextSignature &&
+          context.riskContextSignature
+      );
     },
     [resolveSceneActionContext]
   );
@@ -2319,43 +2346,50 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             </div>
           ) : null}
           <div className="akrSceneWorldRailActions">
-            {focusedClusterActions.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                className={`akrSceneWorldAction ${action.is_secondary ? "isSecondary" : "isPrimary"} is-${
-                  action.intent_profile?.rail_class_key || action.intent_profile_key || "open_primary"
-                }`}
-                {...buildSceneActionDataAttrs(action, focusedCluster)}
-                onClick={() =>
-                  triggerSceneAction({
-                    actionKey: action.action_key,
-                    nodeKey: action.key,
-                    laneKey: focusedCluster?.cluster_key || "",
-                    label: action.label,
-                    labelKey: action.label_key,
-                    sourceType: "district_scene_cluster_action",
-                    actorKey: action.actor_key,
-                    interactionKind: action.interaction_kind,
-                    clusterKey: action.cluster_key,
-                    isSecondary: action.is_secondary,
-                    ...resolveSceneActionContext(action),
-                    workspace: props.workspace,
-                    tab: props.tab,
-                    districtKey: worldState.district_key
-                  })
-                }
-              >
-                <span className="akrSceneWorldActionMeta">
-                  {t(props.lang, (action.is_secondary ? "world_interaction_secondary" : "world_interaction_primary") as never)}
-                </span>
-                <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
-                <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
-                <span>{t(props.lang, (action.intent_profile?.intent_tone_key || "world_intent_tone_open") as never)}</span>
-                <span>{t(props.lang, action.hint_label_key as never)}</span>
-                {renderSceneActionContextMeta(action, focusedCluster)}
-              </button>
-            ))}
+            {focusedClusterActions.map((action) => {
+              const actionContractReady = hasSceneActionContract(action, focusedCluster);
+              return (
+                <button
+                  key={action.key}
+                  type="button"
+                  className={`akrSceneWorldAction ${action.is_secondary ? "isSecondary" : "isPrimary"} is-${
+                    action.intent_profile?.rail_class_key || action.intent_profile_key || "open_primary"
+                  } ${actionContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                  {...buildSceneActionDataAttrs(action, focusedCluster)}
+                  onClick={() =>
+                    actionContractReady
+                      ? triggerSceneAction({
+                          actionKey: action.action_key,
+                          nodeKey: action.key,
+                          laneKey: focusedCluster?.cluster_key || "",
+                          label: action.label,
+                          labelKey: action.label_key,
+                          sourceType: "district_scene_cluster_action",
+                          actorKey: action.actor_key,
+                          interactionKind: action.interaction_kind,
+                          clusterKey: action.cluster_key,
+                          isSecondary: action.is_secondary,
+                          ...resolveSceneActionContext(action),
+                          workspace: props.workspace,
+                          tab: props.tab,
+                          districtKey: worldState.district_key
+                        })
+                      : undefined
+                  }
+                  disabled={!actionContractReady}
+                >
+                  <span className="akrSceneWorldActionMeta">
+                    {t(props.lang, (action.is_secondary ? "world_interaction_secondary" : "world_interaction_primary") as never)}
+                  </span>
+                  <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
+                  <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
+                  <span>{t(props.lang, (action.intent_profile?.intent_tone_key || "world_intent_tone_open") as never)}</span>
+                  <span>{t(props.lang, action.hint_label_key as never)}</span>
+                  {renderSceneActionContextMeta(action, focusedCluster)}
+                  {renderSceneActionContextChips(action, focusedCluster)}
+                </button>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -2522,9 +2556,14 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             <div className="akrSceneEntrySurfaceConsoleBar">
               <button
                 type="button"
-                className={`akrSceneEntrySurfaceConsoleToggle ${terminalOpen ? "isOpen" : ""}`}
+                className={`akrSceneEntrySurfaceConsoleToggle ${
+                  hasSceneActionContract(worldState.interaction_terminal) ? "is-contract-ready" : "is-contract-missing"
+                } ${terminalOpen ? "isOpen" : ""}`}
                 {...buildSceneActionDataAttrs(worldState.interaction_terminal)}
-                onClick={() => setTerminalOpen((current) => !current)}
+                onClick={() =>
+                  hasSceneActionContract(worldState.interaction_terminal) ? setTerminalOpen((current) => !current) : undefined
+                }
+                disabled={!hasSceneActionContract(worldState.interaction_terminal)}
               >
                 <span>{t(props.lang, terminalOpen ? ("world_terminal_close" as never) : ("world_terminal_open" as never))}</span>
                 <strong>{t(props.lang, worldState.interaction_terminal.terminal_kind_key as never)}</strong>
@@ -2532,9 +2571,14 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               {worldState.interaction_modal ? (
                 <button
                   type="button"
-                  className={`akrSceneEntrySurfaceConsoleToggle isAccent ${modalOpen ? "isOpen" : ""}`}
+                  className={`akrSceneEntrySurfaceConsoleToggle isAccent ${
+                    hasSceneActionContract(worldState.interaction_modal) ? "is-contract-ready" : "is-contract-missing"
+                  } ${modalOpen ? "isOpen" : ""}`}
                   {...buildSceneActionDataAttrs(worldState.interaction_modal)}
-                  onClick={() => setModalOpen((current) => !current)}
+                  onClick={() =>
+                    hasSceneActionContract(worldState.interaction_modal) ? setModalOpen((current) => !current) : undefined
+                  }
+                  disabled={!hasSceneActionContract(worldState.interaction_modal)}
                 >
                   <span>{t(props.lang, modalOpen ? ("world_modal_close" as never) : ("world_modal_open" as never))}</span>
                   <strong>{t(props.lang, worldState.interaction_modal.modal_kind_key as never)}</strong>
@@ -2543,38 +2587,45 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             </div>
           ) : null}
           <div className="akrSceneEntrySurfaceActions">
-            {worldState.interaction_surface.action_items.map((action: ClusterActionItem) => (
-              <button
-                key={action.surface_slot_key}
-                type="button"
-                className={`akrSceneEntrySurfaceAction ${action.is_primary_surface_action ? "isPrimary" : "isSecondary"} is-${
-                  action.intent_profile_key || "open"
-                }`}
-                {...buildSceneActionDataAttrs(action)}
-                onClick={() =>
-                  triggerSceneAction({
-                    actionKey: action.action_key,
-                    nodeKey: action.key,
-                    laneKey: action.cluster_key,
-                    label: action.label,
-                    labelKey: action.label_key,
-                    sourceType: "district_scene_entry_surface",
-                    actorKey: action.actor_key,
-                    interactionKind: action.interaction_kind,
-                    clusterKey: action.cluster_key,
-                    isSecondary: action.is_secondary,
-                    ...resolveSceneActionContext(action),
-                    workspace: props.workspace,
-                    tab: props.tab,
-                    districtKey: worldState.district_key
-                  })
-                }
-              >
-                <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
-                <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
-                {renderSceneActionContextMeta(action)}
-              </button>
-            ))}
+            {worldState.interaction_surface.action_items.map((action: ClusterActionItem) => {
+              const actionContractReady = hasSceneActionContract(action);
+              return (
+                <button
+                  key={action.surface_slot_key}
+                  type="button"
+                  className={`akrSceneEntrySurfaceAction ${action.is_primary_surface_action ? "isPrimary" : "isSecondary"} is-${
+                    action.intent_profile_key || "open"
+                  } ${actionContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                  {...buildSceneActionDataAttrs(action)}
+                  onClick={() =>
+                    actionContractReady
+                      ? triggerSceneAction({
+                          actionKey: action.action_key,
+                          nodeKey: action.key,
+                          laneKey: action.cluster_key,
+                          label: action.label,
+                          labelKey: action.label_key,
+                          sourceType: "district_scene_entry_surface",
+                          actorKey: action.actor_key,
+                          interactionKind: action.interaction_kind,
+                          clusterKey: action.cluster_key,
+                          isSecondary: action.is_secondary,
+                          ...resolveSceneActionContext(action),
+                          workspace: props.workspace,
+                          tab: props.tab,
+                          districtKey: worldState.district_key
+                        })
+                      : undefined
+                  }
+                  disabled={!actionContractReady}
+                >
+                  <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
+                  <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
+                  {renderSceneActionContextMeta(action)}
+                  {renderSceneActionContextChips(action)}
+                </button>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -2702,39 +2753,46 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               ) : null}
             </div>
             <div className="akrSceneTerminalConsoleActionGrid">
-              {worldState.interaction_terminal.action_items.map((action: ClusterActionItem) => (
-                <button
-                  key={`${worldState.interaction_terminal.terminal_key}:${action.surface_slot_key || action.key}`}
-                  type="button"
-                  className={`akrSceneTerminalConsoleAction ${action.is_primary_surface_action ? "isPrimary" : "isSecondary"} is-${
-                    action.intent_profile_key || "open"
-                  }`}
-                  {...buildSceneActionDataAttrs(action)}
-                  onClick={() =>
-                    triggerSceneAction({
-                      actionKey: action.action_key,
-                      nodeKey: action.key,
-                      laneKey: action.cluster_key,
-                      label: action.label,
-                      labelKey: action.label_key,
-                      sourceType: "district_scene_terminal_console",
-                      actorKey: action.actor_key,
-                      interactionKind: action.interaction_kind,
-                      clusterKey: action.cluster_key,
-                      isSecondary: action.is_secondary,
-                      ...resolveSceneActionContext(action),
-                      workspace: props.workspace,
-                      tab: props.tab,
-                      districtKey: worldState.district_key
-                    })
-                  }
-                >
-                  <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
-                  <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
-                  <span>{t(props.lang, action.hint_label_key as never)}</span>
-                  {renderSceneActionContextMeta(action)}
-                </button>
-              ))}
+              {worldState.interaction_terminal.action_items.map((action: ClusterActionItem) => {
+                const actionContractReady = hasSceneActionContract(action);
+                return (
+                  <button
+                    key={`${worldState.interaction_terminal.terminal_key}:${action.surface_slot_key || action.key}`}
+                    type="button"
+                    className={`akrSceneTerminalConsoleAction ${
+                      action.is_primary_surface_action ? "isPrimary" : "isSecondary"
+                    } is-${action.intent_profile_key || "open"} ${actionContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                    {...buildSceneActionDataAttrs(action)}
+                    onClick={() =>
+                      actionContractReady
+                        ? triggerSceneAction({
+                            actionKey: action.action_key,
+                            nodeKey: action.key,
+                            laneKey: action.cluster_key,
+                            label: action.label,
+                            labelKey: action.label_key,
+                            sourceType: "district_scene_terminal_console",
+                            actorKey: action.actor_key,
+                            interactionKind: action.interaction_kind,
+                            clusterKey: action.cluster_key,
+                            isSecondary: action.is_secondary,
+                            ...resolveSceneActionContext(action),
+                            workspace: props.workspace,
+                            tab: props.tab,
+                            districtKey: worldState.district_key
+                          })
+                        : undefined
+                    }
+                    disabled={!actionContractReady}
+                  >
+                    <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
+                    <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
+                    <span>{t(props.lang, action.hint_label_key as never)}</span>
+                    {renderSceneActionContextMeta(action)}
+                    {renderSceneActionContextChips(action)}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2832,28 +2890,38 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 <strong>{worldState.interaction_modal.modal_cards.length}</strong>
               </div>
               <div className="akrSceneInteractionModalLaneGrid">
-                {worldState.interaction_modal.modal_cards.map((card: InteractionModalLaneCard) => (
-                  <button
-                    key={`${worldState.interaction_modal.modal_key}:${card.card_key}`}
-                    type="button"
-                    className={`akrSceneInteractionModalLane is-${card.status_key} ${
-                      selectedModalLane?.card_key === card.card_key ? "is-selected" : ""
-                    } ${card.protocol_card_key || card.protocol_pod_key ? "is-actionable" : "is-passive"}`}
-                    {...buildSceneActionDataAttrs(card)}
-                    onMouseEnter={() => activateModalLane(card)}
-                    onFocus={() => activateModalLane(card)}
-                    onClick={() => activateModalLane(card)}
-                    aria-pressed={selectedModalLane?.card_key === card.card_key}
-                  >
-                    <span>{t(props.lang, card.label_key as never)}</span>
-                    <strong>{card.value}</strong>
-                    {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
-                    {card.action_label_key ? <b>{t(props.lang, card.action_label_key as never)}</b> : null}
-                    {selectedModalLane?.card_key === card.card_key && card.risk_focus_key ? (
-                      <small>{card.risk_focus_key}</small>
-                    ) : null}
-                  </button>
-                ))}
+                {worldState.interaction_modal.modal_cards.map((card: InteractionModalLaneCard) => {
+                  const laneContractReady = hasSceneActionContract(card);
+                  const laneInteractive = Boolean(
+                    laneContractReady && (card.protocol_card_key || card.protocol_pod_key || card.microflow_key)
+                  );
+                  return (
+                    <button
+                      key={`${worldState.interaction_modal.modal_key}:${card.card_key}`}
+                      type="button"
+                      className={`akrSceneInteractionModalLane is-${card.status_key} ${
+                        selectedModalLane?.card_key === card.card_key ? "is-selected" : ""
+                      } ${laneInteractive ? "is-actionable" : "is-passive"} ${
+                        laneContractReady ? "is-contract-ready" : "is-contract-missing"
+                      }`}
+                      {...buildSceneActionDataAttrs(card)}
+                      onMouseEnter={() => (laneInteractive ? activateModalLane(card) : undefined)}
+                      onFocus={() => (laneInteractive ? activateModalLane(card) : undefined)}
+                      onClick={() => (laneInteractive ? activateModalLane(card) : undefined)}
+                      disabled={!laneInteractive}
+                      aria-pressed={selectedModalLane?.card_key === card.card_key}
+                    >
+                      <span>{t(props.lang, card.label_key as never)}</span>
+                      <strong>{card.value}</strong>
+                      {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
+                      {card.action_label_key ? <b>{t(props.lang, card.action_label_key as never)}</b> : null}
+                      {selectedModalLane?.card_key === card.card_key && card.risk_focus_key ? (
+                        <small>{card.risk_focus_key}</small>
+                      ) : null}
+                      {renderSceneActionContextChips(card)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -2864,20 +2932,23 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 <strong>{worldState.interaction_modal.protocol_cards.length}</strong>
               </div>
               <div className="akrSceneInteractionModalDeckGrid">
-                {worldState.interaction_modal.protocol_cards.map(
-                  (card: ProtocolCard) => (
+                {worldState.interaction_modal.protocol_cards.map((card: ProtocolCard) => {
+                  const cardContractReady = hasSceneActionContract(card);
+                  return (
                     <button
                       key={`${worldState.interaction_modal.modal_key}:${card.card_key}`}
-                    type="button"
-                    className={`akrSceneInteractionModalDeck is-${card.status_key} ${card.is_actionable ? "is-actionable" : "is-passive"} ${
-                      selectedProtocolCard?.card_key === card.card_key ? "is-selected" : ""
-                    }`}
-                    {...buildSceneActionDataAttrs(card)}
-                    onMouseEnter={() => setActiveProtocolCardKey(card.card_key)}
-                    onFocus={() => setActiveProtocolCardKey(card.card_key)}
-                    onClick={() => {
+                      type="button"
+                      className={`akrSceneInteractionModalDeck is-${card.status_key} ${
+                        card.is_actionable ? "is-actionable" : "is-passive"
+                      } ${selectedProtocolCard?.card_key === card.card_key ? "is-selected" : ""} ${
+                        cardContractReady ? "is-contract-ready" : "is-contract-missing"
+                      }`}
+                      {...buildSceneActionDataAttrs(card)}
+                      onMouseEnter={() => setActiveProtocolCardKey(card.card_key)}
+                      onFocus={() => setActiveProtocolCardKey(card.card_key)}
+                      onClick={() => {
                         setActiveProtocolCardKey(card.card_key);
-                        if (card.action_key) {
+                        if (card.action_key && cardContractReady) {
                           triggerSceneAction({
                             actionKey: card.action_key,
                             nodeKey: card.card_key,
@@ -2895,7 +2966,6 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           });
                         }
                       }}
-                      disabled={!card.action_key}
                       aria-pressed={selectedProtocolCard?.card_key === card.card_key}
                     >
                       <span>{t(props.lang, card.label_key as never)}</span>
@@ -2903,9 +2973,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       {card.tone_key ? <em>{t(props.lang, card.tone_key as never)}</em> : null}
                       {card.action_label_key ? <b>{t(props.lang, card.action_label_key as never)}</b> : null}
                       {renderSceneActionContextMeta(card)}
+                      {renderSceneActionContextChips(card)}
                     </button>
-                  )
-                )}
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -3034,30 +3105,37 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       <strong>{selectedProtocolCard.flow_pods.length}</strong>
                     </div>
                     <div className="akrSceneInteractionModalPodGrid">
-                      {selectedProtocolCard.flow_pods.map((pod) => (
-                        <button
-                          key={`${selectedProtocolCard.card_key}:pod:${pod.pod_key}`}
-                          type="button"
-                          className={`akrSceneInteractionModalPod is-${pod.status_key} ${selectedProtocolPod?.pod_key === pod.pod_key ? "is-selected" : ""}`}
-                          {...buildSceneActionDataAttrs(pod, selectedProtocolCard)}
-                          onMouseEnter={() => setActiveProtocolPodKey(pod.pod_key)}
-                          onFocus={() => setActiveProtocolPodKey(pod.pod_key)}
-                          onClick={() => setActiveProtocolPodKey(pod.pod_key)}
-                          aria-pressed={selectedProtocolPod?.pod_key === pod.pod_key}
-                        >
-                          <div className="akrSceneInteractionModalPodHeader">
-                            <span>{t(props.lang, pod.label_key as never)}</span>
-                            <strong>{pod.value}</strong>
-                          </div>
-                          {pod.tone_key ? <em>{t(props.lang, pod.tone_key as never)}</em> : null}
-                          {pod.hint_label_key ? <b>{t(props.lang, pod.hint_label_key as never)}</b> : null}
-                          {renderSceneActionContextMeta(pod, selectedProtocolCard)}
-                          <div className="akrSceneInteractionModalPodMeta">
-                            <span>{pod.status_label_key ? t(props.lang, pod.status_label_key as never) : pod.value}</span>
-                            <strong>{pod.action_items?.length || 0}</strong>
-                          </div>
-                        </button>
-                      ))}
+                      {selectedProtocolCard.flow_pods.map((pod) => {
+                        const podContractReady = hasSceneActionContract(pod, selectedProtocolCard);
+                        return (
+                          <button
+                            key={`${selectedProtocolCard.card_key}:pod:${pod.pod_key}`}
+                            type="button"
+                            className={`akrSceneInteractionModalPod is-${pod.status_key} ${
+                              selectedProtocolPod?.pod_key === pod.pod_key ? "is-selected" : ""
+                            } ${podContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                            {...buildSceneActionDataAttrs(pod, selectedProtocolCard)}
+                            onMouseEnter={() => (podContractReady ? setActiveProtocolPodKey(pod.pod_key) : undefined)}
+                            onFocus={() => (podContractReady ? setActiveProtocolPodKey(pod.pod_key) : undefined)}
+                            onClick={() => (podContractReady ? setActiveProtocolPodKey(pod.pod_key) : undefined)}
+                            disabled={!podContractReady}
+                            aria-pressed={selectedProtocolPod?.pod_key === pod.pod_key}
+                          >
+                            <div className="akrSceneInteractionModalPodHeader">
+                              <span>{t(props.lang, pod.label_key as never)}</span>
+                              <strong>{pod.value}</strong>
+                            </div>
+                            {pod.tone_key ? <em>{t(props.lang, pod.tone_key as never)}</em> : null}
+                            {pod.hint_label_key ? <b>{t(props.lang, pod.hint_label_key as never)}</b> : null}
+                            {renderSceneActionContextMeta(pod, selectedProtocolCard)}
+                            {renderSceneActionContextChips(pod, selectedProtocolCard)}
+                            <div className="akrSceneInteractionModalPodMeta">
+                              <span>{pod.status_label_key ? t(props.lang, pod.status_label_key as never) : pod.value}</span>
+                              <strong>{pod.action_items?.length || 0}</strong>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 ) : null}
@@ -3166,38 +3244,43 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                             <strong>{selectedProtocolPod.microflow_cards.length}</strong>
                           </div>
                           <div className="akrSceneInteractionModalMicroGrid">
-                            {selectedProtocolPod.microflow_cards.map((item) => (
-                              <button
-                                key={`${selectedProtocolPod.pod_key}:microflow:${item.microflow_key}`}
-                                type="button"
-                                className={`akrSceneInteractionModalMicroflow is-${item.status_key} ${selectedMicroflow?.microflow_key === item.microflow_key ? "is-selected" : ""}`}
-                                {...buildSceneActionDataAttrs(item, selectedProtocolPod)}
-                                onMouseEnter={() => setActiveMicroflowKey(item.microflow_key)}
-                                onFocus={() => setActiveMicroflowKey(item.microflow_key)}
-                                onClick={() => setActiveMicroflowKey(item.microflow_key)}
-                                aria-pressed={selectedMicroflow?.microflow_key === item.microflow_key}
-                              >
-                                <div className="akrSceneInteractionModalMicroflowHeader">
-                                  <span>{t(props.lang, item.label_key as never)}</span>
-                                  <strong>{item.value}</strong>
-                                </div>
-                                {item.tone_key ? <em>{t(props.lang, item.tone_key as never)}</em> : null}
-                                {item.rows?.length ? (
-                                  <div className="akrSceneInteractionModalRows">
-                                    {item.rows.slice(0, 2).map((row) => (
-                                      <div key={`${item.microflow_key}:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
-                                        <span>{t(props.lang, row.label_key as never)}</span>
-                                        <strong>{row.value}</strong>
-                                      </div>
-                                    ))}
+                            {selectedProtocolPod.microflow_cards.map((item) => {
+                              const microflowContractReady = hasSceneActionContract(item, selectedProtocolPod);
+                              return (
+                                <button
+                                  key={`${selectedProtocolPod.pod_key}:microflow:${item.microflow_key}`}
+                                  type="button"
+                                  className={`akrSceneInteractionModalMicroflow is-${item.status_key} ${
+                                    selectedMicroflow?.microflow_key === item.microflow_key ? "is-selected" : ""
+                                  } ${microflowContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                                  {...buildSceneActionDataAttrs(item, selectedProtocolPod)}
+                                  onMouseEnter={() => (microflowContractReady ? setActiveMicroflowKey(item.microflow_key) : undefined)}
+                                  onFocus={() => (microflowContractReady ? setActiveMicroflowKey(item.microflow_key) : undefined)}
+                                  onClick={() => (microflowContractReady ? setActiveMicroflowKey(item.microflow_key) : undefined)}
+                                  disabled={!microflowContractReady}
+                                  aria-pressed={selectedMicroflow?.microflow_key === item.microflow_key}
+                                >
+                                  <div className="akrSceneInteractionModalMicroflowHeader">
+                                    <span>{t(props.lang, item.label_key as never)}</span>
+                                    <strong>{item.value}</strong>
                                   </div>
-                                ) : null}
-                                {item.action_label_key ? (
-                                  <b>{t(props.lang, item.action_label_key as never)}</b>
-                                ) : null}
-                                {renderSceneActionContextMeta(item, selectedProtocolPod)}
-                              </button>
-                            ))}
+                                  {item.tone_key ? <em>{t(props.lang, item.tone_key as never)}</em> : null}
+                                  {item.rows?.length ? (
+                                    <div className="akrSceneInteractionModalRows">
+                                      {item.rows.slice(0, 2).map((row) => (
+                                        <div key={`${item.microflow_key}:${row.label_key}`} className={`akrSceneInteractionModalRow is-${row.status_key}`}>
+                                          <span>{t(props.lang, row.label_key as never)}</span>
+                                          <strong>{row.value}</strong>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {item.action_label_key ? <b>{t(props.lang, item.action_label_key as never)}</b> : null}
+                                  {renderSceneActionContextMeta(item, selectedProtocolPod)}
+                                  {renderSceneActionContextChips(item, selectedProtocolPod)}
+                                </button>
+                              );
+                            })}
                           </div>
                         </section>
                       ) : null}
@@ -3369,25 +3452,30 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                             <div className="akrSceneInteractionModalActionGrid">
                               <button
                                 type="button"
-                                className="akrSceneInteractionModalAction"
+                                className={`akrSceneInteractionModalAction ${
+                                  hasSceneActionContract(selectedMicroflow) ? "is-contract-ready" : "is-contract-missing"
+                                }`}
                                 {...buildSceneActionDataAttrs(selectedMicroflow)}
                                 onClick={() =>
-                                  triggerSceneAction({
-                                    actionKey: selectedMicroflow.action_key || "",
-                                    nodeKey: selectedMicroflow.microflow_key,
-                                    laneKey: "modal_protocol_microflow_focus",
-                                  label: selectedMicroflow.value || selectedProtocolPod.value,
-                                  labelKey: selectedMicroflow.label_key,
-                                  ...resolveSceneActionContext(selectedMicroflow),
-                                  sourceType: "district_scene_protocol_microflow_focus",
-                                  actorKey: worldState.active_hotspot_key,
-                                  interactionKind: "protocol_microflow_focus",
-                                    clusterKey: worldState.active_cluster_key,
-                                    workspace: props.workspace,
-                                    tab: props.tab,
-                                    districtKey: worldState.district_key
-                                  })
+                                  hasSceneActionContract(selectedMicroflow)
+                                    ? triggerSceneAction({
+                                        actionKey: selectedMicroflow.action_key || "",
+                                        nodeKey: selectedMicroflow.microflow_key,
+                                        laneKey: "modal_protocol_microflow_focus",
+                                        label: selectedMicroflow.value || selectedProtocolPod.value,
+                                        labelKey: selectedMicroflow.label_key,
+                                        ...resolveSceneActionContext(selectedMicroflow),
+                                        sourceType: "district_scene_protocol_microflow_focus",
+                                        actorKey: worldState.active_hotspot_key,
+                                        interactionKind: "protocol_microflow_focus",
+                                        clusterKey: worldState.active_cluster_key,
+                                        workspace: props.workspace,
+                                        tab: props.tab,
+                                        districtKey: worldState.district_key
+                                      })
+                                    : undefined
                                 }
+                                disabled={!hasSceneActionContract(selectedMicroflow)}
                               >
                                 <span>
                                   {selectedMicroflow.hint_label_key
@@ -3400,6 +3488,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                     : t(props.lang, selectedMicroflow.label_key as never)}
                                 </strong>
                                 {renderSceneActionContextMeta(selectedMicroflow)}
+                                {renderSceneActionContextChips(selectedMicroflow)}
                               </button>
                             </div>
                           ) : null}
@@ -3438,36 +3527,45 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     </div>
                     {selectedProtocolPod.action_items?.length ? (
                       <div className="akrSceneInteractionModalActionGrid">
-                        {selectedProtocolPod.action_items.map((action) => (
-                          <button
-                            key={`${selectedProtocolPod.pod_key}:${action.item_key}`}
-                            type="button"
-                            className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""}`}
-                            {...buildSceneActionDataAttrs(action, selectedProtocolPod)}
-                            onClick={() =>
-                              triggerSceneAction({
-                                actionKey: action.action_key,
-                                nodeKey: selectedProtocolPod.pod_key,
-                                laneKey: "modal_protocol_pod_focus",
-                                label: selectedProtocolPod.value,
-                                labelKey: selectedProtocolPod.label_key,
-                                sourceType: "district_scene_protocol_pod_focus",
-                                actorKey: worldState.active_hotspot_key,
-                                interactionKind: "protocol_pod_focus",
-                                clusterKey: worldState.active_cluster_key,
-                                ...resolveSceneActionContext(action, selectedProtocolPod),
-                                workspace: props.workspace,
-                                tab: props.tab,
-                                districtKey: worldState.district_key
-                              })
-                            }
-                          >
-                            <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolPod.label_key as never)}</span>
-                            <strong>{t(props.lang, action.label_key as never)}</strong>
-                            {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
-                            {renderSceneActionContextMeta(action, selectedProtocolPod)}
-                          </button>
-                        ))}
+                        {selectedProtocolPod.action_items.map((action) => {
+                          const actionContractReady = hasSceneActionContract(action, selectedProtocolPod);
+                          return (
+                            <button
+                              key={`${selectedProtocolPod.pod_key}:${action.item_key}`}
+                              type="button"
+                              className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""} ${
+                                actionContractReady ? "is-contract-ready" : "is-contract-missing"
+                              }`}
+                              {...buildSceneActionDataAttrs(action, selectedProtocolPod)}
+                              onClick={() =>
+                                actionContractReady
+                                  ? triggerSceneAction({
+                                      actionKey: action.action_key,
+                                      nodeKey: selectedProtocolPod.pod_key,
+                                      laneKey: "modal_protocol_pod_focus",
+                                      label: selectedProtocolPod.value,
+                                      labelKey: selectedProtocolPod.label_key,
+                                      sourceType: "district_scene_protocol_pod_focus",
+                                      actorKey: worldState.active_hotspot_key,
+                                      interactionKind: "protocol_pod_focus",
+                                      clusterKey: worldState.active_cluster_key,
+                                      ...resolveSceneActionContext(action, selectedProtocolPod),
+                                      workspace: props.workspace,
+                                      tab: props.tab,
+                                      districtKey: worldState.district_key
+                                    })
+                                  : undefined
+                              }
+                              disabled={!actionContractReady}
+                            >
+                              <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolPod.label_key as never)}</span>
+                              <strong>{t(props.lang, action.label_key as never)}</strong>
+                              {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
+                              {renderSceneActionContextMeta(action, selectedProtocolPod)}
+                              {renderSceneActionContextChips(action, selectedProtocolPod)}
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : null}
                   </section>
@@ -3480,36 +3578,45 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     <strong>{selectedProtocolCard.action_items.length}</strong>
                   </div>
                   <div className="akrSceneInteractionModalActionGrid">
-                    {selectedProtocolCard.action_items.map((action) => (
-                      <button
-                        key={`${selectedProtocolCard.card_key}:${action.item_key}`}
-                        type="button"
-                        className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""}`}
-                        {...buildSceneActionDataAttrs(action, selectedProtocolCard)}
-                        onClick={() =>
-                          triggerSceneAction({
-                            actionKey: action.action_key,
-                            nodeKey: selectedProtocolCard.card_key,
-                            laneKey: "modal_protocol_focus",
-                            label: selectedProtocolCard.value,
-                            labelKey: selectedProtocolCard.label_key,
-                            sourceType: "district_scene_protocol_focus",
-                            actorKey: worldState.active_hotspot_key,
-                            interactionKind: "protocol_focus",
-                            clusterKey: worldState.active_cluster_key,
-                            ...resolveSceneActionContext(action, selectedProtocolCard),
-                            workspace: props.workspace,
-                            tab: props.tab,
-                            districtKey: worldState.district_key
-                          })
-                        }
-                      >
-                        <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolCard.label_key as never)}</span>
-                        <strong>{t(props.lang, action.label_key as never)}</strong>
-                        {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
-                        {renderSceneActionContextMeta(action, selectedProtocolCard)}
-                      </button>
-                    ))}
+                    {selectedProtocolCard.action_items.map((action) => {
+                      const actionContractReady = hasSceneActionContract(action, selectedProtocolCard);
+                      return (
+                        <button
+                          key={`${selectedProtocolCard.card_key}:${action.item_key}`}
+                          type="button"
+                          className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""} ${
+                            actionContractReady ? "is-contract-ready" : "is-contract-missing"
+                          }`}
+                          {...buildSceneActionDataAttrs(action, selectedProtocolCard)}
+                          onClick={() =>
+                            actionContractReady
+                              ? triggerSceneAction({
+                                  actionKey: action.action_key,
+                                  nodeKey: selectedProtocolCard.card_key,
+                                  laneKey: "modal_protocol_focus",
+                                  label: selectedProtocolCard.value,
+                                  labelKey: selectedProtocolCard.label_key,
+                                  sourceType: "district_scene_protocol_focus",
+                                  actorKey: worldState.active_hotspot_key,
+                                  interactionKind: "protocol_focus",
+                                  clusterKey: worldState.active_cluster_key,
+                                  ...resolveSceneActionContext(action, selectedProtocolCard),
+                                  workspace: props.workspace,
+                                  tab: props.tab,
+                                  districtKey: worldState.district_key
+                                })
+                              : undefined
+                          }
+                          disabled={!actionContractReady}
+                        >
+                          <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolCard.label_key as never)}</span>
+                          <strong>{t(props.lang, action.label_key as never)}</strong>
+                          {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
+                          {renderSceneActionContextMeta(action, selectedProtocolCard)}
+                          {renderSceneActionContextChips(action, selectedProtocolCard)}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -3551,39 +3658,46 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               ) : null}
             </div>
             <div className="akrSceneInteractionModalActionGrid">
-              {worldState.interaction_modal.action_items.map((action: ClusterActionItem) => (
-                <button
-                  key={`${worldState.interaction_modal.modal_key}:${action.surface_slot_key || action.key}`}
-                  type="button"
-                  className={`akrSceneInteractionModalAction ${action.is_primary_surface_action ? "isPrimary" : "isSecondary"} is-${
-                    action.intent_profile_key || "open"
-                  }`}
-                  {...buildSceneActionDataAttrs(action)}
-                  onClick={() =>
-                    triggerSceneAction({
-                      actionKey: action.action_key,
-                      nodeKey: action.key,
-                      laneKey: action.cluster_key,
-                      label: action.label,
-                      labelKey: action.label_key,
-                      sourceType: "district_scene_interaction_modal",
-                      actorKey: action.actor_key,
-                      interactionKind: action.interaction_kind,
-                      clusterKey: action.cluster_key,
-                      isSecondary: action.is_secondary,
-                      ...resolveSceneActionContext(action),
-                      workspace: props.workspace,
-                      tab: props.tab,
-                      districtKey: worldState.district_key
-                    })
-                  }
-                >
-                  <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
-                  <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
-                  <span>{t(props.lang, action.hint_label_key as never)}</span>
-                  {renderSceneActionContextMeta(action)}
-                </button>
-              ))}
+              {worldState.interaction_modal.action_items.map((action: ClusterActionItem) => {
+                const actionContractReady = hasSceneActionContract(action);
+                return (
+                  <button
+                    key={`${worldState.interaction_modal.modal_key}:${action.surface_slot_key || action.key}`}
+                    type="button"
+                    className={`akrSceneInteractionModalAction ${
+                      action.is_primary_surface_action ? "isPrimary" : "isSecondary"
+                    } is-${action.intent_profile_key || "open"} ${actionContractReady ? "is-contract-ready" : "is-contract-missing"}`}
+                    {...buildSceneActionDataAttrs(action)}
+                    onClick={() =>
+                      actionContractReady
+                        ? triggerSceneAction({
+                            actionKey: action.action_key,
+                            nodeKey: action.key,
+                            laneKey: action.cluster_key,
+                            label: action.label,
+                            labelKey: action.label_key,
+                            sourceType: "district_scene_interaction_modal",
+                            actorKey: action.actor_key,
+                            interactionKind: action.interaction_kind,
+                            clusterKey: action.cluster_key,
+                            isSecondary: action.is_secondary,
+                            ...resolveSceneActionContext(action),
+                            workspace: props.workspace,
+                            tab: props.tab,
+                            districtKey: worldState.district_key
+                          })
+                        : undefined
+                    }
+                    disabled={!actionContractReady}
+                  >
+                    <span>{t(props.lang, (action.intent_profile?.intent_label_key || "world_intent_open") as never)}</span>
+                    <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
+                    <span>{t(props.lang, action.hint_label_key as never)}</span>
+                    {renderSceneActionContextMeta(action)}
+                    {renderSceneActionContextChips(action)}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

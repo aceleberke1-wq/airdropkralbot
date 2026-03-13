@@ -2125,6 +2125,56 @@ body {
   box-shadow: 0 12px 28px rgba(2, 12, 27, 0.28);
 }
 
+.akrSceneWorldAction.is-contract-ready,
+.akrSceneEntrySurfaceAction.is-contract-ready,
+.akrSceneTerminalConsoleAction.is-contract-ready,
+.akrSceneInteractionModalLane.is-contract-ready,
+.akrSceneInteractionModalDeck.is-contract-ready,
+.akrSceneInteractionModalPod.is-contract-ready,
+.akrSceneInteractionModalMicroflow.is-contract-ready,
+.akrSceneInteractionModalAction.is-contract-ready,
+.akrSceneEntrySurfaceConsoleToggle.is-contract-ready {
+  box-shadow: 0 0 0 1px rgba(0, 214, 255, 0.12);
+}
+
+.akrSceneWorldAction.is-contract-missing,
+.akrSceneEntrySurfaceAction.is-contract-missing,
+.akrSceneTerminalConsoleAction.is-contract-missing,
+.akrSceneInteractionModalLane.is-contract-missing,
+.akrSceneInteractionModalDeck.is-contract-missing,
+.akrSceneInteractionModalPod.is-contract-missing,
+.akrSceneInteractionModalMicroflow.is-contract-missing,
+.akrSceneInteractionModalAction.is-contract-missing,
+.akrSceneEntrySurfaceConsoleToggle.is-contract-missing,
+.akrSceneWorldAction[data-contract-ready="false"],
+.akrSceneEntrySurfaceAction[data-contract-ready="false"],
+.akrSceneTerminalConsoleAction[data-contract-ready="false"],
+.akrSceneInteractionModalLane[data-contract-ready="false"],
+.akrSceneInteractionModalDeck[data-contract-ready="false"],
+.akrSceneInteractionModalPod[data-contract-ready="false"],
+.akrSceneInteractionModalMicroflow[data-contract-ready="false"],
+.akrSceneInteractionModalAction[data-contract-ready="false"],
+.akrSceneEntrySurfaceConsoleToggle[data-contract-ready="false"] {
+  opacity: 0.62;
+  border-style: dashed;
+  border-color: rgba(255, 111, 145, 0.32);
+  box-shadow: none;
+}
+
+.akrSceneWorldAction:disabled,
+.akrSceneEntrySurfaceAction:disabled,
+.akrSceneTerminalConsoleAction:disabled,
+.akrSceneInteractionModalLane:disabled,
+.akrSceneInteractionModalDeck:disabled,
+.akrSceneInteractionModalPod:disabled,
+.akrSceneInteractionModalMicroflow:disabled,
+.akrSceneInteractionModalAction:disabled,
+.akrSceneEntrySurfaceConsoleToggle:disabled {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .akrSceneInteractionModalAction.isSecondary {
   border-style: dashed;
 }
