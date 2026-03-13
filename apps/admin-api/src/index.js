@@ -4230,6 +4230,8 @@ async function buildAdminMetrics(db) {
       scene_loop_district_microflow_risk_flow_key_breakdown_daily_7d: [],
       scene_loop_district_microflow_risk_flow_key_matrix_7d: [],
       scene_loop_district_microflow_risk_flow_key_matrix_daily_7d: [],
+      scene_loop_district_microflow_risk_flow_key_priority_7d: [],
+      scene_loop_district_microflow_risk_flow_key_priority_daily_7d: [],
       scene_loop_district_microflow_risk_entry_kind_breakdown_7d: [],
       scene_loop_district_microflow_risk_entry_kind_breakdown_daily_7d: [],
       scene_loop_district_microflow_risk_entry_kind_matrix_7d: [],

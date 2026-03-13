@@ -1905,6 +1905,64 @@ function buildSceneLoopDimensionRiskMatrixDaily(rows, field, limit = 24) {
     .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
 }
 
+function buildSceneLoopDimensionPriority(rows, field, limit = 18) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      ...buildSceneLoopRiskContext(row),
+      bucket_key: String(row?.[field] || "unknown"),
+      [field]: String(row?.[field] || "unknown"),
+      trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+      priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+      item_count: Math.max(0, Math.floor(toNum(row?.item_count, 0))),
+      day_count: Math.max(0, Math.floor(toNum(row?.day_count, 0))),
+      latest_day: row?.latest_day ? String(row.latest_day) : null
+    }))
+    .sort((left, right) => {
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const dayGap = toNum(right.day_count, 0) - toNum(left.day_count, 0);
+      if (Math.abs(dayGap) > 0.0001) return dayGap;
+      const itemGap = toNum(right.item_count, 0) - toNum(left.item_count, 0);
+      if (Math.abs(itemGap) > 0.0001) return itemGap;
+      return `${String(left.district_key || "")}:${String(left[field] || left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right[field] || right.bucket_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 18))));
+}
+
+function buildSceneLoopDimensionPriorityDaily(rows, field, limit = 24) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      day: String(row?.day || ""),
+      ...buildSceneLoopRiskContext(row),
+      bucket_key: String(row?.[field] || "unknown"),
+      [field]: String(row?.[field] || "unknown"),
+      trend_delta: Math.floor(toNum(row?.trend_delta, 0)),
+      total_count: Math.max(0, Math.floor(toNum(row?.total_count, 0))),
+      live_count: Math.max(0, Math.floor(toNum(row?.live_count, 0))),
+      blocked_count: Math.max(0, Math.floor(toNum(row?.blocked_count, 0))),
+      priority_score: Math.max(0, Math.floor(toNum(row?.priority_score, 0))),
+      item_count: Math.max(0, Math.floor(toNum(row?.item_count, 1))),
+      day_count: Math.max(0, Math.floor(toNum(row?.day_count, 1)))
+    }))
+    .sort((left, right) => {
+      const dayOrder = String(right.day || "").localeCompare(String(left.day || ""));
+      if (dayOrder !== 0) return dayOrder;
+      const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
+      if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
+      if (Math.abs(totalGap) > 0.0001) return totalGap;
+      return `${String(left.district_key || "")}:${String(left[field] || left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
+        `${String(right.district_key || "")}:${String(right[field] || right.bucket_key || "")}:${String(right.risk_key || "")}`
+      );
+    })
+    .slice(0, Math.max(1, Math.floor(toNum(limit, 24))));
+}
+
 function resolveSceneLoopDistrictAttentionBand(latestHealthBand, trendDirection, blockedShare) {
   const latestBand = String(latestHealthBand || "no_data");
   const trend = String(trendDirection || "no_data");
@@ -2313,6 +2371,14 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
     metrics.scene_loop_district_microflow_risk_rows_daily_7d,
     "flow_key"
   );
+  metrics.scene_loop_district_microflow_risk_flow_key_priority_7d = buildSceneLoopDimensionPriority(
+    metrics.scene_loop_district_microflow_risk_matrix_7d,
+    "flow_key"
+  );
+  metrics.scene_loop_district_microflow_risk_flow_key_priority_daily_7d = buildSceneLoopDimensionPriorityDaily(
+    metrics.scene_loop_district_microflow_risk_matrix_daily_7d,
+    "flow_key"
+  );
   metrics.scene_loop_district_microflow_risk_entry_kind_breakdown_7d = buildSceneLoopDimensionBreakdown(
     metrics.scene_loop_district_microflow_risk_rows_7d,
     "entry_kind_key"
@@ -2584,6 +2650,10 @@ module.exports = {
   buildSceneLoopDistrictMicroflowRiskMatrixDaily,
   buildSceneLoopDistrictMicroflowRiskBreakdown,
   buildSceneLoopDistrictMicroflowRiskBreakdownDaily,
+  buildSceneLoopDimensionBreakdown,
+  buildSceneLoopDimensionBreakdownDaily,
+  buildSceneLoopDimensionPriority,
+  buildSceneLoopDimensionPriorityDaily,
   buildSceneLoopDimensionRiskMatrix,
   buildSceneLoopDimensionRiskMatrixDaily,
   resolveSceneLoopTrendDirection,

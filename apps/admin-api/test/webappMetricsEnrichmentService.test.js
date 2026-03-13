@@ -613,6 +613,24 @@ test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
     )
   );
   assert.ok(
+    enriched.scene_loop_district_microflow_risk_flow_key_priority_7d.some(
+      (row) =>
+        row.flow_key === "wallet_link:wallet" &&
+        row.loop_family_key === "wallet_link" &&
+        row.risk_focus_key === "exchange_district:wallet_link:wallet|red:alert:no_data" &&
+        Number(row.priority_score || 0) >= 3000
+    )
+  );
+  assert.ok(
+    enriched.scene_loop_district_microflow_risk_flow_key_priority_daily_7d.some(
+      (row) =>
+        row.day === "2026-03-08" &&
+        row.flow_key === "payout_lane:payout" &&
+        row.risk_context?.sequence_kind_key === "world_modal_kind_payout_route" &&
+        Number(row.priority_score || 0) >= 2000
+    )
+  );
+  assert.ok(
     enriched.scene_loop_district_microflow_risk_matrix_7d.some(
       (row) =>
         row.focus_key === "exchange_district:wallet_link:wallet" &&
