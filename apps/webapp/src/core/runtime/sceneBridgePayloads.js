@@ -633,6 +633,26 @@ function buildLoopRiskContextSignatureText(source, familyKey = "") {
   return [flowKeyText, riskFocusKeyText, entryKindKeyText, sequenceKindKeyText].filter(Boolean).join("|");
 }
 
+function buildLoopActionContextSignatureText(source, familyKey = "") {
+  const row = asRecord(source);
+  const flowKeyText = buildLoopFlowKeyText(row, familyKey);
+  const focusKeyText = buildLoopFocusKeyText(row, familyKey);
+  const family_key =
+    toText(row.familyKey || row.family_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[1], "").toLowerCase() ||
+    toText(familyKey, "").toLowerCase();
+  const microflow_key =
+    toText(row.microflowKey || row.microflow_key, "").toLowerCase() ||
+    toText(focusKeyText.split(":")[2], "").toLowerCase();
+  const entryKindKeyText =
+    toText(row.entryKindKey || row.entry_kind_key, "").toLowerCase() ||
+    resolveLoopBridgeEntryKindKey(family_key, microflow_key);
+  const sequenceKindKeyText =
+    toText(row.sequenceKindKey || row.sequence_kind_key, "").toLowerCase() ||
+    resolveLoopBridgeSequenceKindKey(family_key, microflow_key);
+  return [flowKeyText, focusKeyText, entryKindKeyText, sequenceKindKeyText].filter(Boolean).join("|");
+}
+
 function buildLoopEntryKindKeyText(source, familyKey = "") {
   const row = asRecord(source);
   const family_key =
@@ -698,8 +718,12 @@ function buildLoopContractContextText(source, familyKey = "") {
 }
 
 function buildLoopContractSignatureText(source, familyKey = "") {
-  const signature = buildLoopRiskContextSignatureText(source, familyKey);
-  return signature ? `SIG ${signature}` : "";
+  const actionSignature = buildLoopActionContextSignatureText(source, familyKey);
+  const riskSignature = buildLoopRiskContextSignatureText(source, familyKey);
+  return buildLoopMicroDetail(
+    actionSignature ? `ACS ${actionSignature}` : "",
+    riskSignature ? `RCS ${riskSignature}` : ""
+  );
 }
 
 function buildLoopFlowKeyText(source, familyKey = "") {

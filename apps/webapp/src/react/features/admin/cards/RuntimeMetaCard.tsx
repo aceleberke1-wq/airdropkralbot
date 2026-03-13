@@ -52,6 +52,7 @@ function formatStamp(value: unknown): string {
 
 function renderRiskContextSuffix(row: Record<string, unknown>): string {
   const riskContext = asRecord(row.risk_context) || row;
+  const actionContext = asRecord(row.action_context) || row;
   const parts: string[] = [];
   if (riskContext.family_key) {
     parts.push(`family ${String(riskContext.family_key)}`);
@@ -87,6 +88,12 @@ function renderRiskContextSuffix(row: Record<string, unknown>): string {
     parts.push(`trend ${String(riskContext.risk_trend_direction_key)}`);
   }
   const riskContextSignature = String(riskContext.risk_context_signature || row.risk_context_signature || "").trim();
+  const actionContextSignature = String(
+    actionContext.action_context_signature || row.action_context_signature || ""
+  ).trim();
+  if (actionContextSignature) {
+    parts.push(`ctx ${actionContextSignature}`);
+  }
   if (riskContextSignature) {
     parts.push(`sig ${riskContextSignature}`);
   }
@@ -360,6 +367,7 @@ function SceneLoopDistrictFamilyPriorityList(props: {
               {" | "}latest {String(row.latest_health_band || row.health_band || "no_data")} |{" "}
               attn {String(row.attention_band || "no_data")} | trend {String(row.trend_direction || "no_data")} (
               {Math.floor(Number(row.trend_delta || 0))}) | loops {Math.floor(Number(row.total_count || 0))}
+              {renderRiskContextSuffix(row)}
             </p>
           ));
         })()}

@@ -473,7 +473,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   );
   assert.match(
     payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[7] || "",
-    /^SIG duel:duel_flow\|arena_prime:duel:duel_flow\|[a-z_]+:[a-z_]+:[a-z_]+\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence$/i
+    /^ACS duel:duel_flow\|arena_prime:duel:duel_flow\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence \| RCS duel:duel_flow\|arena_prime:duel:duel_flow\|[a-z_]+:[a-z_]+:[a-z_]+\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence$/i
   );
   assert.equal(payloads.combatHud.loopDuelSubflowCards?.length, 3);
   assert.equal(payloads.combatHud.loopDuelSubflowCards?.[0]?.title, "STANCE");
