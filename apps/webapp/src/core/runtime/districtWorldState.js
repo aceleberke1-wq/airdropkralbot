@@ -307,6 +307,59 @@ function applyResolvedInteractionContext(target, rootContext, actionContext, ris
   };
 }
 
+function applyResolvedActionRiskMeta(target, contextSource, fallback = {}, overrides = {}) {
+  const base = asRecord(target);
+  const primary = asRecord(contextSource);
+  const secondary = asRecord(fallback);
+  const patch = asRecord(overrides);
+  const actionContext = buildActionContextShape(primary, secondary);
+  const riskContext = buildRiskContextShape(primary, secondary);
+  return {
+    ...base,
+    ...patch,
+    district_key: toText(patch.district_key, toText(actionContext.district_key, toText(base.district_key, ""))),
+    family_key: toText(patch.family_key, toText(actionContext.family_key, toText(base.family_key, ""))),
+    flow_key: toText(patch.flow_key, toText(actionContext.flow_key, toText(base.flow_key, ""))),
+    microflow_key: toText(patch.microflow_key, toText(actionContext.microflow_key, toText(base.microflow_key, ""))),
+    focus_key: toText(patch.focus_key, toText(actionContext.focus_key, toText(base.focus_key, ""))),
+    risk_key: toText(patch.risk_key, toText(actionContext.risk_key, toText(base.risk_key, ""))),
+    risk_focus_key: toText(
+      patch.risk_focus_key,
+      toText(actionContext.risk_focus_key, toText(base.risk_focus_key, ""))
+    ),
+    risk_health_band_key: toText(
+      patch.risk_health_band_key,
+      toText(actionContext.risk_health_band_key, toText(base.risk_health_band_key, ""))
+    ),
+    risk_attention_band_key: toText(
+      patch.risk_attention_band_key,
+      toText(actionContext.risk_attention_band_key, toText(base.risk_attention_band_key, ""))
+    ),
+    risk_trend_direction_key: toText(
+      patch.risk_trend_direction_key,
+      toText(actionContext.risk_trend_direction_key, toText(base.risk_trend_direction_key, ""))
+    ),
+    entry_kind_key: toText(
+      patch.entry_kind_key,
+      toText(actionContext.entry_kind_key, toText(base.entry_kind_key, ""))
+    ),
+    sequence_kind_key: toText(
+      patch.sequence_kind_key,
+      toText(actionContext.sequence_kind_key, toText(base.sequence_kind_key, ""))
+    ),
+    action_context: actionContext,
+    action_context_signature: toText(
+      patch.action_context_signature,
+      toText(actionContext.action_context_signature, toText(base.action_context_signature, ""))
+    ),
+    risk_context: riskContext,
+    risk_context_signature: toText(
+      patch.risk_context_signature,
+      toText(riskContext.risk_context_signature, toText(base.risk_context_signature, ""))
+    )
+  };
+}
+
 function resolveDistrictLabelKey(districtKey) {
   switch (districtKey) {
     case "arena_prime":
@@ -6000,26 +6053,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     resolveDistrictKey(normalizeWorkspace(input.workspace), normalizeTab(input.tab));
   const buildContextActionItems = (items, actionContext) =>
     asList(items).map((item) => {
-      const resolvedActionContext = actionContext ? buildActionContextShape(actionContext) : undefined;
-      const riskContext = buildRiskContextShape(actionContext);
-      return {
-        ...item,
-        action_context: resolvedActionContext,
-        action_context_signature: resolvedActionContext?.action_context_signature || "",
-        risk_context: riskContext,
-        risk_context_signature: riskContext.risk_context_signature || "",
-        family_key: actionContext?.family_key || "",
-        flow_key: actionContext?.flow_key || "",
-        microflow_key: actionContext?.microflow_key || "",
-        focus_key: actionContext?.focus_key || "",
-        risk_key: actionContext?.risk_key || "",
-        risk_focus_key: actionContext?.risk_focus_key || "",
-        risk_health_band_key: actionContext?.risk_health_band_key || "",
-        risk_attention_band_key: actionContext?.risk_attention_band_key || "",
-        risk_trend_direction_key: actionContext?.risk_trend_direction_key || "",
-        entry_kind_key: actionContext?.entry_kind_key || "",
-        sequence_kind_key: actionContext?.sequence_kind_key || ""
-      };
+      return applyResolvedActionRiskMeta(item, actionContext, item);
     });
   const enrichedProtocolCards = modal.protocol_cards.map((card) => {
     const protocolCard = asRecord(card);
@@ -6067,17 +6101,13 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           entry_kind_key: toText(microflow.entry_kind_key, ""),
           sequence_kind_key: toText(microflow.sequence_kind_key, "")
         };
-        return {
-          ...flow,
+        return applyResolvedActionRiskMeta(flow, actionContext, flow, {
+          district_key: districtKey,
           family_key: familyKey,
           flow_key: flowKey,
           focus_key: focusKey,
           risk_key: riskKey,
           risk_focus_key: riskFocusKey,
-          action_context_signature: buildActionContextSignature(actionContext),
-          risk_context_signature: buildRiskContextSignature(actionContext),
-          action_context: buildActionContextShape(actionContext),
-          risk_context: buildRiskContextShape(actionContext),
           risk_health_band_key: riskBands.risk_health_band_key,
           risk_attention_band_key: riskBands.risk_attention_band_key,
           risk_trend_direction_key: riskBands.risk_trend_direction_key,
@@ -6154,77 +6184,23 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           hotspot_motion_scalar: loopPersonality.hotspot_motion_scalar,
           ring_pulse_scalar: loopPersonality.ring_pulse_scalar,
           satellite_orbit_scalar: loopPersonality.satellite_orbit_scalar
-        };
+        });
       });
     const primaryMicroflow = asRecord(
       enrichedMicroflows.find((flow) => asRecord(flow).action_context) || enrichedMicroflows[0]
     );
     const podActionContext = asRecord(primaryMicroflow.action_context);
-    const podResolvedActionContext = buildActionContextShape(primaryMicroflow, podActionContext);
-    const podRiskContext = buildRiskContextShape(primaryMicroflow, podActionContext);
-    return {
-      ...pod,
-      family_key: toText(primaryMicroflow.family_key, toText(podActionContext.family_key, "")),
-        flow_key: toText(primaryMicroflow.flow_key, toText(podActionContext.flow_key, "")),
-        microflow_key: toText(primaryMicroflow.microflow_key, ""),
-        focus_key: toText(primaryMicroflow.focus_key, ""),
-        risk_key: toText(primaryMicroflow.risk_key, ""),
-        risk_focus_key: toText(primaryMicroflow.risk_focus_key, ""),
-        risk_health_band_key: toText(
-          primaryMicroflow.risk_health_band_key,
-          toText(podActionContext.risk_health_band_key, "")
-        ),
-        risk_attention_band_key: toText(
-          primaryMicroflow.risk_attention_band_key,
-          toText(podActionContext.risk_attention_band_key, "")
-        ),
-        risk_trend_direction_key: toText(
-          primaryMicroflow.risk_trend_direction_key,
-          toText(podActionContext.risk_trend_direction_key, "")
-        ),
-      entry_kind_key: toText(primaryMicroflow.entry_kind_key, toText(podActionContext.entry_kind_key, "")),
-      sequence_kind_key: toText(
-        primaryMicroflow.sequence_kind_key,
-        toText(podActionContext.sequence_kind_key, "")
-      ),
-      action_context: podResolvedActionContext,
-      action_context_signature: podResolvedActionContext.action_context_signature || "",
-      risk_context: podRiskContext,
-      risk_context_signature: podRiskContext.risk_context_signature || "",
+    return applyResolvedActionRiskMeta(pod, primaryMicroflow, podActionContext, {
       microflow_cards: enrichedMicroflows,
       action_items: buildContextActionItems(flowPod.action_items, podActionContext)
-    };
+    });
   });
   const primaryPod = asRecord(enrichedFlowPods.find((pod) => asRecord(pod).action_context) || enrichedFlowPods[0]);
   const cardActionContext = asRecord(primaryPod.action_context);
-  const cardResolvedActionContext = buildActionContextShape(primaryPod, cardActionContext);
-  const cardRiskContext = buildRiskContextShape(primaryPod, cardActionContext);
-  return {
-    ...card,
-      family_key: toText(primaryPod.family_key, toText(cardActionContext.family_key, "")),
-      flow_key: toText(primaryPod.flow_key, toText(cardActionContext.flow_key, "")),
-      microflow_key: toText(primaryPod.microflow_key, ""),
-      focus_key: toText(primaryPod.focus_key, ""),
-      risk_key: toText(primaryPod.risk_key, ""),
-      risk_focus_key: toText(primaryPod.risk_focus_key, ""),
-      risk_health_band_key: toText(primaryPod.risk_health_band_key, toText(cardActionContext.risk_health_band_key, "")),
-      risk_attention_band_key: toText(
-        primaryPod.risk_attention_band_key,
-        toText(cardActionContext.risk_attention_band_key, "")
-      ),
-      risk_trend_direction_key: toText(
-        primaryPod.risk_trend_direction_key,
-        toText(cardActionContext.risk_trend_direction_key, "")
-      ),
-    entry_kind_key: toText(primaryPod.entry_kind_key, toText(cardActionContext.entry_kind_key, "")),
-    sequence_kind_key: toText(primaryPod.sequence_kind_key, toText(cardActionContext.sequence_kind_key, "")),
-    action_context: cardResolvedActionContext,
-    action_context_signature: cardResolvedActionContext.action_context_signature || "",
-    risk_context: cardRiskContext,
-    risk_context_signature: cardRiskContext.risk_context_signature || "",
+  return applyResolvedActionRiskMeta(card, primaryPod, cardActionContext, {
     flow_pods: enrichedFlowPods,
     action_items: buildContextActionItems(protocolCard.action_items, cardActionContext)
-  };
+  });
 });
   const enrichedModalCards = asList(modal.modal_cards).map((card) => {
     const modalCard = asRecord(card);
@@ -6252,40 +6228,15 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     const modalActionContext = asRecord(
       microflow.action_context || protocolPod.action_context || protocolCard.action_context || {}
     );
-    const modalResolvedActionContext = buildActionContextShape(microflow, modalActionContext);
-    const modalRiskContext = buildRiskContextShape(microflow, modalActionContext);
-    return {
-      ...card,
+    return applyResolvedActionRiskMeta(card, microflow, modalActionContext, {
       protocol_card_key: toText(protocolCard.card_key, ""),
       protocol_pod_key: toText(protocolPod.pod_key, ""),
-      family_key: toText(microflow.family_key, toText(protocolPod.family_key, toText(protocolCard.family_key, ""))),
-      flow_key: toText(microflow.flow_key, toText(protocolPod.flow_key, toText(protocolCard.flow_key, ""))),
-      microflow_key: toText(microflow.microflow_key, ""),
       action_key: toText(microflow.action_key, toText(protocolCard.action_key, "")),
       action_label_key: toText(microflow.action_label_key, toText(protocolCard.action_label_key, "")),
       hint_label_key: toText(microflow.hint_label_key, toText(modalActionContext.hint_label_key, "")),
-      focus_key: toText(modalActionContext.focus_key, toText(microflow.focus_key, "")),
-      risk_key: toText(modalActionContext.risk_key, toText(microflow.risk_key, "")),
-      risk_focus_key: toText(modalActionContext.risk_focus_key, toText(microflow.risk_focus_key, "")),
-      risk_health_band_key: toText(
-        modalActionContext.risk_health_band_key,
-        toText(microflow.risk_health_band_key, "")
-      ),
-      risk_attention_band_key: toText(
-        modalActionContext.risk_attention_band_key,
-        toText(microflow.risk_attention_band_key, "")
-      ),
-      risk_trend_direction_key: toText(
-        modalActionContext.risk_trend_direction_key,
-        toText(microflow.risk_trend_direction_key, "")
-      ),
-      entry_kind_key: toText(modalActionContext.entry_kind_key, toText(microflow.entry_kind_key, "")),
-      sequence_kind_key: toText(modalActionContext.sequence_kind_key, toText(microflow.sequence_kind_key, "")),
-      action_context: modalResolvedActionContext,
-      action_context_signature: modalResolvedActionContext.action_context_signature || "",
-      risk_context: modalRiskContext,
-      risk_context_signature: modalRiskContext.risk_context_signature || ""
-    };
+      family_key: toText(microflow.family_key, toText(protocolPod.family_key, toText(protocolCard.family_key, ""))),
+      flow_key: toText(microflow.flow_key, toText(protocolPod.flow_key, toText(protocolCard.flow_key, "")))
+    });
   });
   return {
     ...interactionModal,

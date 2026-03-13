@@ -359,6 +359,22 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].flow_key, "travel_flow");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].microflow_key, "world_modal_lane_mission_queue:travel");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[0].action_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[0].risk_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[0].action_context?.action_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[0].risk_context?.risk_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
   assert.equal(state.active_cluster_key, "hub_gate_north");
   assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.active_cluster_slot_count, 2);
@@ -916,6 +932,22 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].flow_key, "runtime_flow");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].microflow_key, "world_modal_lane_runtime_watch:runtime");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].focus_key, "ops_citadel:runtime:runtime_flow");
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[1].action_context_signature,
+    "runtime_flow|ops_citadel:runtime:runtime_flow|world_entry_kind_runtime_console|world_modal_kind_runtime_scan"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[1].risk_context_signature,
+    "runtime_flow|ops_citadel:runtime:runtime_flow|yellow:watch:flat|world_entry_kind_runtime_console|world_modal_kind_runtime_scan"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[1].action_context?.action_context_signature,
+    "runtime_flow|ops_citadel:runtime:runtime_flow|world_entry_kind_runtime_console|world_modal_kind_runtime_scan"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].action_items[1].risk_context?.risk_context_signature,
+    "runtime_flow|ops_citadel:runtime:runtime_flow|yellow:watch:flat|world_entry_kind_runtime_console|world_modal_kind_runtime_scan"
+  );
   assert.equal(state.interaction_cluster_count, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
