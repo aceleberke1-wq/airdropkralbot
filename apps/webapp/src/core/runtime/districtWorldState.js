@@ -439,6 +439,234 @@ function buildRiskContextShape(source, fallback = {}) {
   };
 }
 
+function buildInteractionContextMeta(source, fallback = {}) {
+  const item = asRecord(source);
+  const fallbackItem = asRecord(fallback);
+  const actionContextSource = asRecord(item.action_context);
+  const riskContextSource = asRecord(item.risk_context);
+  const fallbackActionContext = asRecord(fallbackItem.action_context);
+  const fallbackRiskContext = asRecord(fallbackItem.risk_context);
+  const contextSeed = {
+    district_key: toText(
+      item.district_key,
+      toText(
+        actionContextSource.district_key,
+        toText(
+          riskContextSource.district_key,
+          toText(
+            fallbackItem.district_key,
+            toText(fallbackActionContext.district_key, toText(fallbackRiskContext.district_key, ""))
+          )
+        )
+      )
+    ),
+    family_key: toText(
+      item.family_key,
+      toText(
+        actionContextSource.family_key,
+        toText(
+          riskContextSource.family_key,
+          toText(fallbackItem.family_key, toText(fallbackActionContext.family_key, toText(fallbackRiskContext.family_key, "")))
+        )
+      )
+    ),
+    flow_key: toText(
+      item.flow_key,
+      toText(
+        actionContextSource.flow_key,
+        toText(
+          riskContextSource.flow_key,
+          toText(fallbackItem.flow_key, toText(fallbackActionContext.flow_key, toText(fallbackRiskContext.flow_key, "")))
+        )
+      )
+    ),
+    microflow_key: toText(
+      item.microflow_key,
+      toText(
+        actionContextSource.microflow_key,
+        toText(
+          riskContextSource.microflow_key,
+          toText(
+            fallbackItem.microflow_key,
+            toText(fallbackActionContext.microflow_key, toText(fallbackRiskContext.microflow_key, ""))
+          )
+        )
+      )
+    ),
+    focus_key: toText(
+      item.focus_key,
+      toText(
+        actionContextSource.focus_key,
+        toText(
+          riskContextSource.focus_key,
+          toText(fallbackItem.focus_key, toText(fallbackActionContext.focus_key, toText(fallbackRiskContext.focus_key, "")))
+        )
+      )
+    ),
+    risk_key: toText(
+      item.risk_key,
+      toText(
+        actionContextSource.risk_key,
+        toText(
+          riskContextSource.risk_key,
+          toText(fallbackItem.risk_key, toText(fallbackActionContext.risk_key, toText(fallbackRiskContext.risk_key, "")))
+        )
+      )
+    ),
+    risk_focus_key: toText(
+      item.risk_focus_key,
+      toText(
+        actionContextSource.risk_focus_key,
+        toText(
+          riskContextSource.risk_focus_key,
+          toText(
+            fallbackItem.risk_focus_key,
+            toText(fallbackActionContext.risk_focus_key, toText(fallbackRiskContext.risk_focus_key, ""))
+          )
+        )
+      )
+    ),
+    risk_health_band_key: toText(
+      item.risk_health_band_key,
+      toText(
+        actionContextSource.risk_health_band_key,
+        toText(
+          riskContextSource.risk_health_band_key,
+          toText(
+            fallbackItem.risk_health_band_key,
+            toText(
+              fallbackActionContext.risk_health_band_key,
+              toText(fallbackRiskContext.risk_health_band_key, "")
+            )
+          )
+        )
+      )
+    ),
+    risk_attention_band_key: toText(
+      item.risk_attention_band_key,
+      toText(
+        actionContextSource.risk_attention_band_key,
+        toText(
+          riskContextSource.risk_attention_band_key,
+          toText(
+            fallbackItem.risk_attention_band_key,
+            toText(
+              fallbackActionContext.risk_attention_band_key,
+              toText(fallbackRiskContext.risk_attention_band_key, "")
+            )
+          )
+        )
+      )
+    ),
+    risk_trend_direction_key: toText(
+      item.risk_trend_direction_key,
+      toText(
+        actionContextSource.risk_trend_direction_key,
+        toText(
+          riskContextSource.risk_trend_direction_key,
+          toText(
+            fallbackItem.risk_trend_direction_key,
+            toText(
+              fallbackActionContext.risk_trend_direction_key,
+              toText(fallbackRiskContext.risk_trend_direction_key, "")
+            )
+          )
+        )
+      )
+    ),
+    entry_kind_key: toText(
+      item.entry_kind_key,
+      toText(
+        actionContextSource.entry_kind_key,
+        toText(
+          riskContextSource.entry_kind_key,
+          toText(
+            fallbackItem.entry_kind_key,
+            toText(fallbackActionContext.entry_kind_key, toText(fallbackRiskContext.entry_kind_key, ""))
+          )
+        )
+      )
+    ),
+    sequence_kind_key: toText(
+      item.sequence_kind_key,
+      toText(
+        actionContextSource.sequence_kind_key,
+        toText(
+          riskContextSource.sequence_kind_key,
+          toText(
+            fallbackItem.sequence_kind_key,
+            toText(fallbackActionContext.sequence_kind_key, toText(fallbackRiskContext.sequence_kind_key, ""))
+          )
+        )
+      )
+    ),
+    context_lookup_required:
+      typeof item.context_lookup_required === "boolean"
+        ? item.context_lookup_required
+        : typeof actionContextSource.context_lookup_required === "boolean"
+          ? actionContextSource.context_lookup_required
+          : typeof riskContextSource.context_lookup_required === "boolean"
+            ? riskContextSource.context_lookup_required
+            : typeof fallbackItem.context_lookup_required === "boolean"
+              ? fallbackItem.context_lookup_required
+              : typeof fallbackActionContext.context_lookup_required === "boolean"
+                ? fallbackActionContext.context_lookup_required
+                : typeof fallbackRiskContext.context_lookup_required === "boolean"
+                  ? fallbackRiskContext.context_lookup_required
+                  : false,
+    context_lookup_resolved:
+      typeof item.context_lookup_resolved === "boolean"
+        ? item.context_lookup_resolved
+        : typeof actionContextSource.context_lookup_resolved === "boolean"
+          ? actionContextSource.context_lookup_resolved
+          : typeof riskContextSource.context_lookup_resolved === "boolean"
+            ? riskContextSource.context_lookup_resolved
+            : typeof fallbackItem.context_lookup_resolved === "boolean"
+              ? fallbackItem.context_lookup_resolved
+              : typeof fallbackActionContext.context_lookup_resolved === "boolean"
+                ? fallbackActionContext.context_lookup_resolved
+                : typeof fallbackRiskContext.context_lookup_resolved === "boolean"
+                  ? fallbackRiskContext.context_lookup_resolved
+                  : undefined
+  };
+  const actionContextShape =
+    contextSeed.family_key ||
+    contextSeed.flow_key ||
+    contextSeed.microflow_key ||
+    contextSeed.focus_key ||
+    contextSeed.risk_key ||
+    contextSeed.risk_focus_key
+      ? buildActionContextShape(contextSeed, item)
+      : undefined;
+  const riskContextShape = buildRiskContextShape(contextSeed, item);
+  const actionContextSignature = buildActionContextSignature(contextSeed, item);
+  const riskContextSignature = buildRiskContextSignature(contextSeed, item);
+  const contractMeta = buildSceneContractMeta(
+    {
+      ...contextSeed,
+      action_context_signature: actionContextSignature,
+      risk_context_signature: riskContextSignature
+    },
+    item
+  );
+  if (actionContextShape) {
+    actionContextShape.contract_ready = contractMeta.contract_ready;
+    actionContextShape.contract_missing_keys = contractMeta.contract_missing_keys;
+  }
+  riskContextShape.contract_ready = contractMeta.contract_ready;
+  riskContextShape.contract_missing_keys = contractMeta.contract_missing_keys;
+  return {
+    ...contextSeed,
+    action_context: actionContextShape,
+    risk_context: riskContextShape,
+    action_context_signature: actionContextSignature,
+    risk_context_signature: riskContextSignature,
+    contract_ready: contractMeta.contract_ready,
+    contract_state_key: contractMeta.contract_state_key,
+    contract_missing_keys: contractMeta.contract_missing_keys
+  };
+}
+
 function applyResolvedInteractionContext(target, rootContext, actionContext, riskContext, overrides = {}) {
   const base = asRecord(target);
   const root = asRecord(rootContext);
@@ -6277,23 +6505,28 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         const riskFocusKey = focusKey && riskKey ? `${focusKey}|${riskKey}` : focusKey || riskKey || "";
         const riskBands = resolveProtocolMicroFlowRiskBands(loopState, microflow);
         const riskVisualMeta = buildProtocolMicroFlowRiskVisualMeta(loopState, microflow);
-        const actionContext = {
-          district_key: districtKey,
-          family_key: familyKey,
-          flow_key: flowKey,
-          microflow_key: toText(microflow.microflow_key, ""),
-          focus_key: focusKey,
-          risk_key: riskKey,
-          risk_focus_key: riskFocusKey,
-          risk_health_band_key: riskBands.risk_health_band_key,
-          risk_attention_band_key: riskBands.risk_attention_band_key,
-          risk_trend_direction_key: riskBands.risk_trend_direction_key,
-          entry_kind_key: toText(microflow.entry_kind_key, ""),
-          sequence_kind_key: toText(microflow.sequence_kind_key, ""),
-          context_lookup_required: true,
-          context_lookup_resolved: true
-        };
-        return applyResolvedActionRiskMeta(flow, actionContext, flow, {
+        const flowContextMeta = buildInteractionContextMeta(
+          {
+            ...flow,
+            district_key: districtKey,
+            family_key: familyKey,
+            flow_key: flowKey,
+            microflow_key: toText(microflow.microflow_key, ""),
+            focus_key: focusKey,
+            risk_key: riskKey,
+            risk_focus_key: riskFocusKey,
+            risk_health_band_key: riskBands.risk_health_band_key,
+            risk_attention_band_key: riskBands.risk_attention_band_key,
+            risk_trend_direction_key: riskBands.risk_trend_direction_key,
+            entry_kind_key: toText(microflow.entry_kind_key, ""),
+            sequence_kind_key: toText(microflow.sequence_kind_key, ""),
+            context_lookup_required: true,
+            context_lookup_resolved: true
+          },
+          microflow
+        );
+        const flowActionContext = asRecord(flowContextMeta.action_context);
+        return applyResolvedActionRiskMeta(flow, flowContextMeta, flowActionContext, {
           district_key: districtKey,
           family_key: familyKey,
           flow_key: flowKey,
@@ -6314,6 +6547,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           risk_motion_scalar: riskVisualMeta.risk_motion_scalar,
           context_lookup_required: true,
           context_lookup_resolved: true,
+          contract_ready: flowContextMeta.contract_ready,
+          contract_missing_keys: flowContextMeta.contract_missing_keys,
           loop_status_key: loopState.loop_status_key,
           loop_status_label_key: loopState.loop_status_label_key,
           loop_stage_value: loopState.loop_stage_value,
@@ -6395,28 +6630,26 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     const primaryMicroflow = asRecord(
       enrichedMicroflows.find((flow) => asRecord(flow).action_context) || enrichedMicroflows[0]
     );
-    const podActionContext = {
-      ...(asRecord(primaryMicroflow.action_context) || {}),
-      context_lookup_required: true,
-      context_lookup_resolved: true
-    };
-    return applyResolvedActionRiskMeta(pod, primaryMicroflow, podActionContext, {
+    const podContextMeta = buildInteractionContextMeta(primaryMicroflow, pod);
+    const podActionContext = asRecord(podContextMeta.action_context);
+    return applyResolvedActionRiskMeta(pod, podContextMeta, podActionContext, {
       microflow_cards: enrichedMicroflows,
       context_lookup_required: true,
       context_lookup_resolved: true,
+      contract_ready: podContextMeta.contract_ready,
+      contract_missing_keys: podContextMeta.contract_missing_keys,
       action_items: buildContextActionItems(flowPod.action_items, podActionContext)
     });
   });
   const primaryPod = asRecord(enrichedFlowPods.find((pod) => asRecord(pod).action_context) || enrichedFlowPods[0]);
-  const cardActionContext = {
-    ...(asRecord(primaryPod.action_context) || {}),
-    context_lookup_required: true,
-    context_lookup_resolved: true
-  };
-  return applyResolvedActionRiskMeta(card, primaryPod, cardActionContext, {
+  const cardContextMeta = buildInteractionContextMeta(primaryPod, card);
+  const cardActionContext = asRecord(cardContextMeta.action_context);
+  return applyResolvedActionRiskMeta(card, cardContextMeta, cardActionContext, {
     flow_pods: enrichedFlowPods,
     context_lookup_required: true,
     context_lookup_resolved: true,
+    contract_ready: cardContextMeta.contract_ready,
+    contract_missing_keys: cardContextMeta.contract_missing_keys,
     action_items: buildContextActionItems(protocolCard.action_items, cardActionContext)
   });
 });
@@ -6443,10 +6676,9 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         asList(protocolPod.microflow_cards)[0] ||
         {}
     );
-    const modalActionContext = asRecord(
-      microflow.action_context || protocolPod.action_context || protocolCard.action_context || {}
-    );
-    return applyResolvedActionRiskMeta(card, microflow, modalActionContext, {
+    const modalContextMeta = buildInteractionContextMeta(microflow, protocolPod);
+    const modalActionContext = asRecord(modalContextMeta.action_context);
+    return applyResolvedActionRiskMeta(card, modalContextMeta, modalActionContext, {
       protocol_card_key: toText(protocolCard.card_key, ""),
       protocol_pod_key: toText(protocolPod.pod_key, ""),
       action_key: toText(microflow.action_key, toText(protocolCard.action_key, "")),
@@ -6455,7 +6687,9 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       family_key: toText(microflow.family_key, toText(protocolPod.family_key, toText(protocolCard.family_key, ""))),
       flow_key: toText(microflow.flow_key, toText(protocolPod.flow_key, toText(protocolCard.flow_key, ""))),
       context_lookup_required: true,
-      context_lookup_resolved: true
+      context_lookup_resolved: true,
+      contract_ready: modalContextMeta.contract_ready,
+      contract_missing_keys: modalContextMeta.contract_missing_keys
     });
   });
   return {
@@ -6468,65 +6702,12 @@ function enrichDistrictInteractionModal(interactionModal, input) {
 function buildInteractionActionContextLookup(interactionModal) {
   const modal = asRecord(interactionModal);
   const lookup = new Map();
-  const buildLookupMeta = (source) => {
-    const item = asRecord(source);
-    const actionContext = asRecord(item.action_context);
-    const contextSeed = {
-      district_key: toText(actionContext.district_key || item.district_key, ""),
-      family_key: toText(actionContext.family_key || item.family_key, ""),
-      flow_key: toText(actionContext.flow_key || item.flow_key, ""),
-      microflow_key: toText(actionContext.microflow_key || item.microflow_key, ""),
-      focus_key: toText(actionContext.focus_key || item.focus_key, ""),
-      risk_key: toText(actionContext.risk_key || item.risk_key, ""),
-      risk_focus_key: toText(actionContext.risk_focus_key || item.risk_focus_key, ""),
-      risk_health_band_key: toText(actionContext.risk_health_band_key || item.risk_health_band_key, ""),
-      risk_attention_band_key: toText(actionContext.risk_attention_band_key || item.risk_attention_band_key, ""),
-      risk_trend_direction_key: toText(actionContext.risk_trend_direction_key || item.risk_trend_direction_key, ""),
-      entry_kind_key: toText(actionContext.entry_kind_key || item.entry_kind_key, ""),
-      sequence_kind_key: toText(actionContext.sequence_kind_key || item.sequence_kind_key, "")
-    };
-    const actionContextShape =
-      contextSeed.family_key ||
-      contextSeed.flow_key ||
-      contextSeed.microflow_key ||
-      contextSeed.focus_key ||
-      contextSeed.risk_key ||
-      contextSeed.risk_focus_key
-        ? buildActionContextShape(contextSeed, item)
-        : undefined;
-    const riskContextShape = buildRiskContextShape(contextSeed, item);
-    const actionContextSignature = buildActionContextSignature(contextSeed, item);
-    const riskContextSignature = buildRiskContextSignature(contextSeed, item);
-    const contractMeta = buildSceneContractMeta(
-      {
-        ...contextSeed,
-        action_context_signature: actionContextSignature,
-        risk_context_signature: riskContextSignature
-      },
-      item
-    );
-    if (actionContextShape) {
-      actionContextShape.contract_ready = contractMeta.contract_ready;
-      actionContextShape.contract_missing_keys = contractMeta.contract_missing_keys;
-    }
-    riskContextShape.contract_ready = contractMeta.contract_ready;
-    riskContextShape.contract_missing_keys = contractMeta.contract_missing_keys;
-    return {
-      action_context: actionContextShape,
-      risk_context: riskContextShape,
-      action_context_signature: actionContextSignature,
-      risk_context_signature: riskContextSignature,
-      contract_ready: contractMeta.contract_ready,
-      contract_missing_keys: contractMeta.contract_missing_keys,
-      ...contextSeed
-    };
-  };
   const register = (actionKey, source) => {
     const normalizedActionKey = toText(actionKey, "");
     if (!normalizedActionKey || lookup.has(normalizedActionKey)) {
       return;
     }
-    const meta = buildLookupMeta(source);
+    const meta = buildInteractionContextMeta(source);
     if (!meta.family_key && !meta.flow_key && !meta.microflow_key && !meta.focus_key && !meta.risk_focus_key) {
       return;
     }
@@ -6578,28 +6759,28 @@ function enrichInteractionActionItems(items, actionContextLookup) {
               recordRiskContext?.context_lookup_resolved
           )
         : !contextLookupRequired;
-    const contextSource = meta || record.action_context || record.risk_context || record;
-    const enriched = applyResolvedActionRiskMeta(item, contextSource, record, {
-      family_key: toText(meta?.family_key, toText(record.family_key, "")),
-      flow_key: toText(meta?.flow_key, toText(record.flow_key, "")),
-      microflow_key: toText(meta?.microflow_key, toText(record.microflow_key, "")),
-      focus_key: toText(meta?.focus_key, toText(record.focus_key, "")),
-      risk_key: toText(meta?.risk_key, toText(record.risk_key, "")),
-      risk_focus_key: toText(meta?.risk_focus_key, toText(record.risk_focus_key, "")),
-      risk_health_band_key: toText(meta?.risk_health_band_key, toText(record.risk_health_band_key, "")),
-      risk_attention_band_key: toText(meta?.risk_attention_band_key, toText(record.risk_attention_band_key, "")),
+    const resolvedMeta = meta || buildInteractionContextMeta(record);
+    const enriched = applyResolvedActionRiskMeta(item, resolvedMeta, record, {
+      family_key: toText(resolvedMeta?.family_key, toText(record.family_key, "")),
+      flow_key: toText(resolvedMeta?.flow_key, toText(record.flow_key, "")),
+      microflow_key: toText(resolvedMeta?.microflow_key, toText(record.microflow_key, "")),
+      focus_key: toText(resolvedMeta?.focus_key, toText(record.focus_key, "")),
+      risk_key: toText(resolvedMeta?.risk_key, toText(record.risk_key, "")),
+      risk_focus_key: toText(resolvedMeta?.risk_focus_key, toText(record.risk_focus_key, "")),
+      risk_health_band_key: toText(resolvedMeta?.risk_health_band_key, toText(record.risk_health_band_key, "")),
+      risk_attention_band_key: toText(resolvedMeta?.risk_attention_band_key, toText(record.risk_attention_band_key, "")),
       risk_trend_direction_key: toText(
-        meta?.risk_trend_direction_key,
+        resolvedMeta?.risk_trend_direction_key,
         toText(record.risk_trend_direction_key, "")
       ),
-      entry_kind_key: toText(meta?.entry_kind_key, toText(record.entry_kind_key, "")),
-      sequence_kind_key: toText(meta?.sequence_kind_key, toText(record.sequence_kind_key, "")),
+      entry_kind_key: toText(resolvedMeta?.entry_kind_key, toText(record.entry_kind_key, "")),
+      sequence_kind_key: toText(resolvedMeta?.sequence_kind_key, toText(record.sequence_kind_key, "")),
       action_context_signature: toText(
-        meta?.action_context_signature,
+        resolvedMeta?.action_context_signature,
         toText(record.action_context_signature, "")
       ),
       risk_context_signature: toText(
-        meta?.risk_context_signature,
+        resolvedMeta?.risk_context_signature,
         toText(record.risk_context_signature, "")
       ),
       context_lookup_required: contextLookupRequired,
@@ -6610,9 +6791,9 @@ function enrichInteractionActionItems(items, actionContextLookup) {
       context_lookup_required: contextLookupRequired,
       context_lookup_resolved: contextLookupResolved,
       contract_ready:
-        typeof meta?.contract_ready === "boolean" ? meta.contract_ready : enriched.contract_ready,
-      contract_missing_keys: Array.isArray(meta?.contract_missing_keys)
-        ? meta.contract_missing_keys
+        typeof resolvedMeta?.contract_ready === "boolean" ? resolvedMeta.contract_ready : enriched.contract_ready,
+      contract_missing_keys: Array.isArray(resolvedMeta?.contract_missing_keys)
+        ? resolvedMeta.contract_missing_keys
         : Array.isArray(enriched.contract_missing_keys)
           ? enriched.contract_missing_keys
           : []
@@ -6721,42 +6902,58 @@ export function buildDistrictWorldState(input = {}) {
     : interactionModal;
   const primarySurfaceAction = asRecord(asList(enrichedInteractionSurface?.action_items)[0]);
   const primarySurfaceContext = asRecord(primarySurfaceAction.action_context);
+  const rootInteractionMeta = buildInteractionContextMeta(
+    {
+      ...primarySurfaceAction,
+      district_key: districtKey,
+      family_key: toText(primarySurfaceContext.family_key || primarySurfaceAction.family_key, ""),
+      flow_key: toText(primarySurfaceContext.flow_key || primarySurfaceAction.flow_key, ""),
+      microflow_key: toText(primarySurfaceContext.microflow_key || primarySurfaceAction.microflow_key, ""),
+      focus_key: toText(primarySurfaceContext.focus_key || primarySurfaceAction.focus_key, ""),
+      risk_key: toText(primarySurfaceContext.risk_key || primarySurfaceAction.risk_key, ""),
+      risk_focus_key: toText(primarySurfaceContext.risk_focus_key || primarySurfaceAction.risk_focus_key, ""),
+      risk_health_band_key: toText(
+        primarySurfaceContext.risk_health_band_key || primarySurfaceAction.risk_health_band_key,
+        ""
+      ),
+      risk_attention_band_key: toText(
+        primarySurfaceContext.risk_attention_band_key || primarySurfaceAction.risk_attention_band_key,
+        ""
+      ),
+      risk_trend_direction_key: toText(
+        primarySurfaceContext.risk_trend_direction_key || primarySurfaceAction.risk_trend_direction_key,
+        ""
+      ),
+      entry_kind_key: toText(
+        interactionEntry?.entry_kind_key || primarySurfaceContext.entry_kind_key || primarySurfaceAction.entry_kind_key,
+        ""
+      ),
+      sequence_kind_key: toText(
+        enrichedInteractionModal?.modal_kind_key ||
+          primarySurfaceContext.sequence_kind_key ||
+          primarySurfaceAction.sequence_kind_key,
+        ""
+      ),
+      context_lookup_required: true,
+      context_lookup_resolved: true
+    },
+    enrichedInteractionSurface || interactionEntry || enrichedInteractionModal || interactionTerminal || {}
+  );
   const rootInteractionContext = {
-    family_key: toText(primarySurfaceContext.family_key || primarySurfaceAction.family_key, ""),
-    flow_key: toText(primarySurfaceContext.flow_key || primarySurfaceAction.flow_key, ""),
-    microflow_key: toText(primarySurfaceContext.microflow_key || primarySurfaceAction.microflow_key, ""),
-    focus_key: toText(primarySurfaceContext.focus_key || primarySurfaceAction.focus_key, ""),
-    risk_key: toText(primarySurfaceContext.risk_key || primarySurfaceAction.risk_key, ""),
-    risk_focus_key: toText(primarySurfaceContext.risk_focus_key || primarySurfaceAction.risk_focus_key, ""),
-    risk_health_band_key: toText(
-      primarySurfaceContext.risk_health_band_key || primarySurfaceAction.risk_health_band_key,
-      ""
-    ),
-    risk_attention_band_key: toText(
-      primarySurfaceContext.risk_attention_band_key || primarySurfaceAction.risk_attention_band_key,
-      ""
-    ),
-    risk_trend_direction_key: toText(
-      primarySurfaceContext.risk_trend_direction_key || primarySurfaceAction.risk_trend_direction_key,
-      ""
-    ),
-    entry_kind_key: toText(
-      interactionEntry?.entry_kind_key || primarySurfaceContext.entry_kind_key || primarySurfaceAction.entry_kind_key,
-      ""
-    ),
-    sequence_kind_key: toText(
-      enrichedInteractionModal?.modal_kind_key ||
-        primarySurfaceContext.sequence_kind_key ||
-        primarySurfaceAction.sequence_kind_key,
-      ""
-    )
+    family_key: toText(rootInteractionMeta.family_key, ""),
+    flow_key: toText(rootInteractionMeta.flow_key, ""),
+    microflow_key: toText(rootInteractionMeta.microflow_key, ""),
+    focus_key: toText(rootInteractionMeta.focus_key, ""),
+    risk_key: toText(rootInteractionMeta.risk_key, ""),
+    risk_focus_key: toText(rootInteractionMeta.risk_focus_key, ""),
+    risk_health_band_key: toText(rootInteractionMeta.risk_health_band_key, ""),
+    risk_attention_band_key: toText(rootInteractionMeta.risk_attention_band_key, ""),
+    risk_trend_direction_key: toText(rootInteractionMeta.risk_trend_direction_key, ""),
+    entry_kind_key: toText(rootInteractionMeta.entry_kind_key, ""),
+    sequence_kind_key: toText(rootInteractionMeta.sequence_kind_key, "")
   };
-  const rootInteractionActionContext = {
-    district_key: districtKey,
-    ...rootInteractionContext
-  };
-  const rootResolvedActionContext = buildActionContextShape(rootInteractionActionContext);
-  const rootRiskContext = buildRiskContextShape(rootInteractionActionContext);
+  const rootResolvedActionContext = asRecord(rootInteractionMeta.action_context) || buildActionContextShape(rootInteractionMeta);
+  const rootRiskContext = asRecord(rootInteractionMeta.risk_context) || buildRiskContextShape(rootInteractionMeta);
   const finalInteractionSheet = interactionSheet
     ? applyResolvedInteractionContext(
         interactionSheet,
