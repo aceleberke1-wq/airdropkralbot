@@ -348,6 +348,8 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
     risk_trend_direction_key: "no_data",
     entry_kind_key: "world_entry_kind_duel_console",
     sequence_kind_key: "world_modal_kind_duel_sequence",
+    action_context_signature:
+      "duel:duel_flow|arena_prime:duel:duel_flow|world_entry_kind_duel_console|world_modal_kind_duel_sequence",
     risk_context_signature:
       "duel:duel_flow|arena_prime:duel:duel_flow|no_data:no_data:no_data|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
   });
@@ -396,6 +398,14 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(
     payloads.combatHud.loopDuelFlowCards?.[0]?.risk_context?.sequence_kind_key,
     "world_modal_kind_duel_sequence"
+  );
+  assert.equal(
+    payloads.combatHud.loopDuelFlowCards?.[0]?.action_context_signature,
+    "duel:duel_flow|arena_prime:duel:duel_flow|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
+  );
+  assert.equal(
+    payloads.combatHud.loopDuelFlowCards?.[0]?.action_context?.action_context_signature,
+    "duel:duel_flow|arena_prime:duel:duel_flow|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
   );
   assert.equal(
     payloads.combatHud.loopDuelFlowCards?.[0]?.risk_context_signature,
@@ -890,6 +900,14 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.equal(
     payloads.tokenOverview.loopWalletFlowCards?.[0]?.risk_context?.sequence_kind_key,
     "world_modal_kind_payout_route"
+  );
+  assert.equal(
+    payloads.tokenOverview.loopWalletFlowCards?.[0]?.action_context_signature,
+    "wallet:payout_flow|exchange_district:wallet:payout_flow|world_entry_kind_payout_terminal|world_modal_kind_payout_route"
+  );
+  assert.equal(
+    payloads.tokenOverview.loopWalletFlowCards?.[0]?.action_context?.action_context_signature,
+    "wallet:payout_flow|exchange_district:wallet:payout_flow|world_entry_kind_payout_terminal|world_modal_kind_payout_route"
   );
   assert.equal(
     payloads.tokenOverview.loopWalletFlowCards?.[0]?.risk_context_signature,
@@ -1403,6 +1421,14 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(
     payloads.runtime.loopDispatchFlowCards?.[0]?.risk_context?.sequence_kind_key,
     "world_modal_kind_dispatch_sequence"
+  );
+  assert.equal(
+    payloads.runtime.loopDispatchFlowCards?.[0]?.action_context_signature,
+    "queue:dispatch_flow|ops_citadel:queue:dispatch_flow|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence"
+  );
+  assert.equal(
+    payloads.runtime.loopDispatchFlowCards?.[0]?.action_context?.action_context_signature,
+    "queue:dispatch_flow|ops_citadel:queue:dispatch_flow|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence"
   );
   assert.equal(
     payloads.runtime.loopDispatchFlowCards?.[0]?.risk_context_signature,

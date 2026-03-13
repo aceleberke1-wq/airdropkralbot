@@ -890,6 +890,9 @@ function buildLoopBridgeMeta(source, familyKey = "") {
   const risk_health_band_key = inferLoopHealthBandKey(row);
   const risk_attention_band_key = inferLoopAttentionBandKey(row);
   const risk_trend_direction_key = inferLoopTrendDirectionKey(row);
+  const action_context_signature = [flow_key, focus_key, entry_kind_key, sequence_kind_key]
+    .filter(Boolean)
+    .join("|");
   const risk_context_signature = [
     flow_key,
     focus_key,
@@ -899,7 +902,7 @@ function buildLoopBridgeMeta(source, familyKey = "") {
   ]
     .filter(Boolean)
     .join("|");
-  const risk_context = {
+  const action_context = {
     family_key,
     flow_key,
     microflow_key,
@@ -911,6 +914,10 @@ function buildLoopBridgeMeta(source, familyKey = "") {
     risk_trend_direction_key,
     entry_kind_key,
     sequence_kind_key,
+    action_context_signature
+  };
+  const risk_context = {
+    ...action_context,
     risk_context_signature
   };
   return {
@@ -925,7 +932,9 @@ function buildLoopBridgeMeta(source, familyKey = "") {
     risk_trend_direction_key,
     entry_kind_key,
     sequence_kind_key,
+    action_context_signature,
     risk_context_signature,
+    action_context,
     risk_context
   };
 }

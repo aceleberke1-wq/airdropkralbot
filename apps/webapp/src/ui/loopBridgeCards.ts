@@ -3,6 +3,7 @@ export type LoopBridgeCard = {
   value: string;
   hint?: string;
   tone?: string;
+  action_context_signature?: string;
   risk_context_signature?: string;
   focus_key?: string;
   risk_key?: string;
@@ -15,6 +16,7 @@ export type LoopBridgeCard = {
   risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  action_context?: LoopBridgeActionContext;
   risk_context?: LoopBridgeRiskContext;
 };
 
@@ -24,6 +26,7 @@ export type LoopBridgeBlock = {
   gate: string;
   hint?: string;
   tone?: string;
+  action_context_signature?: string;
   risk_context_signature?: string;
   focus_key?: string;
   risk_key?: string;
@@ -36,6 +39,7 @@ export type LoopBridgeBlock = {
   risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  action_context?: LoopBridgeActionContext;
   risk_context?: LoopBridgeRiskContext;
 };
 
@@ -44,6 +48,7 @@ export type LoopBridgePanel = {
   lines: string[];
   hint?: string;
   tone?: string;
+  action_context_signature?: string;
   risk_context_signature?: string;
   focus_key?: string;
   risk_key?: string;
@@ -56,22 +61,27 @@ export type LoopBridgePanel = {
   risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  action_context?: LoopBridgeActionContext;
   risk_context?: LoopBridgeRiskContext;
 };
 
-export type LoopBridgeRiskContext = {
+export type LoopBridgeActionContext = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
   focus_key?: string;
   risk_key?: string;
   risk_focus_key?: string;
-  risk_context_signature?: string;
   risk_health_band_key?: string;
   risk_attention_band_key?: string;
   risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  action_context_signature?: string;
+};
+
+export type LoopBridgeRiskContext = LoopBridgeActionContext & {
+  risk_context_signature?: string;
 };
 
 function safeText(value: unknown, fallback = ""): string {
@@ -90,6 +100,7 @@ function normalizeTone(value: unknown): string {
 }
 
 type LoopBridgeMeta = {
+  action_context_signature?: string;
   risk_context_signature?: string;
   focus_key?: string;
   risk_key?: string;
@@ -102,23 +113,47 @@ type LoopBridgeMeta = {
   risk_trend_direction_key?: string;
   entry_kind_key?: string;
   sequence_kind_key?: string;
+  action_context?: LoopBridgeActionContext;
   risk_context?: LoopBridgeRiskContext;
 };
 
 function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
+  const actionContext = meta.action_context ?? {};
   const riskContext = meta.risk_context ?? {};
+  const actionContextSignature = safeText(
+    meta.action_context_signature || actionContext.action_context_signature
+  );
   const riskContextSignature = safeText(meta.risk_context_signature || riskContext.risk_context_signature);
-  const focusKey = safeText(meta.focus_key || riskContext.focus_key);
-  const riskKey = safeText(meta.risk_key || riskContext.risk_key);
-  const riskFocusKey = safeText(meta.risk_focus_key || riskContext.risk_focus_key);
-  const familyKey = safeText(meta.family_key || riskContext.family_key);
-  const flowKey = safeText(meta.flow_key || riskContext.flow_key);
-  const microflowKey = safeText(meta.microflow_key || riskContext.microflow_key);
-  const riskHealthBandKey = safeText(meta.risk_health_band_key || riskContext.risk_health_band_key);
-  const riskAttentionBandKey = safeText(meta.risk_attention_band_key || riskContext.risk_attention_band_key);
-  const riskTrendDirectionKey = safeText(meta.risk_trend_direction_key || riskContext.risk_trend_direction_key);
-  const entryKindKey = safeText(meta.entry_kind_key || riskContext.entry_kind_key);
-  const sequenceKindKey = safeText(meta.sequence_kind_key || riskContext.sequence_kind_key);
+  const focusKey = safeText(meta.focus_key || actionContext.focus_key || riskContext.focus_key);
+  const riskKey = safeText(meta.risk_key || actionContext.risk_key || riskContext.risk_key);
+  const riskFocusKey = safeText(
+    meta.risk_focus_key || actionContext.risk_focus_key || riskContext.risk_focus_key
+  );
+  const familyKey = safeText(meta.family_key || actionContext.family_key || riskContext.family_key);
+  const flowKey = safeText(meta.flow_key || actionContext.flow_key || riskContext.flow_key);
+  const microflowKey = safeText(
+    meta.microflow_key || actionContext.microflow_key || riskContext.microflow_key
+  );
+  const riskHealthBandKey = safeText(
+    meta.risk_health_band_key || actionContext.risk_health_band_key || riskContext.risk_health_band_key
+  );
+  const riskAttentionBandKey = safeText(
+    meta.risk_attention_band_key ||
+      actionContext.risk_attention_band_key ||
+      riskContext.risk_attention_band_key
+  );
+  const riskTrendDirectionKey = safeText(
+    meta.risk_trend_direction_key ||
+      actionContext.risk_trend_direction_key ||
+      riskContext.risk_trend_direction_key
+  );
+  const entryKindKey = safeText(meta.entry_kind_key || actionContext.entry_kind_key || riskContext.entry_kind_key);
+  const sequenceKindKey = safeText(
+    meta.sequence_kind_key || actionContext.sequence_kind_key || riskContext.sequence_kind_key
+  );
+  if (actionContextSignature) {
+    article.dataset.actionContextSignature = actionContextSignature;
+  }
   if (riskContextSignature) {
     article.dataset.riskContextSignature = riskContextSignature;
   }
