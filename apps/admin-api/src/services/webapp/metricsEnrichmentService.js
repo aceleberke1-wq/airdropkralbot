@@ -2427,6 +2427,30 @@ function enrichWebappRevenueMetrics(rawMetrics = {}) {
     metrics.scene_loop_district_microflow_risk_rows_daily_7d,
     "sequence_kind_key"
   );
+  metrics.scene_loop_district_microflow_risk_signature_breakdown_7d = buildSceneLoopDimensionBreakdown(
+    metrics.scene_loop_district_microflow_risk_rows_7d,
+    "risk_context_signature"
+  );
+  metrics.scene_loop_district_microflow_risk_signature_breakdown_daily_7d = buildSceneLoopDimensionBreakdownDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "risk_context_signature"
+  );
+  metrics.scene_loop_district_microflow_risk_signature_matrix_7d = buildSceneLoopDimensionRiskMatrix(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "risk_context_signature"
+  );
+  metrics.scene_loop_district_microflow_risk_signature_matrix_daily_7d = buildSceneLoopDimensionRiskMatrixDaily(
+    metrics.scene_loop_district_microflow_risk_rows_daily_7d,
+    "risk_context_signature"
+  );
+  metrics.scene_loop_district_microflow_risk_signature_priority_7d = buildSceneLoopDimensionPriority(
+    metrics.scene_loop_district_microflow_risk_matrix_7d,
+    "risk_context_signature"
+  );
+  metrics.scene_loop_district_microflow_risk_signature_priority_daily_7d = buildSceneLoopDimensionPriorityDaily(
+    metrics.scene_loop_district_microflow_risk_matrix_daily_7d,
+    "risk_context_signature"
+  );
   metrics.scene_loop_district_microflow_risk_latest_band_breakdown_7d = buildSceneLoopDistrictFamilyLatestBandBreakdown(
     metrics.scene_loop_district_microflow_risk_matrix_7d
   );

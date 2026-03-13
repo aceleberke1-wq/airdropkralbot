@@ -531,6 +531,18 @@ const DICT = {
       "District x Mikroakis Risk Sequence Kind Priority",
     admin_runtime_scene_loop_district_microflow_risk_sequence_kind_priority_daily_title:
       "District x Mikroakis Gunluk Risk Sequence Kind Priority",
+    admin_runtime_scene_loop_district_microflow_risk_signature_title:
+      "District x Mikroakis Risk Baglam Imzasi",
+    admin_runtime_scene_loop_district_microflow_risk_signature_daily_title:
+      "District x Mikroakis Gunluk Risk Baglam Imzasi",
+    admin_runtime_scene_loop_district_microflow_risk_signature_matrix_title:
+      "District x Mikroakis Risk Baglam Imzasi Matrisi",
+    admin_runtime_scene_loop_district_microflow_risk_signature_matrix_daily_title:
+      "District x Mikroakis Gunluk Risk Baglam Imzasi Matrisi",
+    admin_runtime_scene_loop_district_microflow_risk_signature_priority_title:
+      "District x Mikroakis Risk Baglam Imzasi Priority",
+    admin_runtime_scene_loop_district_microflow_risk_signature_priority_daily_title:
+      "District x Mikroakis Gunluk Risk Baglam Imzasi Priority",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Mikroakis Risk Son Band",
     admin_runtime_scene_loop_district_microflow_risk_health_band_title:
@@ -1617,6 +1629,18 @@ const DICT = {
       "District x Microflow Risk Sequence Kind Priority",
     admin_runtime_scene_loop_district_microflow_risk_sequence_kind_priority_daily_title:
       "District x Microflow Daily Risk Sequence Kind Priority",
+    admin_runtime_scene_loop_district_microflow_risk_signature_title:
+      "District x Microflow Risk Context Signature",
+    admin_runtime_scene_loop_district_microflow_risk_signature_daily_title:
+      "District x Microflow Daily Risk Context Signature",
+    admin_runtime_scene_loop_district_microflow_risk_signature_matrix_title:
+      "District x Microflow Risk Context Signature Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_signature_matrix_daily_title:
+      "District x Microflow Daily Risk Context Signature Matrix",
+    admin_runtime_scene_loop_district_microflow_risk_signature_priority_title:
+      "District x Microflow Risk Context Signature Priority",
+    admin_runtime_scene_loop_district_microflow_risk_signature_priority_daily_title:
+      "District x Microflow Daily Risk Context Signature Priority",
     admin_runtime_scene_loop_district_microflow_risk_latest_band_title:
       "District x Microflow Risk Latest Band",
     admin_runtime_scene_loop_district_microflow_risk_health_band_title:
