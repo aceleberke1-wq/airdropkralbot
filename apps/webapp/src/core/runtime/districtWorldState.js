@@ -182,6 +182,81 @@ function resolveProtocolMicroFlowRiskBands(loopState, microflow) {
   };
 }
 
+function buildProtocolMicroFlowRiskVisualMeta(loopState, microflow) {
+  const bands = resolveProtocolMicroFlowRiskBands(loopState, microflow);
+  const healthBand = toText(bands.risk_health_band_key, "no_data");
+  const attentionBand = toText(bands.risk_attention_band_key, "no_data");
+  const trendBand = toText(bands.risk_trend_direction_key, "no_data");
+
+  if (healthBand === "red" || attentionBand === "alert") {
+    return {
+      risk_light_band_key: "critical",
+      risk_glow_band_key: "critical",
+      risk_motion_band_key: "tense",
+      risk_light_scalar: 1.12,
+      risk_glow_scalar: 1.16,
+      risk_surface_glow_scalar: 1.14,
+      risk_chrome_scalar: 1.06,
+      risk_pulse_scalar: 1.14,
+      risk_motion_scalar: 1.08
+    };
+  }
+
+  if (healthBand === "yellow" && trendBand === "degrading") {
+    return {
+      risk_light_band_key: "watch_hot",
+      risk_glow_band_key: "watch_hot",
+      risk_motion_band_key: "tense",
+      risk_light_scalar: 1.08,
+      risk_glow_scalar: 1.1,
+      risk_surface_glow_scalar: 1.08,
+      risk_chrome_scalar: 1.04,
+      risk_pulse_scalar: 1.1,
+      risk_motion_scalar: 1.05
+    };
+  }
+
+  if (healthBand === "yellow" || attentionBand === "watch") {
+    return {
+      risk_light_band_key: "watch",
+      risk_glow_band_key: "watch",
+      risk_motion_band_key: "alerted",
+      risk_light_scalar: 1.04,
+      risk_glow_scalar: 1.06,
+      risk_surface_glow_scalar: 1.05,
+      risk_chrome_scalar: 1.03,
+      risk_pulse_scalar: 1.06,
+      risk_motion_scalar: 1.03
+    };
+  }
+
+  if (healthBand === "green" && attentionBand === "stable") {
+    return {
+      risk_light_band_key: "stable",
+      risk_glow_band_key: "stable",
+      risk_motion_band_key: "steady",
+      risk_light_scalar: 1,
+      risk_glow_scalar: 1,
+      risk_surface_glow_scalar: 1,
+      risk_chrome_scalar: 1,
+      risk_pulse_scalar: 1,
+      risk_motion_scalar: 1
+    };
+  }
+
+  return {
+    risk_light_band_key: "muted",
+    risk_glow_band_key: "muted",
+    risk_motion_band_key: "idle",
+    risk_light_scalar: 0.92,
+    risk_glow_scalar: 0.9,
+    risk_surface_glow_scalar: 0.92,
+    risk_chrome_scalar: 0.95,
+    risk_pulse_scalar: 0.92,
+    risk_motion_scalar: 0.94
+  };
+}
+
 function buildProtocolMicroFlowFocusKey(districtKey, microflow) {
   const safeDistrictKey = toKeyToken(districtKey, "");
   const familyKey = resolveProtocolMicroFlowFamilyKey(microflow);
@@ -6087,6 +6162,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         const riskKey = buildProtocolMicroFlowRiskKey(loopState, microflow);
         const riskFocusKey = focusKey && riskKey ? `${focusKey}|${riskKey}` : focusKey || riskKey || "";
         const riskBands = resolveProtocolMicroFlowRiskBands(loopState, microflow);
+        const riskVisualMeta = buildProtocolMicroFlowRiskVisualMeta(loopState, microflow);
         const actionContext = {
           district_key: districtKey,
           family_key: familyKey,
@@ -6111,6 +6187,15 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           risk_health_band_key: riskBands.risk_health_band_key,
           risk_attention_band_key: riskBands.risk_attention_band_key,
           risk_trend_direction_key: riskBands.risk_trend_direction_key,
+          risk_light_band_key: riskVisualMeta.risk_light_band_key,
+          risk_glow_band_key: riskVisualMeta.risk_glow_band_key,
+          risk_motion_band_key: riskVisualMeta.risk_motion_band_key,
+          risk_light_scalar: riskVisualMeta.risk_light_scalar,
+          risk_glow_scalar: riskVisualMeta.risk_glow_scalar,
+          risk_surface_glow_scalar: riskVisualMeta.risk_surface_glow_scalar,
+          risk_chrome_scalar: riskVisualMeta.risk_chrome_scalar,
+          risk_pulse_scalar: riskVisualMeta.risk_pulse_scalar,
+          risk_motion_scalar: riskVisualMeta.risk_motion_scalar,
           loop_status_key: loopState.loop_status_key,
           loop_status_label_key: loopState.loop_status_label_key,
           loop_stage_value: loopState.loop_stage_value,
@@ -6123,7 +6208,10 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           camera_focus_y_offset: toNum(microflow.camera_focus_y_offset, 0) + toNum(loopState.loop_focus_y_offset, 0),
           alpha_offset: toNum(microflow.alpha_offset, 0) + toNum(loopState.loop_alpha_offset, 0),
           beta_offset: toNum(microflow.beta_offset, 0) + toNum(loopState.loop_beta_offset, 0),
-          focus_lerp_scalar: toNum(microflow.focus_lerp_scalar, 1) * toNum(loopState.loop_focus_lerp_scalar, 1),
+          focus_lerp_scalar:
+            toNum(microflow.focus_lerp_scalar, 1) *
+            toNum(loopState.loop_focus_lerp_scalar, 1) *
+            clamp(toNum(riskVisualMeta.risk_motion_scalar, 1), 0.92, 1.08),
           radius_lerp_scalar: toNum(microflow.radius_lerp_scalar, 1) * toNum(loopState.loop_radius_lerp_scalar, 1),
           personality_key: loopPersonality.personality_key,
           personality_label_key: loopPersonality.personality_label_key,

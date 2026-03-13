@@ -142,6 +142,26 @@ body {
   filter: saturate(1.08) contrast(1.03) brightness(1);
 }
 
+.akrSceneWorldLayer[data-risk-health-band="red"] .akrSceneWorldCanvas {
+  filter: saturate(1.18) contrast(1.08) brightness(1.02);
+}
+
+.akrSceneWorldLayer[data-risk-health-band="yellow"] .akrSceneWorldCanvas {
+  filter: saturate(1.12) contrast(1.05) brightness(1.01);
+}
+
+.akrSceneWorldLayer[data-risk-health-band="no_data"] .akrSceneWorldCanvas {
+  filter: saturate(0.92) contrast(0.98) brightness(0.96);
+}
+
+.akrSceneWorldLayer[data-risk-light-band="critical"] .akrSceneWorldCanvas {
+  filter: saturate(1.22) contrast(1.1) brightness(1.04);
+}
+
+.akrSceneWorldLayer[data-risk-glow-band="watch_hot"] .akrSceneWorldCanvas {
+  filter: saturate(1.14) contrast(1.07) brightness(1.02);
+}
+
 .akrSceneWorldHud {
   position: fixed;
   left: max(16px, calc((100vw - 1180px) / 2 + 16px));
@@ -178,6 +198,26 @@ body {
 
 .akrSceneWorldHud[data-light-profile="ops_console"] {
   box-shadow: 0 18px 42px rgba(10, 16, 34, 0.32);
+}
+
+.akrSceneWorldHud[data-risk-health-band="red"] {
+  border-color: rgba(255, 92, 126, 0.4);
+}
+
+.akrSceneWorldHud[data-risk-health-band="yellow"] {
+  border-color: rgba(255, 193, 97, 0.34);
+}
+
+.akrSceneWorldHud[data-risk-attention-band="alert"] {
+  box-shadow: 0 18px 44px rgba(92, 16, 28, 0.36);
+}
+
+.akrSceneWorldHud[data-risk-attention-band="watch"] {
+  box-shadow: 0 18px 42px rgba(74, 42, 10, 0.3);
+}
+
+.akrSceneWorldHud[data-risk-motion-band="tense"] {
+  letter-spacing: 0.025em;
 }
 
 .akrSceneWorldHud[data-tone="aggressive"] {
@@ -379,6 +419,18 @@ body {
 .akrSceneWorldRail[data-chrome-band="console"],
 .akrSceneWorldRail[data-chrome-band="dispatch"] {
   border-color: rgba(129, 162, 255, 0.24);
+}
+
+.akrSceneWorldRail[data-risk-health-band="red"] {
+  border-color: rgba(255, 92, 126, 0.4);
+}
+
+.akrSceneWorldRail[data-risk-attention-band="alert"] {
+  box-shadow: 0 20px 46px rgba(88, 16, 28, 0.34);
+}
+
+.akrSceneWorldRail[data-risk-attention-band="watch"] {
+  box-shadow: 0 18px 42px rgba(86, 48, 12, 0.28);
 }
 
 .akrSceneWorldRail[data-rail-layout="arena_strike"] {
@@ -695,6 +747,22 @@ body {
   opacity: 0.82;
 }
 
+.akrSceneWorldSheet[data-risk-health-band="red"] {
+  border-color: rgba(255, 92, 126, 0.4);
+}
+
+.akrSceneWorldSheet[data-risk-health-band="yellow"] {
+  border-color: rgba(255, 193, 97, 0.34);
+}
+
+.akrSceneWorldSheet[data-risk-attention-band="alert"] {
+  box-shadow: 0 22px 54px rgba(88, 16, 28, 0.34);
+}
+
+.akrSceneWorldSheet[data-risk-attention-band="watch"] {
+  box-shadow: 0 20px 48px rgba(86, 48, 12, 0.28);
+}
+
 .akrSceneWorldSheetHeader {
   display: flex;
   justify-content: space-between;
@@ -807,6 +875,30 @@ body {
 .akrSceneTerminalConsole[data-light-profile="ops_console"],
 .akrSceneInteractionModal[data-light-profile="ops_console"] {
   box-shadow: 0 22px 54px rgba(10, 16, 34, 0.34);
+}
+
+.akrSceneEntrySurface[data-risk-health-band="red"],
+.akrSceneTerminalConsole[data-risk-health-band="red"],
+.akrSceneInteractionModal[data-risk-health-band="red"] {
+  border-color: rgba(255, 92, 126, 0.42);
+}
+
+.akrSceneEntrySurface[data-risk-health-band="yellow"],
+.akrSceneTerminalConsole[data-risk-health-band="yellow"],
+.akrSceneInteractionModal[data-risk-health-band="yellow"] {
+  border-color: rgba(255, 193, 97, 0.34);
+}
+
+.akrSceneEntrySurface[data-risk-attention-band="alert"],
+.akrSceneTerminalConsole[data-risk-attention-band="alert"],
+.akrSceneInteractionModal[data-risk-attention-band="alert"] {
+  box-shadow: 0 24px 58px rgba(88, 16, 28, 0.36);
+}
+
+.akrSceneEntrySurface[data-risk-attention-band="watch"],
+.akrSceneTerminalConsole[data-risk-attention-band="watch"],
+.akrSceneInteractionModal[data-risk-attention-band="watch"] {
+  box-shadow: 0 22px 56px rgba(86, 48, 12, 0.3);
 }
 
 .akrSceneEntrySurface[data-surface-layout="arena_focus"],

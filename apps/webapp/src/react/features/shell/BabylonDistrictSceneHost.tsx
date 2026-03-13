@@ -308,6 +308,9 @@ type ProtocolCardFlowPod = {
     light_profile_key?: string;
     surface_glow_band_key?: string;
     chrome_band_key?: string;
+    risk_light_band_key?: string;
+    risk_glow_band_key?: string;
+    risk_motion_band_key?: string;
     composition_profile_key?: string;
     camera_frame_key?: string;
     hud_anchor_key?: string;
@@ -344,6 +347,12 @@ type ProtocolCardFlowPod = {
     glow_intensity_scalar?: number;
     surface_glow_scalar?: number;
     chrome_opacity_scalar?: number;
+    risk_light_scalar?: number;
+    risk_glow_scalar?: number;
+    risk_surface_glow_scalar?: number;
+    risk_chrome_scalar?: number;
+    risk_pulse_scalar?: number;
+    risk_motion_scalar?: number;
     camera_radius_scale?: number;
     camera_focus_y_offset?: number;
     motion_scalar?: number;
@@ -1858,11 +1867,30 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           const microflowChromeOpacityScalar = Number.isFinite(Number(microflowFocus?.chrome_opacity_scalar))
             ? Number(microflowFocus?.chrome_opacity_scalar)
             : 1;
+          const microflowRiskLightScalar = Number.isFinite(Number(microflowFocus?.risk_light_scalar))
+            ? Number(microflowFocus?.risk_light_scalar)
+            : 1;
+          const microflowRiskGlowScalar = Number.isFinite(Number(microflowFocus?.risk_glow_scalar))
+            ? Number(microflowFocus?.risk_glow_scalar)
+            : 1;
+          const microflowRiskSurfaceGlowScalar = Number.isFinite(Number(microflowFocus?.risk_surface_glow_scalar))
+            ? Number(microflowFocus?.risk_surface_glow_scalar)
+            : 1;
+          const microflowRiskChromeScalar = Number.isFinite(Number(microflowFocus?.risk_chrome_scalar))
+            ? Number(microflowFocus?.risk_chrome_scalar)
+            : 1;
+          const microflowRiskPulseScalar = Number.isFinite(Number(microflowFocus?.risk_pulse_scalar))
+            ? Number(microflowFocus?.risk_pulse_scalar)
+            : 1;
+          const microflowRiskMotionScalar = Number.isFinite(Number(microflowFocus?.risk_motion_scalar))
+            ? Number(microflowFocus?.risk_motion_scalar)
+            : 1;
           const motionScalar =
             (worldState.reduced_motion ? 0.22 : 1) *
             directorProfile.motion_scalar *
             podMotionScalar *
-            microflowMotionScalar;
+            microflowMotionScalar *
+            microflowRiskMotionScalar;
           const focusHotspot =
             worldState.hotspots.find((hotspot) => hotspot.key === hoveredHotspotKey) || activeHotspot;
           ring.rotation.z =
@@ -1871,7 +1899,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             22 *
             directorProfile.orbit_spin_scalar *
             microflowOrbitSpinScalar *
-            microflowRingPulseScalar;
+            microflowRingPulseScalar *
+            microflowRiskPulseScalar;
           if (outerRing) {
             outerRing.rotation.y =
               now *
@@ -1879,34 +1908,73 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               14 *
               directorProfile.orbit_spin_scalar *
               microflowOrbitSpinScalar *
-              microflowRingPulseScalar;
+              microflowRingPulseScalar *
+              microflowRiskPulseScalar;
           }
           coreOrb.position.y =
             1.2 +
-            Math.sin(now * 1.4) * 0.12 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
+            Math.sin(now * 1.4) *
+              0.12 *
+              motionScalar *
+              directorProfile.node_pulse_scalar *
+              microflowHudEmphasisScalar *
+              microflowRingPulseScalar *
+              microflowRiskPulseScalar;
           const orbScale =
             1 +
             worldState.ambient_energy * 0.16 +
-            Math.sin(now * 1.7) * 0.04 * motionScalar * directorProfile.node_pulse_scalar * microflowHudEmphasisScalar * microflowRingPulseScalar;
+            Math.sin(now * 1.7) *
+              0.04 *
+              motionScalar *
+              directorProfile.node_pulse_scalar *
+              microflowHudEmphasisScalar *
+              microflowRingPulseScalar *
+              microflowRiskPulseScalar;
           coreOrb.scaling.setAll(orbScale);
           point.intensity =
-            pointBaseIntensity * microflowLightIntensityScalar +
-            Math.sin(now) * 0.08 * motionScalar * microflowHudEmphasisScalar * microflowRingPulseScalar * microflowSurfaceGlowScalar;
-          point.diffuse = pointDiffuseBase.scale(Math.max(0.84, microflowLightIntensityScalar));
-          hemi.intensity = hemiBaseIntensity * (0.9 + (microflowChromeOpacityScalar - 1) * 0.38) * (0.96 + microflowLightIntensityScalar * 0.06);
+            pointBaseIntensity * microflowLightIntensityScalar * microflowRiskLightScalar +
+            Math.sin(now) *
+              0.08 *
+              motionScalar *
+              microflowHudEmphasisScalar *
+              microflowRingPulseScalar *
+              microflowRiskPulseScalar *
+              microflowSurfaceGlowScalar *
+              microflowRiskSurfaceGlowScalar;
+          point.diffuse = pointDiffuseBase.scale(
+            Math.max(0.84, microflowLightIntensityScalar * microflowRiskLightScalar)
+          );
+          hemi.intensity =
+            hemiBaseIntensity *
+            (0.9 + (microflowChromeOpacityScalar * microflowRiskChromeScalar - 1) * 0.38) *
+            (0.96 + microflowLightIntensityScalar * microflowRiskLightScalar * 0.06);
           if (glow) {
-            glow.intensity = glowBaseIntensity * microflowGlowIntensityScalar * microflowSurfaceGlowScalar;
+            glow.intensity =
+              glowBaseIntensity *
+              microflowGlowIntensityScalar *
+              microflowRiskGlowScalar *
+              microflowSurfaceGlowScalar *
+              microflowRiskSurfaceGlowScalar;
           }
           camera.fov +=
             (cameraBaseFov * microflowCameraFovScalar - camera.fov) *
             Math.min(0.18, 0.08 * microflowFocusHoldScalar);
-          groundMaterial.alpha = Math.min(0.98, 0.84 * microflowChromeOpacityScalar);
-          groundMaterial.emissiveColor = groundEmissiveBase.scale(microflowSurfaceGlowScalar);
-          ringMaterial.emissiveColor = ringEmissiveBase.scale(microflowSurfaceGlowScalar);
-          coreColumnMaterial.emissiveColor = coreColumnEmissiveBase.scale(microflowSurfaceGlowScalar);
-          coreOrbMaterial.emissiveColor = coreOrbEmissiveBase.scale(Math.max(microflowSurfaceGlowScalar, microflowLightIntensityScalar));
+          groundMaterial.alpha = Math.min(0.98, 0.84 * microflowChromeOpacityScalar * microflowRiskChromeScalar);
+          groundMaterial.emissiveColor = groundEmissiveBase.scale(microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar);
+          ringMaterial.emissiveColor = ringEmissiveBase.scale(microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar);
+          coreColumnMaterial.emissiveColor = coreColumnEmissiveBase.scale(
+            microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar
+          );
+          coreOrbMaterial.emissiveColor = coreOrbEmissiveBase.scale(
+            Math.max(
+              microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar,
+              microflowLightIntensityScalar * microflowRiskLightScalar
+            )
+          );
           if (outerRing && outerRingMaterial && outerRingEmissiveBase) {
-            outerRingMaterial.emissiveColor = outerRingEmissiveBase.scale(microflowSurfaceGlowScalar);
+            outerRingMaterial.emissiveColor = outerRingEmissiveBase.scale(
+              microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar
+            );
           }
           const targetAlpha =
             cameraProfile.alpha_base +
@@ -1964,10 +2032,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               microflowFocusHoldScalar;
           }
           satellites.forEach((entry, index) => {
-            entry.material.emissiveColor = entry.emissiveBase.scale(microflowSurfaceGlowScalar);
+            entry.material.emissiveColor = entry.emissiveBase.scale(
+              microflowSurfaceGlowScalar * microflowRiskSurfaceGlowScalar
+            );
             const radiusPulse =
               theme.satellite_radius +
-              Math.sin(now * (0.8 + index * 0.07)) * 0.06 * motionScalar * microflowSatelliteOrbitScalar;
+              Math.sin(now * (0.8 + index * 0.07)) *
+                0.06 *
+                motionScalar *
+                microflowSatelliteOrbitScalar *
+                microflowRiskPulseScalar;
             entry.orb.position.x =
               Math.cos(
                 entry.baseAngle +
@@ -1975,7 +2049,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     worldState.orbit_speed *
                     10 *
                     directorProfile.orbit_spin_scalar *
-                    microflowSatelliteOrbitScalar
+                    microflowSatelliteOrbitScalar *
+                    microflowRiskPulseScalar
               ) * radiusPulse;
             entry.orb.position.z =
               Math.sin(
@@ -1984,11 +2059,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     worldState.orbit_speed *
                     10 *
                     directorProfile.orbit_spin_scalar *
-                    microflowSatelliteOrbitScalar
+                    microflowSatelliteOrbitScalar *
+                    microflowRiskPulseScalar
               ) * radiusPulse;
             entry.orb.position.y =
               theme.satellite_height +
-              Math.sin(now * (1 + index * 0.09)) * 0.06 * motionScalar * microflowSatelliteOrbitScalar;
+              Math.sin(now * (1 + index * 0.09)) *
+                0.06 *
+                motionScalar *
+                microflowSatelliteOrbitScalar *
+                microflowRiskPulseScalar;
           });
           actorHandles.forEach((entry, index) => {
             entry.animate?.(now, motionScalar * microflowActorMotionScalar, index);
@@ -2008,14 +2088,24 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                 (0.18 + activePulse) *
                 motionScalar *
                 directorProfile.node_pulse_scalar *
-                microflowRingPulseScalar;
+                microflowRingPulseScalar *
+                microflowRiskPulseScalar;
             entry.pillar.scaling.y =
               1 +
               entry.node.energy * 0.65 +
-              Math.sin(now * (0.8 + index * 0.11)) * 0.04 * motionScalar * directorProfile.node_pulse_scalar * microflowRingPulseScalar;
+              Math.sin(now * (0.8 + index * 0.11)) *
+                0.04 *
+                motionScalar *
+                directorProfile.node_pulse_scalar *
+                microflowRingPulseScalar *
+                microflowRiskPulseScalar;
             entry.orb.scaling.setAll(
               1 +
-                Math.sin(now * (1.4 + index * 0.12)) * activePulse * motionScalar * directorProfile.node_pulse_scalar +
+                Math.sin(now * (1.4 + index * 0.12)) *
+                  activePulse *
+                  motionScalar *
+                  directorProfile.node_pulse_scalar *
+                  microflowRiskPulseScalar +
                 (entry.isActive ? 0.12 : 0)
             );
             if (entry.halo) {
@@ -2063,6 +2153,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-light-profile={selectedMicroflow?.light_profile_key || ""}
       data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
       data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+      data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+      data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+      data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+      data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+      data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+      data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
       data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
       data-camera-frame={selectedMicroflow?.camera_frame_key || ""}
       data-hud-anchor={selectedMicroflow?.hud_anchor_key || ""}
@@ -2108,6 +2204,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         data-light-profile={selectedMicroflow?.light_profile_key || ""}
         data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
         data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+        data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+        data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+        data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+        data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+        data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+        data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
         data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
         data-hud-anchor={selectedMicroflow?.hud_anchor_key || ""}
         data-hud-focus-mode={selectedMicroflow?.hud_focus_mode_key || ""}
@@ -2192,6 +2294,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+          data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+          data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+          data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+          data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+          data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
           data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
           data-rail-anchor={selectedMicroflow?.rail_anchor_key || ""}
           data-rail-presence={selectedMicroflow?.rail_presence_key || ""}
@@ -2259,6 +2367,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+          data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+          data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+          data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+          data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+          data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
           data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
           data-sheet-anchor={selectedMicroflow?.sheet_anchor_key || ""}
           data-sheet-presence={selectedMicroflow?.sheet_presence_key || ""}
@@ -2312,6 +2426,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+          data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+          data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+          data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+          data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+          data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
           data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
           data-entry-anchor={selectedMicroflow?.entry_anchor_key || ""}
           data-entry-presence={selectedMicroflow?.entry_presence_key || ""}
@@ -2466,6 +2586,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+          data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+          data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+          data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+          data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+          data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
           data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
           data-console-anchor={selectedMicroflow?.console_anchor_key || ""}
           data-console-presence={selectedMicroflow?.console_presence_key || ""}
@@ -2621,6 +2747,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           data-light-profile={selectedMicroflow?.light_profile_key || ""}
           data-surface-glow={selectedMicroflow?.surface_glow_band_key || ""}
           data-chrome-band={selectedMicroflow?.chrome_band_key || ""}
+          data-risk-health-band={selectedMicroflow?.risk_health_band_key || ""}
+          data-risk-attention-band={selectedMicroflow?.risk_attention_band_key || ""}
+          data-risk-trend-direction={selectedMicroflow?.risk_trend_direction_key || ""}
+          data-risk-light-band={selectedMicroflow?.risk_light_band_key || ""}
+          data-risk-glow-band={selectedMicroflow?.risk_glow_band_key || ""}
+          data-risk-motion-band={selectedMicroflow?.risk_motion_band_key || ""}
           data-composition-profile={selectedMicroflow?.composition_profile_key || ""}
           data-modal-anchor={selectedMicroflow?.modal_anchor_key || ""}
           data-modal-presence={selectedMicroflow?.modal_presence_key || ""}

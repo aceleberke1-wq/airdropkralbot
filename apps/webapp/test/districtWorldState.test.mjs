@@ -348,6 +348,12 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_health_band_key, "green");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_attention_band_key, "stable");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_trend_direction_key, "flat");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_light_band_key, "stable");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_glow_band_key, "stable");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_motion_band_key, "steady");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_light_scalar, 1);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_glow_scalar, 1);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_motion_scalar, 1);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].entry_kind_key, "world_entry_kind_hub_portal");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].director_pace_label_key, "world_director_pace_hub");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].hud_tone_label_key, "world_hud_tone_central_hub");
@@ -929,6 +935,12 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_health_band_key, "yellow");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_attention_band_key, "watch");
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_trend_direction_key, "flat");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_light_band_key, "watch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_glow_band_key, "watch");
+  assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_motion_band_key, "alerted");
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_light_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_glow_scalar > 1);
+  assert.ok(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_motion_scalar > 1);
   assert.equal(state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].entry_kind_key, "world_entry_kind_dispatch_console");
   assert.equal(
     state.interaction_modal.protocol_cards[2].flow_pods[0].microflow_cards[0].risk_context_signature,
