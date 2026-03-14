@@ -310,6 +310,10 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
         activeAssetFamilyKey: "duel",
         activeAssetAnchorKind: "cluster",
         activeAssetCandidateKey: "arena_khronos_cesium_man",
+        activeAssetStateKey: "ready",
+        activeAssetContractReady: true,
+        activeAssetContractSignature: "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man",
+        readyAssetCount: 4,
         selectedAssetCount: 4,
         loadedAssetCount: 4,
         entryKindKey: "world_entry_kind_duel_console",
@@ -347,13 +351,17 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.sceneStatus.assetFamilyKey, "duel");
   assert.equal(payloads.sceneStatus.assetAnchorKind, "cluster");
   assert.equal(payloads.sceneStatus.assetCandidateKey, "arena_khronos_cesium_man");
+  assert.equal(payloads.sceneStatus.assetStateKey, "ready");
+  assert.equal(payloads.sceneStatus.assetContractReady, true);
+  assert.equal(payloads.sceneStatus.assetContractSignature, "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man");
+  assert.equal(payloads.sceneStatus.readyAssetCount, 4);
   assert.equal(payloads.sceneStatus.selectedAssetCount, 4);
   assert.equal(payloads.sceneStatus.loadedAssetCount, 4);
   assert.equal(payloads.sceneStatus.domainLine, "DOMAIN webapp.k99-exchange.xyz | READY | WEBAPP 200 | GUARD MATCH");
   assert.equal(payloads.sceneStatus.domainStateKey, "ready");
   assert.equal(payloads.sceneStatus.domainHost, "webapp.k99-exchange.xyz");
   assert.equal(payloads.sceneStatus.runtimeGuardMatchesHost, true);
-  assert.equal(payloads.sceneStatus.assetLine, "ASSET 4/4 | duel:arena_trophy | cluster");
+  assert.equal(payloads.sceneStatus.assetLine, "ASSET 4/4 | duel:arena_trophy | ready | cluster");
   assert.equal(payloads.sceneStatus.entryKindKey, "world_entry_kind_duel_console");
   assert.equal(payloads.sceneStatus.sequenceKindKey, "world_modal_kind_duel_sequence");
   assert.equal(payloads.sceneStatus.riskHealthBandKey, "no_data");
@@ -407,7 +415,15 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   });
   assert.equal(payloads.sceneTelemetry.alarm.badgeText, "SCENE WARN");
   assert.equal(payloads.publicTelemetry.assetManifest.badgeText, "ASSET 3/4");
-  assert.equal(payloads.publicTelemetry.assetManifest.selectionLineText, "ACTIVE duel:arena_trophy | 4/4 | cluster");
+  assert.equal(payloads.publicTelemetry.assetManifest.selectionLineText, "ACTIVE duel:arena_trophy | 4/4 | ready | cluster");
+  assert.equal(payloads.publicTelemetry.assetManifest.assetStateKey, "ready");
+  assert.equal(payloads.publicTelemetry.assetManifest.assetContractReady, true);
+  assert.equal(
+    payloads.publicTelemetry.assetManifest.assetContractSignature,
+    "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man"
+  );
+  assert.equal(payloads.publicTelemetry.assetManifest.readyAssetCount, 4);
+  assert.equal(payloads.publicTelemetry.assetManifest.selectedAssetCount, 4);
   assert.equal(
     payloads.publicTelemetry.assetManifest.domainLineText,
     "DOMAIN webapp.k99-exchange.xyz | READY | WEBAPP 200 | GUARD MATCH"

@@ -17,6 +17,11 @@ type AssetManifestStripPayload = {
   domainStateKey?: string;
   domainHost?: string;
   runtimeGuardMatchesHost?: boolean;
+  assetStateKey?: string;
+  assetContractReady?: boolean;
+  assetContractSignature?: string;
+  readyAssetCount?: number;
+  selectedAssetCount?: number;
   readyPct?: number;
   integrityPct?: number;
   readyPalette?: string;
@@ -143,6 +148,12 @@ function renderAssetManifest(payload: AssetManifestStripPayload): boolean {
   hint.textContent = String(payload.hintText || "");
   if (selection) {
     selection.textContent = String(payload.selectionLineText || "ACTIVE district asset bekleniyor");
+    selection.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
+    selection.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";
+    selection.dataset.assetContractSignature = String(payload.assetContractSignature || "").trim();
+    selection.dataset.readyAssetCount = String(asNum(payload.readyAssetCount));
+    selection.dataset.selectedAssetCount = String(asNum(payload.selectedAssetCount));
+    selection.title = payload.assetContractSignature ? `SIG ${String(payload.assetContractSignature)}` : "";
   }
   if (domain) {
     domain.textContent = String(payload.domainLineText || "DOMAIN telemetry bekleniyor.");

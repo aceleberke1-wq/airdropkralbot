@@ -34,6 +34,10 @@ export type SceneStatusDeckBridgePayload = {
   assetFamilyKey?: string;
   assetAnchorKind?: string;
   assetCandidateKey?: string;
+  assetStateKey?: string;
+  assetContractReady?: boolean;
+  assetContractSignature?: string;
+  readyAssetCount?: number;
   selectedAssetCount?: number;
   loadedAssetCount?: number;
   domainStateKey?: string;
@@ -169,6 +173,10 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   deck.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
   deck.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
   deck.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
+  deck.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
+  deck.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";
+  deck.dataset.assetContractSignature = String(payload.assetContractSignature || "").trim();
+  deck.dataset.readyAssetCount = String(asNum(payload.readyAssetCount));
   deck.dataset.selectedAssetCount = String(asNum(payload.selectedAssetCount));
   deck.dataset.loadedAssetCount = String(asNum(payload.loadedAssetCount));
   deck.dataset.domainStateKey = String(payload.domainStateKey || "").trim();
@@ -198,6 +206,10 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
     assetLineNode.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
     assetLineNode.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
     assetLineNode.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
+    assetLineNode.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
+    assetLineNode.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";
+    assetLineNode.dataset.assetContractSignature = String(payload.assetContractSignature || "").trim();
+    assetLineNode.title = payload.assetContractSignature ? `SIG ${String(payload.assetContractSignature)}` : "";
   }
   const loopLineNode = byId<HTMLElement>("sceneLoopLine");
   if (loopLineNode) {

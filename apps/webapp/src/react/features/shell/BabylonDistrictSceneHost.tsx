@@ -65,6 +65,10 @@ type BabylonDistrictSceneHostProps = {
     activeAssetFamilyKey?: string;
     activeAssetAnchorKind?: string;
     activeAssetCandidateKey?: string;
+    activeAssetStateKey?: string;
+    activeAssetContractReady?: boolean;
+    activeAssetContractSignature?: string;
+    readyAssetCount?: number;
     selectedAssetCount?: number;
     loadedAssetCount?: number;
     sourceType: string;
@@ -544,6 +548,16 @@ function readSceneActionText(...values: unknown[]) {
   return "";
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function asObjectRows(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((row) => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[]
+    : [];
+}
+
 function buildSceneActionContextSignature(
   flowKey: string,
   focusKey: string,
@@ -997,19 +1011,27 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const [districtAssetSummary, setDistrictAssetSummary] = useState<{
     selectedCount: number;
     loadedCount: number;
+    readyCount: number;
     assetKeys: string[];
     activeAssetKey: string;
     activeFamilyKey: string;
     activeAnchorKind: string;
     activeCandidateKey: string;
+    activeStateKey: string;
+    activeContractReady: boolean;
+    activeContractSignature: string;
   }>({
     selectedCount: 0,
     loadedCount: 0,
+    readyCount: 0,
     assetKeys: [],
     activeAssetKey: "",
     activeFamilyKey: "",
     activeAnchorKind: "",
-    activeCandidateKey: ""
+    activeCandidateKey: "",
+    activeStateKey: "",
+    activeContractReady: false,
+    activeContractSignature: ""
   });
   const worldState = useMemo(
     () =>
@@ -1677,7 +1699,11 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       personality_label_key: selectedMicroflow.personality_label_key || "",
       personality_caption_key: selectedMicroflow.personality_caption_key || "",
       personality_band_key: selectedMicroflow.personality_band_key || "",
-      density_label_key: selectedMicroflow.density_label_key || ""
+      density_label_key: selectedMicroflow.density_label_key || "",
+      active_asset_state_key: districtAssetSummary.activeStateKey || "",
+      active_asset_contract_signature: districtAssetSummary.activeContractSignature || "",
+      active_asset_contract_ready: districtAssetSummary.activeContractReady,
+      ready_asset_count: districtAssetSummary.readyCount || 0
     });
     if (signature === lastLoopSignatureRef.current) {
       return;
@@ -1719,6 +1745,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       activeAssetFamilyKey: districtAssetSummary.activeFamilyKey || undefined,
       activeAssetAnchorKind: districtAssetSummary.activeAnchorKind || undefined,
       activeAssetCandidateKey: districtAssetSummary.activeCandidateKey || undefined,
+      activeAssetStateKey: districtAssetSummary.activeStateKey || undefined,
+      activeAssetContractReady: districtAssetSummary.activeContractReady,
+      activeAssetContractSignature: districtAssetSummary.activeContractSignature || undefined,
+      readyAssetCount: districtAssetSummary.readyCount || 0,
       selectedAssetCount: districtAssetSummary.selectedCount || 0,
       loadedAssetCount: districtAssetSummary.loadedCount || 0,
       loopRows: Array.isArray(selectedMicroflow.loop_rows) ? selectedMicroflow.loop_rows.slice(0, 3) : [],
@@ -1740,8 +1770,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     districtAssetSummary.activeAnchorKind,
     districtAssetSummary.activeAssetKey,
     districtAssetSummary.activeCandidateKey,
+    districtAssetSummary.activeContractReady,
+    districtAssetSummary.activeContractSignature,
     districtAssetSummary.activeFamilyKey,
+    districtAssetSummary.activeStateKey,
     districtAssetSummary.loadedCount,
+    districtAssetSummary.readyCount,
     districtAssetSummary.selectedCount,
     worldState.active_cluster_key,
     worldState.active_hotspot_key,
@@ -2090,16 +2124,49 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           }
         }
         if (!disposed) {
+          const localManifest = asObjectRecord(asObjectRecord(props.data).local_manifest);
+          const focusRows = asObjectRows(localManifest.district_family_asset_focus_rows).filter(
+            (row) => readSceneActionText(row.district_key) === worldState.district_key
+          );
           const activeDistrictAsset =
             districtAssetRows.find((row) => Boolean((row as Record<string, unknown>).is_active_family)) || districtAssetRows[0] || null;
+          const activeFocusRow =
+            focusRows.find(
+              (row) =>
+                readSceneActionText(row.asset_key) === String(activeDistrictAsset?.asset_key || "") &&
+                readSceneActionText(row.family_key) === String(activeDistrictAsset?.family_key || "")
+            ) ||
+            focusRows.find((row) => readSceneActionText(row.family_key) === String(activeDistrictAsset?.family_key || "")) ||
+            focusRows[0] ||
+            null;
+          const activeAssetStateKey = readSceneActionText(
+            activeFocusRow?.state_key,
+            loadedDistrictAssetCount > 0 ? "ready" : districtAssetRows.length ? "partial" : "missing"
+          );
+          const activeAssetContractSignature = readSceneActionText(
+            activeFocusRow?.asset_contract_signature,
+            activeDistrictAsset?.asset_key
+              ? `${worldState.district_key}:${String(activeDistrictAsset.family_key || "district")}:${String(activeDistrictAsset.asset_key || "--")}|${activeAssetStateKey}|${String(activeDistrictAsset.candidate_key || "--")}`
+              : ""
+          );
+          const readyAssetCount = focusRows.filter(
+            (row) => readSceneActionText(row.state_key).toLowerCase() === "ready" || row.asset_contract_ready === true
+          ).length;
           setDistrictAssetSummary({
             selectedCount: districtAssetRows.length,
             loadedCount: loadedDistrictAssetCount,
+            readyCount: readyAssetCount,
             assetKeys: districtAssetRows.map((row) => String(row.asset_key || "")).filter(Boolean),
             activeAssetKey: String(activeDistrictAsset?.asset_key || ""),
             activeFamilyKey: String(activeDistrictAsset?.family_key || ""),
             activeAnchorKind: String(activeDistrictAsset?.anchor_kind || ""),
-            activeCandidateKey: String(activeDistrictAsset?.candidate_key || "")
+            activeCandidateKey: String(activeDistrictAsset?.candidate_key || ""),
+            activeStateKey: activeAssetStateKey,
+            activeContractReady:
+              typeof activeFocusRow?.asset_contract_ready === "boolean"
+                ? Boolean(activeFocusRow.asset_contract_ready)
+                : activeAssetStateKey === "ready",
+            activeContractSignature: activeAssetContractSignature
           });
         }
 
@@ -2899,11 +2966,15 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     setDistrictAssetSummary({
       selectedCount: 0,
       loadedCount: 0,
+      readyCount: 0,
       assetKeys: [],
       activeAssetKey: "",
       activeFamilyKey: "",
       activeAnchorKind: "",
-      activeCandidateKey: ""
+      activeCandidateKey: "",
+      activeStateKey: "",
+      activeContractReady: false,
+      activeContractSignature: ""
     });
     void buildScene();
 

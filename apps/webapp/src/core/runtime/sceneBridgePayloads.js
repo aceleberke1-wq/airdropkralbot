@@ -333,6 +333,10 @@ function buildSceneLoopDeckPayload(scene) {
       activeAssetFamilyKey: "",
       activeAssetAnchorKind: "",
       activeAssetCandidateKey: "",
+      activeAssetStateKey: "",
+      activeAssetContractReady: false,
+      activeAssetContractSignature: "",
+      readyAssetCount: 0,
       selectedAssetCount: 0,
       loadedAssetCount: 0,
       riskHealthBandKey: "",
@@ -400,6 +404,13 @@ function buildSceneLoopDeckPayload(scene) {
     ),
     activeAssetAnchorKind: toText(selectedLoop.activeAssetAnchorKind || selectedLoop.active_asset_anchor_kind, ""),
     activeAssetCandidateKey: toText(selectedLoop.activeAssetCandidateKey || selectedLoop.active_asset_candidate_key, ""),
+    activeAssetStateKey: toText(selectedLoop.activeAssetStateKey || selectedLoop.active_asset_state_key, ""),
+    activeAssetContractReady: Boolean(selectedLoop.activeAssetContractReady || selectedLoop.active_asset_contract_ready),
+    activeAssetContractSignature: toText(
+      selectedLoop.activeAssetContractSignature || selectedLoop.active_asset_contract_signature,
+      ""
+    ),
+    readyAssetCount: Math.max(0, toNum(selectedLoop.readyAssetCount || selectedLoop.ready_asset_count || 0)),
     selectedAssetCount: Math.max(0, toNum(selectedLoop.selectedAssetCount || selectedLoop.selected_asset_count || 0)),
     loadedAssetCount: Math.max(0, toNum(selectedLoop.loadedAssetCount || selectedLoop.loaded_asset_count || 0)),
     riskHealthBandKey: toText(
@@ -5213,6 +5224,10 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
   const assetFamilyKey = toText(loopDeck?.activeAssetFamilyKey || loopDeck?.familyKey, "");
   const assetKey = toText(loopDeck?.activeAssetKey, "");
   const assetAnchorKind = toText(loopDeck?.activeAssetAnchorKind, "");
+  const assetStateKey = toText(loopDeck?.activeAssetStateKey, "");
+  const assetContractSignature = toText(loopDeck?.activeAssetContractSignature, "");
+  const assetContractReady = Boolean(loopDeck?.activeAssetContractReady);
+  const readyCount = Math.max(0, toNum(loopDeck?.readyAssetCount || 0));
   const selectedCount = Math.max(0, toNum(loopDeck?.selectedAssetCount || 0));
   const loadedCount = Math.max(0, toNum(loopDeck?.loadedAssetCount || 0));
   return {
@@ -5220,15 +5235,20 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
     badgeText: `ASSET ${toNum(assetMetrics.readyEntries)}/${toNum(assetMetrics.totalEntries)}`,
     badgeTone: mapBadgeTone(assetMetrics.tone || "info"),
     lineText: `Missing ${toNum(assetMetrics.missingEntries)} | Integrity ${Math.round(clamp(assetMetrics.integrityRatio) * 100)}%`,
-    hintText: `Manifest ${toText(assetMetrics.manifestRevision, "local")} | source ${toText(assetMetrics.sourceMode, "fallback")}`,
+    hintText: `Manifest ${toText(assetMetrics.manifestRevision, "local")} | source ${toText(assetMetrics.sourceMode, "fallback")}${assetContractSignature ? ` | SIG ${assetContractSignature}` : ""}`,
     selectionLineText:
       assetKey || selectedCount
-        ? `ACTIVE ${assetFamilyKey || "district"}:${assetKey || "--"} | ${loadedCount}/${selectedCount || Math.max(1, loadedCount)} | ${assetAnchorKind || "manifest"}`
+        ? `ACTIVE ${assetFamilyKey || "district"}:${assetKey || "--"} | ${loadedCount}/${selectedCount || Math.max(1, loadedCount)} | ${assetStateKey || "missing"} | ${assetAnchorKind || "manifest"}`
         : "ACTIVE district asset bekleniyor",
     domainLineText: buildWebappDomainLine(domainSummary),
     domainStateKey,
     domainHost: toText(domainSummary.host || ""),
     runtimeGuardMatchesHost: domainSummary.runtime_guard_matches_host !== false,
+    assetStateKey,
+    assetContractReady,
+    assetContractSignature,
+    readyAssetCount: readyCount,
+    selectedAssetCount: selectedCount,
     readyPct: Math.round(clamp(assetMetrics.readyRatio) * 100),
     integrityPct: Math.round(clamp(assetMetrics.integrityRatio) * 100),
     readyPalette: mapMeterPalette(assetMetrics.tone || "balanced"),
@@ -5253,6 +5273,11 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
         text: `HOST ${domainStateKey.toUpperCase()}`,
         tone: domainStateKey === "ready" ? "advantage" : domainStateKey === "partial" ? "pressure" : "critical",
         level: clamp(domainSummary.contract_ready ? 1 : domainSummary.dns_ready ? 0.6 : 0.2)
+      },
+      asset: {
+        text: `AST ${assetContractReady ? "READY" : assetStateKey ? assetStateKey.toUpperCase() : "MISS"} ${readyCount}/${selectedCount || Math.max(1, readyCount)}`,
+        tone: assetContractReady ? "advantage" : assetStateKey === "partial" ? "pressure" : "critical",
+        level: clamp(selectedCount ? readyCount / Math.max(1, selectedCount) : 0)
       }
     }
   };
@@ -7051,7 +7076,7 @@ function buildPlayerBridgePayloads(options = {}) {
       loopLine: sceneLoopDeck.lineText,
       assetLine:
         sceneLoopDeck.activeAssetKey || sceneLoopDeck.selectedAssetCount
-          ? `ASSET ${sceneLoopDeck.loadedAssetCount}/${Math.max(1, sceneLoopDeck.selectedAssetCount)} | ${sceneLoopDeck.activeAssetFamilyKey || sceneLoopDeck.familyKey || "district"}:${sceneLoopDeck.activeAssetKey || "--"} | ${sceneLoopDeck.activeAssetAnchorKind || "manifest"}`
+          ? `ASSET ${sceneLoopDeck.loadedAssetCount}/${Math.max(1, sceneLoopDeck.selectedAssetCount)} | ${sceneLoopDeck.activeAssetFamilyKey || sceneLoopDeck.familyKey || "district"}:${sceneLoopDeck.activeAssetKey || "--"} | ${sceneLoopDeck.activeAssetStateKey || "missing"} | ${sceneLoopDeck.activeAssetAnchorKind || "manifest"}`
           : "ASSET district bundle bekleniyor.",
       actionContext: sceneLoopDeck.actionContext,
       actionContextSignature: sceneLoopDeck.actionContextSignature,
@@ -7067,6 +7092,10 @@ function buildPlayerBridgePayloads(options = {}) {
       assetFamilyKey: sceneLoopDeck.activeAssetFamilyKey,
       assetAnchorKind: sceneLoopDeck.activeAssetAnchorKind,
       assetCandidateKey: sceneLoopDeck.activeAssetCandidateKey,
+      assetStateKey: sceneLoopDeck.activeAssetStateKey,
+      assetContractReady: sceneLoopDeck.activeAssetContractReady,
+      assetContractSignature: sceneLoopDeck.activeAssetContractSignature,
+      readyAssetCount: sceneLoopDeck.readyAssetCount,
       selectedAssetCount: sceneLoopDeck.selectedAssetCount,
       loadedAssetCount: sceneLoopDeck.loadedAssetCount,
       domainStateKey: toText(webappDomainSummary.state_key || "missing", "missing").toLowerCase(),
