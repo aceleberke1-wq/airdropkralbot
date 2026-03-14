@@ -6616,7 +6616,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           microflow
         );
         const flowActionContext = asRecord(flowContextMeta.action_context);
-        return applyResolvedActionRiskMeta(flow, flowContextMeta, flowActionContext, {
+        const enrichedFlow = applyResolvedActionRiskMeta(flow, flowContextMeta, flowActionContext, {
           action_items: buildContextActionItems(microflow.action_items, flowActionContext),
           district_key: districtKey,
           family_key: familyKey,
@@ -6717,13 +6717,14 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           ring_pulse_scalar: loopPersonality.ring_pulse_scalar,
           satellite_orbit_scalar: loopPersonality.satellite_orbit_scalar
         });
+        return attachPrimaryActionMeta(enrichedFlow, enrichedFlow, flowContextMeta);
       });
     const primaryMicroflow = asRecord(
       enrichedMicroflows.find((flow) => asRecord(flow).action_context) || enrichedMicroflows[0]
     );
     const podContextMeta = buildInteractionContextMeta(primaryMicroflow, pod);
     const podActionContext = asRecord(podContextMeta.action_context);
-    return applyResolvedActionRiskMeta(pod, podContextMeta, podActionContext, {
+    const enrichedPod = applyResolvedActionRiskMeta(pod, podContextMeta, podActionContext, {
       microflow_cards: enrichedMicroflows,
       context_lookup_required: true,
       context_lookup_resolved: true,
@@ -6731,11 +6732,12 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       contract_missing_keys: podContextMeta.contract_missing_keys,
       action_items: buildContextActionItems(flowPod.action_items, podActionContext)
     });
+    return attachPrimaryActionMeta(enrichedPod, enrichedPod, podContextMeta);
   });
   const primaryPod = asRecord(enrichedFlowPods.find((pod) => asRecord(pod).action_context) || enrichedFlowPods[0]);
   const cardContextMeta = buildInteractionContextMeta(primaryPod, card);
   const cardActionContext = asRecord(cardContextMeta.action_context);
-  return applyResolvedActionRiskMeta(card, cardContextMeta, cardActionContext, {
+  const enrichedCard = applyResolvedActionRiskMeta(card, cardContextMeta, cardActionContext, {
     flow_pods: enrichedFlowPods,
     context_lookup_required: true,
     context_lookup_resolved: true,
@@ -6743,6 +6745,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     contract_missing_keys: cardContextMeta.contract_missing_keys,
     action_items: buildContextActionItems(protocolCard.action_items, cardActionContext)
   });
+  return attachPrimaryActionMeta(enrichedCard, enrichedCard, cardContextMeta);
 });
   const enrichedModalCards = asList(modal.modal_cards).map((card) => {
     const modalCard = asRecord(card);
@@ -6777,7 +6780,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
             : protocolCard.action_items;
     const modalContextMeta = buildInteractionContextMeta(microflow, protocolPod);
     const modalActionContext = asRecord(modalContextMeta.action_context);
-    return applyResolvedActionRiskMeta(card, modalContextMeta, modalActionContext, {
+    const enrichedModalCard = applyResolvedActionRiskMeta(card, modalContextMeta, modalActionContext, {
       protocol_card_key: toText(protocolCard.card_key, ""),
       protocol_pod_key: toText(protocolPod.pod_key, ""),
       action_items: buildContextActionItems(modalCardActionItems, modalActionContext),
@@ -6791,6 +6794,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       contract_ready: modalContextMeta.contract_ready,
       contract_missing_keys: modalContextMeta.contract_missing_keys
     });
+    return attachPrimaryActionMeta(enrichedModalCard, enrichedModalCard, modalContextMeta);
   });
   const primaryModalSource = asRecord(
     enrichedModalCards.find((card) => asRecord(card).action_context) ||

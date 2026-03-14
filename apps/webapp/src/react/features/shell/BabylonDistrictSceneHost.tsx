@@ -207,7 +207,31 @@ type ProtocolCardActionItem = {
   action_context?: ClusterActionItem["action_context"];
 };
 
-type InteractionModalLaneCard = {
+type PrimaryActionSummary = {
+  primary_action_key?: string;
+  primary_action_label_key?: string;
+  primary_action_hint_label_key?: string;
+  primary_family_key?: string;
+  primary_flow_key?: string;
+  primary_microflow_key?: string;
+  primary_focus_key?: string;
+  primary_risk_key?: string;
+  primary_risk_focus_key?: string;
+  primary_risk_health_band_key?: string;
+  primary_risk_attention_band_key?: string;
+  primary_risk_trend_direction_key?: string;
+  primary_entry_kind_key?: string;
+  primary_sequence_kind_key?: string;
+  primary_action_context_signature?: string;
+  primary_risk_context_signature?: string;
+  primary_contract_ready?: boolean;
+  primary_contract_state_key?: string;
+  primary_contract_missing_keys?: string[];
+  primary_action_context?: ClusterActionItem["action_context"];
+  primary_risk_context?: RiskContext;
+};
+
+type InteractionModalLaneCard = PrimaryActionSummary & {
   card_key: string;
   label_key: string;
   value: string;
@@ -235,7 +259,7 @@ type InteractionModalLaneCard = {
   action_context?: ClusterActionItem["action_context"];
 };
 
-type ProtocolCardFlowPod = {
+type ProtocolCardFlowPod = PrimaryActionSummary & {
   pod_key: string;
   label_key: string;
   value: string;
@@ -269,7 +293,7 @@ type ProtocolCardFlowPod = {
   signal_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   flow_rows?: Array<{ label_key: string; value: string; status_key: string }>;
   sequence_rows?: Array<{ label_key: string; value: string; status_key: string }>;
-  microflow_cards?: Array<{
+  microflow_cards?: Array<PrimaryActionSummary & {
     microflow_key: string;
     label_key: string;
     value: string;
@@ -401,7 +425,7 @@ type ProtocolCardFlowPod = {
   action_items?: ProtocolCardActionItem[];
 };
 
-type ProtocolCard = {
+type ProtocolCard = PrimaryActionSummary & {
   card_key: string;
   label_key: string;
   value: string;

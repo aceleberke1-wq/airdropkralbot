@@ -377,6 +377,19 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(state.interaction_modal.modal_cards[0].family_key, "travel");
   assert.equal(state.interaction_modal.modal_cards[0].flow_key, "travel_flow");
+  assert.equal(state.interaction_modal.modal_cards[0].primary_action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
+  assert.equal(state.interaction_modal.modal_cards[0].primary_flow_key, "travel_flow");
+  assert.equal(state.interaction_modal.modal_cards[0].primary_microflow_key, "world_modal_lane_season_arc:travel");
+  assert.equal(state.interaction_modal.modal_cards[0].primary_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.interaction_modal.modal_cards[0].primary_risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(state.interaction_modal.modal_cards[0].primary_entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(state.interaction_modal.modal_cards[0].primary_sequence_kind_key, "world_modal_kind_travel_gate");
+  assert.equal(state.interaction_modal.modal_cards[0].primary_contract_ready, true);
+  assert.equal(state.interaction_modal.modal_cards[0].primary_action_context?.contract_ready, true);
+  assert.equal(state.interaction_modal.modal_cards[0].primary_risk_context?.contract_ready, true);
   assert.equal(state.interaction_modal.modal_cards[0].action_items[0].focus_key, "central_hub:travel:travel_flow");
   assert.equal(
     state.interaction_modal.modal_cards[0].action_items[0].risk_focus_key,
@@ -433,6 +446,19 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].risk_context?.focus_key, "central_hub:travel:travel_flow");
   assert.equal(state.interaction_modal.protocol_cards[0].risk_context?.contract_ready, true);
   assert.deepEqual(state.interaction_modal.protocol_cards[0].risk_context?.contract_missing_keys, []);
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_flow_key, "travel_flow");
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_microflow_key, "world_modal_lane_season_arc:travel");
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].primary_risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_sequence_kind_key, "world_modal_kind_travel_gate");
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_contract_ready, true);
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_action_context?.contract_ready, true);
+  assert.equal(state.interaction_modal.protocol_cards[0].primary_risk_context?.contract_ready, true);
   assert.equal(
     state.interaction_modal.protocol_cards[0].risk_context?.risk_focus_key,
     "central_hub:travel:travel_flow|green:stable:flat"
@@ -462,6 +488,25 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].context_lookup_resolved, true);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].contract_ready, true);
   assert.deepEqual(state.interaction_modal.protocol_cards[0].flow_pods[0].contract_missing_keys, []);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_flow_key, "travel_flow");
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].primary_microflow_key,
+    "world_modal_lane_season_arc:travel"
+  );
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].primary_risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].primary_sequence_kind_key,
+    "world_modal_kind_travel_gate"
+  );
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_contract_ready, true);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_action_context?.contract_ready, true);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].primary_risk_context?.contract_ready, true);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_context?.context_lookup_required, true);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_context?.context_lookup_resolved, true);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_context?.contract_ready, true);
@@ -510,6 +555,46 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_context?.risk_focus_key,
     "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_action_key,
+    SHELL_ACTION_KEY.PLAYER_SEASON_HALL
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_flow_key,
+    "travel_flow"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_microflow_key,
+    "world_modal_lane_season_arc:travel"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_focus_key,
+    "central_hub:travel:travel_flow"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_entry_kind_key,
+    "world_entry_kind_hub_portal"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_sequence_kind_key,
+    "world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_contract_ready,
+    true
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_action_context?.contract_ready,
+    true
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].primary_risk_context?.contract_ready,
+    true
   );
   assert.equal(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_context_signature,
