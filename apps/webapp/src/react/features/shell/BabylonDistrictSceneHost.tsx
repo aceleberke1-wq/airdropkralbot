@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildDistrictWorldState } from "../../../core/runtime/districtWorldState.js";
+import { loadDistrictSceneAssetCatalog, resolveDistrictSceneAssetRows } from "../../../core/runtime/districtSceneAssets.js";
 import { t, type Lang } from "../../i18n";
 
 type BabylonDistrictSceneHostProps = {
@@ -902,6 +903,7 @@ async function loadBabylonSceneModules() {
   const [
     { Engine },
     { Scene },
+    { SceneLoader },
     { ArcRotateCamera },
     { Vector3 },
     { Color3, Color4 },
@@ -913,10 +915,13 @@ async function loadBabylonSceneModules() {
     { CreateTorus },
     { CreateCylinder },
     { CreateSphere },
+    { TransformNode },
+    ,
     { StandardMaterial }
   ] = await Promise.all([
     import("@babylonjs/core/Engines/engine"),
     import("@babylonjs/core/scene"),
+    import("@babylonjs/core/Loading/sceneLoader"),
     import("@babylonjs/core/Cameras/arcRotateCamera"),
     import("@babylonjs/core/Maths/math.vector"),
     import("@babylonjs/core/Maths/math.color"),
@@ -928,6 +933,8 @@ async function loadBabylonSceneModules() {
     import("@babylonjs/core/Meshes/Builders/torusBuilder"),
     import("@babylonjs/core/Meshes/Builders/cylinderBuilder"),
     import("@babylonjs/core/Meshes/Builders/sphereBuilder"),
+    import("@babylonjs/core/Meshes/transformNode"),
+    import("@babylonjs/loaders/glTF"),
     import("@babylonjs/core/Materials/standardMaterial")
   ]);
   return {
@@ -944,7 +951,9 @@ async function loadBabylonSceneModules() {
     HemisphericLight,
     PointLight,
     Scene,
+    SceneLoader,
     StandardMaterial,
+    TransformNode,
     Vector3
   };
 }
@@ -963,6 +972,15 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   const [activeProtocolCardKey, setActiveProtocolCardKey] = useState("");
   const [activeProtocolPodKey, setActiveProtocolPodKey] = useState("");
   const [activeMicroflowKey, setActiveMicroflowKey] = useState("");
+  const [districtAssetSummary, setDistrictAssetSummary] = useState<{
+    selectedCount: number;
+    loadedCount: number;
+    assetKeys: string[];
+  }>({
+    selectedCount: 0,
+    loadedCount: 0,
+    assetKeys: []
+  });
   const worldState = useMemo(
     () =>
       buildDistrictWorldState({
@@ -1629,7 +1647,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           HemisphericLight,
           PointLight,
           Scene,
+          SceneLoader,
           StandardMaterial,
+          TransformNode,
           Vector3
         } = BABYLON;
 
@@ -1792,6 +1812,77 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
           orb.material = material;
           return { orb, baseAngle: angle, material, emissiveBase };
         });
+
+        const districtAssetCatalog = await loadDistrictSceneAssetCatalog();
+        const districtAssetRows = resolveDistrictSceneAssetRows({
+          manifest: districtAssetCatalog?.manifest,
+          selectedBundles: districtAssetCatalog?.selectedBundles,
+          districtKey: worldState.district_key
+        });
+        let loadedDistrictAssetCount = 0;
+        for (const districtAsset of districtAssetRows) {
+          try {
+            const assetUrl = new URL(String(districtAsset.path || ""), window.location.origin);
+            const href = assetUrl.href;
+            const slashIndex = href.lastIndexOf("/");
+            const rootUrl = slashIndex >= 0 ? href.slice(0, slashIndex + 1) : `${window.location.origin}/webapp/assets/`;
+            const fileName = href.slice(slashIndex + 1);
+            if (!fileName) {
+              continue;
+            }
+            const assetRoot = new TransformNode(`akrDistrictAssetRoot-${districtAsset.asset_key}`, scene);
+            assetRoot.position = new Vector3(
+              Number(districtAsset.position?.[0] || 0),
+              Number(districtAsset.position?.[1] || 0),
+              Number(districtAsset.position?.[2] || 0)
+            );
+            assetRoot.rotation = new Vector3(
+              Number(districtAsset.rotation?.[0] || 0),
+              Number(districtAsset.rotation?.[1] || 0),
+              Number(districtAsset.rotation?.[2] || 0)
+            );
+            assetRoot.scaling = new Vector3(
+              Number(districtAsset.scale?.[0] || 1),
+              Number(districtAsset.scale?.[1] || 1),
+              Number(districtAsset.scale?.[2] || 1)
+            );
+            const imported = await SceneLoader.ImportMeshAsync("", rootUrl, fileName, scene);
+            (Array.isArray(imported.transformNodes) ? imported.transformNodes : []).forEach((node: any) => {
+              if (node && !node.parent && node !== assetRoot) {
+                node.parent = assetRoot;
+              }
+            });
+            (Array.isArray(imported.meshes) ? imported.meshes : []).forEach((mesh: any) => {
+              if (mesh && !mesh.parent && mesh !== assetRoot) {
+                mesh.parent = assetRoot;
+              }
+              if (mesh) {
+                mesh.isPickable = false;
+                mesh.metadata = {
+                  districtAsset: true,
+                  district_key: worldState.district_key,
+                  asset_key: districtAsset.asset_key,
+                  candidate_key: districtAsset.candidate_key
+                };
+              }
+            });
+            (Array.isArray(imported.animationGroups) ? imported.animationGroups : []).forEach((group: any) => {
+              if (group?.start) {
+                group.start(true);
+              }
+            });
+            loadedDistrictAssetCount += 1;
+          } catch {
+            // Keep the district scene alive even when one imported GLB fails.
+          }
+        }
+        if (!disposed) {
+          setDistrictAssetSummary({
+            selectedCount: districtAssetRows.length,
+            loadedCount: loadedDistrictAssetCount,
+            assetKeys: districtAssetRows.map((row) => String(row.asset_key || "")).filter(Boolean)
+          });
+        }
 
         const actorHandles = worldState.actors.flatMap((actor) =>
           createDistrictActorHandles({
@@ -2583,6 +2674,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     };
 
     setStatus("idle");
+    setDistrictAssetSummary({ selectedCount: 0, loadedCount: 0, assetKeys: [] });
     void buildScene();
 
     return () => {
@@ -2639,6 +2731,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-active-cluster-slot-count={String(worldState.active_cluster_slot_count || 0)}
       data-active-cluster-slot-ready-count={String(worldState.active_cluster_slot_contract_ready_count || 0)}
       data-active-cluster-slot-contract={worldState.active_cluster_slot_contract_state_key || ""}
+      data-selected-asset-count={String(districtAssetSummary.selectedCount || 0)}
+      data-loaded-asset-count={String(districtAssetSummary.loadedCount || 0)}
+      data-selected-asset-keys={districtAssetSummary.assetKeys.join(",")}
       data-active-cluster-contract-ready={
         typeof worldState.active_cluster_contract_ready === "boolean"
           ? String(worldState.active_cluster_contract_ready)
@@ -2695,6 +2790,11 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         </span>
         {worldState.hud_profile.show_caption ? (
           <span>{t(props.lang, worldState.hud_profile.caption_label_key as never)}</span>
+        ) : null}
+        {districtAssetSummary.selectedCount ? (
+          <span className="akrSceneWorldFocus">
+            {`ASSET ${districtAssetSummary.loadedCount}/${districtAssetSummary.selectedCount} ${districtAssetSummary.assetKeys.join(" · ")}`}
+          </span>
         ) : null}
         {worldState.active_hotspot_label ? (
           <span className="akrSceneWorldFocus">
