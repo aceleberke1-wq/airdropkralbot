@@ -81,12 +81,87 @@ function buildWebappDomainRuntimeLine(summary) {
   return `DOMAIN ${host} | ${stateKey} | WEBAPP ${webappCode} | GUARD ${guardState}`;
 }
 
-function attachRuntimeContractSummary(target, summary) {
+function buildDistrictAssetRuntimeLine(summary) {
+  const row = asRecord(summary);
+  const assetKey = toText(row.asset_key, "");
+  const familyKey = toText(row.asset_family_key, "");
+  const selectedCount = Math.max(0, Math.round(toNum(row.selected_count, 0)));
+  const readyCount = Math.max(0, Math.round(toNum(row.ready_count, 0)));
+  if (!assetKey && !selectedCount) {
+    return "";
+  }
+  return `ASSET ${readyCount}/${selectedCount} ${familyKey || "district"}:${assetKey || "--"} | ${toText(
+    row.asset_state_key,
+    "missing"
+  )}`;
+}
+
+function compareDistrictAssetRuntimeRows(left, right, activeFamilyKey) {
+  const leftFamilyKey = toText(left.family_key, "");
+  const rightFamilyKey = toText(right.family_key, "");
+  const leftStateKey = toText(left.state_key, "");
+  const rightStateKey = toText(right.state_key, "");
+  const leftActive = leftFamilyKey && leftFamilyKey === activeFamilyKey ? 1 : 0;
+  const rightActive = rightFamilyKey && rightFamilyKey === activeFamilyKey ? 1 : 0;
+  const leftReady = leftStateKey === "ready" || left.exists_local !== false ? 1 : 0;
+  const rightReady = rightStateKey === "ready" || right.exists_local !== false ? 1 : 0;
+  return (
+    rightActive - leftActive ||
+    rightReady - leftReady ||
+    leftFamilyKey.localeCompare(rightFamilyKey) ||
+    toText(left.asset_key, "").localeCompare(toText(right.asset_key, ""))
+  );
+}
+
+function readDistrictAssetRuntimeSummary(input = {}, districtKey = "", activeFamilyKey = "") {
+  const data = asRecord(input.data);
+  const localManifest = asRecord(data.local_manifest);
+  const familyRows = asList(localManifest.district_family_asset_rows)
+    .map((row) => asRecord(row))
+    .filter((row) => toText(row.district_key, "") === districtKey);
+  const selectedRows =
+    familyRows.length === 0
+      ? asList(localManifest.selected_bundle_rows)
+          .map((row) => asRecord(row))
+          .filter((row) => toText(row.district_key, "") === districtKey)
+          .map((row) => ({
+            ...row,
+            family_key: toText(row.family_key, activeFamilyKey),
+            state_key: toText(row.state_key, row.downloaded_at ? "ready" : "partial"),
+            exists_local: Boolean(toText(row.downloaded_at, ""))
+          }))
+      : [];
+  const rows = (familyRows.length ? familyRows : selectedRows).sort((left, right) =>
+    compareDistrictAssetRuntimeRows(left, right, activeFamilyKey)
+  );
+  if (!rows.length) {
+    return {};
+  }
+  const activeRow = rows[0];
+  const selectedCount = rows.length;
+  const readyCount = rows.filter((row) => toText(row.state_key, "") === "ready" || row.exists_local !== false).length;
+  const summary = {
+    asset_key: toText(activeRow.asset_key, ""),
+    asset_family_key: toText(activeRow.family_key, activeFamilyKey),
+    asset_candidate_key: toText(activeRow.candidate_key, ""),
+    asset_state_key: toText(activeRow.state_key, activeRow.exists_local !== false ? "ready" : "partial"),
+    selected_count: selectedCount,
+    ready_count: readyCount,
+    contract_ready: Boolean(selectedCount && readyCount)
+  };
+  return {
+    ...summary,
+    line: buildDistrictAssetRuntimeLine(summary)
+  };
+}
+
+function attachRuntimeContractSummary(target, summary, assetSummary = {}) {
   const base = asRecord(target);
   if (!Object.keys(base).length) {
     return target;
   }
   const runtimeSummary = asRecord(summary);
+  const assetRuntimeSummary = asRecord(assetSummary);
   return {
     ...base,
     runtime_summary_host: toText(runtimeSummary.host, ""),
@@ -97,7 +172,19 @@ function attachRuntimeContractSummary(target, summary) {
       typeof runtimeSummary.runtime_guard_matches_host === "boolean"
         ? runtimeSummary.runtime_guard_matches_host
         : undefined,
-    runtime_summary_line: buildWebappDomainRuntimeLine(runtimeSummary)
+    runtime_summary_line: buildWebappDomainRuntimeLine(runtimeSummary),
+    runtime_summary_asset_key: toText(assetRuntimeSummary.asset_key, ""),
+    runtime_summary_asset_family_key: toText(assetRuntimeSummary.asset_family_key, ""),
+    runtime_summary_asset_candidate_key: toText(assetRuntimeSummary.asset_candidate_key, ""),
+    runtime_summary_asset_state_key: toText(assetRuntimeSummary.asset_state_key, ""),
+    runtime_summary_asset_selected_count: Math.max(0, Math.round(toNum(assetRuntimeSummary.selected_count, 0))),
+    runtime_summary_asset_ready_count: Math.max(0, Math.round(toNum(assetRuntimeSummary.ready_count, 0))),
+    runtime_summary_asset_contract_ready:
+      typeof assetRuntimeSummary.contract_ready === "boolean" ? assetRuntimeSummary.contract_ready : undefined,
+    runtime_summary_asset_line: toText(
+      assetRuntimeSummary.line,
+      buildDistrictAssetRuntimeLine(assetRuntimeSummary)
+    )
   };
 }
 
@@ -6706,6 +6793,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     toKeyToken(toText(modal.modal_key, "").split(":")[0], "") ||
     resolveDistrictKey(normalizeWorkspace(input.workspace), normalizeTab(input.tab));
   const webappDomainSummary = readWebappDomainRuntimeSummary(input);
+  const resolveAssetRuntimeSummary = (context) =>
+    readDistrictAssetRuntimeSummary(input, districtKey, toText(asRecord(context).family_key, ""));
   const buildContextActionItems = (items, actionContext) =>
     asList(items).map((item) => {
       const enrichedItem = applyResolvedActionRiskMeta(
@@ -6723,7 +6812,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       );
       return attachRuntimeContractSummary(
         attachPrimaryActionMeta(enrichedItem, enrichedItem, actionContext),
-        webappDomainSummary
+        webappDomainSummary,
+        resolveAssetRuntimeSummary(actionContext)
       );
     });
   const enrichedProtocolCards = modal.protocol_cards.map((card) => {
@@ -6883,7 +6973,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         });
         return attachRuntimeContractSummary(
           attachPrimaryActionMeta(enrichedFlow, enrichedFlow, flowContextMeta),
-          webappDomainSummary
+          webappDomainSummary,
+          resolveAssetRuntimeSummary(flowContextMeta.action_context)
         );
       });
     const primaryMicroflow = asRecord(
@@ -6901,7 +6992,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     });
     return attachRuntimeContractSummary(
       attachPrimaryActionMeta(enrichedPod, enrichedPod, podContextMeta),
-      webappDomainSummary
+      webappDomainSummary,
+      resolveAssetRuntimeSummary(podContextMeta.action_context)
     );
   });
   const primaryPod = asRecord(enrichedFlowPods.find((pod) => asRecord(pod).action_context) || enrichedFlowPods[0]);
@@ -6917,7 +7009,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
   });
   return attachRuntimeContractSummary(
     attachPrimaryActionMeta(enrichedCard, enrichedCard, cardContextMeta),
-    webappDomainSummary
+    webappDomainSummary,
+    resolveAssetRuntimeSummary(cardContextMeta.action_context)
   );
 });
   const enrichedModalCards = asList(modal.modal_cards).map((card) => {
@@ -6969,7 +7062,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     });
     return attachRuntimeContractSummary(
       attachPrimaryActionMeta(enrichedModalCard, enrichedModalCard, modalContextMeta),
-      webappDomainSummary
+      webappDomainSummary,
+      resolveAssetRuntimeSummary(modalContextMeta.action_context)
     );
   });
   const primaryModalSource = asRecord(
@@ -6990,7 +7084,8 @@ function enrichDistrictInteractionModal(interactionModal, input) {
       contract_ready: modalRootContextMeta.contract_ready,
       contract_missing_keys: modalRootContextMeta.contract_missing_keys
     }),
-    webappDomainSummary
+    webappDomainSummary,
+    resolveAssetRuntimeSummary(modalRootContextMeta.action_context)
   );
 }
 
@@ -7030,7 +7125,7 @@ function buildInteractionActionContextLookup(interactionModal) {
   return lookup;
 }
 
-function enrichInteractionActionItems(items, actionContextLookup, runtimeSummary) {
+function enrichInteractionActionItems(items, actionContextLookup, runtimeSummary, assetSummary) {
   return asList(items).map((item) => {
     const record = asRecord(item);
     const actionKey = toText(record.action_key, "");
@@ -7103,7 +7198,8 @@ function enrichInteractionActionItems(items, actionContextLookup, runtimeSummary
     };
     return attachRuntimeContractSummary(
       attachPrimaryActionMeta(enrichedActionItem, enrichedActionItem, resolvedMeta || record),
-      runtimeSummary
+      runtimeSummary,
+      assetSummary
     );
   });
 }
@@ -7175,11 +7271,26 @@ export function buildDistrictWorldState(input = {}) {
     input
   );
   const actionContextLookup = buildInteractionActionContextLookup(interactionModal);
-  const enrichedNodes = enrichInteractionActionItems(nodes, actionContextLookup, webappDomainSummary).map((node) => ({
+  const districtAssetRuntimeSummary = readDistrictAssetRuntimeSummary(
+    input,
+    districtKey,
+    toText(activeCluster?.primary_family_key, activeCluster?.family_key, activeHotspot?.family_key, "")
+  );
+  const enrichedNodes = enrichInteractionActionItems(
+    nodes,
+    actionContextLookup,
+    webappDomainSummary,
+    districtAssetRuntimeSummary
+  ).map((node) => ({
     ...node,
     is_active: node.key === activeNodeKey
   }));
-  const enrichedHotspots = enrichInteractionActionItems(hotspots, actionContextLookup, webappDomainSummary).map((hotspot) => ({
+  const enrichedHotspots = enrichInteractionActionItems(
+    hotspots,
+    actionContextLookup,
+    webappDomainSummary,
+    districtAssetRuntimeSummary
+  ).map((hotspot) => ({
     ...hotspot,
     is_active: hotspot.key === activeHotspotKey
   }));
@@ -7189,8 +7300,18 @@ export function buildDistrictWorldState(input = {}) {
     activeHotspotKey
   ).map((cluster) => ({
     ...cluster,
-    action_items: enrichInteractionActionItems(cluster.action_items, actionContextLookup, webappDomainSummary),
-    intent_slots: enrichInteractionActionItems(cluster.intent_slots, actionContextLookup, webappDomainSummary)
+    action_items: enrichInteractionActionItems(
+      cluster.action_items,
+      actionContextLookup,
+      webappDomainSummary,
+      districtAssetRuntimeSummary
+    ),
+    intent_slots: enrichInteractionActionItems(
+      cluster.intent_slots,
+      actionContextLookup,
+      webappDomainSummary,
+      districtAssetRuntimeSummary
+    )
   }));
   const enrichedActiveHotspot = enrichedHotspots.find((hotspot) => hotspot.key === activeHotspotKey) || null;
   const enrichedActiveCluster = enrichedInteractionClusters.find((cluster) => cluster.is_active) || null;
@@ -7200,7 +7321,8 @@ export function buildDistrictWorldState(input = {}) {
         action_items: enrichInteractionActionItems(
           interactionSurface.action_items,
           actionContextLookup,
-          webappDomainSummary
+          webappDomainSummary,
+          districtAssetRuntimeSummary
         )
       }
     : interactionSurface;
@@ -7210,7 +7332,8 @@ export function buildDistrictWorldState(input = {}) {
         action_items: enrichInteractionActionItems(
           interactionTerminal.action_items,
           actionContextLookup,
-          webappDomainSummary
+          webappDomainSummary,
+          districtAssetRuntimeSummary
         )
       }
     : interactionTerminal;
@@ -7220,7 +7343,8 @@ export function buildDistrictWorldState(input = {}) {
         action_items: enrichInteractionActionItems(
           interactionModal.action_items,
           actionContextLookup,
-          webappDomainSummary
+          webappDomainSummary,
+          districtAssetRuntimeSummary
         )
       }
     : interactionModal;
@@ -7373,32 +7497,51 @@ export function buildDistrictWorldState(input = {}) {
   const primaryRootAction = asRecord(asList(finalInteractionSurfaceBase?.action_items)[0]);
   const primaryTerminalAction = asRecord(asList(finalInteractionTerminalBase?.action_items)[0]);
   const primaryModalAction = asRecord(asList(finalInteractionModalBase?.action_items)[0]);
+  const rootAssetRuntimeSummary = readDistrictAssetRuntimeSummary(
+    input,
+    districtKey,
+    toText(rootInteractionContext.family_key, primaryRootAction.family_key, "")
+  );
+  const terminalAssetRuntimeSummary = readDistrictAssetRuntimeSummary(
+    input,
+    districtKey,
+    toText(primaryTerminalAction.family_key, rootInteractionContext.family_key, "")
+  );
+  const modalAssetRuntimeSummary = readDistrictAssetRuntimeSummary(
+    input,
+    districtKey,
+    toText(primaryModalAction.family_key, rootInteractionContext.family_key, "")
+  );
   const finalInteractionSheet = attachRuntimeContractSummary(
     attachContractCollectionMeta(
       attachPrimaryActionMeta(finalInteractionSheetBase, primaryRootAction, rootInteractionMeta),
       enrichedActiveCluster?.action_items
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    rootAssetRuntimeSummary
   );
   const finalInteractionSurface = attachRuntimeContractSummary(
     attachContractCollectionMeta(
       attachPrimaryActionMeta(finalInteractionSurfaceBase, primaryRootAction, rootInteractionMeta)
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    rootAssetRuntimeSummary
   );
   const finalInteractionFlow = attachRuntimeContractSummary(
     attachContractCollectionMeta(
       attachPrimaryActionMeta(finalInteractionFlowBase, primaryRootAction, rootInteractionMeta),
       finalInteractionSurfaceBase?.action_items
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    rootAssetRuntimeSummary
   );
   const finalInteractionEntry = attachRuntimeContractSummary(
     attachContractCollectionMeta(
       attachPrimaryActionMeta(finalInteractionEntryBase, primaryRootAction, rootInteractionMeta),
       finalInteractionSurfaceBase?.action_items
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    rootAssetRuntimeSummary
   );
   const finalInteractionTerminal = attachRuntimeContractSummary(
     attachContractCollectionMeta(
@@ -7408,7 +7551,8 @@ export function buildDistrictWorldState(input = {}) {
         rootInteractionMeta
       )
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    terminalAssetRuntimeSummary
   );
   const finalInteractionModal = attachRuntimeContractSummary(
     attachContractCollectionMeta(
@@ -7418,7 +7562,8 @@ export function buildDistrictWorldState(input = {}) {
         rootInteractionMeta
       )
     ),
-    webappDomainSummary
+    webappDomainSummary,
+    modalAssetRuntimeSummary
   );
 
   return {

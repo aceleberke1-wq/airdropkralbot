@@ -497,6 +497,14 @@ type SceneActionLike = {
   runtime_summary_contract_ready?: boolean;
   runtime_summary_guard_matches_host?: boolean;
   runtime_summary_line?: string;
+  runtime_summary_asset_key?: string;
+  runtime_summary_asset_family_key?: string;
+  runtime_summary_asset_candidate_key?: string;
+  runtime_summary_asset_state_key?: string;
+  runtime_summary_asset_selected_count?: number;
+  runtime_summary_asset_ready_count?: number;
+  runtime_summary_asset_contract_ready?: boolean;
+  runtime_summary_asset_line?: string;
 };
 
 type ResolvedSceneActionContext = {
@@ -1223,6 +1231,16 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               : worldState.webapp_domain_host
                 ? "match"
                 : "",
+        "data-runtime-summary-asset-key": readSceneActionText(action?.runtime_summary_asset_key),
+        "data-runtime-summary-asset-family": readSceneActionText(action?.runtime_summary_asset_family_key),
+        "data-runtime-summary-asset-state": readSceneActionText(action?.runtime_summary_asset_state_key),
+        "data-runtime-summary-asset-selected-count": readSceneActionText(action?.runtime_summary_asset_selected_count),
+        "data-runtime-summary-asset-ready-count": readSceneActionText(action?.runtime_summary_asset_ready_count),
+        "data-runtime-summary-asset-contract-ready":
+          typeof action?.runtime_summary_asset_contract_ready === "boolean"
+            ? String(action.runtime_summary_asset_contract_ready)
+            : "",
+        "data-runtime-summary-asset-line": readSceneActionText(action?.runtime_summary_asset_line),
         "data-primary-action-key": readSceneActionText(primarySource.action_key) || "",
         "data-primary-family-key": primaryContext.familyKey || "",
         "data-primary-flow-key": primaryContext.flowKey || "",
@@ -1499,10 +1517,18 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         typeof action?.runtime_summary_guard_matches_host === "boolean"
           ? action.runtime_summary_guard_matches_host
           : worldState.webapp_domain_runtime_guard_matches_host !== false;
-      const assetSummary = districtAssetSummary.selectedCount
-        ? `${districtAssetSummary.loadedCount}/${districtAssetSummary.selectedCount} ${districtAssetSummary.activeFamilyKey || "district"}:${districtAssetSummary.activeAssetKey || districtAssetSummary.assetKeys.join(" · ")} | ${districtAssetSummary.activeAnchorKind || "manifest"}`
-        : "0/0 district:-- | manifest";
-      if (!runtimeLine && !domainHost && !districtAssetSummary.selectedCount) {
+      const actionAssetLine = readSceneActionText(action?.runtime_summary_asset_line);
+      const actionAssetSelectedCount = Math.max(0, Number(action?.runtime_summary_asset_selected_count || 0) || 0);
+      const actionAssetContractReady =
+        typeof action?.runtime_summary_asset_contract_ready === "boolean"
+          ? action.runtime_summary_asset_contract_ready
+          : actionAssetSelectedCount > 0;
+      const assetSummary = actionAssetLine
+        ? actionAssetLine
+        : districtAssetSummary.selectedCount
+          ? `${districtAssetSummary.loadedCount}/${districtAssetSummary.selectedCount} ${districtAssetSummary.activeFamilyKey || "district"}:${districtAssetSummary.activeAssetKey || districtAssetSummary.assetKeys.join(" · ")} | ${districtAssetSummary.activeAnchorKind || "manifest"}`
+          : "";
+      if (!runtimeLine && !domainHost && !assetSummary) {
         return null;
       }
       const chips = [
@@ -1526,7 +1552,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         {
           label: t(props.lang, "world_modal_chip_runtime_asset" as never),
           value: assetSummary,
-          tone: districtAssetSummary.selectedCount ? "flow" : "watch"
+          tone: actionAssetLine ? (actionAssetContractReady ? "flow" : "watch") : districtAssetSummary.selectedCount ? "flow" : "watch"
         }
       ].filter(Boolean) as Array<{ label: string; value: string; tone: string }>;
       return (
