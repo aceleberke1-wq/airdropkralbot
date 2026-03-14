@@ -2557,11 +2557,19 @@ async function upsertFeatureFlag(db, { flagKey, enabled, updatedBy, note }) {
 }
 
 async function resolveWebAppVariant(db) {
+  const distIndex = path.join(WEBAPP_DIST_DIR, "index.html");
+  const distAltIndex = path.join(WEBAPP_DIST_DIR, "index.vite.html");
+  if (FLAG_DEFAULTS.WEBAPP_TS_BUNDLE_ENABLED && (fs.existsSync(distIndex) || fs.existsSync(distAltIndex))) {
+    return {
+      source: "dist",
+      rootDir: WEBAPP_DIST_DIR,
+      assetsDir: path.join(WEBAPP_DIST_DIR, "assets"),
+      indexPath: fs.existsSync(distIndex) ? distIndex : distAltIndex
+    };
+  }
   const flags = await loadFeatureFlags(db);
   const tsBundleEnabled = isFeatureEnabled(flags, "WEBAPP_TS_BUNDLE_ENABLED");
   if (tsBundleEnabled) {
-    const distIndex = path.join(WEBAPP_DIST_DIR, "index.html");
-    const distAltIndex = path.join(WEBAPP_DIST_DIR, "index.vite.html");
     if (fs.existsSync(distIndex) || fs.existsSync(distAltIndex)) {
       return {
         source: "dist",
@@ -2577,6 +2585,20 @@ async function resolveWebAppVariant(db) {
     assetsDir: WEBAPP_ASSETS_DIR,
     indexPath: path.join(WEBAPP_DIR, "index.html")
   };
+}
+
+function resolveFastWebAppVariant() {
+  const distIndex = path.join(WEBAPP_DIST_DIR, "index.html");
+  const distAltIndex = path.join(WEBAPP_DIST_DIR, "index.vite.html");
+  if (FLAG_DEFAULTS.WEBAPP_TS_BUNDLE_ENABLED && (fs.existsSync(distIndex) || fs.existsSync(distAltIndex))) {
+    return {
+      source: "dist",
+      rootDir: WEBAPP_DIST_DIR,
+      assetsDir: path.join(WEBAPP_DIST_DIR, "assets"),
+      indexPath: fs.existsSync(distIndex) ? distIndex : distAltIndex
+    };
+  }
+  return null;
 }
 
 function buildWebAppAssetServeRoots(variant) {
@@ -5983,9 +6005,9 @@ fastify.get("/healthz", async () => {
 fastify.get("/health", async () => dependencyHealth());
 
 fastify.get("/webapp", async (request, reply) => {
-  const client = await pool.connect();
+  let client = null;
   try {
-    const variant = await resolveWebAppVariant(client);
+    const variant = resolveFastWebAppVariant() || (client = await pool.connect(), await resolveWebAppVariant(client));
     const indexPath = variant.indexPath || path.join(variant.rootDir, "index.html");
     if (!fs.existsSync(indexPath)) {
       reply.code(404).type("text/plain").send("webapp_not_found");
@@ -5993,15 +6015,17 @@ fastify.get("/webapp", async (request, reply) => {
     }
     reply.type("text/html; charset=utf-8").send(fs.readFileSync(indexPath, "utf8"));
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 });
 
 fastify.get("/webapp/:asset", async (request, reply) => {
   const asset = String(request.params.asset || "");
-  const client = await pool.connect();
+  let client = null;
   try {
-    const variant = await resolveWebAppVariant(client);
+    const variant = resolveFastWebAppVariant() || (client = await pool.connect(), await resolveWebAppVariant(client));
     const legacyAllowed = new Set(["app.js", "styles.css"]);
     if (variant.source === "legacy" && !legacyAllowed.has(asset)) {
       reply.code(404).type("text/plain").send("asset_not_found");
@@ -6021,7 +6045,9 @@ fastify.get("/webapp/:asset", async (request, reply) => {
           : "application/octet-stream";
     reply.type(type).send(fs.readFileSync(filePath, ext === ".js" || ext === ".css" ? "utf8" : undefined));
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 });
 
@@ -6031,9 +6057,9 @@ fastify.get("/webapp/assets/*", async (request, reply) => {
     reply.code(404).type("text/plain").send("asset_not_found");
     return;
   }
-  const client = await pool.connect();
+  let client = null;
   try {
-    const variant = await resolveWebAppVariant(client);
+    const variant = resolveFastWebAppVariant() || (client = await pool.connect(), await resolveWebAppVariant(client));
     const roots = buildWebAppAssetServeRoots(variant);
     const resolved = resolveAssetFileFromRoots(roots, rawPath);
     if (!resolved || !resolved.filePath) {
@@ -6070,7 +6096,9 @@ fastify.get("/webapp/assets/*", async (request, reply) => {
 
     reply.type(contentType).send(fs.readFileSync(filePath));
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 });
 
