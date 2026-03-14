@@ -12,6 +12,7 @@ type AssetManifestStripPayload = {
   badgeTone?: BadgeTone;
   lineText?: string;
   hintText?: string;
+  selectionLineText?: string;
   readyPct?: number;
   integrityPct?: number;
   readyPalette?: string;
@@ -121,6 +122,7 @@ function renderAssetManifest(payload: AssetManifestStripPayload): boolean {
   const badge = byId<HTMLElement>("assetManifestBadge");
   const line = byId<HTMLElement>("assetManifestLine");
   const hint = byId<HTMLElement>("assetManifestHint");
+  const selection = byId<HTMLElement>("assetManifestSelectionLine");
   const readyMeter = byId<HTMLElement>("assetManifestReadyMeter");
   const integrityMeter = byId<HTMLElement>("assetManifestIntegrityMeter");
   if (!host || !badge || !line || !hint || !readyMeter || !integrityMeter) {
@@ -133,6 +135,9 @@ function renderAssetManifest(payload: AssetManifestStripPayload): boolean {
   setBadge(badge, payload.badgeText, payload.badgeTone);
   line.textContent = String(payload.lineText || "");
   hint.textContent = String(payload.hintText || "");
+  if (selection) {
+    selection.textContent = String(payload.selectionLineText || "ACTIVE district asset bekleniyor");
+  }
   setChip(byId("assetManifestSourceChip"), payload.chips?.source);
   setChip(byId("assetManifestRevisionChip"), payload.chips?.revision);
   setChip(byId("assetManifestReadyChip"), payload.chips?.ready);
@@ -170,4 +175,3 @@ export function installPublicTelemetryStripsBridge(): void {
     renderPvpLeaderboard
   };
 }
-

@@ -296,6 +296,12 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
         protocolCardKey: "arena_protocol",
         protocolPodKey: "duel_pod",
         microflowKey: "duel_flow",
+        activeAssetKey: "arena_trophy",
+        activeAssetFamilyKey: "duel",
+        activeAssetAnchorKind: "cluster",
+        activeAssetCandidateKey: "arena_khronos_cesium_man",
+        selectedAssetCount: 4,
+        loadedAssetCount: 4,
         entryKindKey: "world_entry_kind_duel_console",
         sequenceKindKey: "world_modal_kind_duel_sequence",
         personalityKey: "assault",
@@ -327,6 +333,13 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   assert.equal(payloads.sceneStatus.familyKey, "duel");
   assert.equal(payloads.sceneStatus.flowKey, "duel:duel_flow");
   assert.equal(payloads.sceneStatus.microflowKey, "duel_flow");
+  assert.equal(payloads.sceneStatus.assetKey, "arena_trophy");
+  assert.equal(payloads.sceneStatus.assetFamilyKey, "duel");
+  assert.equal(payloads.sceneStatus.assetAnchorKind, "cluster");
+  assert.equal(payloads.sceneStatus.assetCandidateKey, "arena_khronos_cesium_man");
+  assert.equal(payloads.sceneStatus.selectedAssetCount, 4);
+  assert.equal(payloads.sceneStatus.loadedAssetCount, 4);
+  assert.equal(payloads.sceneStatus.assetLine, "ASSET 4/4 | duel:arena_trophy | cluster");
   assert.equal(payloads.sceneStatus.entryKindKey, "world_entry_kind_duel_console");
   assert.equal(payloads.sceneStatus.sequenceKindKey, "world_modal_kind_duel_sequence");
   assert.equal(payloads.sceneStatus.riskHealthBandKey, "no_data");
@@ -380,6 +393,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   });
   assert.equal(payloads.sceneTelemetry.alarm.badgeText, "SCENE WARN");
   assert.equal(payloads.publicTelemetry.assetManifest.badgeText, "ASSET 3/4");
+  assert.equal(payloads.publicTelemetry.assetManifest.selectionLineText, "ACTIVE duel:arena_trophy | 4/4 | cluster");
   assert.equal(payloads.publicTelemetry.pvpLeaderboard.badgeText, "TOP 2");
   assert.equal(payloads.pvpDirector.cinematic.phaseBadgeText, "ACTIVE");
   assert.match(payloads.pvpDirector.loopLineText, /ARENA LOOP/);

@@ -46,6 +46,9 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
           <p id="sceneProfileLine" className="akrBridgeLine">
             -
           </p>
+          <p id="sceneAssetLine" className="akrBridgeHint">
+            ASSET district bundle bekleniyor.
+          </p>
           <p id="sceneLoopLine" className="akrBridgeHint">
             Loop state bekleniyor.
           </p>
@@ -110,6 +113,9 @@ function PlayerBridgeCards(props: { lang: Lang; tab: SceneBridgeDockProps["tab"]
           </p>
           <p id="assetManifestHint" className="akrBridgeHint">
             -
+          </p>
+          <p id="assetManifestSelectionLine" className="akrBridgeHint">
+            ACTIVE district asset bekleniyor
           </p>
           <MeterTrack id="assetManifestReadyMeter" />
           <MeterTrack id="assetManifestIntegrityMeter" />

@@ -61,6 +61,12 @@ type BabylonDistrictSceneHostProps = {
     actorKey?: string;
     clusterKey?: string;
     hotspotKey?: string;
+    activeAssetKey?: string;
+    activeAssetFamilyKey?: string;
+    activeAssetAnchorKind?: string;
+    activeAssetCandidateKey?: string;
+    selectedAssetCount?: number;
+    loadedAssetCount?: number;
     sourceType: string;
   }
     | null) => void;
@@ -982,13 +988,15 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     activeAssetKey: string;
     activeFamilyKey: string;
     activeAnchorKind: string;
+    activeCandidateKey: string;
   }>({
     selectedCount: 0,
     loadedCount: 0,
     assetKeys: [],
     activeAssetKey: "",
     activeFamilyKey: "",
-    activeAnchorKind: ""
+    activeAnchorKind: "",
+    activeCandidateKey: ""
   });
   const worldState = useMemo(
     () =>
@@ -1569,6 +1577,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       personalityCaptionKey: selectedMicroflow.personality_caption_key || undefined,
       personalityBandKey: selectedMicroflow.personality_band_key || undefined,
       densityLabelKey: selectedMicroflow.density_label_key || undefined,
+      activeAssetKey: districtAssetSummary.activeAssetKey || undefined,
+      activeAssetFamilyKey: districtAssetSummary.activeFamilyKey || undefined,
+      activeAssetAnchorKind: districtAssetSummary.activeAnchorKind || undefined,
+      activeAssetCandidateKey: districtAssetSummary.activeCandidateKey || undefined,
+      selectedAssetCount: districtAssetSummary.selectedCount || 0,
+      loadedAssetCount: districtAssetSummary.loadedCount || 0,
       loopRows: Array.isArray(selectedMicroflow.loop_rows) ? selectedMicroflow.loop_rows.slice(0, 3) : [],
       loopSignalRows: Array.isArray(selectedMicroflow.loop_signal_rows) ? selectedMicroflow.loop_signal_rows.slice(0, 2) : [],
       sequenceRows: Array.isArray(selectedMicroflow.sequence_rows) ? selectedMicroflow.sequence_rows.slice(0, 3) : [],
@@ -1585,6 +1599,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     selectedMicroflow,
     selectedProtocolCard,
     selectedProtocolPod,
+    districtAssetSummary.activeAnchorKind,
+    districtAssetSummary.activeAssetKey,
+    districtAssetSummary.activeCandidateKey,
+    districtAssetSummary.activeFamilyKey,
+    districtAssetSummary.loadedCount,
+    districtAssetSummary.selectedCount,
     worldState.active_cluster_key,
     worldState.active_hotspot_key,
     worldState.district_key
@@ -1940,7 +1960,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             assetKeys: districtAssetRows.map((row) => String(row.asset_key || "")).filter(Boolean),
             activeAssetKey: String(activeDistrictAsset?.asset_key || ""),
             activeFamilyKey: String(activeDistrictAsset?.family_key || ""),
-            activeAnchorKind: String(activeDistrictAsset?.anchor_kind || "")
+            activeAnchorKind: String(activeDistrictAsset?.anchor_kind || ""),
+            activeCandidateKey: String(activeDistrictAsset?.candidate_key || "")
           });
         }
 
@@ -2743,7 +2764,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       assetKeys: [],
       activeAssetKey: "",
       activeFamilyKey: "",
-      activeAnchorKind: ""
+      activeAnchorKind: "",
+      activeCandidateKey: ""
     });
     void buildScene();
 

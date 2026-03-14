@@ -19,6 +19,7 @@ export type SceneStatusDeckBridgePayload = {
   chips: SceneDeckChipPayload[];
   profileLine?: string;
   loopLine?: string;
+  assetLine?: string;
   liteBadge?: SceneLiteBadgePayload;
   actionContextSignature?: string;
   riskContextSignature?: string;
@@ -28,6 +29,12 @@ export type SceneStatusDeckBridgePayload = {
   familyKey?: string;
   flowKey?: string;
   microflowKey?: string;
+  assetKey?: string;
+  assetFamilyKey?: string;
+  assetAnchorKind?: string;
+  assetCandidateKey?: string;
+  selectedAssetCount?: number;
+  loadedAssetCount?: number;
   entryKindKey?: string;
   sequenceKindKey?: string;
   riskHealthBandKey?: string;
@@ -154,6 +161,12 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   deck.dataset.familyKey = familyKey;
   deck.dataset.flowKey = flowKey;
   deck.dataset.microflowKey = microflowKey;
+  deck.dataset.assetKey = String(payload.assetKey || "").trim();
+  deck.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
+  deck.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
+  deck.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
+  deck.dataset.selectedAssetCount = String(asNum(payload.selectedAssetCount));
+  deck.dataset.loadedAssetCount = String(asNum(payload.loadedAssetCount));
   deck.dataset.entryKindKey = entryKindKey;
   deck.dataset.sequenceKindKey = sequenceKindKey;
   deck.dataset.riskHealthBandKey = riskHealthBandKey;
@@ -163,6 +176,14 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   const profileLineNode = byId<HTMLElement>("sceneProfileLine");
   if (profileLineNode && payload.profileLine) {
     profileLineNode.textContent = String(payload.profileLine);
+  }
+  const assetLineNode = byId<HTMLElement>("sceneAssetLine");
+  if (assetLineNode) {
+    assetLineNode.textContent = String(payload.assetLine || "ASSET district bundle bekleniyor.");
+    assetLineNode.dataset.assetKey = String(payload.assetKey || "").trim();
+    assetLineNode.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
+    assetLineNode.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
+    assetLineNode.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
   }
   const loopLineNode = byId<HTMLElement>("sceneLoopLine");
   if (loopLineNode) {

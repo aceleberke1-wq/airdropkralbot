@@ -275,6 +275,12 @@ function buildSceneLoopDeckPayload(scene) {
       personalityLabel: "",
       personalityCaption: "",
       densityLabel: "",
+      activeAssetKey: "",
+      activeAssetFamilyKey: "",
+      activeAssetAnchorKind: "",
+      activeAssetCandidateKey: "",
+      selectedAssetCount: 0,
+      loadedAssetCount: 0,
       riskHealthBandKey: "",
       riskAttentionBandKey: "",
       riskTrendDirectionKey: "",
@@ -333,6 +339,15 @@ function buildSceneLoopDeckPayload(scene) {
     personalityLabel,
     personalityCaption,
     densityLabel,
+    activeAssetKey: toText(selectedLoop.activeAssetKey || selectedLoop.active_asset_key, ""),
+    activeAssetFamilyKey: toText(
+      selectedLoop.activeAssetFamilyKey || selectedLoop.active_asset_family_key || selectedLoop.familyKey || selectedLoop.family_key,
+      ""
+    ),
+    activeAssetAnchorKind: toText(selectedLoop.activeAssetAnchorKind || selectedLoop.active_asset_anchor_kind, ""),
+    activeAssetCandidateKey: toText(selectedLoop.activeAssetCandidateKey || selectedLoop.active_asset_candidate_key, ""),
+    selectedAssetCount: Math.max(0, toNum(selectedLoop.selectedAssetCount || selectedLoop.selected_asset_count || 0)),
+    loadedAssetCount: Math.max(0, toNum(selectedLoop.loadedAssetCount || selectedLoop.loaded_asset_count || 0)),
     riskHealthBandKey: toText(
       selectedLoop.riskHealthBandKey || selectedLoop.risk_health_band_key || loopMeta.risk_health_band_key,
       ""
@@ -5137,14 +5152,23 @@ function buildPvpLeaderboardPayload(pvpView) {
   };
 }
 
-function buildAssetManifestStripPayload(assetMetrics) {
+function buildAssetManifestStripPayload(assetMetrics, loopDeck) {
   if (!assetMetrics || toNum(assetMetrics.totalEntries) <= 0) return null;
+  const assetFamilyKey = toText(loopDeck?.activeAssetFamilyKey || loopDeck?.familyKey, "");
+  const assetKey = toText(loopDeck?.activeAssetKey, "");
+  const assetAnchorKind = toText(loopDeck?.activeAssetAnchorKind, "");
+  const selectedCount = Math.max(0, toNum(loopDeck?.selectedAssetCount || 0));
+  const loadedCount = Math.max(0, toNum(loopDeck?.loadedAssetCount || 0));
   return {
     tone: mapRuntimeTone(assetMetrics.tone || "balanced"),
     badgeText: `ASSET ${toNum(assetMetrics.readyEntries)}/${toNum(assetMetrics.totalEntries)}`,
     badgeTone: mapBadgeTone(assetMetrics.tone || "info"),
     lineText: `Missing ${toNum(assetMetrics.missingEntries)} | Integrity ${Math.round(clamp(assetMetrics.integrityRatio) * 100)}%`,
     hintText: `Manifest ${toText(assetMetrics.manifestRevision, "local")} | source ${toText(assetMetrics.sourceMode, "fallback")}`,
+    selectionLineText:
+      assetKey || selectedCount
+        ? `ACTIVE ${assetFamilyKey || "district"}:${assetKey || "--"} | ${loadedCount}/${selectedCount || Math.max(1, loadedCount)} | ${assetAnchorKind || "manifest"}`
+        : "ACTIVE district asset bekleniyor",
     readyPct: Math.round(clamp(assetMetrics.readyRatio) * 100),
     integrityPct: Math.round(clamp(assetMetrics.integrityRatio) * 100),
     readyPalette: mapMeterPalette(assetMetrics.tone || "balanced"),
@@ -6889,6 +6913,10 @@ function buildPlayerBridgePayloads(options = {}) {
     sceneStatus: {
       ...(buildSceneStatusPayload(profileMetrics) || {}),
       loopLine: sceneLoopDeck.lineText,
+      assetLine:
+        sceneLoopDeck.activeAssetKey || sceneLoopDeck.selectedAssetCount
+          ? `ASSET ${sceneLoopDeck.loadedAssetCount}/${Math.max(1, sceneLoopDeck.selectedAssetCount)} | ${sceneLoopDeck.activeAssetFamilyKey || sceneLoopDeck.familyKey || "district"}:${sceneLoopDeck.activeAssetKey || "--"} | ${sceneLoopDeck.activeAssetAnchorKind || "manifest"}`
+          : "ASSET district bundle bekleniyor.",
       actionContext: sceneLoopDeck.actionContext,
       actionContextSignature: sceneLoopDeck.actionContextSignature,
       loopContext: sceneLoopDeck.riskContext,
@@ -6899,6 +6927,12 @@ function buildPlayerBridgePayloads(options = {}) {
       familyKey: sceneLoopDeck.familyKey,
       flowKey: sceneLoopDeck.flowKey,
       microflowKey: sceneLoopDeck.microflowKey,
+      assetKey: sceneLoopDeck.activeAssetKey,
+      assetFamilyKey: sceneLoopDeck.activeAssetFamilyKey,
+      assetAnchorKind: sceneLoopDeck.activeAssetAnchorKind,
+      assetCandidateKey: sceneLoopDeck.activeAssetCandidateKey,
+      selectedAssetCount: sceneLoopDeck.selectedAssetCount,
+      loadedAssetCount: sceneLoopDeck.loadedAssetCount,
       entryKindKey: sceneLoopDeck.entryKindKey,
       sequenceKindKey: sceneLoopDeck.sequenceKindKey,
       riskHealthBandKey: sceneLoopDeck.riskHealthBandKey,
@@ -6907,7 +6941,7 @@ function buildPlayerBridgePayloads(options = {}) {
     },
     sceneTelemetry: buildSceneTelemetryPayload(mutators, telemetryInput),
     publicTelemetry: {
-      assetManifest: buildAssetManifestStripPayload(assetMetrics),
+      assetManifest: buildAssetManifestStripPayload(assetMetrics, sceneLoopDeck),
       pvpLeaderboard: buildPvpLeaderboardPayload(pvpView)
     },
     pvpRadar: pvpRuntimePayloads.radar,
