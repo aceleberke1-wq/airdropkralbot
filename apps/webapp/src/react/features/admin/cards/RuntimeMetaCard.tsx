@@ -74,6 +74,36 @@ function formatAssetRiskFocusSummaryLine(
   )} | ${missingLabel} ${Math.floor(Number(normalizedSummary?.missing_count || 0))}`;
 }
 
+function formatAssetContractSummaryLine(
+  title: string,
+  summary: Record<string, unknown> | null,
+  {
+    rowLabel,
+    readyLabel,
+    partialLabel,
+    missingLabel,
+    domainLabel
+  }: {
+    rowLabel: string;
+    readyLabel: string;
+    partialLabel: string;
+    missingLabel: string;
+    domainLabel?: string;
+  }
+): string {
+  const normalizedSummary = asRecord(summary);
+  const parts = [
+    `${rowLabel} ${Math.floor(Number(normalizedSummary?.row_count || 0))}`,
+    `${readyLabel} ${Math.floor(Number(normalizedSummary?.contract_ready_count || normalizedSummary?.ready_count || 0))}`
+  ];
+  if (domainLabel) {
+    parts.push(`${domainLabel} ${Math.floor(Number(normalizedSummary?.domain_ready_count || 0))}`);
+  }
+  parts.push(`${partialLabel} ${Math.floor(Number(normalizedSummary?.partial_count || 0))}`);
+  parts.push(`${missingLabel} ${Math.floor(Number(normalizedSummary?.missing_count || 0))}`);
+  return `${title}: ${parts.join(" | ")}`;
+}
+
 function renderRiskContextSuffix(row: Record<string, unknown>): string {
   const riskContext = asRecord(row.risk_context) || row;
   const actionContext = asRecord(row.action_context) || row;
@@ -803,6 +833,27 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
       readyLabel: t(props.lang, "admin_runtime_asset_risk_focus_ready"),
       alertLabel: t(props.lang, "admin_runtime_asset_risk_focus_alert"),
       partialLabel: t(props.lang, "admin_runtime_asset_risk_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetFocusSummaryLine = formatAssetContractSummaryLine(
+    t(props.lang, "admin_runtime_asset_family_focus_title"),
+    assetDistrictFamilyAssetFocusSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_family_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_family_focus_ready"),
+      partialLabel: t(props.lang, "admin_runtime_asset_family_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetRuntimeSummaryLine = formatAssetContractSummaryLine(
+    t(props.lang, "admin_runtime_asset_family_runtime_title"),
+    assetDistrictFamilyAssetRuntimeSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_family_runtime_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_family_runtime_ready"),
+      domainLabel: t(props.lang, "admin_runtime_asset_family_runtime_domain"),
+      partialLabel: t(props.lang, "admin_runtime_asset_family_runtime_partial"),
       missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
     }
   );
@@ -1700,6 +1751,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {toPct(Number(sceneRuntimeWorstDay?.ready_rate || 0))} | fail {toPct(Number(sceneRuntimeWorstDay?.failure_rate || 0))} |{" "}
             {String(sceneRuntimeWorstDay?.health_band || "no_data")}
           </p>
+          <p className="akrMutedLine">{assetFocusSummaryLine}</p>
+          <p className="akrMutedLine">{assetRuntimeSummaryLine}</p>
         </div>
         <SceneDailyTrendList title={t(props.lang, "admin_runtime_scene_daily_title")} rows={sceneRuntimeDailyBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_band_title")} rows={sceneRuntimeBandBreakdown} />
