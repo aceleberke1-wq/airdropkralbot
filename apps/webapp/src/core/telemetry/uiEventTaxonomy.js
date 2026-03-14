@@ -1,4 +1,4 @@
-import * as telemetryContract from "../../../../../packages/shared/src/telemetryContract.js";
+import * as telemetryContract from "../shared/telemetryContract.js";
 
 const {
   UI_EVENT_KEY,

@@ -1,4 +1,4 @@
-import * as adminSurfaceActionCatalog from "../../../../../packages/shared/src/adminSurfaceActionCatalog.js";
+import * as adminSurfaceActionCatalog from "../shared/adminSurfaceActionCatalog.js";
 
 const { buildAdminSurfaceActions } = adminSurfaceActionCatalog;
 

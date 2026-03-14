@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolvePlayerShellPanelTarget, resolvePlayerShellPanelTab } from "../../../core/player/shellPanelState.js";
 import { UI_EVENT_KEY, UI_FUNNEL_KEY } from "../../../core/telemetry/uiEventTaxonomy";
-import * as launchEventContract from "../../../../../../packages/shared/src/launchEventContract.js";
+import * as launchEventContract from "../../../core/shared/launchEventContract.js";
 import type { LaunchContext, TabKey } from "../../types";
 
 const { resolveInternalLaunchEventKey } = launchEventContract;

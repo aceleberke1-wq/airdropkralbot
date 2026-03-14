@@ -1,4 +1,4 @@
-import * as playerCommandNavigation from "../../../../../packages/shared/src/playerCommandNavigation.js";
+import * as playerCommandNavigation from "../shared/playerCommandNavigation.js";
 
 const { resolvePlayerCommandNavigation } = playerCommandNavigation;
 

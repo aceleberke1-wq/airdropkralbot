@@ -1,5 +1,5 @@
 import type { TabKey } from "./types";
-import * as localeContract from "../../../../packages/shared/src/localeContract.js";
+import * as localeContract from "../core/shared/localeContract.js";
 
 export type Lang = "tr" | "en";
 const { normalizeLanguage } = localeContract;

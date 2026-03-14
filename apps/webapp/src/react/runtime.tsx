@@ -5,7 +5,7 @@ import { fetchBootstrapV2, readWebAppAuth } from "./api";
 import { normalizeLang } from "./i18n";
 import { ReactWebAppV1 } from "./App";
 import { appStore } from "./redux/store";
-import * as navigationContract from "../../../../packages/shared/src/navigationContract.js";
+import * as navigationContract from "../core/shared/navigationContract.js";
 
 const { decodeStartAppPayload, resolveLaunchTarget } = navigationContract;
 

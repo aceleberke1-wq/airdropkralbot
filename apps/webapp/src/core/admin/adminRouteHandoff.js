@@ -1,6 +1,6 @@
-import * as navigationContract from "../../../../../packages/shared/src/navigationContract.js";
-import * as launchEventContract from "../../../../../packages/shared/src/launchEventContract.js";
-import * as shellActionCatalog from "../../../../../packages/shared/src/shellActionCatalog.js";
+import * as navigationContract from "../shared/navigationContract.js";
+import * as launchEventContract from "../shared/launchEventContract.js";
+import * as shellActionCatalog from "../shared/shellActionCatalog.js";
 
 const { CANONICAL_WORKSPACE_KEY, resolveLaunchTarget } = navigationContract;
 const { resolveInternalLaunchEventKey } = launchEventContract;

@@ -1,5 +1,5 @@
-import * as playerCommandNavigation from "../../../../../packages/shared/src/playerCommandNavigation.js";
-import * as playerSurfaceActionCatalog from "../../../../../packages/shared/src/playerSurfaceActionCatalog.js";
+import * as playerCommandNavigation from "../shared/playerCommandNavigation.js";
+import * as playerSurfaceActionCatalog from "../shared/playerSurfaceActionCatalog.js";
 
 const { resolvePlayerCommandActionKey, resolvePlayerCommandNavigation } = playerCommandNavigation;
 const { buildPlayerSurfaceActions } = playerSurfaceActionCatalog;
