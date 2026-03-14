@@ -21,6 +21,7 @@ export type AdminAssetRuntimeBridgePayload = {
   signalLineText: string;
   selectionLineText?: string;
   domainLineText?: string;
+  riskLineText?: string;
   focusLineText?: string;
   chips: LiveChipPayload[];
   meters: MeterPayload[];
@@ -100,6 +101,7 @@ function render(payload: AdminAssetRuntimeBridgePayload): boolean {
   const signalLine = byId<HTMLElement>("adminAssetSignalLine");
   const selectionLine = byId<HTMLElement>("adminAssetSelectionLine");
   const domainLine = byId<HTMLElement>("adminAssetDomainLine");
+  const riskLine = byId<HTMLElement>("adminAssetRiskLine");
   const focusLine = byId<HTMLElement>("adminAssetFocusLine");
   if (!host || !signalLine) {
     return false;
@@ -113,6 +115,9 @@ function render(payload: AdminAssetRuntimeBridgePayload): boolean {
   }
   if (domainLine) {
     domainLine.textContent = String(payload.domainLineText || "DOMAIN telemetry bekleniyor.");
+  }
+  if (riskLine) {
+    riskLine.textContent = String(payload.riskLineText || "RISK district asset bekleniyor.");
   }
   if (focusLine) {
     focusLine.textContent = String(payload.focusLineText || "FOCUS district asset bekleniyor.");

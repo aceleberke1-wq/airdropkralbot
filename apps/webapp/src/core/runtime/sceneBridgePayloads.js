@@ -2,6 +2,7 @@ import { buildPvpLiveViewModel } from "../player/pvpLiveViewModel.js";
 import { buildHomeFeedViewModel } from "../player/homeFeedViewModel.js";
 import { buildTasksViewModel } from "../player/tasksViewModel.js";
 import { buildVaultViewModel } from "../player/vaultViewModel.js";
+import { buildAssetRiskFocusRows, summarizeAssetRiskFocusRows } from "../admin/assetRuntimeRiskFocus.js";
 
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -6795,6 +6796,7 @@ function buildAdminRuntimePayload(adminRuntime, adminPanels, scene) {
 
 function buildAdminAssetStatusPayload(adminPanels) {
   const assets = asRecord(adminPanels?.assets);
+  const metrics = asRecord(adminPanels?.metrics);
   const summary = asRecord(assets.summary);
   const localManifest = asRecord(assets.local_manifest);
   const familyAssetSummary = asRecord(localManifest.district_family_asset_summary);
@@ -6803,6 +6805,8 @@ function buildAdminAssetStatusPayload(adminPanels) {
   const familyAssetFocusRows = asArray(localManifest.district_family_asset_focus_rows).map((row) => asRecord(row));
   const familyAssetRuntimeSummary = asRecord(localManifest.district_family_asset_runtime_summary);
   const familyAssetRuntimeRows = asArray(localManifest.district_family_asset_runtime_rows).map((row) => asRecord(row));
+  const assetRiskFocusRows = buildAssetRiskFocusRows({ metrics, localManifest, limit: 5 });
+  const assetRiskFocusSummary = summarizeAssetRiskFocusRows(assetRiskFocusRows);
   const selectedBundleSummary = asRecord(localManifest.selected_bundle_summary);
   const selectedBundleRows = asArray(localManifest.selected_bundle_rows).map((row) => asRecord(row));
   const selectedByDistrict = new Map(
@@ -6824,6 +6828,17 @@ function buildAdminAssetStatusPayload(adminPanels) {
       meta: `bundle ${readyCount}/${assetCount} | intake ${candidateCount} | mode ${toText(asArray(item.ingest_modes)[0] || "--")}${selectedAsset ? ` | ${selectedFamily}:${selectedAsset}` : ""}`,
       chip: stateKey.toUpperCase(),
       tone: stateKey === "ready" ? "ready" : "missing"
+    };
+  });
+  const familyRiskRows = assetRiskFocusRows.slice(0, 5).map((row) => {
+    const stateKey = toText(row.combined_state_key || row.runtime_state_key || "missing", "missing").toLowerCase();
+    return {
+      title: toText(row.focus_key || `${toText(row.district_key)}:${toText(row.family_key)}:${toText(row.asset_key)}`, "asset"),
+      meta: `HB ${toText(row.risk_health_band_key || "--").toUpperCase()} | ATTN ${toText(row.risk_attention_band_key || "--").toUpperCase()} | TREND ${toText(
+        row.risk_trend_direction_key || "--"
+      ).toUpperCase()} | ${toText(row.asset_risk_contract_signature || "--")}`,
+      chip: stateKey.toUpperCase(),
+      tone: stateKey === "missing" ? "missing" : stateKey === "partial" ? "watch" : stateKey === "intake_ready" ? "balanced" : "ready"
     };
   });
   const familyRuntimeRows = familyAssetRuntimeRows.slice(0, 5).map((row) => {
@@ -6875,9 +6890,13 @@ function buildAdminAssetStatusPayload(adminPanels) {
       toNum(familyAssetFocusSummary.contract_ready_count || familyAssetFocusSummary.row_count)
     )}/${Math.round(toNum(familyAssetFocusSummary.row_count))} | runtime ${Math.round(
       toNum(familyAssetRuntimeSummary.contract_ready_count || familyAssetRuntimeSummary.row_count)
-    )}/${Math.round(toNum(familyAssetRuntimeSummary.row_count))} | missing ${Math.round(toNum(summary.missing_assets))}`,
+    )}/${Math.round(toNum(familyAssetRuntimeSummary.row_count))} | risk ${Math.round(
+      toNum(assetRiskFocusSummary.contract_ready_count || assetRiskFocusSummary.row_count)
+    )}/${Math.round(toNum(assetRiskFocusSummary.row_count))} | missing ${Math.round(toNum(summary.missing_assets))}`,
     revisionLineText: `Manifest: ${toText(activeManifest.manifest_revision || activeManifest.state_json?.manifest_revision || "local")} | updated ${toText(activeManifest.updated_at, "-")}`,
-    rows: familyRuntimeRows.length
+    rows: familyRiskRows.length
+      ? familyRiskRows.concat(familyRuntimeRows, familyFocusRows, familyRows, districtRows, fileRows).slice(0, 8)
+      : familyRuntimeRows.length
       ? familyRuntimeRows.concat(familyFocusRows, familyRows, districtRows, fileRows).slice(0, 8)
       : familyFocusRows.length
       ? familyFocusRows.concat(familyRows, districtRows, fileRows).slice(0, 8)
@@ -6892,6 +6911,7 @@ function buildAdminAssetStatusPayload(adminPanels) {
 
 function buildAdminAssetRuntimePayload(mutators, adminPanels) {
   const assets = asRecord(adminPanels?.assets);
+  const kpiMetrics = asRecord(adminPanels?.metrics);
   const localManifest = asRecord(assets.local_manifest);
   const webappDomainSummary = asRecord(localManifest.webapp_domain_summary);
   const districtBundleSummary = asRecord(localManifest.district_bundle_summary);
@@ -6904,6 +6924,8 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
   const familyAssetRows = asArray(localManifest.district_family_asset_rows).map((row) => asRecord(row));
   const familyAssetFocusRows = asArray(localManifest.district_family_asset_focus_rows).map((row) => asRecord(row));
   const familyAssetRuntimeRows = asArray(localManifest.district_family_asset_runtime_rows).map((row) => asRecord(row));
+  const assetRiskFocusRows = buildAssetRiskFocusRows({ metrics: kpiMetrics, localManifest, limit: 5 });
+  const assetRiskFocusSummary = summarizeAssetRiskFocusRows(assetRiskFocusRows);
   const rows = asArray(localManifest.rows).map((row) => ({
     asset_key: toText(asRecord(row).asset_key || "asset"),
     exists_local: asRecord(row).exists !== false,
@@ -6917,7 +6939,13 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
       summary: asRecord(assets.summary)
     }
   });
-  const selectedSummaryText = familyAssetRuntimeRows.length
+  const selectedSummaryText = assetRiskFocusRows.length
+    ? assetRiskFocusRows
+        .slice(0, 3)
+        .map((row) => `${toText(row.focus_key || "--")}:${toText(row.combined_state_key || row.runtime_state_key || "--")}`)
+        .filter(Boolean)
+        .join(" | ")
+    : familyAssetRuntimeRows.length
     ? familyAssetRuntimeRows
         .slice(0, 3)
         .map((row) => `${toText(row.focus_key || "--")}:${toText(row.runtime_state_key || row.state_key || "--")}`)
@@ -6942,6 +6970,8 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
     .join(" | ");
   const focusDistrict = districtBundleRows.find((row) => toText(row.state_key) === "ready") || districtBundleRows[0] || {};
   const focusSelectedRow =
+    assetRiskFocusRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) ||
+    assetRiskFocusRows[0] ||
     familyAssetRuntimeRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) ||
     familyAssetRuntimeRows[0] ||
     familyAssetFocusRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) ||
@@ -6961,9 +6991,14 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
     tone: mapRuntimeTone(metrics.tone || "balanced"),
     readyRatio: clamp(metrics.readyRatio),
     syncRatio: clamp(metrics.integrityRatio),
-    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))} | Family ${Math.round(toNum(familyAssetSummary.ready_count || familyAssetSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetSummary.row_count)))} | Focus ${Math.round(toNum(familyAssetFocusSummary.contract_ready_count || familyAssetFocusSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetFocusSummary.row_count)))} | Runtime ${Math.round(toNum(familyAssetRuntimeSummary.contract_ready_count || familyAssetRuntimeSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetRuntimeSummary.row_count)))}`,
+    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))} | Family ${Math.round(toNum(familyAssetSummary.ready_count || familyAssetSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetSummary.row_count)))} | Focus ${Math.round(toNum(familyAssetFocusSummary.contract_ready_count || familyAssetFocusSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetFocusSummary.row_count)))} | Runtime ${Math.round(toNum(familyAssetRuntimeSummary.contract_ready_count || familyAssetRuntimeSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetRuntimeSummary.row_count)))} | Risk ${Math.round(toNum(assetRiskFocusSummary.contract_ready_count || assetRiskFocusSummary.row_count))}/${Math.max(1, Math.round(toNum(assetRiskFocusSummary.row_count)))}`,
     selectionLineText: selectedSummaryText ? `SELECT ${selectedSummaryText}` : "SELECT bundle telemetry bekleniyor",
     domainLineText,
+    riskLineText: toText(focusSelectedRow.asset_key)
+      ? `RISK ${toText(focusSelectedRow.focus_key || "--")} | ${toText(focusSelectedRow.risk_key || "--")} | FLOW ${toText(
+          focusSelectedRow.flow_key || "--"
+        )} | ${toText(focusSelectedRow.asset_risk_contract_signature || focusSelectedRow.risk_context_signature || "--")}`
+      : "RISK district asset bekleniyor",
     focusLineText: toText(focusSelectedRow.asset_key)
       ? `FOCUS ${toText(focusSelectedRow.focus_key || `${toText(focusSelectedRow.district_key || "--")}:${toText(focusSelectedRow.family_key || "--")}:${toText(focusSelectedRow.asset_key || "--")}`)} | ${toText(focusSelectedRow.runtime_state_key || focusSelectedRow.state_key || "--")} | HOST ${toText(focusSelectedRow.domain_state_key || domainStateKey || "--")} | ${toText(
           focusSelectedRow.runtime_contract_signature ||
@@ -6985,6 +7020,18 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
         level: clamp(
           toNum(familyAssetRuntimeSummary.row_count)
             ? toNum(familyAssetRuntimeSummary.contract_ready_count) / Math.max(1, toNum(familyAssetRuntimeSummary.row_count))
+          : 0
+        )
+      },
+      {
+        id: "adminAssetRiskChip",
+        text: `RISK ${Math.round(toNum(assetRiskFocusSummary.contract_ready_count || assetRiskFocusSummary.row_count))}/${Math.round(toNum(assetRiskFocusSummary.row_count))}`,
+        tone: mapRuntimeTone(
+          toNum(assetRiskFocusSummary.alert_count) > 0 ? "critical" : toNum(assetRiskFocusSummary.partial_count) > 0 ? "pressure" : "advantage"
+        ),
+        level: clamp(
+          toNum(assetRiskFocusSummary.row_count)
+            ? toNum(assetRiskFocusSummary.contract_ready_count) / Math.max(1, toNum(assetRiskFocusSummary.row_count))
             : 0
         )
       },

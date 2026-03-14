@@ -1333,6 +1333,84 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
     adminPanels: {
       deploy_status: { bundle_mode: "react_only" },
       runtime_bot: { latest: { state_key: "running", lock_acquired: true } },
+      metrics: {
+        scene_loop_district_family_attention_priority_7d: [
+          {
+            district_key: "exchange_district",
+            loop_family_key: "wallet",
+            focus_key: "exchange_district:wallet_link:wallet",
+            flow_key: "wallet_link:wallet",
+            risk_key: "red:alert:no_data",
+            risk_focus_key: "exchange_district:wallet_link:wallet|red:alert:no_data",
+            latest_health_band: "red",
+            attention_band: "alert",
+            trend_direction: "no_data",
+            priority_score: 3500,
+            contract_ready: true,
+            risk_context: {
+              family_key: "wallet",
+              microflow_key: "wallet",
+              flow_key: "wallet_link:wallet",
+              focus_key: "exchange_district:wallet_link:wallet",
+              risk_key: "red:alert:no_data",
+              risk_focus_key: "exchange_district:wallet_link:wallet|red:alert:no_data",
+              risk_health_band_key: "red",
+              risk_attention_band_key: "alert",
+              risk_trend_direction_key: "no_data",
+              risk_context_signature:
+                "wallet_link:wallet|exchange_district:wallet_link:wallet|red:alert:no_data|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal",
+              contract_ready: true
+            },
+            action_context: {
+              family_key: "wallet",
+              microflow_key: "wallet",
+              flow_key: "wallet_link:wallet",
+              focus_key: "exchange_district:wallet_link:wallet",
+              entry_kind_key: "world_entry_kind_wallet_terminal",
+              sequence_kind_key: "world_modal_kind_wallet_terminal",
+              action_context_signature:
+                "wallet_link:wallet|exchange_district:wallet_link:wallet|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal"
+            }
+          },
+          {
+            district_key: "arena_prime",
+            loop_family_key: "duel",
+            focus_key: "arena_prime:duel_sync:duel",
+            flow_key: "duel_sync:duel",
+            risk_key: "yellow:watch:improving",
+            risk_focus_key: "arena_prime:duel_sync:duel|yellow:watch:improving",
+            latest_health_band: "yellow",
+            attention_band: "watch",
+            trend_direction: "improving",
+            priority_score: 2100,
+            contract_ready: true,
+            risk_context: {
+              family_key: "duel",
+              microflow_key: "duel",
+              flow_key: "duel_sync:duel",
+              focus_key: "arena_prime:duel_sync:duel",
+              risk_key: "yellow:watch:improving",
+              risk_focus_key: "arena_prime:duel_sync:duel|yellow:watch:improving",
+              risk_health_band_key: "yellow",
+              risk_attention_band_key: "watch",
+              risk_trend_direction_key: "improving",
+              risk_context_signature:
+                "duel_sync:duel|arena_prime:duel_sync:duel|yellow:watch:improving|world_entry_kind_duel_console|world_modal_kind_duel_sequence",
+              contract_ready: true
+            },
+            action_context: {
+              family_key: "duel",
+              microflow_key: "duel",
+              flow_key: "duel_sync:duel",
+              focus_key: "arena_prime:duel_sync:duel",
+              entry_kind_key: "world_entry_kind_duel_console",
+              sequence_kind_key: "world_modal_kind_duel_sequence",
+              action_context_signature:
+                "duel_sync:duel|arena_prime:duel_sync:duel|world_entry_kind_duel_console|world_modal_kind_duel_sequence"
+            }
+          }
+        ]
+      },
       assets: {
         summary: { ready_assets: 3, total_assets: 4, missing_assets: 1, integrity_ratio: 0.75 },
         active_manifest: { manifest_revision: "rev_42", updated_at: "2099-03-10T12:00:00.000Z" },
@@ -1733,10 +1811,10 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.assetStatus.rows[0].title, "exchange_district:wallet:exchange_artifact");
   assert.match(
     payloads.assetStatus.rows[0].meta,
-    /exchange_district:wallet:exchange_artifact\|partial\|ready\|guard_match\|exchange_khronos_damaged_helmet/i
+    /HB RED \| ATTN ALERT \| TREND NO_DATA \| exchange_district:wallet:exchange_artifact\|partial\|ready\|guard_match\|exchange_khronos_damaged_helmet\|exchange_district:wallet_link:wallet\|red:alert:no_data/i
   );
   assert.equal(payloads.assetStatus.rows[1].title, "arena_prime:duel:arena_trophy");
-  assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Bundles 1/2 | Family 1/2 | Focus 1/2 | Runtime 1/2");
+  assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Bundles 1/2 | Family 1/2 | Focus 1/2 | Runtime 1/2 | Risk 1/2");
   assert.equal(
     payloads.assetRuntime.selectionLineText,
     "SELECT exchange_district:wallet:exchange_artifact:partial | arena_prime:duel:arena_trophy:ready"
@@ -1746,13 +1824,18 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
     "DOMAIN webapp.k99-exchange.xyz | READY | HEALTH 200 | WEBAPP 200 | TARGET airdropkral-admin.onrender.com"
   );
   assert.equal(
+    payloads.assetRuntime.riskLineText,
+    "RISK arena_prime:duel:arena_trophy | yellow:watch:improving | FLOW duel_sync:duel | arena_prime:duel:arena_trophy|ready|ready|guard_match|arena_khronos_cesium_man|arena_prime:duel_sync:duel|yellow:watch:improving|duel_sync:duel"
+  );
+  assert.equal(
     payloads.assetRuntime.focusLineText,
     "FOCUS arena_prime:duel:arena_trophy | ready | HOST ready | arena_prime:duel:arena_trophy|ready|ready|guard_match|arena_khronos_cesium_man"
   );
-  assert.equal(payloads.assetRuntime.chips.length, 6);
+  assert.equal(payloads.assetRuntime.chips.length, 7);
   assert.equal(payloads.assetRuntime.chips[2].text, "DIST 1/2");
   assert.equal(payloads.assetRuntime.chips[3].text, "FOCUS 1/2");
-  assert.equal(payloads.assetRuntime.chips[4].text, "HOST READY");
+  assert.equal(payloads.assetRuntime.chips[4].text, "RISK 1/2");
+  assert.equal(payloads.assetRuntime.chips[5].text, "HOST READY");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");
   assert.equal(payloads.auditRuntime.chips.length, 4);
 });

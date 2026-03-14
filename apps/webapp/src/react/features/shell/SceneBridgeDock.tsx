@@ -1738,6 +1738,9 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <p id="adminAssetDomainLine" className="akrBridgeHint">
               -
             </p>
+            <p id="adminAssetRiskLine" className="akrBridgeHint">
+              -
+            </p>
             <p id="adminAssetFocusLine" className="akrBridgeHint">
               -
             </p>
@@ -1747,6 +1750,7 @@ function AdminBridgeCards(props: { lang: Lang }) {
               <BridgeChip id="adminAssetReadyChip" />
               <BridgeChip id="adminAssetSyncChip" />
               <BridgeChip id="adminAssetDistrictChip" />
+              <BridgeChip id="adminAssetRiskChip" />
               <BridgeChip id="adminAssetHostChip" />
               <BridgeChip id="adminAssetRevisionChip" />
             </div>
