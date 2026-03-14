@@ -856,6 +856,25 @@ function attachPrimaryActionMeta(target, action, fallback = {}) {
   };
 }
 
+function attachContractCollectionMeta(target, items) {
+  const base = asRecord(target);
+  if (!Object.keys(base).length) {
+    return target;
+  }
+  const summary = buildSceneContractCollectionMeta(
+    Array.isArray(items) ? items : asList(base.action_items)
+  );
+  const existingActionCount = toNum(base.action_count, Number.NaN);
+  return {
+    ...base,
+    action_count: Number.isFinite(existingActionCount) ? existingActionCount : summary.total_count,
+    action_contract_ready_count: summary.contract_ready_count,
+    action_contract_missing_count: summary.contract_missing_count,
+    action_context_resolved_count: summary.context_resolved_count,
+    action_contract_state_key: summary.contract_state_key
+  };
+}
+
 function resolveDistrictLabelKey(districtKey) {
   switch (districtKey) {
     case "arena_prime":
@@ -7247,27 +7266,34 @@ export function buildDistrictWorldState(input = {}) {
   const primaryRootAction = asRecord(asList(finalInteractionSurfaceBase?.action_items)[0]);
   const primaryTerminalAction = asRecord(asList(finalInteractionTerminalBase?.action_items)[0]);
   const primaryModalAction = asRecord(asList(finalInteractionModalBase?.action_items)[0]);
-  const finalInteractionSheet = attachPrimaryActionMeta(finalInteractionSheetBase, primaryRootAction, rootInteractionMeta);
-  const finalInteractionSurface = attachPrimaryActionMeta(
-    finalInteractionSurfaceBase,
-    primaryRootAction,
-    rootInteractionMeta
+  const finalInteractionSheet = attachContractCollectionMeta(
+    attachPrimaryActionMeta(finalInteractionSheetBase, primaryRootAction, rootInteractionMeta),
+    enrichedActiveCluster?.action_items
   );
-  const finalInteractionFlow = attachPrimaryActionMeta(finalInteractionFlowBase, primaryRootAction, rootInteractionMeta);
-  const finalInteractionEntry = attachPrimaryActionMeta(
-    finalInteractionEntryBase,
-    primaryRootAction,
-    rootInteractionMeta
+  const finalInteractionSurface = attachContractCollectionMeta(
+    attachPrimaryActionMeta(finalInteractionSurfaceBase, primaryRootAction, rootInteractionMeta)
   );
-  const finalInteractionTerminal = attachPrimaryActionMeta(
-    finalInteractionTerminalBase,
-    toText(primaryTerminalAction.action_key, "") ? primaryTerminalAction : primaryRootAction,
-    rootInteractionMeta
+  const finalInteractionFlow = attachContractCollectionMeta(
+    attachPrimaryActionMeta(finalInteractionFlowBase, primaryRootAction, rootInteractionMeta),
+    finalInteractionSurfaceBase?.action_items
   );
-  const finalInteractionModal = attachPrimaryActionMeta(
-    finalInteractionModalBase,
-    toText(primaryModalAction.action_key, "") ? primaryModalAction : primaryRootAction,
-    rootInteractionMeta
+  const finalInteractionEntry = attachContractCollectionMeta(
+    attachPrimaryActionMeta(finalInteractionEntryBase, primaryRootAction, rootInteractionMeta),
+    finalInteractionSurfaceBase?.action_items
+  );
+  const finalInteractionTerminal = attachContractCollectionMeta(
+    attachPrimaryActionMeta(
+      finalInteractionTerminalBase,
+      toText(primaryTerminalAction.action_key, "") ? primaryTerminalAction : primaryRootAction,
+      rootInteractionMeta
+    )
+  );
+  const finalInteractionModal = attachContractCollectionMeta(
+    attachPrimaryActionMeta(
+      finalInteractionModalBase,
+      toText(primaryModalAction.action_key, "") ? primaryModalAction : primaryRootAction,
+      rootInteractionMeta
+    )
   );
 
   return {

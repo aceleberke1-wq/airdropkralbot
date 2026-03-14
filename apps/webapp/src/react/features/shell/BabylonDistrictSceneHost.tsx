@@ -460,6 +460,11 @@ type ProtocolCard = PrimaryActionSummary & {
 
 type SceneActionLike = {
   [key: string]: unknown;
+  action_count?: number;
+  action_contract_ready_count?: number;
+  action_contract_missing_count?: number;
+  action_context_resolved_count?: number;
+  action_contract_state_key?: string;
   risk_context?: RiskContext;
   action_context?: ClusterActionItem["action_context"];
   family_key?: string;
@@ -1124,6 +1129,21 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       const primaryContext = resolveSceneActionContext(primarySource);
       const contractReady = isStrictSceneActionContractReady(context);
       return {
+        "data-action-count":
+          typeof action?.action_count === "number" ? String(action.action_count) : "",
+        "data-action-ready-count":
+          typeof action?.action_contract_ready_count === "number"
+            ? String(action.action_contract_ready_count)
+            : "",
+        "data-action-missing-count":
+          typeof action?.action_contract_missing_count === "number"
+            ? String(action.action_contract_missing_count)
+            : "",
+        "data-action-context-resolved-count":
+          typeof action?.action_context_resolved_count === "number"
+            ? String(action.action_context_resolved_count)
+            : "",
+        "data-action-contract-state": readSceneActionText(action?.action_contract_state_key),
         "data-family-key": context.familyKey || "",
         "data-flow-key": context.flowKey || "",
         "data-microflow-key": context.microflowKey || "",

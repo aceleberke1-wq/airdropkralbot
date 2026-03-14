@@ -776,6 +776,21 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.active_cluster_slot_contract_missing_count, 0);
   assert.equal(state.active_cluster_slot_context_resolved_count, 2);
   assert.equal(state.active_cluster_slot_contract_state_key, "ready");
+  assert.equal(state.interaction_sheet.action_count, 2);
+  assert.equal(state.interaction_sheet.action_contract_ready_count, 2);
+  assert.equal(state.interaction_sheet.action_contract_missing_count, 0);
+  assert.equal(state.interaction_sheet.action_context_resolved_count, 2);
+  assert.equal(state.interaction_sheet.action_contract_state_key, "ready");
+  assert.equal(state.interaction_surface.action_contract_ready_count, 2);
+  assert.equal(state.interaction_surface.action_contract_state_key, "ready");
+  assert.equal(state.interaction_flow.action_contract_ready_count, 2);
+  assert.equal(state.interaction_flow.action_contract_state_key, "ready");
+  assert.equal(state.interaction_entry.action_contract_ready_count, 2);
+  assert.equal(state.interaction_entry.action_contract_state_key, "ready");
+  assert.equal(state.interaction_terminal.action_contract_ready_count, 2);
+  assert.equal(state.interaction_terminal.action_contract_state_key, "ready");
+  assert.equal(state.interaction_modal.action_contract_ready_count, 2);
+  assert.equal(state.interaction_modal.action_contract_state_key, "ready");
   assert.equal(state.actors.length, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
@@ -1593,6 +1608,21 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_cluster_slot_contract_ready_count, 1);
   assert.equal(state.active_cluster_slot_contract_missing_count, 1);
   assert.equal(state.active_cluster_slot_contract_state_key, "partial");
+  assert.equal(state.interaction_sheet.action_count, 2);
+  assert.equal(state.interaction_sheet.action_contract_ready_count, 1);
+  assert.equal(state.interaction_sheet.action_contract_missing_count, 1);
+  assert.equal(state.interaction_sheet.action_context_resolved_count, 2);
+  assert.equal(state.interaction_sheet.action_contract_state_key, "partial");
+  assert.equal(state.interaction_surface.action_contract_ready_count, 1);
+  assert.equal(state.interaction_surface.action_contract_state_key, "partial");
+  assert.equal(state.interaction_flow.action_contract_ready_count, 1);
+  assert.equal(state.interaction_flow.action_contract_state_key, "partial");
+  assert.equal(state.interaction_entry.action_contract_ready_count, 1);
+  assert.equal(state.interaction_entry.action_contract_state_key, "partial");
+  assert.equal(state.interaction_terminal.action_contract_ready_count, 1);
+  assert.equal(state.interaction_terminal.action_contract_state_key, "partial");
+  assert.equal(state.interaction_modal.action_contract_ready_count, 2);
+  assert.equal(state.interaction_modal.action_contract_state_key, "ready");
   assert.equal(state.interaction_surface.surface_kind_key, "world_surface_kind_vault_terminal");
   assert.equal(state.interaction_surface.hero_label_key, "world_sheet_metric_wallet_state");
   assert.equal(state.interaction_flow.flow_kind_key, "world_flow_kind_vault_loop");
