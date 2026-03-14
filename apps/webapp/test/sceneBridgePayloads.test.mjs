@@ -1285,6 +1285,25 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
         summary: { ready_assets: 3, total_assets: 4, missing_assets: 1, integrity_ratio: 0.75 },
         active_manifest: { manifest_revision: "rev_42", updated_at: "2099-03-10T12:00:00.000Z" },
         local_manifest: {
+          district_bundle_summary: { district_count: 2, ready_count: 1, partial_count: 1, intake_ready_count: 0 },
+          district_bundle_rows: [
+            {
+              district_key: "arena_prime",
+              state_key: "ready",
+              bundle_ready_count: 3,
+              bundle_asset_count: 3,
+              candidate_count: 2,
+              ingest_modes: ["direct_gltf"],
+            },
+            {
+              district_key: "exchange_district",
+              state_key: "partial",
+              bundle_ready_count: 1,
+              bundle_asset_count: 2,
+              candidate_count: 2,
+              ingest_modes: ["convert_to_glb"],
+            }
+          ],
           rows: [
             { asset_key: "hub.glb", relative_path: "assets/hub.glb", mode: "runtime", exists: true },
             { asset_key: "vault.glb", relative_path: "assets/vault.glb", mode: "runtime", exists: false }
@@ -1544,8 +1563,13 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.runtime.loopDispatchBlocks?.length, 3);
   assert.equal(payloads.runtime.loopDispatchBlocks?.[0]?.title, "FLOW");
   assert.match(payloads.runtime.loopDispatchBlocks?.[0]?.summary || "", /WATCH|ALERT|FLOW/i);
-  assert.equal(payloads.assetStatus.rows.length, 2);
-  assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Missing 1");
+  assert.equal(payloads.assetStatus.rows.length, 4);
+  assert.equal(payloads.assetStatus.rows[0].title, "arena_prime");
+  assert.match(payloads.assetStatus.rows[0].meta, /bundle 3\/3 \| intake 2 \| mode direct_gltf/i);
+  assert.equal(payloads.assetStatus.rows[1].title, "exchange_district");
+  assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Bundles 1/2");
+  assert.equal(payloads.assetRuntime.chips.length, 4);
+  assert.equal(payloads.assetRuntime.chips[2].text, "DIST 1/2");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");
   assert.equal(payloads.auditRuntime.chips.length, 4);
 });

@@ -72,7 +72,7 @@ const {
 } = require("./services/webapp/reactV1Service");
 const { resolveDynamicAutoPolicyDecision } = require("./services/webapp/dynamicAutoPolicyService");
 const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichmentService");
-const { summarizeAssetSourceCatalog } = require("./services/webapp/assetManifestIntakeService");
+const { summarizeAssetSourceCatalog, buildDistrictAssetBundleCatalog } = require("./services/webapp/assetManifestIntakeService");
 const { createChatTrustNotificationService } = require("./services/chatTrustNotificationService");
 
 const envPath = path.join(process.cwd(), ".env");
@@ -2707,6 +2707,11 @@ function buildAssetStatusRows() {
       updated_at: exists ? stats?.mtime?.toISOString?.() || null : null
     };
   });
+  const districtBundles = buildDistrictAssetBundleCatalog({
+    manifest,
+    assetRows: rows,
+    candidates: sourceCatalog.candidates
+  });
   return {
     manifest_path: manifestPath,
     manifest_version: Number(manifest?.version || 0),
@@ -2714,6 +2719,8 @@ function buildAssetStatusRows() {
     source_catalog_path: String(manifest?.source_catalog_path || ""),
     source_catalog_summary: sourceCatalog.summary,
     source_catalog_candidates: sourceCatalog.candidates,
+    district_bundle_summary: districtBundles.summary,
+    district_bundle_rows: districtBundles.rows,
     rows
   };
 }
@@ -2786,6 +2793,10 @@ async function persistAssetManifestState(db, summary, updatedBy = 0) {
         source_catalog_summary:
           summary?.source_catalog_summary && typeof summary.source_catalog_summary === "object"
             ? summary.source_catalog_summary
+            : {},
+        district_bundle_summary:
+          summary?.district_bundle_summary && typeof summary.district_bundle_summary === "object"
+            ? summary.district_bundle_summary
             : {},
         total_assets: Array.isArray(summary?.rows) ? summary.rows.length : 0,
         ready_assets: Array.isArray(summary?.rows) ? summary.rows.filter((row) => row.exists).length : 0
@@ -11583,7 +11594,10 @@ fastify.get("/webapp/api/admin/assets/status", async (request, reply) => {
           missing_assets: local.rows.filter((row) => !row.exists).length,
           intake_candidates: Number(local.source_catalog_summary?.candidate_count || 0),
           intake_districts: Number(local.source_catalog_summary?.district_count || 0),
-          intake_providers: Number(local.source_catalog_summary?.provider_count || 0)
+          intake_providers: Number(local.source_catalog_summary?.provider_count || 0),
+          bundle_ready_districts: Number(local.district_bundle_summary?.ready_count || 0),
+          bundle_partial_districts: Number(local.district_bundle_summary?.partial_count || 0),
+          bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0)
         }
       }
     });
@@ -11647,7 +11661,10 @@ fastify.post(
             missing_assets: local.rows.filter((row) => !row.exists).length,
             intake_candidates: Number(local.source_catalog_summary?.candidate_count || 0),
             intake_districts: Number(local.source_catalog_summary?.district_count || 0),
-            intake_providers: Number(local.source_catalog_summary?.provider_count || 0)
+            intake_providers: Number(local.source_catalog_summary?.provider_count || 0),
+            bundle_ready_districts: Number(local.district_bundle_summary?.ready_count || 0),
+            bundle_partial_districts: Number(local.district_bundle_summary?.partial_count || 0),
+            bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0)
           }
         }
       });

@@ -19,6 +19,22 @@ function readText(...values) {
   return "";
 }
 
+function toFitBandScore(value) {
+  const key = readText(value).toLowerCase();
+  if (key === "high") return 3;
+  if (key === "medium") return 2;
+  if (key === "low") return 1;
+  return 0;
+}
+
+function toIngestModeScore(value) {
+  const key = readText(value).toLowerCase();
+  if (key === "direct_gltf") return 3;
+  if (key === "catalog_export") return 2;
+  if (key === "convert_to_glb") return 1;
+  return 0;
+}
+
 function resolveCatalogPath(manifestPath, manifest) {
   const manifestDir = path.dirname(String(manifestPath || ""));
   const rawPath = readText(manifest?.source_catalog_path, "district-intake.json");
@@ -96,6 +112,89 @@ function summarizeAssetSourceCatalog({ manifestPath, manifest }) {
   };
 }
 
+function buildDistrictAssetBundleCatalog({ manifest, assetRows, candidates }) {
+  const bundles = asRecord(manifest?.district_bundles);
+  const rows = asList(assetRows).map((row) => asRecord(row));
+  const candidateRows = asList(candidates).map((row) => asRecord(row));
+  const assetRowByKey = new Map(rows.map((row) => [readText(row.asset_key), row]));
+  const districtKeys = [...new Set([...Object.keys(bundles), ...candidateRows.map((row) => readText(row.district_key)).filter(Boolean)])];
+
+  const districtRows = districtKeys
+    .map((districtKey) => {
+      const assetKeys = asList(bundles[districtKey]).map((value) => readText(value)).filter(Boolean);
+      const bundleRows = assetKeys.map((assetKey) => asRecord(assetRowByKey.get(assetKey))).filter(Boolean);
+      const readyCount = bundleRows.filter((row) => row.exists !== false).length;
+      const candidateSet = candidateRows.filter((row) => readText(row.district_key) === districtKey);
+      const providerKeys = [...new Set(candidateSet.map((row) => readText(row.provider_key, row.provider_label)).filter(Boolean))];
+      const ingestModes = [...new Set(candidateSet.map((row) => readText(row.ingest_mode)).filter(Boolean))];
+      const highFitCount = candidateSet.filter((row) => readText(row.fit_band).toLowerCase() === "high").length;
+      const missingAssetKeys = bundleRows
+        .filter((row) => readText(row.asset_key) && row.exists === false)
+        .map((row) => readText(row.asset_key))
+        .filter(Boolean);
+      const recommendedCandidates = [...candidateSet]
+        .sort((left, right) => {
+          const fitDelta = toFitBandScore(right.fit_band) - toFitBandScore(left.fit_band);
+          if (fitDelta) return fitDelta;
+          const ingestDelta = toIngestModeScore(right.ingest_mode) - toIngestModeScore(left.ingest_mode);
+          if (ingestDelta) return ingestDelta;
+          return readText(left.candidate_key).localeCompare(readText(right.candidate_key));
+        })
+        .slice(0, 2)
+        .map((row) => ({
+          candidate_key: readText(row.candidate_key),
+          provider_key: readText(row.provider_key),
+          provider_label: readText(row.provider_label),
+          ingest_mode: readText(row.ingest_mode),
+          fit_band: readText(row.fit_band),
+          family_key: readText(row.family_key),
+          role: readText(row.role),
+          source_url: readText(row.source_url)
+        }));
+
+      let stateKey = "missing";
+      if (assetKeys.length > 0 && readyCount === assetKeys.length) {
+        stateKey = "ready";
+      } else if (readyCount > 0) {
+        stateKey = "partial";
+      } else if (candidateSet.length > 0) {
+        stateKey = "intake_ready";
+      }
+
+      return {
+        district_key: districtKey,
+        state_key: stateKey,
+        bundle_asset_keys: assetKeys,
+        bundle_asset_count: assetKeys.length,
+        bundle_ready_count: readyCount,
+        bundle_missing_count: Math.max(0, assetKeys.length - readyCount),
+        candidate_count: candidateSet.length,
+        provider_count: providerKeys.length,
+        high_fit_count: highFitCount,
+        ingest_modes: ingestModes,
+        missing_asset_keys: missingAssetKeys,
+        recommended_candidates: recommendedCandidates
+      };
+    })
+    .sort((left, right) => readText(left.district_key).localeCompare(readText(right.district_key)));
+
+  const summary = {
+    district_count: districtRows.length,
+    ready_count: districtRows.filter((row) => row.state_key === "ready").length,
+    partial_count: districtRows.filter((row) => row.state_key === "partial").length,
+    intake_ready_count: districtRows.filter((row) => row.state_key === "intake_ready").length,
+    missing_count: districtRows.filter((row) => row.state_key === "missing").length,
+    bundle_asset_count: districtRows.reduce((sum, row) => sum + Number(row.bundle_asset_count || 0), 0),
+    bundle_ready_count: districtRows.reduce((sum, row) => sum + Number(row.bundle_ready_count || 0), 0)
+  };
+
+  return {
+    rows: districtRows,
+    summary
+  };
+}
+
 module.exports = {
-  summarizeAssetSourceCatalog
+  summarizeAssetSourceCatalog,
+  buildDistrictAssetBundleCatalog
 };

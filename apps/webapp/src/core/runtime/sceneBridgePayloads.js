@@ -6683,7 +6683,20 @@ function buildAdminAssetStatusPayload(adminPanels) {
   const assets = asRecord(adminPanels?.assets);
   const summary = asRecord(assets.summary);
   const localManifest = asRecord(assets.local_manifest);
-  const rows = asArray(localManifest.rows).slice(0, 8).map((row) => {
+  const districtRows = asArray(localManifest.district_bundle_rows).slice(0, 5).map((row) => {
+    const item = asRecord(row);
+    const stateKey = toText(item.state_key || "missing", "missing").toLowerCase();
+    const readyCount = Math.round(toNum(item.bundle_ready_count));
+    const assetCount = Math.round(toNum(item.bundle_asset_count));
+    const candidateCount = Math.round(toNum(item.candidate_count));
+    return {
+      title: toText(item.district_key || "district", "district"),
+      meta: `bundle ${readyCount}/${assetCount} | intake ${candidateCount} | mode ${toText(asArray(item.ingest_modes)[0] || "--")}`,
+      chip: stateKey.toUpperCase(),
+      tone: stateKey === "ready" ? "ready" : "missing"
+    };
+  });
+  const fileRows = asArray(localManifest.rows).slice(0, 8).map((row) => {
     const item = asRecord(row);
     const exists = item.exists !== false;
     return {
@@ -6697,7 +6710,7 @@ function buildAdminAssetStatusPayload(adminPanels) {
   return {
     summaryLineText: `Assets: ready ${Math.round(toNum(summary.ready_assets))}/${Math.round(toNum(summary.total_assets))} | missing ${Math.round(toNum(summary.missing_assets))}`,
     revisionLineText: `Manifest: ${toText(activeManifest.manifest_revision || activeManifest.state_json?.manifest_revision || "local")} | updated ${toText(activeManifest.updated_at, "-")}`,
-    rows,
+    rows: districtRows.length ? districtRows.concat(fileRows).slice(0, 8) : fileRows,
     emptyText: "Asset kaydi bulunmuyor"
   };
 }
@@ -6705,6 +6718,7 @@ function buildAdminAssetStatusPayload(adminPanels) {
 function buildAdminAssetRuntimePayload(mutators, adminPanels) {
   const assets = asRecord(adminPanels?.assets);
   const localManifest = asRecord(assets.local_manifest);
+  const districtBundleSummary = asRecord(localManifest.district_bundle_summary);
   const rows = asArray(localManifest.rows).map((row) => ({
     asset_key: toText(asRecord(row).asset_key || "asset"),
     exists_local: asRecord(row).exists !== false,
@@ -6722,10 +6736,11 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
     tone: mapRuntimeTone(metrics.tone || "balanced"),
     readyRatio: clamp(metrics.readyRatio),
     syncRatio: clamp(metrics.integrityRatio),
-    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Missing ${Math.round(toNum(metrics.missingEntries))}`,
+    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))}`,
     chips: [
       { id: "adminAssetReadyChip", text: `READY ${Math.round(clamp(metrics.readyRatio) * 100)}%`, tone: mapRuntimeTone(metrics.readyRatio < 0.7 ? "pressure" : "advantage"), level: clamp(metrics.readyRatio) },
       { id: "adminAssetSyncChip", text: `SYNC ${Math.round(clamp(metrics.integrityRatio) * 100)}%`, tone: mapRuntimeTone(metrics.integrityRatio < 0.7 ? "critical" : "advantage"), level: clamp(metrics.integrityRatio) },
+      { id: "adminAssetDistrictChip", text: `DIST ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.round(toNum(districtBundleSummary.district_count))}`, tone: mapRuntimeTone(toNum(districtBundleSummary.partial_count) > 0 ? "pressure" : "advantage"), level: clamp(toNum(districtBundleSummary.district_count) ? toNum(districtBundleSummary.ready_count) / Math.max(1, toNum(districtBundleSummary.district_count)) : 0) },
       { id: "adminAssetRevisionChip", text: `REV ${toText(metrics.manifestRevision || "local").slice(0, 10)}`, tone: "balanced", level: 0.5 }
     ],
     meters: [

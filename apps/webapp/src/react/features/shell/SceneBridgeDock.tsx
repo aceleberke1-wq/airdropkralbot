@@ -1724,6 +1724,7 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <div className="akrChipRow">
               <BridgeChip id="adminAssetReadyChip" />
               <BridgeChip id="adminAssetSyncChip" />
+              <BridgeChip id="adminAssetDistrictChip" />
               <BridgeChip id="adminAssetRevisionChip" />
             </div>
           </div>

@@ -597,6 +597,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const localAssetManifest = asRecord(assetsStatus?.local_manifest);
   const assetSourceCatalogSummary = asRecord(localAssetManifest?.source_catalog_summary);
   const assetSourceCatalogCandidates = asRows(localAssetManifest?.source_catalog_candidates);
+  const assetDistrictBundleSummary = asRecord(localAssetManifest?.district_bundle_summary);
+  const assetDistrictBundleRows = asRows(localAssetManifest?.district_bundle_rows);
   const assetSourceCatalogProviders = Array.isArray(assetSourceCatalogSummary?.providers)
     ? (assetSourceCatalogSummary.providers as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
     : [];
@@ -1095,6 +1097,41 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
               {t(props.lang, "admin_runtime_asset_source_catalog_ingest_list")}: {assetSourceCatalogIngestModes.join(", ")}
             </p>
           ) : null}
+        </section>
+      ) : null}
+      {assetDistrictBundleRows.length ? (
+        <section className="akrMiniPanel">
+          <h3>{t(props.lang, "admin_runtime_asset_bundle_title")}</h3>
+          <div className="akrChipRow">
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_bundle_districts")}: {Math.floor(Number(assetDistrictBundleSummary?.district_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_bundle_ready")}: {Math.floor(Number(assetDistrictBundleSummary?.ready_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_bundle_partial")}: {Math.floor(Number(assetDistrictBundleSummary?.partial_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_bundle_intake_ready")}: {Math.floor(Number(assetDistrictBundleSummary?.intake_ready_count || 0))}
+            </span>
+          </div>
+          <div className="akrStack">
+            {assetDistrictBundleRows.slice(0, 5).map((row, index) => {
+              const districtKey = String(row.district_key || `district_${index}`);
+              const recommended = asRows(row.recommended_candidates)
+                .map((candidate) => String(candidate.candidate_key || candidate.provider_key || "").trim())
+                .filter(Boolean)
+                .join(", ");
+              return (
+                <p className="akrMutedLine" key={`asset_bundle_${districtKey}`}>
+                  {districtKey} | {String(row.state_key || "missing")} | bundle {Math.floor(Number(row.bundle_ready_count || 0))}/
+                  {Math.floor(Number(row.bundle_asset_count || 0))} | intake {Math.floor(Number(row.candidate_count || 0))}
+                  {recommended ? ` | top ${recommended}` : ""}
+                </p>
+              );
+            })}
+          </div>
         </section>
       ) : null}
       <h3>{t(props.lang, "admin_runtime_kpi_title")}</h3>
