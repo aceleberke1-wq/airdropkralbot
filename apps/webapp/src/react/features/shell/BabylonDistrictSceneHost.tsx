@@ -183,7 +183,7 @@ type ClusterActionItem = {
   };
 };
 
-type ProtocolCardActionItem = {
+type ProtocolCardActionItem = PrimaryActionSummary & {
   item_key: string;
   action_key: string;
   label_key: string;
@@ -3927,7 +3927,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     {selectedProtocolPod.action_items?.length ? (
                       <div className="akrSceneInteractionModalActionGrid">
                         {selectedProtocolPod.action_items.map((action) => {
-                          const actionContractReady = hasSceneActionContract(action, selectedProtocolPod);
+                          const actionContractReady = hasSceneActionContract(action);
                           return (
                             <button
                               key={`${selectedProtocolPod.pod_key}:${action.item_key}`}
@@ -3935,20 +3935,20 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                               className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""} ${
                                 actionContractReady ? "is-contract-ready" : "is-contract-missing"
                               }`}
-                              {...buildSceneActionDataAttrs(action, selectedProtocolPod)}
+                              {...buildSceneActionDataAttrs(action)}
                               onClick={() =>
                                 actionContractReady
                                   ? triggerSceneAction({
                                       actionKey: action.action_key,
                                       nodeKey: selectedProtocolPod.pod_key,
                                       laneKey: "modal_protocol_pod_focus",
-                                      label: selectedProtocolPod.value,
-                                      labelKey: selectedProtocolPod.label_key,
+                                      label: action.label_key ? t(props.lang, action.label_key as never) : selectedProtocolPod.value,
+                                      labelKey: action.label_key || selectedProtocolPod.label_key,
                                       sourceType: "district_scene_protocol_pod_focus",
                                       actorKey: worldState.active_hotspot_key,
                                       interactionKind: "protocol_pod_focus",
                                       clusterKey: worldState.active_cluster_key,
-                                      ...resolveSceneActionContext(action, selectedProtocolPod),
+                                      ...resolveSceneActionContext(action),
                                       workspace: props.workspace,
                                       tab: props.tab,
                                       districtKey: worldState.district_key
@@ -3960,8 +3960,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                               <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolPod.label_key as never)}</span>
                               <strong>{t(props.lang, action.label_key as never)}</strong>
                               {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
-                              {renderSceneActionContextMeta(action, selectedProtocolPod)}
-                              {renderSceneActionContextChips(action, selectedProtocolPod)}
+                              {renderSceneActionContextMeta(action)}
+                              {renderSceneActionContextChips(action)}
+                              {renderPrimaryActionSummary(action, { compact: true })}
                             </button>
                           );
                         })}
@@ -3978,7 +3979,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                   </div>
                   <div className="akrSceneInteractionModalActionGrid">
                     {selectedProtocolCard.action_items.map((action) => {
-                      const actionContractReady = hasSceneActionContract(action, selectedProtocolCard);
+                      const actionContractReady = hasSceneActionContract(action);
                       return (
                         <button
                           key={`${selectedProtocolCard.card_key}:${action.item_key}`}
@@ -3986,20 +3987,20 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           className={`akrSceneInteractionModalAction ${action.intent_profile_key ? `is-${action.intent_profile_key}` : ""} ${
                             actionContractReady ? "is-contract-ready" : "is-contract-missing"
                           }`}
-                          {...buildSceneActionDataAttrs(action, selectedProtocolCard)}
+                          {...buildSceneActionDataAttrs(action)}
                           onClick={() =>
                             actionContractReady
                               ? triggerSceneAction({
                                   actionKey: action.action_key,
                                   nodeKey: selectedProtocolCard.card_key,
                                   laneKey: "modal_protocol_focus",
-                                  label: selectedProtocolCard.value,
-                                  labelKey: selectedProtocolCard.label_key,
+                                  label: action.label_key ? t(props.lang, action.label_key as never) : selectedProtocolCard.value,
+                                  labelKey: action.label_key || selectedProtocolCard.label_key,
                                   sourceType: "district_scene_protocol_focus",
                                   actorKey: worldState.active_hotspot_key,
                                   interactionKind: "protocol_focus",
                                   clusterKey: worldState.active_cluster_key,
-                                  ...resolveSceneActionContext(action, selectedProtocolCard),
+                                  ...resolveSceneActionContext(action),
                                   workspace: props.workspace,
                                   tab: props.tab,
                                   districtKey: worldState.district_key
@@ -4011,8 +4012,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           <span>{action.hint_label_key ? t(props.lang, action.hint_label_key as never) : t(props.lang, selectedProtocolCard.label_key as never)}</span>
                           <strong>{t(props.lang, action.label_key as never)}</strong>
                           {action.tone_key ? <span>{t(props.lang, action.tone_key as never)}</span> : null}
-                          {renderSceneActionContextMeta(action, selectedProtocolCard)}
-                          {renderSceneActionContextChips(action, selectedProtocolCard)}
+                          {renderSceneActionContextMeta(action)}
+                          {renderSceneActionContextChips(action)}
+                          {renderPrimaryActionSummary(action, { compact: true })}
                         </button>
                       );
                     })}

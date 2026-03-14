@@ -647,6 +647,15 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].risk_context?.risk_context_signature,
     "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
   );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].action_items[0].primary_action_key,
+    SHELL_ACTION_KEY.PLAYER_SEASON_HALL
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].action_items[0].primary_focus_key,
+    "central_hub:travel:travel_flow"
+  );
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_items[0].primary_contract_ready, true);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_glow_scalar, 1);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].risk_motion_scalar, 1);
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].entry_kind_key, "world_entry_kind_hub_portal");
@@ -696,6 +705,9 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].flow_key, "travel_flow");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].microflow_key, "world_modal_lane_mission_queue:travel");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].focus_key, "central_hub:travel:travel_flow");
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].primary_action_key, SHELL_ACTION_KEY.PLAYER_TASKS_BOARD);
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].primary_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].primary_contract_ready, true);
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].contract_ready, true);
   assert.deepEqual(state.interaction_modal.protocol_cards[1].action_items[0].contract_missing_keys, []);
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[0].context_lookup_required, true);
@@ -1424,6 +1436,9 @@ test("buildDistrictWorldState maps admin runtime into ops citadel", () => {
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].flow_key, "runtime_flow");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].microflow_key, "world_modal_lane_runtime_watch:runtime");
   assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].focus_key, "ops_citadel:runtime:runtime_flow");
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].primary_action_key, SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS);
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].primary_focus_key, "ops_citadel:runtime:runtime_flow");
+  assert.equal(state.interaction_modal.protocol_cards[1].action_items[1].primary_contract_ready, true);
   assert.equal(
     state.interaction_modal.protocol_cards[1].action_items[1].action_context_signature,
     "runtime_flow|ops_citadel:runtime:runtime_flow|world_entry_kind_runtime_console|world_modal_kind_runtime_scan"

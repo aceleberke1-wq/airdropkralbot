@@ -6548,7 +6548,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
     resolveDistrictKey(normalizeWorkspace(input.workspace), normalizeTab(input.tab));
   const buildContextActionItems = (items, actionContext) =>
     asList(items).map((item) => {
-      return applyResolvedActionRiskMeta(
+      const enrichedItem = applyResolvedActionRiskMeta(
         item,
         {
           ...(asRecord(actionContext) || {}),
@@ -6561,6 +6561,7 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           context_lookup_resolved: true
         }
       );
+      return attachPrimaryActionMeta(enrichedItem, enrichedItem, actionContext);
     });
   const enrichedProtocolCards = modal.protocol_cards.map((card) => {
     const protocolCard = asRecord(card);
@@ -6910,7 +6911,7 @@ function enrichInteractionActionItems(items, actionContextLookup) {
       context_lookup_required: contextLookupRequired,
       context_lookup_resolved: contextLookupResolved
     });
-    return {
+    const enrichedActionItem = {
       ...enriched,
       context_lookup_required: contextLookupRequired,
       context_lookup_resolved: contextLookupResolved,
@@ -6922,6 +6923,7 @@ function enrichInteractionActionItems(items, actionContextLookup) {
           ? enriched.contract_missing_keys
           : []
     };
+    return attachPrimaryActionMeta(enrichedActionItem, enrichedActionItem, resolvedMeta || record);
   });
 }
 
