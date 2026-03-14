@@ -1926,6 +1926,58 @@ body {
   gap: 8px;
 }
 
+.akrScenePrimaryActionSummary {
+  display: grid;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  background: linear-gradient(145deg, rgba(6, 20, 41, 0.42), rgba(9, 28, 52, 0.34));
+}
+
+.akrScenePrimaryActionSummary.is-contract-ready {
+  border-color: rgba(0, 214, 255, 0.24);
+}
+
+.akrScenePrimaryActionSummary.is-contract-missing {
+  border-style: dashed;
+  border-color: rgba(255, 111, 145, 0.3);
+  opacity: 0.78;
+}
+
+.akrScenePrimaryActionSummaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.akrScenePrimaryActionSummaryHeader span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64rem;
+  color: #9fc7df;
+}
+
+.akrScenePrimaryActionSummaryHeader strong {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 0.86rem;
+  color: #f2fbff;
+}
+
+.akrScenePrimaryActionSummaryChips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.akrScenePrimaryActionSummary.is-compact {
+  padding: 8px 9px;
+}
+
+.akrScenePrimaryActionSummary.is-compact .akrScenePrimaryActionSummaryChips {
+  grid-template-columns: 1fr;
+}
+
 .akrSceneInteractionModalChip {
   display: grid;
   gap: 4px;

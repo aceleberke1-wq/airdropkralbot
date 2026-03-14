@@ -534,6 +534,37 @@ function buildSceneRiskContextSignature(
   return [flowKey, riskFocusKey, entryKindKey, sequenceKindKey].filter(Boolean).join("|");
 }
 
+function buildPrimarySceneActionSource(source?: PrimaryActionSummary | Record<string, unknown> | null) {
+  const primary =
+    source && typeof source === "object" && !Array.isArray(source) ? (source as Record<string, unknown>) : {};
+  return {
+    action_key: readSceneActionText(primary.primary_action_key),
+    action_label_key: readSceneActionText(primary.primary_action_label_key),
+    hint_label_key: readSceneActionText(primary.primary_action_hint_label_key),
+    family_key: readSceneActionText(primary.primary_family_key),
+    flow_key: readSceneActionText(primary.primary_flow_key),
+    microflow_key: readSceneActionText(primary.primary_microflow_key),
+    focus_key: readSceneActionText(primary.primary_focus_key),
+    risk_key: readSceneActionText(primary.primary_risk_key),
+    risk_focus_key: readSceneActionText(primary.primary_risk_focus_key),
+    risk_health_band_key: readSceneActionText(primary.primary_risk_health_band_key),
+    risk_attention_band_key: readSceneActionText(primary.primary_risk_attention_band_key),
+    risk_trend_direction_key: readSceneActionText(primary.primary_risk_trend_direction_key),
+    entry_kind_key: readSceneActionText(primary.primary_entry_kind_key),
+    sequence_kind_key: readSceneActionText(primary.primary_sequence_kind_key),
+    action_context_signature: readSceneActionText(primary.primary_action_context_signature),
+    risk_context_signature: readSceneActionText(primary.primary_risk_context_signature),
+    contract_ready:
+      typeof primary.primary_contract_ready === "boolean" ? primary.primary_contract_ready : undefined,
+    contract_state_key: readSceneActionText(primary.primary_contract_state_key),
+    contract_missing_keys: Array.isArray(primary.primary_contract_missing_keys)
+      ? primary.primary_contract_missing_keys.map((value) => readSceneActionText(value)).filter(Boolean)
+      : [],
+    action_context: asRiskContext(primary.primary_action_context),
+    risk_context: asRiskContext(primary.primary_risk_context)
+  };
+}
+
 function buildSceneContractMeta(source?: Record<string, unknown> | null) {
   const primary = source && typeof source === "object" && !Array.isArray(source) ? source : {};
   const explicitLookupRequired =
@@ -1240,6 +1271,124 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       );
     },
     [resolveSceneActionContext]
+  );
+  const renderPrimaryActionSummary = useCallback(
+    (
+      source?: PrimaryActionSummary | Record<string, unknown> | null,
+      options?: { compact?: boolean; fallback?: SceneActionLike | null }
+    ) => {
+      const compact = options?.compact === true;
+      const primarySource = buildPrimarySceneActionSource(source);
+      const primaryContext = resolveSceneActionContext(primarySource, options?.fallback);
+      const primaryContractReady = isStrictSceneActionContractReady(primaryContext);
+      const actionLabelKey = readSceneActionText(primarySource.action_label_key);
+      const actionHintLabelKey = readSceneActionText(primarySource.hint_label_key);
+      const hasPrimarySummary = Boolean(
+        readSceneActionText(
+          primarySource.action_key,
+          actionLabelKey,
+          primaryContext.flowKey,
+          primaryContext.focusKey,
+          primaryContext.riskFocusKey
+        )
+      );
+      if (!hasPrimarySummary) {
+        return null;
+      }
+      const chips = [
+        actionLabelKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_action" as never),
+              value: t(props.lang, actionLabelKey as never),
+              tone: "flow"
+            }
+          : null,
+        primaryContext.familyKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_family" as never),
+              value: primaryContext.familyKey,
+              tone: "entry"
+            }
+          : null,
+        primaryContext.flowKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_flow" as never),
+              value: primaryContext.flowKey,
+              tone: "flow"
+            }
+          : null,
+        primaryContext.microflowKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_microflow" as never),
+              value: primaryContext.microflowKey,
+              tone: "sequence"
+            }
+          : null,
+        primaryContext.focusKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_focus" as never),
+              value: primaryContext.focusKey,
+              tone: "signature"
+            }
+          : null,
+        primaryContext.riskFocusKey
+          ? {
+              label: t(props.lang, "world_modal_chip_primary_risk_focus" as never),
+              value: primaryContext.riskFocusKey,
+              tone: primaryContext.riskHealthBandKey || "trend"
+            }
+          : null,
+        primaryContext.entryKindKey
+          ? {
+              label: t(props.lang, "world_modal_chip_entry_kind" as never),
+              value: t(props.lang, primaryContext.entryKindKey as never),
+              tone: "entry"
+            }
+          : null,
+        primaryContext.sequenceKindKey
+          ? {
+              label: t(props.lang, "world_modal_chip_sequence_kind" as never),
+              value: t(props.lang, primaryContext.sequenceKindKey as never),
+              tone: "sequence"
+            }
+          : null,
+        {
+          label: t(props.lang, "world_modal_chip_primary_contract" as never),
+          value: primaryContractReady ? "ready" : "missing",
+          tone: primaryContractReady ? "green" : "red"
+        }
+      ].filter(Boolean) as Array<{ label: string; value: string; tone: string }>;
+      return (
+        <div
+          className={`akrScenePrimaryActionSummary ${compact ? "is-compact" : "is-full"} ${
+            primaryContractReady ? "is-contract-ready" : "is-contract-missing"
+          }`}
+          {...buildSceneActionDataAttrs(primarySource, options?.fallback)}
+        >
+          <div className="akrScenePrimaryActionSummaryHeader">
+            <span>{t(props.lang, "world_modal_section_primary_summary" as never)}</span>
+            <strong>
+              {actionLabelKey
+                ? t(props.lang, actionLabelKey as never)
+                : primaryContext.focusKey || primaryContext.flowKey || primarySource.action_key}
+            </strong>
+          </div>
+          <div className="akrScenePrimaryActionSummaryChips">
+            {(compact ? chips.slice(0, 4) : chips).map((chip) => (
+              <div key={`${chip.label}:${chip.value}`} className={`akrSceneInteractionModalChip is-${chip.tone}`}>
+                <span>{chip.label}</span>
+                <strong>{chip.value}</strong>
+              </div>
+            ))}
+          </div>
+          {actionHintLabelKey ? (
+            <small className="akrSceneActionContextMeta">{t(props.lang, actionHintLabelKey as never)}</small>
+          ) : null}
+          {!compact ? renderSceneActionContextChips(primarySource, options?.fallback) : null}
+        </div>
+      );
+    },
+    [buildSceneActionDataAttrs, props.lang, renderSceneActionContextChips, resolveSceneActionContext]
   );
 
   useEffect(() => {
@@ -3161,6 +3310,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                         <small>{card.risk_focus_key}</small>
                       ) : null}
                       {renderSceneActionContextChips(card)}
+                      {selectedModalLane?.card_key === card.card_key ? renderPrimaryActionSummary(card, { compact: true }) : null}
                     </button>
                   );
                 })}
@@ -3216,6 +3366,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                       {card.action_label_key ? <b>{t(props.lang, card.action_label_key as never)}</b> : null}
                       {renderSceneActionContextMeta(card)}
                       {renderSceneActionContextChips(card)}
+                      {selectedProtocolCard?.card_key === card.card_key ? renderPrimaryActionSummary(card, { compact: true }) : null}
                     </button>
                   );
                 })}
@@ -3233,6 +3384,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               </div>
               {renderSceneActionContextMeta(selectedProtocolCard)}
               {renderSceneActionContextChips(selectedProtocolCard)}
+              {renderPrimaryActionSummary(selectedProtocolCard)}
               <div className="akrSceneInteractionModalChips">
                 <div className={`akrSceneInteractionModalChip is-${selectedProtocolCard.status_key}`}>
                   <span>{t(props.lang, selectedProtocolCard.label_key as never)}</span>
@@ -3392,6 +3544,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     </div>
                     {renderSceneActionContextMeta(selectedProtocolPod, selectedProtocolCard)}
                     {renderSceneActionContextChips(selectedProtocolPod, selectedProtocolCard)}
+                    {renderPrimaryActionSummary(selectedProtocolPod, { fallback: selectedProtocolCard })}
                     <div className="akrSceneInteractionModalChips">
                       <div className={`akrSceneInteractionModalChip is-${selectedProtocolPod.status_key}`}>
                         <span>{t(props.lang, selectedProtocolPod.label_key as never)}</span>
@@ -3520,6 +3673,9 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                   {item.action_label_key ? <b>{t(props.lang, item.action_label_key as never)}</b> : null}
                                   {renderSceneActionContextMeta(item, selectedProtocolPod)}
                                   {renderSceneActionContextChips(item, selectedProtocolPod)}
+                                  {selectedMicroflow?.microflow_key === item.microflow_key
+                                    ? renderPrimaryActionSummary(item, { compact: true, fallback: selectedProtocolPod })
+                                    : null}
                                 </button>
                               );
                             })}
@@ -3541,6 +3697,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           </div>
                           {renderSceneActionContextMeta(selectedMicroflow, selectedProtocolPod)}
                           {renderSceneActionContextChips(selectedMicroflow, selectedProtocolPod)}
+                          {renderPrimaryActionSummary(selectedMicroflow, { fallback: selectedProtocolPod })}
                           <div className="akrSceneInteractionModalChips">
                             {selectedMicroflow.entry_kind_key ? (
                               <div className={`akrSceneInteractionModalChip is-${selectedMicroflow.status_key}`}>
