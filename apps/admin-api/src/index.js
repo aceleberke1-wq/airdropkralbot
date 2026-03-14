@@ -75,7 +75,8 @@ const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichm
 const {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
-  buildDistrictAssetBundleCatalog
+  buildDistrictAssetBundleCatalog,
+  buildDistrictFamilyAssetCatalog
 } = require("./services/webapp/assetManifestIntakeService");
 const { summarizeWebappDomainRuntime } = require("./services/webapp/webappDomainRuntimeService");
 const { createChatTrustNotificationService } = require("./services/chatTrustNotificationService");
@@ -2718,6 +2719,11 @@ async function buildAssetStatusRows() {
     assetRows: rows,
     candidates: sourceCatalog.candidates
   });
+  const districtFamilyAssets = buildDistrictFamilyAssetCatalog({
+    selectedRows: selectedBundles.rows,
+    districtRows: districtBundles.rows,
+    assetRows: rows
+  });
   const webappDomainSummary = await summarizeWebappDomainRuntime({
     publicUrl: WEBAPP_PUBLIC_URL,
     runtimeGuardBaseUrl: String(process.env.RUNTIME_GUARD_BASE_URL || "").trim()
@@ -2735,6 +2741,8 @@ async function buildAssetStatusRows() {
     webapp_domain_summary: webappDomainSummary,
     district_bundle_summary: districtBundles.summary,
     district_bundle_rows: districtBundles.rows,
+    district_family_asset_summary: districtFamilyAssets.summary,
+    district_family_asset_rows: districtFamilyAssets.rows,
     rows
   };
 }
@@ -11624,7 +11632,10 @@ fastify.get("/webapp/api/admin/assets/status", async (request, reply) => {
           domain_https_ready: local.webapp_domain_summary?.health_ok && local.webapp_domain_summary?.webapp_ok ? 1 : 0,
           bundle_ready_districts: Number(local.district_bundle_summary?.ready_count || 0),
           bundle_partial_districts: Number(local.district_bundle_summary?.partial_count || 0),
-          bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0)
+          bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0),
+          family_asset_rows: Number(local.district_family_asset_summary?.row_count || 0),
+          family_asset_ready_rows: Number(local.district_family_asset_summary?.ready_count || 0),
+          family_asset_partial_rows: Number(local.district_family_asset_summary?.partial_count || 0)
         }
       }
     });
@@ -11696,7 +11707,10 @@ fastify.post(
             domain_https_ready: local.webapp_domain_summary?.health_ok && local.webapp_domain_summary?.webapp_ok ? 1 : 0,
             bundle_ready_districts: Number(local.district_bundle_summary?.ready_count || 0),
             bundle_partial_districts: Number(local.district_bundle_summary?.partial_count || 0),
-            bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0)
+            bundle_intake_ready_districts: Number(local.district_bundle_summary?.intake_ready_count || 0),
+            family_asset_rows: Number(local.district_family_asset_summary?.row_count || 0),
+            family_asset_ready_rows: Number(local.district_family_asset_summary?.ready_count || 0),
+            family_asset_partial_rows: Number(local.district_family_asset_summary?.partial_count || 0)
           }
         }
       });

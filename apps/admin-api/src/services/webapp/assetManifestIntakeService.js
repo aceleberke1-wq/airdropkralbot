@@ -234,8 +234,81 @@ function buildDistrictAssetBundleCatalog({ manifest, assetRows, candidates }) {
   };
 }
 
+function buildDistrictFamilyAssetCatalog({ selectedRows, districtRows, assetRows }) {
+  const selected = asList(selectedRows).map((row) => asRecord(row));
+  const districts = asList(districtRows).map((row) => asRecord(row));
+  const assets = asList(assetRows).map((row) => asRecord(row));
+  const districtByKey = new Map(districts.map((row) => [readText(row.district_key), row]));
+  const assetByKey = new Map(assets.map((row) => [readText(row.asset_key), row]));
+
+  const rows = selected
+    .map((row) => {
+      const districtKey = readText(row.district_key);
+      const familyKey = readText(row.family_key);
+      const assetKey = readText(row.asset_key);
+      if (!districtKey || !familyKey || !assetKey) {
+        return null;
+      }
+      const district = asRecord(districtByKey.get(districtKey));
+      const asset = asRecord(assetByKey.get(assetKey));
+      const existsLocal = asset.exists !== false && Boolean(readText(asset.asset_key));
+      const districtState = readText(district.state_key, existsLocal ? "ready" : "missing").toLowerCase();
+      let stateKey = "missing";
+      if (existsLocal && districtState === "ready") {
+        stateKey = "ready";
+      } else if (existsLocal) {
+        stateKey = "partial";
+      } else if (districtState === "intake_ready") {
+        stateKey = "intake_ready";
+      } else if (districtState === "partial") {
+        stateKey = "partial";
+      }
+      return {
+        district_key: districtKey,
+        family_key: familyKey,
+        asset_key: assetKey,
+        focus_key: `${districtKey}:${familyKey}:${assetKey}`,
+        state_key: stateKey,
+        exists_local: existsLocal,
+        file_name: readText(row.file_name, path.basename(readText(asset.web_path, asset.file_path, assetKey))),
+        file_path: readText(asset.file_path),
+        web_path: readText(asset.web_path),
+        candidate_key: readText(row.candidate_key),
+        provider_key: readText(row.provider_key),
+        provider_label: readText(row.provider_label),
+        license: readText(row.license),
+        download_url: readText(row.download_url),
+        downloaded_at: readText(row.downloaded_at),
+        district_state_key: districtState,
+        bundle_ready_count: Number(district.bundle_ready_count || 0),
+        bundle_asset_count: Number(district.bundle_asset_count || 0),
+        candidate_count: Number(district.candidate_count || 0)
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) =>
+      `${readText(left.district_key)}:${readText(left.family_key)}:${readText(left.asset_key)}`.localeCompare(
+        `${readText(right.district_key)}:${readText(right.family_key)}:${readText(right.asset_key)}`
+      )
+    );
+
+  return {
+    rows,
+    summary: {
+      row_count: rows.length,
+      district_count: new Set(rows.map((row) => readText(row.district_key)).filter(Boolean)).size,
+      family_count: new Set(rows.map((row) => readText(row.family_key)).filter(Boolean)).size,
+      ready_count: rows.filter((row) => readText(row.state_key) === "ready").length,
+      partial_count: rows.filter((row) => readText(row.state_key) === "partial").length,
+      intake_ready_count: rows.filter((row) => readText(row.state_key) === "intake_ready").length,
+      missing_count: rows.filter((row) => readText(row.state_key) === "missing").length
+    }
+  };
+}
+
 module.exports = {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
-  buildDistrictAssetBundleCatalog
+  buildDistrictAssetBundleCatalog,
+  buildDistrictFamilyAssetCatalog
 };

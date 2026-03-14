@@ -7,7 +7,8 @@ const path = require("node:path");
 const {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
-  buildDistrictAssetBundleCatalog
+  buildDistrictAssetBundleCatalog,
+  buildDistrictFamilyAssetCatalog
 } = require("../src/services/webapp/assetManifestIntakeService");
 
 test("summarizeAssetSourceCatalog reads curated district intake catalog", () => {
@@ -184,4 +185,48 @@ test("summarizeSelectedDistrictBundles reads downloaded bundle selections", () =
   assert.equal(result.summary.provider_count, 1);
   assert.equal(result.rows[0].asset_key, "hub_beacon");
   assert.equal(result.rows[0].file_name, "hub-beacon.glb");
+});
+
+test("buildDistrictFamilyAssetCatalog summarizes selected district family assets", () => {
+  const result = buildDistrictFamilyAssetCatalog({
+    selectedRows: [
+      {
+        district_key: "arena_prime",
+        family_key: "duel",
+        asset_key: "arena_trophy",
+        file_name: "arena-trophy.glb",
+        candidate_key: "arena_khronos_cesium_man",
+        provider_label: "Khronos glTF Sample Models",
+        downloaded_at: "2026-03-14"
+      },
+      {
+        district_key: "exchange_district",
+        family_key: "wallet",
+        asset_key: "exchange_artifact",
+        file_name: "exchange-artifact.glb",
+        candidate_key: "exchange_khronos_damaged_helmet",
+        provider_label: "Khronos glTF Sample Models"
+      }
+    ],
+    districtRows: [
+      { district_key: "arena_prime", state_key: "ready", bundle_ready_count: 3, bundle_asset_count: 3, candidate_count: 2 },
+      { district_key: "exchange_district", state_key: "partial", bundle_ready_count: 1, bundle_asset_count: 2, candidate_count: 2 }
+    ],
+    assetRows: [
+      { asset_key: "arena_trophy", exists: true, file_path: "C:\\assets\\arena-trophy.glb", web_path: "assets/arena-trophy.glb" },
+      { asset_key: "exchange_artifact", exists: false, file_path: "C:\\assets\\exchange-artifact.glb", web_path: "assets/exchange-artifact.glb" }
+    ]
+  });
+
+  assert.equal(result.summary.row_count, 2);
+  assert.equal(result.summary.district_count, 2);
+  assert.equal(result.summary.family_count, 2);
+  assert.equal(result.summary.ready_count, 1);
+  assert.equal(result.summary.partial_count, 1);
+  assert.equal(result.rows[0].focus_key, "arena_prime:duel:arena_trophy");
+  assert.equal(result.rows[0].state_key, "ready");
+  assert.equal(result.rows[0].exists_local, true);
+  assert.equal(result.rows[1].focus_key, "exchange_district:wallet:exchange_artifact");
+  assert.equal(result.rows[1].state_key, "partial");
+  assert.equal(result.rows[1].exists_local, false);
 });

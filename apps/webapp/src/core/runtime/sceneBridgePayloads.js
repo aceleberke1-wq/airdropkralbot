@@ -6772,6 +6772,8 @@ function buildAdminAssetStatusPayload(adminPanels) {
   const assets = asRecord(adminPanels?.assets);
   const summary = asRecord(assets.summary);
   const localManifest = asRecord(assets.local_manifest);
+  const familyAssetSummary = asRecord(localManifest.district_family_asset_summary);
+  const familyAssetRows = asArray(localManifest.district_family_asset_rows).map((row) => asRecord(row));
   const selectedBundleSummary = asRecord(localManifest.selected_bundle_summary);
   const selectedBundleRows = asArray(localManifest.selected_bundle_rows).map((row) => asRecord(row));
   const selectedByDistrict = new Map(
@@ -6795,6 +6797,17 @@ function buildAdminAssetStatusPayload(adminPanels) {
       tone: stateKey === "ready" ? "ready" : "missing"
     };
   });
+  const familyRows = familyAssetRows.slice(0, 5).map((row) => {
+    const stateKey = toText(row.state_key || "missing", "missing").toLowerCase();
+    return {
+      title: toText(row.focus_key || `${toText(row.district_key)}:${toText(row.family_key)}:${toText(row.asset_key)}`, "asset"),
+      meta: `${toText(row.file_name || row.asset_key || "-")} | ${toText(row.candidate_key || "--")} | ${toText(
+        row.provider_label || row.provider_key || "--"
+      )}`,
+      chip: stateKey.toUpperCase(),
+      tone: stateKey === "ready" ? "ready" : stateKey === "partial" ? "watch" : "missing"
+    };
+  });
   const fileRows = asArray(localManifest.rows).slice(0, 8).map((row) => {
     const item = asRecord(row);
     const exists = item.exists !== false;
@@ -6807,9 +6820,11 @@ function buildAdminAssetStatusPayload(adminPanels) {
   });
   const activeManifest = asRecord(assets.active_manifest);
   return {
-    summaryLineText: `Assets: ready ${Math.round(toNum(summary.ready_assets))}/${Math.round(toNum(summary.total_assets))} | selected ${Math.round(toNum(selectedBundleSummary.downloaded_count || selectedBundleSummary.selected_count))} | missing ${Math.round(toNum(summary.missing_assets))}`,
+    summaryLineText: `Assets: ready ${Math.round(toNum(summary.ready_assets))}/${Math.round(toNum(summary.total_assets))} | family ${Math.round(toNum(
+      familyAssetSummary.ready_count || familyAssetSummary.row_count
+    ))}/${Math.round(toNum(familyAssetSummary.row_count))} | missing ${Math.round(toNum(summary.missing_assets))}`,
     revisionLineText: `Manifest: ${toText(activeManifest.manifest_revision || activeManifest.state_json?.manifest_revision || "local")} | updated ${toText(activeManifest.updated_at, "-")}`,
-    rows: districtRows.length ? districtRows.concat(fileRows).slice(0, 8) : fileRows,
+    rows: familyRows.length ? familyRows.concat(districtRows, fileRows).slice(0, 8) : districtRows.length ? districtRows.concat(fileRows).slice(0, 8) : fileRows,
     emptyText: "Asset kaydi bulunmuyor"
   };
 }
@@ -6819,9 +6834,11 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
   const localManifest = asRecord(assets.local_manifest);
   const webappDomainSummary = asRecord(localManifest.webapp_domain_summary);
   const districtBundleSummary = asRecord(localManifest.district_bundle_summary);
+  const familyAssetSummary = asRecord(localManifest.district_family_asset_summary);
   const selectedBundleSummary = asRecord(localManifest.selected_bundle_summary);
   const selectedBundleRows = asArray(localManifest.selected_bundle_rows).map((row) => asRecord(row));
   const districtBundleRows = asArray(localManifest.district_bundle_rows).map((row) => asRecord(row));
+  const familyAssetRows = asArray(localManifest.district_family_asset_rows).map((row) => asRecord(row));
   const rows = asArray(localManifest.rows).map((row) => ({
     asset_key: toText(asRecord(row).asset_key || "asset"),
     exists_local: asRecord(row).exists !== false,
@@ -6835,14 +6852,24 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
       summary: asRecord(assets.summary)
     }
   });
-  const selectedSummaryText = selectedBundleRows
+  const selectedSummaryText = familyAssetRows.length
+    ? familyAssetRows
+        .slice(0, 3)
+        .map((row) => `${toText(row.focus_key || "--")}:${toText(row.state_key || "--")}`)
+        .filter(Boolean)
+        .join(" | ")
+    : selectedBundleRows
     .slice(0, 3)
     .map((row) => `${toText(row.district_key || "--")}:${toText(row.family_key || "--")}:${toText(row.asset_key || "--")}`)
     .filter(Boolean)
     .join(" | ");
   const focusDistrict = districtBundleRows.find((row) => toText(row.state_key) === "ready") || districtBundleRows[0] || {};
   const focusSelectedRow =
-    selectedBundleRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) || selectedBundleRows[0] || {};
+    familyAssetRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) ||
+    familyAssetRows[0] ||
+    selectedBundleRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) ||
+    selectedBundleRows[0] ||
+    {};
   const domainStateKey = toText(webappDomainSummary.state_key || "missing", "missing").toLowerCase();
   const domainHost = toText(webappDomainSummary.host || "--", "--");
   const domainCnameTarget = toText(asArray(webappDomainSummary.cname_targets)[0] || asArray(webappDomainSummary.a_records)[0] || "--", "--");
@@ -6853,11 +6880,11 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
     tone: mapRuntimeTone(metrics.tone || "balanced"),
     readyRatio: clamp(metrics.readyRatio),
     syncRatio: clamp(metrics.integrityRatio),
-    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))} | Selected ${Math.round(toNum(selectedBundleSummary.downloaded_count || selectedBundleSummary.selected_count))}`,
+    signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))} | Family ${Math.round(toNum(familyAssetSummary.ready_count || familyAssetSummary.row_count))}/${Math.max(1, Math.round(toNum(familyAssetSummary.row_count)))}`,
     selectionLineText: selectedSummaryText ? `SELECT ${selectedSummaryText}` : "SELECT bundle telemetry bekleniyor",
     domainLineText,
     focusLineText: toText(focusSelectedRow.asset_key)
-      ? `FOCUS ${toText(focusSelectedRow.district_key || "--")} | ${toText(focusSelectedRow.family_key || "--")} | ${toText(focusSelectedRow.asset_key || "--")} | ${toText(focusSelectedRow.candidate_key || "--")}`
+      ? `FOCUS ${toText(focusSelectedRow.focus_key || `${toText(focusSelectedRow.district_key || "--")}:${toText(focusSelectedRow.family_key || "--")}:${toText(focusSelectedRow.asset_key || "--")}`)} | ${toText(focusSelectedRow.state_key || "--")} | ${toText(focusSelectedRow.candidate_key || "--")}`
       : "FOCUS district asset bekleniyor",
     chips: [
       { id: "adminAssetReadyChip", text: `READY ${Math.round(clamp(metrics.readyRatio) * 100)}%`, tone: mapRuntimeTone(metrics.readyRatio < 0.7 ? "pressure" : "advantage"), level: clamp(metrics.readyRatio) },
