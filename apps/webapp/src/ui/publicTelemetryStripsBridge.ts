@@ -20,6 +20,10 @@ type AssetManifestStripPayload = {
   assetStateKey?: string;
   assetContractReady?: boolean;
   assetContractSignature?: string;
+  assetBundleKind?: string;
+  assetVariantKey?: string;
+  assetVariantRole?: string;
+  assetVariantTier?: string;
   readyAssetCount?: number;
   selectedAssetCount?: number;
   readyPct?: number;
@@ -151,6 +155,10 @@ function renderAssetManifest(payload: AssetManifestStripPayload): boolean {
     selection.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
     selection.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";
     selection.dataset.assetContractSignature = String(payload.assetContractSignature || "").trim();
+    selection.dataset.assetBundleKind = String(payload.assetBundleKind || "").trim();
+    selection.dataset.assetVariantKey = String(payload.assetVariantKey || "").trim();
+    selection.dataset.assetVariantRole = String(payload.assetVariantRole || "").trim();
+    selection.dataset.assetVariantTier = String(payload.assetVariantTier || "").trim();
     selection.dataset.readyAssetCount = String(asNum(payload.readyAssetCount));
     selection.dataset.selectedAssetCount = String(asNum(payload.selectedAssetCount));
     selection.title = payload.assetContractSignature ? `SIG ${String(payload.assetContractSignature)}` : "";

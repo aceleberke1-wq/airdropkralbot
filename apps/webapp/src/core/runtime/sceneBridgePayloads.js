@@ -333,6 +333,10 @@ function buildSceneLoopDeckPayload(scene) {
       activeAssetKey: "",
       activeAssetFamilyKey: "",
       activeAssetAnchorKind: "",
+      activeAssetBundleKind: "",
+      activeAssetVariantKey: "",
+      activeAssetVariantRole: "",
+      activeAssetVariantTier: "",
       activeAssetCandidateKey: "",
       activeAssetStateKey: "",
       activeAssetContractReady: false,
@@ -404,6 +408,10 @@ function buildSceneLoopDeckPayload(scene) {
       ""
     ),
     activeAssetAnchorKind: toText(selectedLoop.activeAssetAnchorKind || selectedLoop.active_asset_anchor_kind, ""),
+    activeAssetBundleKind: toText(selectedLoop.activeAssetBundleKind || selectedLoop.active_asset_bundle_kind, ""),
+    activeAssetVariantKey: toText(selectedLoop.activeAssetVariantKey || selectedLoop.active_asset_variant_key, ""),
+    activeAssetVariantRole: toText(selectedLoop.activeAssetVariantRole || selectedLoop.active_asset_variant_role, ""),
+    activeAssetVariantTier: toText(selectedLoop.activeAssetVariantTier || selectedLoop.active_asset_variant_tier, ""),
     activeAssetCandidateKey: toText(selectedLoop.activeAssetCandidateKey || selectedLoop.active_asset_candidate_key, ""),
     activeAssetStateKey: toText(selectedLoop.activeAssetStateKey || selectedLoop.active_asset_state_key, ""),
     activeAssetContractReady: Boolean(selectedLoop.activeAssetContractReady || selectedLoop.active_asset_contract_ready),
@@ -791,27 +799,205 @@ function buildLoopMicroflowKeyText(source, familyKey = "") {
   );
 }
 
+let currentLoopAssetContext = null;
+
+function buildLoopAssetContextSource(source, familyKey = "") {
+  const row = asRecord(source);
+  const nested = asRecord(row.loopDeck);
+  const asset_family_key = toText(
+    row.activeAssetFamilyKey ||
+      row.active_asset_family_key ||
+      row.assetFamilyKey ||
+      row.asset_family_key ||
+      nested.activeAssetFamilyKey ||
+      nested.active_asset_family_key ||
+      nested.assetFamilyKey ||
+      nested.asset_family_key ||
+      buildLoopFamilyKeyText(row, familyKey),
+    ""
+  ).toLowerCase();
+  const asset_key = toText(
+    row.activeAssetKey ||
+      row.active_asset_key ||
+      row.assetKey ||
+      row.asset_key ||
+      nested.activeAssetKey ||
+      nested.active_asset_key ||
+      nested.assetKey ||
+      nested.asset_key,
+    ""
+  ).toLowerCase();
+  const asset_bundle_kind = toText(
+    row.activeAssetBundleKind ||
+      row.active_asset_bundle_kind ||
+      row.assetBundleKind ||
+      row.asset_bundle_kind ||
+      nested.activeAssetBundleKind ||
+      nested.active_asset_bundle_kind ||
+      nested.assetBundleKind ||
+      nested.asset_bundle_kind ||
+      (asset_key ? "selected" : ""),
+    ""
+  ).toLowerCase();
+  const asset_variant_key = toText(
+    row.activeAssetVariantKey ||
+      row.active_asset_variant_key ||
+      row.assetVariantKey ||
+      row.asset_variant_key ||
+      row.variantKey ||
+      row.variant_key ||
+      nested.activeAssetVariantKey ||
+      nested.active_asset_variant_key ||
+      nested.assetVariantKey ||
+      nested.asset_variant_key ||
+      nested.variantKey ||
+      nested.variant_key,
+    ""
+  ).toLowerCase();
+  const asset_variant_role = toText(
+    row.activeAssetVariantRole ||
+      row.active_asset_variant_role ||
+      row.assetVariantRole ||
+      row.asset_variant_role ||
+      row.variantRole ||
+      row.variant_role ||
+      nested.activeAssetVariantRole ||
+      nested.active_asset_variant_role ||
+      nested.assetVariantRole ||
+      nested.asset_variant_role ||
+      nested.variantRole ||
+      nested.variant_role ||
+      (asset_bundle_kind === "variation" ? "support" : asset_key ? "primary" : ""),
+    ""
+  ).toLowerCase();
+  const asset_variant_tier = toText(
+    row.activeAssetVariantTier ||
+      row.active_asset_variant_tier ||
+      row.assetVariantTier ||
+      row.asset_variant_tier ||
+      row.variantTier ||
+      row.variant_tier ||
+      nested.activeAssetVariantTier ||
+      nested.active_asset_variant_tier ||
+      nested.assetVariantTier ||
+      nested.asset_variant_tier ||
+      nested.variantTier ||
+      nested.variant_tier ||
+      (asset_bundle_kind === "variation" ? "secondary" : asset_key ? "primary" : ""),
+    ""
+  ).toLowerCase();
+  const asset_state_key = toText(
+    row.activeAssetStateKey ||
+      row.active_asset_state_key ||
+      row.assetStateKey ||
+      row.asset_state_key ||
+      nested.activeAssetStateKey ||
+      nested.active_asset_state_key ||
+      nested.assetStateKey ||
+      nested.asset_state_key,
+    ""
+  ).toLowerCase();
+  const asset_candidate_key = toText(
+    row.activeAssetCandidateKey ||
+      row.active_asset_candidate_key ||
+      row.assetCandidateKey ||
+      row.asset_candidate_key ||
+      row.candidateKey ||
+      row.candidate_key ||
+      nested.activeAssetCandidateKey ||
+      nested.active_asset_candidate_key ||
+      nested.assetCandidateKey ||
+      nested.asset_candidate_key ||
+      nested.candidateKey ||
+      nested.candidate_key,
+    ""
+  );
+  const contractReadyValue =
+    row.activeAssetContractReady ??
+    row.active_asset_contract_ready ??
+    row.assetContractReady ??
+    row.asset_contract_ready ??
+    nested.activeAssetContractReady ??
+    nested.active_asset_contract_ready ??
+    nested.assetContractReady ??
+    nested.asset_contract_ready;
+  const asset_contract_ready = typeof contractReadyValue === "boolean" ? contractReadyValue : asset_state_key === "ready";
+  const asset_focus_key =
+    asset_key && asset_family_key
+      ? `${asset_family_key}:${asset_key}${asset_variant_key && asset_variant_key !== asset_key ? `:${asset_variant_key}` : ""}`
+      : "";
+  const asset_contract_signature = toText(
+    row.activeAssetContractSignature ||
+      row.active_asset_contract_signature ||
+      row.assetContractSignature ||
+      row.asset_contract_signature ||
+      nested.activeAssetContractSignature ||
+      nested.active_asset_contract_signature ||
+      nested.assetContractSignature ||
+      nested.asset_contract_signature,
+    asset_key
+      ? `${asset_family_key || "district"}:${asset_key}|${asset_state_key || "missing"}|${asset_candidate_key || "--"}`
+      : ""
+  );
+  return {
+    asset_key,
+    asset_family_key,
+    asset_bundle_kind,
+    asset_variant_key,
+    asset_variant_role,
+    asset_variant_tier,
+    asset_state_key,
+    asset_candidate_key,
+    asset_contract_ready,
+    asset_contract_signature,
+    asset_focus_key
+  };
+}
+
+function resolveLoopAssetContext(source, familyKey = "") {
+  const direct = buildLoopAssetContextSource(source, familyKey);
+  if (direct.asset_key || direct.asset_contract_signature || direct.asset_variant_key || direct.asset_bundle_kind) {
+    return direct;
+  }
+  return buildLoopAssetContextSource(currentLoopAssetContext, familyKey);
+}
+
+function setCurrentLoopAssetContext(source, familyKey = "") {
+  currentLoopAssetContext = buildLoopAssetContextSource(source, familyKey);
+  return currentLoopAssetContext;
+}
+
+function buildLoopAssetContractSignatureText(source, familyKey = "") {
+  return toText(resolveLoopAssetContext(source, familyKey).asset_contract_signature, "");
+}
+
 function buildLoopContractContextText(source, familyKey = "") {
   const familyKeyText = buildLoopFamilyKeyText(source, familyKey);
   const microflowKeyText = buildLoopMicroflowKeyText(source, familyKey);
   const flowKeyText = buildLoopFlowKeyText(source, familyKey);
   const entryKindKeyText = buildLoopEntryKindKeyText(source, familyKey);
   const sequenceKindKeyText = buildLoopSequenceKindKeyText(source, familyKey);
+  const assetContext = resolveLoopAssetContext(source, familyKey);
   return buildLoopMicroDetail(
     familyKeyText ? `FAMILY ${familyKeyText}` : "",
     microflowKeyText ? `MICRO ${microflowKeyText}` : "",
     flowKeyText ? `FLOW ${flowKeyText}` : "",
     entryKindKeyText ? `ENTRY ${entryKindKeyText}` : "",
-    sequenceKindKeyText ? `SEQ ${sequenceKindKeyText}` : ""
+    sequenceKindKeyText ? `SEQ ${sequenceKindKeyText}` : "",
+    assetContext.asset_focus_key ? `ASSET ${assetContext.asset_focus_key}` : "",
+    assetContext.asset_bundle_kind ? `BUNDLE ${assetContext.asset_bundle_kind}` : "",
+    assetContext.asset_variant_key ? `VAR ${assetContext.asset_variant_key}` : ""
   );
 }
 
 function buildLoopContractSignatureText(source, familyKey = "") {
   const actionSignature = buildLoopActionContextSignatureText(source, familyKey);
   const riskSignature = buildLoopRiskContextSignatureText(source, familyKey);
+  const assetSignature = buildLoopAssetContractSignatureText(source, familyKey);
   return buildLoopMicroDetail(
     actionSignature ? `ACS ${actionSignature}` : "",
-    riskSignature ? `RCS ${riskSignature}` : ""
+    riskSignature ? `RCS ${riskSignature}` : "",
+    assetSignature ? `ASIG ${assetSignature}` : ""
   );
 }
 
@@ -1003,6 +1189,7 @@ function buildLoopBridgeMeta(source, familyKey = "") {
   const risk_health_band_key = inferLoopHealthBandKey(row);
   const risk_attention_band_key = inferLoopAttentionBandKey(row);
   const risk_trend_direction_key = inferLoopTrendDirectionKey(row);
+  const assetContext = resolveLoopAssetContext(row, familyKey);
   const action_context_signature = [flow_key, focus_key, entry_kind_key, sequence_kind_key]
     .filter(Boolean)
     .join("|");
@@ -1025,6 +1212,16 @@ function buildLoopBridgeMeta(source, familyKey = "") {
     risk_health_band_key,
     risk_attention_band_key,
     risk_trend_direction_key,
+    asset_key: assetContext.asset_key,
+    asset_family_key: assetContext.asset_family_key,
+    asset_bundle_kind: assetContext.asset_bundle_kind,
+    asset_variant_key: assetContext.asset_variant_key,
+    asset_variant_role: assetContext.asset_variant_role,
+    asset_variant_tier: assetContext.asset_variant_tier,
+    asset_state_key: assetContext.asset_state_key,
+    asset_contract_ready: assetContext.asset_contract_ready,
+    asset_contract_signature: assetContext.asset_contract_signature,
+    asset_focus_key: assetContext.asset_focus_key,
     entry_kind_key,
     sequence_kind_key,
     action_context_signature
@@ -1066,6 +1263,16 @@ function buildLoopBridgeMeta(source, familyKey = "") {
     risk_health_band_key,
     risk_attention_band_key,
     risk_trend_direction_key,
+    asset_key: assetContext.asset_key,
+    asset_family_key: assetContext.asset_family_key,
+    asset_bundle_kind: assetContext.asset_bundle_kind,
+    asset_variant_key: assetContext.asset_variant_key,
+    asset_variant_role: assetContext.asset_variant_role,
+    asset_variant_tier: assetContext.asset_variant_tier,
+    asset_state_key: assetContext.asset_state_key,
+    asset_contract_ready: assetContext.asset_contract_ready,
+    asset_contract_signature: assetContext.asset_contract_signature,
+    asset_focus_key: assetContext.asset_focus_key,
     entry_kind_key,
     sequence_kind_key,
     action_context_signature,
@@ -1512,6 +1719,7 @@ function resolveLoopFamilyTone(...values) {
 }
 
 function buildPvpLoopMicroPanels(loopDeck, active) {
+  setCurrentLoopAssetContext(loopDeck);
   if (!active) {
     const panels = {
       duelText: "DUEL | WAIT",
@@ -2353,6 +2561,7 @@ function buildPvpLoopMicroPanels(loopDeck, active) {
 }
 
 function buildVaultLoopMicroPanels(loopDeck, active) {
+  setCurrentLoopAssetContext(loopDeck);
   if (!active) {
     const panels = {
       walletText: "WALLET | WAIT",
@@ -3310,6 +3519,7 @@ function buildVaultLoopMicroPanels(loopDeck, active) {
 }
 
 function buildAdminLoopMicroPanels(loopDeck, active) {
+  setCurrentLoopAssetContext(loopDeck);
   if (!active) {
     const panels = {
       queueText: "QUEUE | WAIT",
@@ -4039,6 +4249,7 @@ function buildAdminLoopMicroPanels(loopDeck, active) {
 }
 
 function buildOperationsLoopMicroPanels(loopDeck, active) {
+  setCurrentLoopAssetContext(loopDeck);
   if (!active) {
     const panels = {
       offerText: "OFFER | WAIT",
@@ -5225,12 +5436,20 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
   const assetFamilyKey = toText(loopDeck?.activeAssetFamilyKey || loopDeck?.familyKey, "");
   const assetKey = toText(loopDeck?.activeAssetKey, "");
   const assetAnchorKind = toText(loopDeck?.activeAssetAnchorKind, "");
+  const assetBundleKind = toText(loopDeck?.activeAssetBundleKind, "");
+  const assetVariantKey = toText(loopDeck?.activeAssetVariantKey, "");
+  const assetVariantRole = toText(loopDeck?.activeAssetVariantRole, "");
+  const assetVariantTier = toText(loopDeck?.activeAssetVariantTier, "");
   const assetStateKey = toText(loopDeck?.activeAssetStateKey, "");
   const assetContractSignature = toText(loopDeck?.activeAssetContractSignature, "");
   const assetContractReady = Boolean(loopDeck?.activeAssetContractReady);
   const readyCount = Math.max(0, toNum(loopDeck?.readyAssetCount || 0));
   const selectedCount = Math.max(0, toNum(loopDeck?.selectedAssetCount || 0));
   const loadedCount = Math.max(0, toNum(loopDeck?.loadedAssetCount || 0));
+  const assetVariantText = assetVariantKey && assetVariantKey !== assetKey ? ` | VAR ${assetVariantKey}` : "";
+  const assetBundleText = assetBundleKind
+    ? ` | ${assetBundleKind}${assetVariantRole ? `/${assetVariantRole}` : ""}${assetVariantTier ? `/${assetVariantTier}` : ""}`
+    : "";
   return {
     tone: mapRuntimeTone(assetMetrics.tone || "balanced"),
     badgeText: `ASSET ${toNum(assetMetrics.readyEntries)}/${toNum(assetMetrics.totalEntries)}`,
@@ -5239,7 +5458,7 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
     hintText: `Manifest ${toText(assetMetrics.manifestRevision, "local")} | source ${toText(assetMetrics.sourceMode, "fallback")}${assetContractSignature ? ` | SIG ${assetContractSignature}` : ""}`,
     selectionLineText:
       assetKey || selectedCount
-        ? `ACTIVE ${assetFamilyKey || "district"}:${assetKey || "--"} | ${loadedCount}/${selectedCount || Math.max(1, loadedCount)} | ${assetStateKey || "missing"} | ${assetAnchorKind || "manifest"}`
+        ? `ACTIVE ${assetFamilyKey || "district"}:${assetKey || "--"} | ${loadedCount}/${selectedCount || Math.max(1, loadedCount)} | ${assetStateKey || "missing"} | ${assetAnchorKind || "manifest"}${assetBundleText}${assetVariantText}`
         : "ACTIVE district asset bekleniyor",
     domainLineText: buildWebappDomainLine(domainSummary),
     domainStateKey,
@@ -5248,6 +5467,10 @@ function buildAssetManifestStripPayload(assetMetrics, loopDeck, webappDomainSumm
     assetStateKey,
     assetContractReady,
     assetContractSignature,
+    assetBundleKind,
+    assetVariantKey,
+    assetVariantRole,
+    assetVariantTier,
     readyAssetCount: readyCount,
     selectedAssetCount: selectedCount,
     readyPct: Math.round(clamp(assetMetrics.readyRatio) * 100),
@@ -7284,13 +7507,20 @@ function buildPlayerBridgePayloads(options = {}) {
   };
 
   const sceneLoopDeck = buildSceneLoopDeckPayload(scene);
+  const sceneAssetVariantText =
+    sceneLoopDeck.activeAssetVariantKey && sceneLoopDeck.activeAssetVariantKey !== sceneLoopDeck.activeAssetKey
+      ? ` | VAR ${sceneLoopDeck.activeAssetVariantKey}`
+      : "";
+  const sceneAssetBundleText = sceneLoopDeck.activeAssetBundleKind
+    ? ` | ${sceneLoopDeck.activeAssetBundleKind}${sceneLoopDeck.activeAssetVariantRole ? `/${sceneLoopDeck.activeAssetVariantRole}` : ""}${sceneLoopDeck.activeAssetVariantTier ? `/${sceneLoopDeck.activeAssetVariantTier}` : ""}`
+    : "";
   return {
     sceneStatus: {
       ...(buildSceneStatusPayload(profileMetrics, webappDomainSummary) || {}),
       loopLine: sceneLoopDeck.lineText,
       assetLine:
         sceneLoopDeck.activeAssetKey || sceneLoopDeck.selectedAssetCount
-          ? `ASSET ${sceneLoopDeck.loadedAssetCount}/${Math.max(1, sceneLoopDeck.selectedAssetCount)} | ${sceneLoopDeck.activeAssetFamilyKey || sceneLoopDeck.familyKey || "district"}:${sceneLoopDeck.activeAssetKey || "--"} | ${sceneLoopDeck.activeAssetStateKey || "missing"} | ${sceneLoopDeck.activeAssetAnchorKind || "manifest"}`
+          ? `ASSET ${sceneLoopDeck.loadedAssetCount}/${Math.max(1, sceneLoopDeck.selectedAssetCount)} | ${sceneLoopDeck.activeAssetFamilyKey || sceneLoopDeck.familyKey || "district"}:${sceneLoopDeck.activeAssetKey || "--"} | ${sceneLoopDeck.activeAssetStateKey || "missing"} | ${sceneLoopDeck.activeAssetAnchorKind || "manifest"}${sceneAssetBundleText}${sceneAssetVariantText}`
           : "ASSET district bundle bekleniyor.",
       actionContext: sceneLoopDeck.actionContext,
       actionContextSignature: sceneLoopDeck.actionContextSignature,
@@ -7305,6 +7535,10 @@ function buildPlayerBridgePayloads(options = {}) {
       assetKey: sceneLoopDeck.activeAssetKey,
       assetFamilyKey: sceneLoopDeck.activeAssetFamilyKey,
       assetAnchorKind: sceneLoopDeck.activeAssetAnchorKind,
+      assetBundleKind: sceneLoopDeck.activeAssetBundleKind,
+      assetVariantKey: sceneLoopDeck.activeAssetVariantKey,
+      assetVariantRole: sceneLoopDeck.activeAssetVariantRole,
+      assetVariantTier: sceneLoopDeck.activeAssetVariantTier,
       assetCandidateKey: sceneLoopDeck.activeAssetCandidateKey,
       assetStateKey: sceneLoopDeck.activeAssetStateKey,
       assetContractReady: sceneLoopDeck.activeAssetContractReady,

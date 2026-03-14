@@ -385,6 +385,16 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
     risk_health_band_key: "no_data",
     risk_attention_band_key: "no_data",
     risk_trend_direction_key: "no_data",
+    asset_key: "arena_trophy",
+    asset_family_key: "duel",
+    asset_bundle_kind: "selected",
+    asset_variant_key: "",
+    asset_variant_role: "primary",
+    asset_variant_tier: "primary",
+    asset_state_key: "ready",
+    asset_contract_ready: true,
+    asset_contract_signature: "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man",
+    asset_focus_key: "duel:arena_trophy",
     entry_kind_key: "world_entry_kind_duel_console",
     sequence_kind_key: "world_modal_kind_duel_sequence",
     action_context_signature:
@@ -403,6 +413,16 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
     risk_health_band_key: "no_data",
     risk_attention_band_key: "no_data",
     risk_trend_direction_key: "no_data",
+    asset_key: "arena_trophy",
+    asset_family_key: "duel",
+    asset_bundle_kind: "selected",
+    asset_variant_key: "",
+    asset_variant_role: "primary",
+    asset_variant_tier: "primary",
+    asset_state_key: "ready",
+    asset_contract_ready: true,
+    asset_contract_signature: "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man",
+    asset_focus_key: "duel:arena_trophy",
     entry_kind_key: "world_entry_kind_duel_console",
     sequence_kind_key: "world_modal_kind_duel_sequence",
     action_context_signature:
@@ -558,11 +578,11 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   );
   assert.match(
     payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[6] || "",
-    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
+    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence(?: \| ASSET .+)?$/i
   );
   assert.match(
     payloads.combatHud.loopDuelFlowPanels?.[2]?.lines?.[7] || "",
-    /^ACS duel:duel_flow\|arena_prime:duel:duel_flow\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence \| RCS duel:duel_flow\|arena_prime:duel:duel_flow\|[a-z_]+:[a-z_]+:[a-z_]+\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence$/i
+    /^ACS duel:duel_flow\|arena_prime:duel:duel_flow\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence \| RCS duel:duel_flow\|arena_prime:duel:duel_flow\|[a-z_]+:[a-z_]+:[a-z_]+\|world_entry_kind_duel_console\|world_modal_kind_duel_sequence(?: \| ASIG .+)?$/i
   );
   assert.equal(payloads.combatHud.loopDuelSubflowCards?.length, 3);
   assert.equal(payloads.combatHud.loopDuelSubflowCards?.[0]?.title, "STANCE");
@@ -672,7 +692,7 @@ test("buildPlayerBridgePayloads produces live player bridge payloads from real s
   );
   assert.match(
     payloads.combatHud.loopLadderSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence$/i
+    /^FAMILY duel \| MICRO duel_flow \| FLOW duel:duel_flow \| ENTRY world_entry_kind_duel_console \| SEQ world_modal_kind_duel_sequence(?: \| ASSET .+)?$/i
   );
   assert.match(payloads.combatHud.loopTelemetryFamilyText, /FLOW DUEL FLOW \| STATUS ACTIVE \| DIAG HOT/i);
   assert.match(payloads.combatHud.loopTelemetryFlowText, /PERSONA (WORLD )?PERSONALITY ASSAULT \| SEQ DUEL SEQUENCE \| FLOW DUEL FLOW/i);
@@ -894,7 +914,7 @@ test("buildPlayerBridgePayloads surfaces active vault loop micro panels from sel
   assert.match(payloads.tokenOverview.loopPayoutSubflowPanels?.[2]?.lines?.[3] || "", /HEALTH .*ATTN .*TREND /i);
   assert.match(
     payloads.tokenOverview.loopPayoutSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FAMILY wallet \| MICRO payout_flow \| FLOW wallet:payout_flow \| ENTRY world_entry_kind_payout_terminal \| SEQ world_modal_kind_payout_route$/i
+    /^FAMILY wallet \| MICRO payout_flow \| FLOW wallet:payout_flow \| ENTRY world_entry_kind_payout_terminal \| SEQ world_modal_kind_payout_route(?: \| ASSET .+)?$/i
   );
   assert.match(payloads.tokenOverview.loopRouteFamilyText, /FLOW PAYOUT FLOW \| STATUS LIVE \| ROUTE 2\/3/i);
   assert.match(payloads.tokenOverview.loopRouteFlowText, /PERSONA STABLE ROUTE \| FLOW PAYOUT FLOW \| SEQ PAYOUT ROUTE/i);
@@ -2029,7 +2049,7 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   );
   assert.match(
     payloads.runtime.loopDispatchSubflowPanels?.[2]?.lines?.[6] || "",
-    /^FAMILY queue \| MICRO dispatch_flow \| FLOW queue:dispatch_flow \| ENTRY world_entry_kind_dispatch_console \| SEQ world_modal_kind_dispatch_sequence$/i
+    /^FAMILY queue \| MICRO dispatch_flow \| FLOW queue:dispatch_flow \| ENTRY world_entry_kind_dispatch_console \| SEQ world_modal_kind_dispatch_sequence(?: \| ASSET .+)?$/i
   );
   assert.equal(payloads.runtime.loopDispatchBlocks?.length, 3);
   assert.equal(payloads.runtime.loopDispatchBlocks?.[0]?.title, "FLOW");
@@ -2069,4 +2089,100 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.assetRuntime.chips[6].text, "HOST READY");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");
   assert.equal(payloads.auditRuntime.chips.length, 4);
+});
+
+test("buildPlayerBridgePayloads carries variation asset contracts into player scene and loop risk views", async () => {
+  const mod = await loadModule();
+  const payloads = mod.buildPlayerBridgePayloads({
+    mutators: createMutators(),
+    data: {
+      asset_manifest: {
+        available: true,
+        active_revision: { manifest_revision: "rev_var_1", source: "cdn" },
+        entries: [
+          { asset_key: "arena_ladder_scout.glb", exists_local: true, integrity_status: "ok" },
+          { asset_key: "arena_trophy.glb", exists_local: true, integrity_status: "ok" }
+        ],
+        summary: { total_assets: 2, ready_assets: 2, missing_assets: 0, integrity_ratio: 1 }
+      },
+      local_manifest: {
+        webapp_domain_summary: {
+          host: "webapp.k99-exchange.xyz",
+          state_key: "ready",
+          dns_ready: true,
+          contract_ready: true,
+          runtime_guard_matches_host: true,
+          webapp_status_code: 200
+        }
+      }
+    },
+    scene: {
+      hudDensity: "normal",
+      capabilityProfile: { perf_tier: "high", fps_avg: 60 },
+      selectedLoop: {
+        districtKey: "arena_prime",
+        protocolCardKey: "ladder_protocol",
+        protocolPodKey: "ladder_pod",
+        microflowKey: "ladder_flow",
+        familyKey: "ladder",
+        flowKey: "ladder:ladder_flow",
+        focusKey: "arena_prime:ladder:ladder_flow",
+        riskKey: "green:watch:stable",
+        riskFocusKey: "arena_prime:ladder:ladder_flow|green:watch:stable",
+        activeAssetKey: "arena_ladder_scout",
+        activeAssetFamilyKey: "ladder",
+        activeAssetAnchorKind: "cluster",
+        activeAssetBundleKind: "variation",
+        activeAssetVariantKey: "arena_ladder_scout",
+        activeAssetVariantRole: "support",
+        activeAssetVariantTier: "secondary",
+        activeAssetCandidateKey: "arena_khronos_buggy_scout",
+        activeAssetStateKey: "ready",
+        activeAssetContractReady: true,
+        activeAssetContractSignature: "arena_prime:ladder:arena_ladder_scout|ready|arena_khronos_buggy_scout",
+        readyAssetCount: 2,
+        selectedAssetCount: 2,
+        loadedAssetCount: 2,
+        entryKindKey: "world_entry_kind_ladder_console",
+        sequenceKindKey: "world_modal_kind_ladder_sequence",
+        loopStatusKey: "watch",
+        loopStatusLabelKey: "loop_status_watch",
+        loopStageValue: "review",
+        loopRows: [{ label_key: "world_sheet_metric_ladder_rank", value: "8", status_key: "watch" }],
+        loopSignalRows: [{ label_key: "world_sheet_metric_ladder_charge", value: "62", status_key: "watch" }],
+        sequenceRows: [{ label_key: "world_sheet_metric_ladder_tick", value: "48", status_key: "live" }]
+      }
+    },
+    sceneRuntime: {
+      lowEndMode: false,
+      effectiveQuality: "high"
+    },
+    pvpRuntime: {},
+    leagueOverview: {},
+    pvpLive: {},
+    vaultData: {}
+  });
+
+  assert.equal(payloads.sceneStatus.assetBundleKind, "variation");
+  assert.equal(payloads.sceneStatus.assetVariantKey, "arena_ladder_scout");
+  assert.equal(payloads.sceneStatus.assetVariantRole, "support");
+  assert.equal(payloads.sceneStatus.assetVariantTier, "secondary");
+  assert.match(payloads.sceneStatus.assetLine || "", /variation\/support\/secondary/i);
+  assert.equal(payloads.publicTelemetry.assetManifest.assetBundleKind, "variation");
+  assert.equal(payloads.publicTelemetry.assetManifest.assetVariantKey, "arena_ladder_scout");
+  assert.match(payloads.publicTelemetry.assetManifest.selectionLineText || "", /variation\/support\/secondary/i);
+  assert.equal(payloads.combatHud.loopLadderRiskCards?.[0]?.asset_bundle_kind, "variation");
+  assert.equal(payloads.combatHud.loopLadderRiskCards?.[0]?.asset_variant_key, "arena_ladder_scout");
+  assert.equal(
+    payloads.combatHud.loopLadderRiskCards?.[0]?.asset_contract_signature,
+    "arena_prime:ladder:arena_ladder_scout|ready|arena_khronos_buggy_scout"
+  );
+  assert.match(
+    (payloads.combatHud.loopLadderRiskPanels?.[0]?.lines || []).join(" | "),
+    /ASSET ladder:arena_ladder_scout/i
+  );
+  assert.match(
+    (payloads.combatHud.loopLadderRiskPanels?.[0]?.lines || []).join(" | "),
+    /BUNDLE variation/i
+  );
 });

@@ -64,6 +64,10 @@ type BabylonDistrictSceneHostProps = {
     activeAssetKey?: string;
     activeAssetFamilyKey?: string;
     activeAssetAnchorKind?: string;
+    activeAssetBundleKind?: string;
+    activeAssetVariantKey?: string;
+    activeAssetVariantRole?: string;
+    activeAssetVariantTier?: string;
     activeAssetCandidateKey?: string;
     activeAssetStateKey?: string;
     activeAssetContractReady?: boolean;
@@ -1031,6 +1035,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     activeAssetKey: string;
     activeFamilyKey: string;
     activeAnchorKind: string;
+    activeBundleKind: string;
+    activeVariantKey: string;
+    activeVariantRole: string;
+    activeVariantTier: string;
     activeCandidateKey: string;
     activeStateKey: string;
     activeContractReady: boolean;
@@ -1043,6 +1051,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
     activeAssetKey: "",
     activeFamilyKey: "",
     activeAnchorKind: "",
+    activeBundleKind: "",
+    activeVariantKey: "",
+    activeVariantRole: "",
+    activeVariantTier: "",
     activeCandidateKey: "",
     activeStateKey: "",
     activeContractReady: false,
@@ -1800,6 +1812,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       personality_band_key: selectedMicroflow.personality_band_key || "",
       density_label_key: selectedMicroflow.density_label_key || "",
       active_asset_state_key: districtAssetSummary.activeStateKey || "",
+      active_asset_bundle_kind: districtAssetSummary.activeBundleKind || "",
+      active_asset_variant_key: districtAssetSummary.activeVariantKey || "",
+      active_asset_variant_role: districtAssetSummary.activeVariantRole || "",
+      active_asset_variant_tier: districtAssetSummary.activeVariantTier || "",
       active_asset_contract_signature: districtAssetSummary.activeContractSignature || "",
       active_asset_contract_ready: districtAssetSummary.activeContractReady,
       ready_asset_count: districtAssetSummary.readyCount || 0
@@ -1845,6 +1861,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       activeAssetAnchorKind: districtAssetSummary.activeAnchorKind || undefined,
       activeAssetCandidateKey: districtAssetSummary.activeCandidateKey || undefined,
       activeAssetStateKey: districtAssetSummary.activeStateKey || undefined,
+      activeAssetBundleKind: districtAssetSummary.activeBundleKind || undefined,
+      activeAssetVariantKey: districtAssetSummary.activeVariantKey || undefined,
+      activeAssetVariantRole: districtAssetSummary.activeVariantRole || undefined,
+      activeAssetVariantTier: districtAssetSummary.activeVariantTier || undefined,
       activeAssetContractReady: districtAssetSummary.activeContractReady,
       activeAssetContractSignature: districtAssetSummary.activeContractSignature || undefined,
       readyAssetCount: districtAssetSummary.readyCount || 0,
@@ -2271,6 +2291,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             activeAssetKey: String(activeDistrictAsset?.asset_key || ""),
             activeFamilyKey: String(activeDistrictAsset?.family_key || ""),
             activeAnchorKind: String(activeDistrictAsset?.anchor_kind || ""),
+            activeBundleKind: String(activeDistrictAsset?.bundle_kind || ""),
+            activeVariantKey: String(activeDistrictAsset?.variant_key || ""),
+            activeVariantRole: String(activeDistrictAsset?.variant_role || ""),
+            activeVariantTier: String(activeDistrictAsset?.variant_tier || ""),
             activeCandidateKey: String(activeDistrictAsset?.candidate_key || ""),
             activeStateKey: activeAssetStateKey,
             activeContractReady:
@@ -3082,6 +3106,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       activeAssetKey: "",
       activeFamilyKey: "",
       activeAnchorKind: "",
+      activeBundleKind: "",
+      activeVariantKey: "",
+      activeVariantRole: "",
+      activeVariantTier: "",
       activeCandidateKey: "",
       activeStateKey: "",
       activeContractReady: false,

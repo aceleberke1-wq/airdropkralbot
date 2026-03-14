@@ -33,6 +33,10 @@ export type SceneStatusDeckBridgePayload = {
   assetKey?: string;
   assetFamilyKey?: string;
   assetAnchorKind?: string;
+  assetBundleKind?: string;
+  assetVariantKey?: string;
+  assetVariantRole?: string;
+  assetVariantTier?: string;
   assetCandidateKey?: string;
   assetStateKey?: string;
   assetContractReady?: boolean;
@@ -172,6 +176,10 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
   deck.dataset.assetKey = String(payload.assetKey || "").trim();
   deck.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
   deck.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
+  deck.dataset.assetBundleKind = String(payload.assetBundleKind || "").trim();
+  deck.dataset.assetVariantKey = String(payload.assetVariantKey || "").trim();
+  deck.dataset.assetVariantRole = String(payload.assetVariantRole || "").trim();
+  deck.dataset.assetVariantTier = String(payload.assetVariantTier || "").trim();
   deck.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
   deck.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
   deck.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";
@@ -205,6 +213,10 @@ function render(payload: SceneStatusDeckBridgePayload): boolean {
     assetLineNode.dataset.assetKey = String(payload.assetKey || "").trim();
     assetLineNode.dataset.assetFamilyKey = String(payload.assetFamilyKey || "").trim();
     assetLineNode.dataset.assetAnchorKind = String(payload.assetAnchorKind || "").trim();
+    assetLineNode.dataset.assetBundleKind = String(payload.assetBundleKind || "").trim();
+    assetLineNode.dataset.assetVariantKey = String(payload.assetVariantKey || "").trim();
+    assetLineNode.dataset.assetVariantRole = String(payload.assetVariantRole || "").trim();
+    assetLineNode.dataset.assetVariantTier = String(payload.assetVariantTier || "").trim();
     assetLineNode.dataset.assetCandidateKey = String(payload.assetCandidateKey || "").trim();
     assetLineNode.dataset.assetStateKey = String(payload.assetStateKey || "").trim();
     assetLineNode.dataset.assetContractReady = payload.assetContractReady === true ? "true" : "false";

@@ -13,6 +13,16 @@ export type LoopBridgeCard = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
+  asset_key?: string;
+  asset_family_key?: string;
+  asset_bundle_kind?: string;
+  asset_variant_key?: string;
+  asset_variant_role?: string;
+  asset_variant_tier?: string;
+  asset_state_key?: string;
+  asset_contract_ready?: boolean;
+  asset_contract_signature?: string;
+  asset_focus_key?: string;
   risk_health_band_key?: string;
   risk_attention_band_key?: string;
   risk_trend_direction_key?: string;
@@ -39,6 +49,16 @@ export type LoopBridgeBlock = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
+  asset_key?: string;
+  asset_family_key?: string;
+  asset_bundle_kind?: string;
+  asset_variant_key?: string;
+  asset_variant_role?: string;
+  asset_variant_tier?: string;
+  asset_state_key?: string;
+  asset_contract_ready?: boolean;
+  asset_contract_signature?: string;
+  asset_focus_key?: string;
   risk_health_band_key?: string;
   risk_attention_band_key?: string;
   risk_trend_direction_key?: string;
@@ -64,6 +84,16 @@ export type LoopBridgePanel = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
+  asset_key?: string;
+  asset_family_key?: string;
+  asset_bundle_kind?: string;
+  asset_variant_key?: string;
+  asset_variant_role?: string;
+  asset_variant_tier?: string;
+  asset_state_key?: string;
+  asset_contract_ready?: boolean;
+  asset_contract_signature?: string;
+  asset_focus_key?: string;
   risk_health_band_key?: string;
   risk_attention_band_key?: string;
   risk_trend_direction_key?: string;
@@ -78,6 +108,16 @@ export type LoopBridgeActionContext = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
+  asset_key?: string;
+  asset_family_key?: string;
+  asset_bundle_kind?: string;
+  asset_variant_key?: string;
+  asset_variant_role?: string;
+  asset_variant_tier?: string;
+  asset_state_key?: string;
+  asset_contract_ready?: boolean;
+  asset_contract_signature?: string;
+  asset_focus_key?: string;
   focus_key?: string;
   risk_key?: string;
   risk_focus_key?: string;
@@ -122,6 +162,16 @@ export type LoopBridgeMeta = {
   family_key?: string;
   flow_key?: string;
   microflow_key?: string;
+  asset_key?: string;
+  asset_family_key?: string;
+  asset_bundle_kind?: string;
+  asset_variant_key?: string;
+  asset_variant_role?: string;
+  asset_variant_tier?: string;
+  asset_state_key?: string;
+  asset_contract_ready?: boolean;
+  asset_contract_signature?: string;
+  asset_focus_key?: string;
   risk_health_band_key?: string;
   risk_attention_band_key?: string;
   risk_trend_direction_key?: string;
@@ -143,6 +193,16 @@ const BRIDGE_META_DATASET_KEYS = [
   "familyKey",
   "flowKey",
   "microflowKey",
+  "assetKey",
+  "assetFamilyKey",
+  "assetBundleKind",
+  "assetVariantKey",
+  "assetVariantRole",
+  "assetVariantTier",
+  "assetStateKey",
+  "assetContractReady",
+  "assetContractSignature",
+  "assetFocusKey",
   "riskHealthBandKey",
   "riskAttentionBandKey",
   "riskTrendDirectionKey",
@@ -218,6 +278,36 @@ function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
   const microflowKey = safeText(
     meta.microflow_key || actionContext.microflow_key || riskContext.microflow_key
   );
+  const assetKey = safeText(meta.asset_key || actionContext.asset_key || riskContext.asset_key);
+  const assetFamilyKey = safeText(
+    meta.asset_family_key || actionContext.asset_family_key || riskContext.asset_family_key
+  );
+  const assetBundleKind = safeText(
+    meta.asset_bundle_kind || actionContext.asset_bundle_kind || riskContext.asset_bundle_kind
+  );
+  const assetVariantKey = safeText(
+    meta.asset_variant_key || actionContext.asset_variant_key || riskContext.asset_variant_key
+  );
+  const assetVariantRole = safeText(
+    meta.asset_variant_role || actionContext.asset_variant_role || riskContext.asset_variant_role
+  );
+  const assetVariantTier = safeText(
+    meta.asset_variant_tier || actionContext.asset_variant_tier || riskContext.asset_variant_tier
+  );
+  const assetStateKey = safeText(
+    meta.asset_state_key || actionContext.asset_state_key || riskContext.asset_state_key
+  );
+  const assetContractReadyRaw =
+    meta.asset_contract_ready ?? actionContext.asset_contract_ready ?? riskContext.asset_contract_ready;
+  const assetContractReady = typeof assetContractReadyRaw === "boolean" ? assetContractReadyRaw : undefined;
+  const assetContractSignature = safeText(
+    meta.asset_contract_signature ||
+      actionContext.asset_contract_signature ||
+      riskContext.asset_contract_signature
+  );
+  const assetFocusKey = safeText(
+    meta.asset_focus_key || actionContext.asset_focus_key || riskContext.asset_focus_key
+  );
   const riskHealthBandKey = safeText(
     meta.risk_health_band_key || actionContext.risk_health_band_key || riskContext.risk_health_band_key
   );
@@ -262,6 +352,36 @@ function applyBridgeMeta(article: HTMLElement, meta: LoopBridgeMeta): void {
   if (microflowKey) {
     article.dataset.microflowKey = microflowKey;
   }
+  if (assetKey) {
+    article.dataset.assetKey = assetKey;
+  }
+  if (assetFamilyKey) {
+    article.dataset.assetFamilyKey = assetFamilyKey;
+  }
+  if (assetBundleKind) {
+    article.dataset.assetBundleKind = assetBundleKind;
+  }
+  if (assetVariantKey) {
+    article.dataset.assetVariantKey = assetVariantKey;
+  }
+  if (assetVariantRole) {
+    article.dataset.assetVariantRole = assetVariantRole;
+  }
+  if (assetVariantTier) {
+    article.dataset.assetVariantTier = assetVariantTier;
+  }
+  if (assetStateKey) {
+    article.dataset.assetStateKey = assetStateKey;
+  }
+  if (typeof assetContractReady === "boolean") {
+    article.dataset.assetContractReady = assetContractReady ? "true" : "false";
+  }
+  if (assetContractSignature) {
+    article.dataset.assetContractSignature = assetContractSignature;
+  }
+  if (assetFocusKey) {
+    article.dataset.assetFocusKey = assetFocusKey;
+  }
   if (riskHealthBandKey) {
     article.dataset.riskHealthBandKey = riskHealthBandKey;
   }
@@ -295,6 +415,15 @@ function buildBridgeContextChips(meta: LoopBridgeMeta): string[] {
   pushChip("FLOW", meta.flow_key || actionContext.flow_key || riskContext.flow_key);
   pushChip("ENTRY", meta.entry_kind_key || actionContext.entry_kind_key || riskContext.entry_kind_key);
   pushChip("SEQ", meta.sequence_kind_key || actionContext.sequence_kind_key || riskContext.sequence_kind_key);
+  pushChip(
+    "ASSET",
+    meta.asset_focus_key || actionContext.asset_focus_key || riskContext.asset_focus_key
+  );
+  pushChip("VAR", meta.asset_variant_key || actionContext.asset_variant_key || riskContext.asset_variant_key);
+  pushChip(
+    "BUNDLE",
+    meta.asset_bundle_kind || actionContext.asset_bundle_kind || riskContext.asset_bundle_kind
+  );
   pushChip(
     "HB",
     meta.risk_health_band_key || actionContext.risk_health_band_key || riskContext.risk_health_band_key
@@ -369,6 +498,15 @@ function hasBridgeMeta(meta: LoopBridgeMeta | null | undefined): boolean {
       safeText(meta.family_key) ||
       safeText(meta.flow_key) ||
       safeText(meta.microflow_key) ||
+      safeText(meta.asset_key) ||
+      safeText(meta.asset_family_key) ||
+      safeText(meta.asset_bundle_kind) ||
+      safeText(meta.asset_variant_key) ||
+      safeText(meta.asset_variant_role) ||
+      safeText(meta.asset_variant_tier) ||
+      safeText(meta.asset_state_key) ||
+      safeText(meta.asset_contract_signature) ||
+      safeText(meta.asset_focus_key) ||
       safeText(meta.risk_health_band_key) ||
       safeText(meta.risk_attention_band_key) ||
       safeText(meta.risk_trend_direction_key) ||
