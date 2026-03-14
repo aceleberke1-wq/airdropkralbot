@@ -2613,6 +2613,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-active-cluster-risk-focus={worldState.active_cluster_risk_focus_key || ""}
       data-active-cluster-entry-kind={worldState.active_cluster_entry_kind_key || ""}
       data-active-cluster-sequence-kind={worldState.active_cluster_sequence_kind_key || ""}
+      data-active-cluster-action-count={String(worldState.active_cluster_action_count || 0)}
+      data-active-cluster-action-ready-count={String(worldState.active_cluster_action_contract_ready_count || 0)}
+      data-active-cluster-action-contract={worldState.active_cluster_action_contract_state_key || ""}
+      data-active-cluster-slot-count={String(worldState.active_cluster_slot_count || 0)}
+      data-active-cluster-slot-ready-count={String(worldState.active_cluster_slot_contract_ready_count || 0)}
+      data-active-cluster-slot-contract={worldState.active_cluster_slot_contract_state_key || ""}
       data-active-cluster-contract-ready={
         typeof worldState.active_cluster_contract_ready === "boolean"
           ? String(worldState.active_cluster_contract_ready)

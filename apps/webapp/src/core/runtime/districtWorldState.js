@@ -337,6 +337,30 @@ function buildSceneContractMeta(source, fallback = {}) {
   };
 }
 
+function buildSceneContractCollectionMeta(items) {
+  const records = asList(items)
+    .map((item) => asRecord(item))
+    .filter((item) => Object.keys(item).length);
+  const totalCount = records.length;
+  const contractReadyCount = records.filter((item) => item.contract_ready === true).length;
+  const contextResolvedCount = records.filter((item) => item.context_lookup_resolved === true).length;
+  const contractMissingCount = Math.max(totalCount - contractReadyCount, 0);
+  const contractStateKey = !totalCount
+    ? ""
+    : contractReadyCount === totalCount
+      ? "ready"
+      : contractReadyCount > 0
+        ? "partial"
+        : "missing";
+  return {
+    total_count: totalCount,
+    contract_ready_count: contractReadyCount,
+    contract_missing_count: contractMissingCount,
+    context_resolved_count: contextResolvedCount,
+    contract_state_key: contractStateKey
+  };
+}
+
 function buildActionContextShape(source, fallback = {}) {
   const primary = asRecord(source);
   const secondary = asRecord(fallback);
@@ -7074,6 +7098,8 @@ export function buildDistrictWorldState(input = {}) {
         action_items: enrichInteractionActionItems(interactionModal.action_items, actionContextLookup)
       }
     : interactionModal;
+  const activeClusterActionSummary = buildSceneContractCollectionMeta(enrichedActiveCluster?.action_items);
+  const activeClusterSlotSummary = buildSceneContractCollectionMeta(enrichedActiveCluster?.intent_slots);
   const primarySurfaceAction = asRecord(asList(enrichedInteractionSurface?.action_items)[0]);
   const primarySurfaceContext = asRecord(primarySurfaceAction.action_context);
   const rootInteractionMeta = buildInteractionContextMeta(
@@ -7347,9 +7373,18 @@ export function buildDistrictWorldState(input = {}) {
     active_cluster_primary_contract_missing_keys: asList(enrichedActiveCluster?.primary_contract_missing_keys),
     active_cluster_primary_action_context: asRecord(enrichedActiveCluster?.primary_action_context),
     active_cluster_primary_risk_context: asRecord(enrichedActiveCluster?.primary_risk_context),
+    active_cluster_action_count: activeClusterActionSummary.total_count,
+    active_cluster_action_contract_ready_count: activeClusterActionSummary.contract_ready_count,
+    active_cluster_action_contract_missing_count: activeClusterActionSummary.contract_missing_count,
+    active_cluster_action_context_resolved_count: activeClusterActionSummary.context_resolved_count,
+    active_cluster_action_contract_state_key: activeClusterActionSummary.contract_state_key,
     active_cluster_secondary_count: toNum(enrichedActiveCluster?.secondary_count, 0),
     active_cluster_actions: asList(enrichedActiveCluster?.action_items),
-    active_cluster_slot_count: toNum(enrichedActiveCluster?.intent_slots?.length, 0),
+    active_cluster_slot_count: activeClusterSlotSummary.total_count,
+    active_cluster_slot_contract_ready_count: activeClusterSlotSummary.contract_ready_count,
+    active_cluster_slot_contract_missing_count: activeClusterSlotSummary.contract_missing_count,
+    active_cluster_slot_context_resolved_count: activeClusterSlotSummary.context_resolved_count,
+    active_cluster_slot_contract_state_key: activeClusterSlotSummary.contract_state_key,
     interaction_sheet: finalInteractionSheet,
     interaction_surface: finalInteractionSurface,
     interaction_flow: finalInteractionFlow,

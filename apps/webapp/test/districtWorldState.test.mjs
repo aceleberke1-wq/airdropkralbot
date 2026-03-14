@@ -765,8 +765,17 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.active_cluster_primary_entry_kind_key, "world_entry_kind_hub_portal");
   assert.equal(state.active_cluster_primary_sequence_kind_key, "world_modal_kind_travel_gate");
   assert.equal(state.active_cluster_primary_contract_ready, true);
+  assert.equal(state.active_cluster_action_count, 2);
+  assert.equal(state.active_cluster_action_contract_ready_count, 2);
+  assert.equal(state.active_cluster_action_contract_missing_count, 0);
+  assert.equal(state.active_cluster_action_context_resolved_count, 2);
+  assert.equal(state.active_cluster_action_contract_state_key, "ready");
   assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.active_cluster_slot_count, 2);
+  assert.equal(state.active_cluster_slot_contract_ready_count, 2);
+  assert.equal(state.active_cluster_slot_contract_missing_count, 0);
+  assert.equal(state.active_cluster_slot_context_resolved_count, 2);
+  assert.equal(state.active_cluster_slot_contract_state_key, "ready");
   assert.equal(state.actors.length, 3);
   assert.deepEqual(
     state.actors.map((actor) => actor.kind),
@@ -1576,6 +1585,14 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_cluster_primary_action_key, SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST);
   assert.equal(state.active_cluster_primary_flow_key, "payout_flow");
   assert.equal(state.active_cluster_primary_contract_ready, true);
+  assert.equal(state.active_cluster_action_count, 2);
+  assert.equal(state.active_cluster_action_contract_ready_count, 1);
+  assert.equal(state.active_cluster_action_contract_missing_count, 1);
+  assert.equal(state.active_cluster_action_contract_state_key, "partial");
+  assert.equal(state.active_cluster_slot_count, 2);
+  assert.equal(state.active_cluster_slot_contract_ready_count, 1);
+  assert.equal(state.active_cluster_slot_contract_missing_count, 1);
+  assert.equal(state.active_cluster_slot_contract_state_key, "partial");
   assert.equal(state.interaction_surface.surface_kind_key, "world_surface_kind_vault_terminal");
   assert.equal(state.interaction_surface.hero_label_key, "world_sheet_metric_wallet_state");
   assert.equal(state.interaction_flow.flow_kind_key, "world_flow_kind_vault_loop");
