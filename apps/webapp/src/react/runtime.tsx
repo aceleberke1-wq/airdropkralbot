@@ -9,6 +9,77 @@ import * as navigationContract from "../core/shared/navigationContract.js";
 
 const { decodeStartAppPayload, resolveLaunchTarget } = navigationContract;
 
+type FatalBoundaryProps = {
+  children: React.ReactNode;
+};
+
+type FatalBoundaryState = {
+  errorMessage: string;
+};
+
+class FatalBoundary extends React.Component<FatalBoundaryProps, FatalBoundaryState> {
+  state: FatalBoundaryState = {
+    errorMessage: ""
+  };
+
+  static getDerivedStateFromError(error: unknown): FatalBoundaryState {
+    return {
+      errorMessage: error instanceof Error ? error.message : "react_runtime_unknown_error"
+    };
+  }
+
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error("[webapp-runtime-boundary]", error, info);
+  }
+
+  render() {
+    if (this.state.errorMessage) {
+      return (
+        <section
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            background: "#070b14",
+            color: "#e7edf7",
+            fontFamily: "'Space Grotesk', sans-serif",
+            padding: 24
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 640,
+              border: "1px solid rgba(132,180,255,.25)",
+              background: "rgba(8,16,30,.78)",
+              padding: 20,
+              borderRadius: 14
+            }}
+          >
+            <h1 style={{ margin: "0 0 8px", fontSize: 24 }}>React Runtime Render Failed</h1>
+            <p style={{ margin: "0 0 14px", opacity: 0.9, lineHeight: 1.5 }}>{this.state.errorMessage}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{
+                border: 0,
+                borderRadius: 10,
+                padding: "10px 14px",
+                background: "#38d0ff",
+                color: "#041320",
+                fontWeight: 700,
+                cursor: "pointer"
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function resolveLaunchContext(search: string) {
   const qs = new URLSearchParams(search);
   const startapp = String(qs.get("startapp") || "").trim();
@@ -58,6 +129,15 @@ function mountFatal(message: string): void {
 
 export async function mountReactWebAppV1(): Promise<void> {
   document.body.classList.add("akrReactModeBody");
+  window.addEventListener("error", (event) => {
+    const message = event?.error instanceof Error ? event.error.message : String(event?.message || "window_error");
+    mountFatal(`Unhandled error: ${message}`);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const message = reason instanceof Error ? reason.message : String(reason || "unhandled_promise_rejection");
+    mountFatal(`Unhandled rejection: ${message}`);
+  });
   const auth = readWebAppAuth();
   if (!auth) {
     mountFatal("Missing Telegram auth query. Expected uid, ts, sig.");
@@ -86,8 +166,10 @@ export async function mountReactWebAppV1(): Promise<void> {
   };
   const root = createRoot(ensureRootNode());
   root.render(
-    <Provider store={appStore}>
-      <ReactWebAppV1 auth={auth} bootstrap={payload} />
-    </Provider>
+    <FatalBoundary>
+      <Provider store={appStore}>
+        <ReactWebAppV1 auth={auth} bootstrap={payload} />
+      </Provider>
+    </FatalBoundary>
   );
 }
