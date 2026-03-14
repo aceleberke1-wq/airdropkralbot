@@ -167,8 +167,20 @@ function AlarmReasonList(props: { title: string; rows: string[] }) {
   );
 }
 
-function BreakdownList(props: { title: string; rows: Array<Record<string, unknown>> }) {
-  if (!props.rows.length) {
+function BreakdownList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
+}) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -180,7 +192,7 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
     <div>
       <strong>{props.title}</strong>
       <div className="akrChipRow">
-        {props.rows.slice(0, 6).map((row, index) => (
+        {rows.slice(0, 6).map((row, index) => (
           <span className="akrChip" key={`${props.title}_${String(row.bucket_key || index)}`}>
             {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
             {renderRiskContextSuffix(row)}
@@ -191,8 +203,20 @@ function BreakdownList(props: { title: string; rows: Array<Record<string, unknow
   );
 }
 
-function DailyBreakdownList(props: { title: string; rows: Array<Record<string, unknown>> }) {
-  if (!props.rows.length) {
+function DailyBreakdownList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
+}) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -204,7 +228,7 @@ function DailyBreakdownList(props: { title: string; rows: Array<Record<string, u
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 12).map((row, index) => (
+        {rows.slice(0, 12).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}_${String(row.bucket_key || index)}`}>
             {String(row.day || "-")} | {String(row.bucket_key || "unknown")}: {Math.floor(Number(row.item_count || 0))}
             {renderRiskContextSuffix(row)}
@@ -296,8 +320,17 @@ function SceneLoopDistrictFamilyMatrixList(props: {
   title: string;
   rows: Array<Record<string, unknown>>;
   loopKeyField?: string;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
 }) {
-  if (!props.rows.length) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -312,7 +345,7 @@ function SceneLoopDistrictFamilyMatrixList(props: {
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
           const showFamilyHint = loopKeyField !== "loop_family_key";
-          return props.rows.slice(0, 12).map((row, index) => (
+          return rows.slice(0, 12).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
@@ -337,8 +370,17 @@ function SceneLoopDistrictFamilyDailyMatrixList(props: {
   title: string;
   rows: Array<Record<string, unknown>>;
   loopKeyField?: string;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
 }) {
-  if (!props.rows.length) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -353,7 +395,7 @@ function SceneLoopDistrictFamilyDailyMatrixList(props: {
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
           const showFamilyHint = loopKeyField !== "loop_family_key";
-          return props.rows.slice(0, 18).map((row, index) => (
+          return rows.slice(0, 18).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.day || index)}_${String(row.district_key || "district")}_${String(row[loopKeyField] || "family")}`}
@@ -377,8 +419,17 @@ function SceneLoopDistrictFamilyPriorityList(props: {
   title: string;
   rows: Array<Record<string, unknown>>;
   loopKeyField?: string;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
 }) {
-  if (!props.rows.length) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -393,7 +444,7 @@ function SceneLoopDistrictFamilyPriorityList(props: {
         {(() => {
           const loopKeyField = props.loopKeyField || "loop_family_key";
           const showFamilyHint = loopKeyField !== "loop_family_key";
-          return props.rows.slice(0, 12).map((row, index) => (
+          return rows.slice(0, 12).map((row, index) => (
             <p
               className="akrMutedLine"
               key={`${props.title}_${String(row.day || "latest")}_${String(row.district_key || index)}_${String(row[loopKeyField] || "family")}`}
@@ -420,8 +471,20 @@ function SceneLoopDistrictFamilyPriorityList(props: {
   );
 }
 
-function SceneLoopRiskDimensionMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
-  if (!props.rows.length) {
+function SceneLoopRiskDimensionMatrixList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
+}) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -433,7 +496,7 @@ function SceneLoopRiskDimensionMatrixList(props: { title: string; rows: Array<Re
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 12).map((row, index) => (
+        {rows.slice(0, 12).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.bucket_key || index)}_${String(row.risk_key || index)}`}>
             {String(row.bucket_key || "-")} | risk {String(row.risk_key || "no_data")} | latest{" "}
             {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
@@ -447,8 +510,20 @@ function SceneLoopRiskDimensionMatrixList(props: { title: string; rows: Array<Re
   );
 }
 
-function SceneLoopRiskDimensionDailyMatrixList(props: { title: string; rows: Array<Record<string, unknown>> }) {
-  if (!props.rows.length) {
+function SceneLoopRiskDimensionDailyMatrixList(props: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  localManifest?: Record<string, unknown> | null;
+  assetScope?: "family" | "microflow";
+}) {
+  const rows = props.assetScope
+    ? decorateRiskRowsWithAssetRuntime({
+        rows: props.rows,
+        localManifest: props.localManifest,
+        scope: props.assetScope
+      })
+    : props.rows;
+  if (!rows.length) {
     return (
       <div>
         <strong>{props.title}</strong>
@@ -460,7 +535,7 @@ function SceneLoopRiskDimensionDailyMatrixList(props: { title: string; rows: Arr
     <div>
       <strong>{props.title}</strong>
       <div className="akrStack">
-        {props.rows.slice(0, 18).map((row, index) => (
+        {rows.slice(0, 18).map((row, index) => (
           <p className="akrMutedLine" key={`${props.title}_${String(row.day || index)}_${String(row.bucket_key || index)}_${String(row.risk_key || index)}`}>
             {String(row.day || "-")} | {String(row.bucket_key || "-")} | risk {String(row.risk_key || "no_data")} | latest{" "}
             {String(row.latest_health_band || row.health_band || "no_data")} | attn {String(row.attention_band || "no_data")} | trend{" "}
@@ -666,6 +741,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
     daily: true
   });
   const assetMicroflowRiskFocusDailySummary = summarizeAssetRiskFocusRows(assetMicroflowRiskFocusDailyRows);
+  const familyAssetOverlayProps = { localManifest: localAssetManifest, assetScope: "family" as const };
+  const microflowAssetOverlayProps = { localManifest: localAssetManifest, assetScope: "microflow" as const };
   const assetSourceCatalogProviders = Array.isArray(assetSourceCatalogSummary?.providers)
     ? (assetSourceCatalogSummary.providers as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
     : [];
@@ -1634,46 +1711,57 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         <SceneLoopDistrictFamilyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_matrix_title")}
           rows={sceneLoopDistrictFamilyMatrix}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_latest_band_title")}
           rows={sceneLoopDistrictFamilyLatestBandBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_trend_title")}
           rows={sceneLoopDistrictFamilyTrendBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_trend_title")}
           rows={sceneLoopDistrictFamilyHealthTrendBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_title")}
           rows={sceneLoopDistrictFamilyAttentionBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_trend_title")}
           rows={sceneLoopDistrictFamilyAttentionTrendBreakdown}
+          {...familyAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionTrendBreakdown}
+          {...familyAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_matrix_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionTrendMatrix}
+          {...familyAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_daily_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionTrendDailyBreakdown}
+          {...familyAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_health_attention_trend_daily_matrix_title")}
           rows={sceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix}
+          {...familyAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_priority_title")}
@@ -1688,50 +1776,61 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_matrix_title")}
           rows={sceneLoopDistrictMicroflowMatrix}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_latest_band_title")}
           rows={sceneLoopDistrictMicroflowLatestBandBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_trend_title")}
           rows={sceneLoopDistrictMicroflowTrendBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_title")}
           rows={sceneLoopDistrictMicroflowAttentionBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_title")}
           rows={sceneLoopDistrictMicroflowHealthAttentionBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_trend_title")}
           rows={sceneLoopDistrictMicroflowAttentionTrendBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_trend_title")}
           rows={sceneLoopDistrictMicroflowHealthAttentionTrendBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_trend_matrix_title")}
           rows={sceneLoopDistrictMicroflowHealthAttentionTrendMatrix}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_health_attention_trend_daily_matrix_title")}
           rows={sceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_priority_title")}
           rows={sceneLoopDistrictMicroflowAttentionPriority}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_attention_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowAttentionPriorityDaily}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_rows_title")}
@@ -1747,11 +1846,13 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskMatrix}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskMatrixDaily}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_priority_title")}
@@ -1762,6 +1863,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_title")}
           rows={sceneLoopDistrictMicroflowRiskFocus}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_priority_daily_title")}
@@ -1772,303 +1874,375 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusDaily}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusKeyBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusKeyBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusKeyMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_focus_key_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFocusKeyMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyPriority}
           loopKeyField="flow_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_flow_key_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFlowKeyPriorityDaily}
           loopKeyField="flow_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindPriority}
           loopKeyField="entry_kind_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_entry_kind_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskEntryKindPriorityDaily}
           loopKeyField="entry_kind_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindPriority}
           loopKeyField="sequence_kind_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_sequence_kind_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSequenceKindPriorityDaily}
           loopKeyField="sequence_kind_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_title")}
           rows={sceneLoopDistrictMicroflowRiskSignatureBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSignatureBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskSignatureMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSignatureMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskSignaturePriority}
           loopKeyField="risk_context_signature"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_signature_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskSignaturePriorityDaily}
           loopKeyField="risk_context_signature"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignatureBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignatureBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignatureMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignatureMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignaturePriority}
           loopKeyField="action_context_signature"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_action_signature_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskActionSignaturePriorityDaily}
           loopKeyField="action_context_signature"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStateBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStateBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStateMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStateMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_priority_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStatePriority}
           loopKeyField="contract_state_key"
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_contract_state_priority_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskContractStatePriorityDaily}
           loopKeyField="contract_state_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_latest_band_title")}
           rows={sceneLoopDistrictMicroflowRiskLatestBandBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthBandBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthBandBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthBandMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_band_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthBandMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBandBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBandBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBandMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_attention_band_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskAttentionBandMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendDirectionBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendDirectionBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendDirectionMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_trend_direction_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskTrendDirectionMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthAttentionTrendBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopDistrictFamilyDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_health_attention_trend_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskHealthAttentionTrendDailyMatrix}
           loopKeyField="loop_microflow_key"
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_breakdown_title")}
           rows={sceneLoopDistrictMicroflowRiskBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_breakdown_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_title")}
           rows={sceneLoopDistrictMicroflowRiskDistrictBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskDistrictBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskDistrictMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_district_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskDistrictMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_family_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskFamilyMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <BreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowBreakdown}
+          {...microflowAssetOverlayProps}
         />
         <DailyBreakdownList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowBreakdownDaily}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_matrix_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowMatrix}
+          {...microflowAssetOverlayProps}
         />
         <SceneLoopRiskDimensionDailyMatrixList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_microflow_matrix_daily_title")}
           rows={sceneLoopDistrictMicroflowRiskMicroflowMatrixDaily}
+          {...microflowAssetOverlayProps}
         />
         <AlarmReasonList title={t(props.lang, "admin_runtime_scene_loop_alarm_reasons_7d")} rows={sceneLoopAlarmReasons7d} />
       </section>
