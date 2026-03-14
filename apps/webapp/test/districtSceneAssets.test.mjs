@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   loadDistrictSceneAssetCatalog,
   resetDistrictSceneAssetCatalogCache,
-  resolveDistrictSceneAssetRows
+  resolveDistrictSceneAssetRows,
+  resolveDistrictSceneAssetRuntimeRows
 } from "../src/core/runtime/districtSceneAssets.js";
 
 test("resolveDistrictSceneAssetRows maps selected district bundle entries into manifest transforms", () => {
@@ -76,4 +77,63 @@ test("loadDistrictSceneAssetCatalog fetches manifest and selected bundle catalog
   assert.deepEqual(calls, ["/webapp/assets/manifest.json", "/webapp/assets/district-selected-bundles.json"]);
   assert.equal(catalog.manifest.selected_bundle_catalog_path, "/webapp/assets/district-selected-bundles.json");
   assert.equal(catalog.selectedBundles.rows[0].asset_key, "hub_beacon");
+});
+
+test("resolveDistrictSceneAssetRuntimeRows anchors selected bundle assets to matching district cluster", () => {
+  const rows = resolveDistrictSceneAssetRuntimeRows({
+    districtKey: "arena_prime",
+    manifest: {
+      models: {
+        arena_trophy: {
+          path: "/webapp/assets/arena-trophy.glb",
+          position: [6.4, -1.55, 2.8],
+          rotation: [0, -1.1, 0],
+          scale: [1.4, 1.4, 1.4]
+        }
+      }
+    },
+    selectedBundles: {
+      rows: [
+        {
+          district_key: "arena_prime",
+          asset_key: "arena_trophy",
+          family_key: "duel",
+          candidate_key: "arena_khronos_cesium_man"
+        }
+      ]
+    },
+    worldState: {
+      active_cluster_key: "arena_gate_ring",
+      active_cluster_primary_family_key: "duel",
+      interaction_clusters: [
+        {
+          cluster_key: "arena_gate_ring",
+          primary_family_key: "duel",
+          primary_flow_key: "duel_flow",
+          primary_focus_key: "arena_prime:duel:duel_flow",
+          x: 4,
+          y: -1.3,
+          z: 2.4
+        }
+      ],
+      hotspots: [
+        {
+          key: "arena_duel_hotspot",
+          cluster_key: "arena_gate_ring",
+          x: 4.1,
+          y: -1.24,
+          z: 2.55,
+          is_secondary: false
+        }
+      ]
+    }
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].anchor_kind, "cluster");
+  assert.equal(rows[0].anchor_key, "arena_gate_ring");
+  assert.equal(rows[0].anchor_flow_key, "duel_flow");
+  assert.equal(rows[0].anchor_focus_key, "arena_prime:duel:duel_flow");
+  assert.equal(rows[0].is_active_family, true);
+  assert.deepEqual(rows[0].position, [5.52, -1.58, 3.58]);
 });
