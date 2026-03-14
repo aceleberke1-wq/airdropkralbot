@@ -55,6 +55,25 @@ function formatStamp(value: unknown): string {
   return raw || "-";
 }
 
+function formatAssetRiskFocusSummaryLine(
+  title: string,
+  summary: Record<string, unknown> | null,
+  { rowLabel, readyLabel, alertLabel, partialLabel, missingLabel }: {
+    rowLabel: string;
+    readyLabel: string;
+    alertLabel: string;
+    partialLabel: string;
+    missingLabel: string;
+  }
+): string {
+  const normalizedSummary = asRecord(summary);
+  return `${title}: ${rowLabel} ${Math.floor(Number(normalizedSummary?.row_count || 0))} | ${readyLabel} ${Math.floor(
+    Number(normalizedSummary?.contract_ready_count || 0)
+  )} | ${alertLabel} ${Math.floor(Number(normalizedSummary?.alert_count || 0))} | ${partialLabel} ${Math.floor(
+    Number(normalizedSummary?.partial_count || 0)
+  )} | ${missingLabel} ${Math.floor(Number(normalizedSummary?.missing_count || 0))}`;
+}
+
 function renderRiskContextSuffix(row: Record<string, unknown>): string {
   const riskContext = asRecord(row.risk_context) || row;
   const actionContext = asRecord(row.action_context) || row;
@@ -743,6 +762,50 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const assetMicroflowRiskFocusDailySummary = summarizeAssetRiskFocusRows(assetMicroflowRiskFocusDailyRows);
   const familyAssetOverlayProps = { localManifest: localAssetManifest, assetScope: "family" as const };
   const microflowAssetOverlayProps = { localManifest: localAssetManifest, assetScope: "microflow" as const };
+  const assetRiskFocusSummaryLine = formatAssetRiskFocusSummaryLine(
+    t(props.lang, "admin_runtime_asset_risk_focus_title"),
+    assetRiskFocusSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_risk_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_risk_focus_ready"),
+      alertLabel: t(props.lang, "admin_runtime_asset_risk_focus_alert"),
+      partialLabel: t(props.lang, "admin_runtime_asset_risk_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetRiskFocusDailySummaryLine = formatAssetRiskFocusSummaryLine(
+    t(props.lang, "admin_runtime_asset_risk_focus_daily_title"),
+    assetRiskFocusDailySummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_risk_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_risk_focus_ready"),
+      alertLabel: t(props.lang, "admin_runtime_asset_risk_focus_alert"),
+      partialLabel: t(props.lang, "admin_runtime_asset_risk_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetMicroflowRiskFocusSummaryLine = formatAssetRiskFocusSummaryLine(
+    t(props.lang, "admin_runtime_asset_microflow_risk_focus_title"),
+    assetMicroflowRiskFocusSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_risk_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_risk_focus_ready"),
+      alertLabel: t(props.lang, "admin_runtime_asset_risk_focus_alert"),
+      partialLabel: t(props.lang, "admin_runtime_asset_risk_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetMicroflowRiskFocusDailySummaryLine = formatAssetRiskFocusSummaryLine(
+    t(props.lang, "admin_runtime_asset_microflow_risk_focus_daily_title"),
+    assetMicroflowRiskFocusDailySummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_risk_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_risk_focus_ready"),
+      alertLabel: t(props.lang, "admin_runtime_asset_risk_focus_alert"),
+      partialLabel: t(props.lang, "admin_runtime_asset_risk_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
   const assetSourceCatalogProviders = Array.isArray(assetSourceCatalogSummary?.providers)
     ? (assetSourceCatalogSummary.providers as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
     : [];
@@ -1680,6 +1743,10 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {Math.floor(Number(sceneLoopPeakDay7d?.total_count || 0))} | districts {Math.floor(Number(sceneLoopPeakDay7d?.district_count || 0))} |{" "}
             {String(sceneLoopPeakDay7d?.health_band || "no_data")}
           </p>
+          <p className="akrMutedLine">{assetRiskFocusSummaryLine}</p>
+          <p className="akrMutedLine">{assetRiskFocusDailySummaryLine}</p>
+          <p className="akrMutedLine">{assetMicroflowRiskFocusSummaryLine}</p>
+          <p className="akrMutedLine">{assetMicroflowRiskFocusDailySummaryLine}</p>
         </div>
         <SceneLoopDailyTrendList title={t(props.lang, "admin_runtime_scene_loop_daily_title")} rows={sceneLoopDailyBreakdown} />
         <SceneLoopDistrictMatrixList
