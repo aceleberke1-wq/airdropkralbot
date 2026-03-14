@@ -2117,6 +2117,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
         const districtAssetRows = resolveDistrictSceneAssetRuntimeRows({
           manifest: districtAssetCatalog?.manifest,
           selectedBundles: districtAssetCatalog?.selectedBundles,
+          variationBundles: districtAssetCatalog?.variationBundles,
           districtKey: worldState.district_key,
           worldState
         });
@@ -2155,6 +2156,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               asset_key: districtAsset.asset_key,
               candidate_key: districtAsset.candidate_key,
               family_key: districtAsset.family_key,
+              bundle_kind: districtAsset.bundle_kind,
+              variant_key: districtAsset.variant_key,
+              variant_role: districtAsset.variant_role,
+              variant_tier: districtAsset.variant_tier,
               anchor_kind: districtAsset.anchor_kind,
               anchor_key: districtAsset.anchor_key,
               anchor_focus_key: districtAsset.anchor_focus_key
@@ -2177,6 +2182,10 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                   asset_key: districtAsset.asset_key,
                   candidate_key: districtAsset.candidate_key,
                   family_key: districtAsset.family_key,
+                  bundle_kind: districtAsset.bundle_kind,
+                  variant_key: districtAsset.variant_key,
+                  variant_role: districtAsset.variant_role,
+                  variant_tier: districtAsset.variant_tier,
                   anchor_kind: districtAsset.anchor_kind,
                   anchor_key: districtAsset.anchor_key,
                   anchor_focus_key: districtAsset.anchor_focus_key
@@ -2248,9 +2257,12 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
               ? `${worldState.district_key}:${String(activeDistrictAsset.family_key || "district")}:${String(activeDistrictAsset.asset_key || "--")}|${activeAssetStateKey}|${String(activeDistrictAsset.candidate_key || "--")}`
               : ""
           );
-          const readyAssetCount = focusRows.filter(
-            (row) => readSceneActionText(row.state_key).toLowerCase() === "ready" || row.asset_contract_ready === true
-          ).length;
+          const readyAssetCount = Math.max(
+            focusRows.filter(
+              (row) => readSceneActionText(row.state_key).toLowerCase() === "ready" || row.asset_contract_ready === true
+            ).length,
+            loadedDistrictAssetCount
+          );
           setDistrictAssetSummary({
             selectedCount: districtAssetRows.length,
             loadedCount: loadedDistrictAssetCount,

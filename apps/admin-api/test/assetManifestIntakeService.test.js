@@ -7,8 +7,10 @@ const path = require("node:path");
 const {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
+  summarizeVariationDistrictBundles,
   buildDistrictAssetBundleCatalog,
   buildDistrictFamilyAssetCatalog,
+  buildDistrictFamilyAssetVariationCatalog,
   buildDistrictFamilyAssetFocusCatalog,
   buildDistrictFamilyAssetRuntimeCatalog
 } = require("../src/services/webapp/assetManifestIntakeService");
@@ -189,6 +191,61 @@ test("summarizeSelectedDistrictBundles reads downloaded bundle selections", () =
   assert.equal(result.rows[0].file_name, "hub-beacon.glb");
 });
 
+test("summarizeVariationDistrictBundles reads downloaded variation bundle selections", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "akr-variation-bundles-"));
+  const manifestPath = path.join(tempRoot, "manifest.json");
+  const variationPath = path.join(tempRoot, "district-variation-bundles.json");
+
+  fs.writeFileSync(
+    manifestPath,
+    JSON.stringify(
+      {
+        version: 3,
+        variation_bundle_catalog_path: "/webapp/assets/district-variation-bundles.json"
+      },
+      null,
+      2
+    )
+  );
+  fs.writeFileSync(
+    variationPath,
+    JSON.stringify(
+      {
+        verified_at: "2026-03-14",
+        rows: [
+          {
+            district_key: "arena_prime",
+            family_key: "ladder",
+            asset_key: "arena_scout",
+            variant_key: "arena_ladder_scout",
+            variant_role: "support",
+            variant_tier: "secondary",
+            file_name: "arena-scout.glb",
+            candidate_key: "arena_khronos_buggy_scout",
+            provider_key: "khronos_gltf_sample_models",
+            provider_label: "Khronos glTF Sample Models",
+            downloaded_at: "2026-03-14"
+          }
+        ]
+      },
+      null,
+      2
+    )
+  );
+
+  const result = summarizeVariationDistrictBundles({
+    manifestPath,
+    manifest: JSON.parse(fs.readFileSync(manifestPath, "utf8"))
+  });
+
+  assert.equal(result.summary.variation_count, 1);
+  assert.equal(result.summary.downloaded_count, 1);
+  assert.equal(result.summary.family_count, 1);
+  assert.equal(result.summary.variant_count, 1);
+  assert.equal(result.rows[0].variant_key, "arena_ladder_scout");
+  assert.equal(result.rows[0].variant_role, "support");
+});
+
 test("buildDistrictFamilyAssetCatalog summarizes selected district family assets", () => {
   const result = buildDistrictFamilyAssetCatalog({
     selectedRows: [
@@ -231,6 +288,45 @@ test("buildDistrictFamilyAssetCatalog summarizes selected district family assets
   assert.equal(result.rows[1].focus_key, "exchange_district:wallet:exchange_artifact");
   assert.equal(result.rows[1].state_key, "partial");
   assert.equal(result.rows[1].exists_local, false);
+});
+
+test("buildDistrictFamilyAssetVariationCatalog summarizes secondary district family variations", () => {
+  const result = buildDistrictFamilyAssetVariationCatalog({
+    variationRows: [
+      {
+        district_key: "arena_prime",
+        family_key: "ladder",
+        asset_key: "arena_scout",
+        variant_key: "arena_ladder_scout",
+        variant_role: "support",
+        file_name: "arena-scout.glb",
+        candidate_key: "arena_khronos_buggy_scout",
+        provider_label: "Khronos glTF Sample Models"
+      },
+      {
+        district_key: "exchange_district",
+        family_key: "premium",
+        asset_key: "exchange_vial",
+        variant_key: "exchange_premium_vial",
+        variant_role: "ambient",
+        file_name: "exchange-vial.glb",
+        candidate_key: "exchange_khronos_waterbottle_vial",
+        provider_label: "Khronos glTF Sample Models"
+      }
+    ],
+    assetRows: [
+      { asset_key: "arena_scout", exists: true, file_path: "C:\\assets\\arena-scout.glb", web_path: "assets/arena-scout.glb" },
+      { asset_key: "exchange_vial", exists: true, file_path: "C:\\assets\\exchange-vial.glb", web_path: "assets/exchange-vial.glb" }
+    ]
+  });
+
+  assert.equal(result.summary.row_count, 2);
+  assert.equal(result.summary.family_count, 2);
+  assert.equal(result.summary.variant_count, 2);
+  assert.equal(result.summary.ready_count, 2);
+  assert.equal(result.rows[0].focus_key, "arena_prime:ladder:arena_ladder_scout");
+  assert.equal(result.rows[0].state_key, "ready");
+  assert.equal(result.rows[1].variant_role, "ambient");
 });
 
 test("buildDistrictFamilyAssetFocusCatalog prioritizes partial asset focus rows", () => {

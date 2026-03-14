@@ -762,10 +762,16 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const assetDistrictBundleRows = asRows(localAssetManifest?.district_bundle_rows);
   const assetDistrictFamilyAssetSummary = asRecord(localAssetManifest?.district_family_asset_summary);
   const assetDistrictFamilyAssetRows = asRows(localAssetManifest?.district_family_asset_rows);
+  const assetDistrictFamilyAssetVariationSummary = asRecord(localAssetManifest?.district_family_asset_variation_summary);
+  const assetDistrictFamilyAssetVariationRows = asRows(localAssetManifest?.district_family_asset_variation_rows);
   const assetDistrictFamilyAssetFocusSummary = asRecord(localAssetManifest?.district_family_asset_focus_summary);
   const assetDistrictFamilyAssetFocusRows = asRows(localAssetManifest?.district_family_asset_focus_rows);
+  const assetDistrictFamilyAssetVariationFocusSummary = asRecord(localAssetManifest?.district_family_asset_variation_focus_summary);
+  const assetDistrictFamilyAssetVariationFocusRows = asRows(localAssetManifest?.district_family_asset_variation_focus_rows);
   const assetDistrictFamilyAssetRuntimeSummary = asRecord(localAssetManifest?.district_family_asset_runtime_summary);
   const assetDistrictFamilyAssetRuntimeRows = asRows(localAssetManifest?.district_family_asset_runtime_rows);
+  const assetDistrictFamilyAssetVariationRuntimeSummary = asRecord(localAssetManifest?.district_family_asset_variation_runtime_summary);
+  const assetDistrictFamilyAssetVariationRuntimeRows = asRows(localAssetManifest?.district_family_asset_variation_runtime_rows);
   const assetRiskFocusRows = buildAssetRiskFocusRows({
     metrics: props.metricsData,
     localManifest: localAssetManifest
@@ -855,6 +861,27 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
       domainLabel: t(props.lang, "admin_runtime_asset_family_runtime_domain"),
       partialLabel: t(props.lang, "admin_runtime_asset_family_runtime_partial"),
       missingLabel: t(props.lang, "admin_runtime_asset_family_focus_missing")
+    }
+  );
+  const assetVariationFocusSummaryLine = formatAssetContractSummaryLine(
+    t(props.lang, "admin_runtime_asset_family_variation_focus_title"),
+    assetDistrictFamilyAssetVariationFocusSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_family_variation_focus_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_family_variation_focus_ready"),
+      partialLabel: t(props.lang, "admin_runtime_asset_family_variation_focus_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_variation_focus_missing")
+    }
+  );
+  const assetVariationRuntimeSummaryLine = formatAssetContractSummaryLine(
+    t(props.lang, "admin_runtime_asset_family_variation_runtime_title"),
+    assetDistrictFamilyAssetVariationRuntimeSummary,
+    {
+      rowLabel: t(props.lang, "admin_runtime_asset_family_variation_runtime_rows"),
+      readyLabel: t(props.lang, "admin_runtime_asset_family_variation_runtime_ready"),
+      domainLabel: t(props.lang, "admin_runtime_asset_family_variation_runtime_domain"),
+      partialLabel: t(props.lang, "admin_runtime_asset_family_variation_runtime_partial"),
+      missingLabel: t(props.lang, "admin_runtime_asset_family_variation_focus_missing")
     }
   );
   const assetSourceCatalogProviders = Array.isArray(assetSourceCatalogSummary?.providers)
@@ -1508,6 +1535,61 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           </div>
         </section>
       ) : null}
+      {assetDistrictFamilyAssetVariationRows.length ? (
+        <section className="akrMiniPanel">
+          <h3>{t(props.lang, "admin_runtime_asset_family_variation_title")}</h3>
+          <div className="akrChipRow">
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_rows")}: {Math.floor(Number(assetDistrictFamilyAssetVariationSummary?.row_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_families")}: {Math.floor(Number(assetDistrictFamilyAssetVariationSummary?.family_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_variants")}: {Math.floor(Number(assetDistrictFamilyAssetVariationSummary?.variant_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_ready")}: {Math.floor(Number(assetDistrictFamilyAssetVariationSummary?.ready_count || 0))}
+            </span>
+          </div>
+          <div className="akrStack">
+            {assetDistrictFamilyAssetVariationRows.slice(0, 7).map((row, index) => (
+              <p className="akrMutedLine" key={`family_asset_variation_${String(row.focus_key || row.variant_key || index)}`}>
+                {String(row.focus_key || "-")} | {String(row.variant_role || "--")} | {String(row.state_key || "missing")} |{" "}
+                {String(row.file_name || row.asset_key || "-")} | {String(row.candidate_key || "-")} | {String(row.provider_label || row.provider_key || "--")}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {assetDistrictFamilyAssetVariationFocusRows.length ? (
+        <section className="akrMiniPanel">
+          <h3>{t(props.lang, "admin_runtime_asset_family_variation_focus_title")}</h3>
+          <div className="akrChipRow">
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_focus_rows")}: {Math.floor(Number(assetDistrictFamilyAssetVariationFocusSummary?.row_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_focus_ready")}: {Math.floor(Number(assetDistrictFamilyAssetVariationFocusSummary?.contract_ready_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_focus_missing")}: {Math.floor(Number(assetDistrictFamilyAssetVariationFocusSummary?.missing_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_focus_partial")}: {Math.floor(Number(assetDistrictFamilyAssetVariationFocusSummary?.partial_count || 0))}
+            </span>
+          </div>
+          <div className="akrStack">
+            {assetDistrictFamilyAssetVariationFocusRows.slice(0, 7).map((row, index) => (
+              <p className="akrMutedLine" key={`family_asset_variation_focus_${String(row.focus_key || row.variant_key || index)}`}>
+                {String(row.focus_key || "-")} | {String(row.variant_role || "--")} | {String(row.state_key || "missing")} |{" "}
+                {String(row.asset_contract_ready ? "ready" : "hold")} | {String(row.asset_contract_signature || "-")} |{" "}
+                {String(row.file_name || row.asset_key || "-")}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {assetDistrictFamilyAssetRuntimeRows.length ? (
         <section className="akrMiniPanel">
           <h3>{t(props.lang, "admin_runtime_asset_family_runtime_title")}</h3>
@@ -1529,6 +1611,34 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
             {assetDistrictFamilyAssetRuntimeRows.slice(0, 7).map((row, index) => (
               <p className="akrMutedLine" key={`family_asset_runtime_${String(row.focus_key || row.asset_key || index)}`}>
                 {String(row.focus_key || "-")} | {String(row.runtime_state_key || row.state_key || "missing")} |{" "}
+                {String(row.runtime_contract_ready ? "live" : "hold")} | HOST {String(row.domain_state_key || "--")} |{" "}
+                {String(row.runtime_contract_signature || "-")} | {String(row.file_name || row.asset_key || "-")}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {assetDistrictFamilyAssetVariationRuntimeRows.length ? (
+        <section className="akrMiniPanel">
+          <h3>{t(props.lang, "admin_runtime_asset_family_variation_runtime_title")}</h3>
+          <div className="akrChipRow">
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_runtime_rows")}: {Math.floor(Number(assetDistrictFamilyAssetVariationRuntimeSummary?.row_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_runtime_ready")}: {Math.floor(Number(assetDistrictFamilyAssetVariationRuntimeSummary?.contract_ready_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_runtime_domain")}: {Math.floor(Number(assetDistrictFamilyAssetVariationRuntimeSummary?.domain_ready_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_family_variation_runtime_partial")}: {Math.floor(Number(assetDistrictFamilyAssetVariationRuntimeSummary?.partial_count || 0))}
+            </span>
+          </div>
+          <div className="akrStack">
+            {assetDistrictFamilyAssetVariationRuntimeRows.slice(0, 7).map((row, index) => (
+              <p className="akrMutedLine" key={`family_asset_variation_runtime_${String(row.focus_key || row.variant_key || index)}`}>
+                {String(row.focus_key || "-")} | {String(row.variant_role || "--")} | {String(row.runtime_state_key || row.state_key || "missing")} |{" "}
                 {String(row.runtime_contract_ready ? "live" : "hold")} | HOST {String(row.domain_state_key || "--")} |{" "}
                 {String(row.runtime_contract_signature || "-")} | {String(row.file_name || row.asset_key || "-")}
               </p>
@@ -1753,6 +1863,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           </p>
           <p className="akrMutedLine">{assetFocusSummaryLine}</p>
           <p className="akrMutedLine">{assetRuntimeSummaryLine}</p>
+          <p className="akrMutedLine">{assetVariationFocusSummaryLine}</p>
+          <p className="akrMutedLine">{assetVariationRuntimeSummaryLine}</p>
         </div>
         <SceneDailyTrendList title={t(props.lang, "admin_runtime_scene_daily_title")} rows={sceneRuntimeDailyBreakdown} />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_band_title")} rows={sceneRuntimeBandBreakdown} />

@@ -66,6 +66,30 @@
       "position": [0.8, -1.4, -8.2],
       "rotation": [0, 3.12, 0],
       "scale": [0.82, 0.82, 0.82]
+    },
+    "arena_scout": {
+      "path": "/webapp/assets/arena-scout.glb",
+      "position": [5.8, -1.55, 4.6],
+      "rotation": [0, 1.34, 0],
+      "scale": [0.28, 0.28, 0.28]
+    },
+    "mission_probe": {
+      "path": "/webapp/assets/mission-probe.glb",
+      "position": [-4.9, -1.2, 4.2],
+      "rotation": [0, -0.48, 0],
+      "scale": [0.58, 0.58, 0.58]
+    },
+    "exchange_vial": {
+      "path": "/webapp/assets/exchange-vial.glb",
+      "position": [5.2, -1.3, -4.1],
+      "rotation": [0, 0.92, 0],
+      "scale": [0.66, 0.66, 0.66]
+    },
+    "ops_lens": {
+      "path": "/webapp/assets/ops-lens.glb",
+      "position": [2.1, -1.42, -6.4],
+      "rotation": [0, 2.72, 0],
+      "scale": [0.18, 0.18, 0.18]
     }
   },
   "district_bundles": {
@@ -77,10 +101,11 @@
   },
   "source_catalog_path": "/webapp/assets/district-intake.json",
   "selected_bundle_catalog_path": "/webapp/assets/district-selected-bundles.json",
+  "variation_bundle_catalog_path": "/webapp/assets/district-variation-bundles.json",
   "source": {
     "provider": "KhronosGroup glTF-Sample-Models",
     "url": "https://github.com/KhronosGroup/glTF-Sample-Models",
     "license": "See upstream model licenses in source repository"
   },
-  "notes": "Missing assets automatically fall back to procedural visuals. District-specific intake candidates live in district-intake.json. Selected downloaded bundle targets live in district-selected-bundles.json."
+  "notes": "Missing assets automatically fall back to procedural visuals. District-specific intake candidates live in district-intake.json. Selected downloaded bundle targets live in district-selected-bundles.json. Active family variation bundles live in district-variation-bundles.json."
 }

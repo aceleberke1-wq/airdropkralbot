@@ -5,6 +5,7 @@ import {
   loadDistrictSceneAssetCatalog,
   resetDistrictSceneAssetCatalogCache,
   resolveDistrictSceneAssetRows,
+  resolveDistrictSceneVariationRows,
   resolveDistrictSceneAssetRuntimeRows
 } from "../src/core/runtime/districtSceneAssets.js";
 
@@ -79,6 +80,95 @@ test("loadDistrictSceneAssetCatalog fetches manifest and selected bundle catalog
   assert.equal(catalog.selectedBundles.rows[0].asset_key, "hub_beacon");
 });
 
+test("loadDistrictSceneAssetCatalog also fetches variation bundle catalog when configured", async () => {
+  resetDistrictSceneAssetCatalogCache();
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url === "/webapp/assets/manifest.json") {
+      return {
+        ok: true,
+        async json() {
+          return {
+            selected_bundle_catalog_path: "/webapp/assets/district-selected-bundles.json",
+            variation_bundle_catalog_path: "/webapp/assets/district-variation-bundles.json",
+            models: {
+              arena_scout: { path: "/webapp/assets/arena-scout.glb" }
+            }
+          };
+        }
+      };
+    }
+    if (url === "/webapp/assets/district-selected-bundles.json") {
+      return {
+        ok: true,
+        async json() {
+          return {
+            rows: []
+          };
+        }
+      };
+    }
+    if (url === "/webapp/assets/district-variation-bundles.json") {
+      return {
+        ok: true,
+        async json() {
+          return {
+            rows: [{ district_key: "arena_prime", family_key: "ladder", asset_key: "arena_scout" }]
+          };
+        }
+      };
+    }
+    return { ok: false, async json() { return {}; } };
+  };
+
+  const catalog = await loadDistrictSceneAssetCatalog(fetchImpl);
+  assert.deepEqual(calls, [
+    "/webapp/assets/manifest.json",
+    "/webapp/assets/district-selected-bundles.json",
+    "/webapp/assets/district-variation-bundles.json"
+  ]);
+  assert.equal(catalog.variationBundles.rows[0].asset_key, "arena_scout");
+});
+
+test("resolveDistrictSceneVariationRows maps active family variations into district assets", () => {
+  const rows = resolveDistrictSceneVariationRows({
+    districtKey: "arena_prime",
+    manifest: {
+      models: {
+        arena_scout: {
+          path: "/webapp/assets/arena-scout.glb",
+          position: [5.8, -1.55, 4.6],
+          rotation: [0, 1.34, 0],
+          scale: [0.28, 0.28, 0.28]
+        }
+      }
+    },
+    variationBundles: {
+      rows: [
+        {
+          district_key: "arena_prime",
+          family_key: "ladder",
+          asset_key: "arena_scout",
+          candidate_key: "arena_khronos_buggy_scout",
+          variant_key: "arena_ladder_scout",
+          variant_role: "support",
+          variant_tier: "secondary"
+        }
+      ]
+    },
+    worldState: {
+      active_cluster_primary_family_key: "ladder"
+    }
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].bundle_kind, "variation");
+  assert.equal(rows[0].variant_key, "arena_ladder_scout");
+  assert.equal(rows[0].variant_role, "support");
+  assert.equal(rows[0].path, "/webapp/assets/arena-scout.glb");
+});
+
 test("resolveDistrictSceneAssetRuntimeRows anchors selected bundle assets to matching district cluster", () => {
   const rows = resolveDistrictSceneAssetRuntimeRows({
     districtKey: "arena_prime",
@@ -136,4 +226,82 @@ test("resolveDistrictSceneAssetRuntimeRows anchors selected bundle assets to mat
   assert.equal(rows[0].anchor_focus_key, "arena_prime:duel:duel_flow");
   assert.equal(rows[0].is_active_family, true);
   assert.deepEqual(rows[0].position, [5.52, -1.58, 3.58]);
+});
+
+test("resolveDistrictSceneAssetRuntimeRows merges active family variations into cluster anchors", () => {
+  const rows = resolveDistrictSceneAssetRuntimeRows({
+    districtKey: "arena_prime",
+    manifest: {
+      models: {
+        arena_trophy: {
+          path: "/webapp/assets/arena-trophy.glb",
+          position: [6.4, -1.55, 2.8],
+          rotation: [0, -1.1, 0],
+          scale: [1.4, 1.4, 1.4]
+        },
+        arena_scout: {
+          path: "/webapp/assets/arena-scout.glb",
+          position: [5.8, -1.55, 4.6],
+          rotation: [0, 1.34, 0],
+          scale: [0.28, 0.28, 0.28]
+        }
+      }
+    },
+    selectedBundles: {
+      rows: [
+        {
+          district_key: "arena_prime",
+          asset_key: "arena_trophy",
+          family_key: "duel",
+          candidate_key: "arena_khronos_cesium_man"
+        }
+      ]
+    },
+    variationBundles: {
+      rows: [
+        {
+          district_key: "arena_prime",
+          family_key: "ladder",
+          asset_key: "arena_scout",
+          candidate_key: "arena_khronos_buggy_scout",
+          variant_key: "arena_ladder_scout",
+          variant_role: "support",
+          variant_tier: "secondary"
+        }
+      ]
+    },
+    worldState: {
+      active_cluster_key: "arena_gate_ring",
+      active_cluster_primary_family_key: "ladder",
+      interaction_clusters: [
+        {
+          cluster_key: "arena_gate_ring",
+          primary_family_key: "ladder",
+          primary_flow_key: "ladder_flow",
+          primary_focus_key: "arena_prime:ladder:ladder_flow",
+          x: 4,
+          y: -1.3,
+          z: 2.4
+        }
+      ],
+      hotspots: [
+        {
+          key: "arena_ladder_hotspot",
+          cluster_key: "arena_gate_ring",
+          x: 4.1,
+          y: -1.24,
+          z: 2.55,
+          is_secondary: false
+        }
+      ]
+    }
+  });
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].asset_key, "arena_scout");
+  assert.equal(rows[0].bundle_kind, "variation");
+  assert.equal(rows[0].variant_role, "support");
+  assert.equal(rows[0].anchor_key, "arena_gate_ring");
+  assert.equal(rows[0].is_active_family, true);
+  assert.deepEqual(rows[0].position.map((value) => Number(value.toFixed(2))), [6.12, -1.48, 3.2]);
 });

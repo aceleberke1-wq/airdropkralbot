@@ -56,6 +56,10 @@ function resolveSelectedBundleCatalogPath(manifestPath, manifest) {
   return resolveCatalogPath(manifestPath, manifest?.selected_bundle_catalog_path, "district-selected-bundles.json");
 }
 
+function resolveVariationBundleCatalogPath(manifestPath, manifest) {
+  return resolveCatalogPath(manifestPath, manifest?.variation_bundle_catalog_path, "district-variation-bundles.json");
+}
+
 function summarizeCatalogRows(catalogPath, mapper) {
   if (!catalogPath || !fs.existsSync(catalogPath)) {
     return { catalog_path: catalogPath, parsed: {}, rows: [] };
@@ -147,6 +151,51 @@ function summarizeSelectedDistrictBundles({ manifestPath, manifest }) {
       provider_count: providers.length,
       verified_at: readText(parsed.verified_at),
       districts,
+      providers
+    }
+  };
+}
+
+function summarizeVariationDistrictBundles({ manifestPath, manifest }) {
+  const catalogPath = resolveVariationBundleCatalogPath(manifestPath, manifest);
+  const result = summarizeCatalogRows(catalogPath, (row) => ({
+    district_key: readText(row.district_key),
+    family_key: readText(row.family_key),
+    asset_key: readText(row.asset_key),
+    variant_key: readText(row.variant_key),
+    variant_role: readText(row.variant_role),
+    variant_tier: readText(row.variant_tier),
+    file_name: readText(row.file_name),
+    candidate_key: readText(row.candidate_key),
+    provider_key: readText(row.provider_key),
+    provider_label: readText(row.provider_label),
+    license: readText(row.license),
+    source_url: readText(row.source_url),
+    download_url: readText(row.download_url),
+    sha256: readText(row.sha256),
+    downloaded_at: readText(row.downloaded_at)
+  }));
+  const rows = result.rows;
+  const parsed = result.parsed;
+  const providers = [...new Set(rows.map((row) => row.provider_key || row.provider_label).filter(Boolean))];
+  const districts = [...new Set(rows.map((row) => row.district_key).filter(Boolean))];
+  const families = [...new Set(rows.map((row) => row.family_key).filter(Boolean))];
+  const variants = [...new Set(rows.map((row) => row.variant_key).filter(Boolean))];
+  const downloadedCount = rows.filter((row) => row.downloaded_at && row.file_name).length;
+
+  return {
+    catalog_path: catalogPath,
+    rows,
+    summary: {
+      variation_count: rows.length,
+      downloaded_count: downloadedCount,
+      district_count: districts.length,
+      family_count: families.length,
+      variant_count: variants.length,
+      provider_count: providers.length,
+      verified_at: readText(parsed.verified_at),
+      districts,
+      families,
       providers
     }
   };
@@ -306,6 +355,64 @@ function buildDistrictFamilyAssetCatalog({ selectedRows, districtRows, assetRows
   };
 }
 
+function buildDistrictFamilyAssetVariationCatalog({ variationRows, assetRows }) {
+  const variations = asList(variationRows).map((row) => asRecord(row));
+  const assets = asList(assetRows).map((row) => asRecord(row));
+  const assetByKey = new Map(assets.map((row) => [readText(row.asset_key), row]));
+
+  const rows = variations
+    .map((row) => {
+      const districtKey = readText(row.district_key);
+      const familyKey = readText(row.family_key);
+      const assetKey = readText(row.asset_key);
+      const variantKey = readText(row.variant_key, `${districtKey}_${familyKey}_${assetKey}`);
+      if (!districtKey || !familyKey || !assetKey || !variantKey) {
+        return null;
+      }
+      const asset = asRecord(assetByKey.get(assetKey));
+      const existsLocal = asset.exists !== false && Boolean(readText(asset.asset_key));
+      return {
+        district_key: districtKey,
+        family_key: familyKey,
+        asset_key: assetKey,
+        variant_key: variantKey,
+        variant_role: readText(row.variant_role, "support"),
+        variant_tier: readText(row.variant_tier, "secondary"),
+        focus_key: `${districtKey}:${familyKey}:${variantKey}`,
+        state_key: existsLocal ? "ready" : "missing",
+        exists_local: existsLocal,
+        file_name: readText(row.file_name, path.basename(readText(asset.web_path, asset.file_path, assetKey))),
+        file_path: readText(asset.file_path),
+        web_path: readText(asset.web_path),
+        candidate_key: readText(row.candidate_key),
+        provider_key: readText(row.provider_key),
+        provider_label: readText(row.provider_label),
+        license: readText(row.license),
+        download_url: readText(row.download_url),
+        downloaded_at: readText(row.downloaded_at)
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) =>
+      `${readText(left.district_key)}:${readText(left.family_key)}:${readText(left.variant_key)}`.localeCompare(
+        `${readText(right.district_key)}:${readText(right.family_key)}:${readText(right.variant_key)}`
+      )
+    );
+
+  return {
+    rows,
+    summary: {
+      row_count: rows.length,
+      district_count: new Set(rows.map((row) => readText(row.district_key)).filter(Boolean)).size,
+      family_count: new Set(rows.map((row) => readText(row.family_key)).filter(Boolean)).size,
+      variant_count: new Set(rows.map((row) => readText(row.variant_key)).filter(Boolean)).size,
+      ready_count: rows.filter((row) => readText(row.state_key) === "ready").length,
+      partial_count: rows.filter((row) => readText(row.state_key) === "partial").length,
+      missing_count: rows.filter((row) => readText(row.state_key) === "missing").length
+    }
+  };
+}
+
 function scoreAssetState(value) {
   const key = readText(value).toLowerCase();
   if (key === "missing") return 4;
@@ -326,6 +433,9 @@ function buildDistrictFamilyAssetFocusCatalog({ familyRows }) {
         district_key: readText(row.district_key),
         family_key: readText(row.family_key),
         asset_key: readText(row.asset_key),
+        variant_key: readText(row.variant_key),
+        variant_role: readText(row.variant_role),
+        variant_tier: readText(row.variant_tier),
         focus_key: readText(row.focus_key),
         state_key: stateKey,
         priority_score: scoreAssetState(stateKey),
@@ -397,6 +507,9 @@ function buildDistrictFamilyAssetRuntimeCatalog({ focusRows, webappDomainSummary
         district_key: readText(row.district_key),
         family_key: readText(row.family_key),
         asset_key: readText(row.asset_key),
+        variant_key: readText(row.variant_key),
+        variant_role: readText(row.variant_role),
+        variant_tier: readText(row.variant_tier),
         focus_key: readText(row.focus_key),
         state_key: assetStateKey,
         runtime_state_key: runtimeStateKey,
@@ -462,8 +575,10 @@ function buildDistrictFamilyAssetRuntimeCatalog({ focusRows, webappDomainSummary
 module.exports = {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
+  summarizeVariationDistrictBundles,
   buildDistrictAssetBundleCatalog,
   buildDistrictFamilyAssetCatalog,
+  buildDistrictFamilyAssetVariationCatalog,
   buildDistrictFamilyAssetFocusCatalog,
   buildDistrictFamilyAssetRuntimeCatalog
 };

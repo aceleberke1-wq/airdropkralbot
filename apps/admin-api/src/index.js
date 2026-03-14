@@ -75,8 +75,10 @@ const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichm
 const {
   summarizeAssetSourceCatalog,
   summarizeSelectedDistrictBundles,
+  summarizeVariationDistrictBundles,
   buildDistrictAssetBundleCatalog,
   buildDistrictFamilyAssetCatalog,
+  buildDistrictFamilyAssetVariationCatalog,
   buildDistrictFamilyAssetFocusCatalog,
   buildDistrictFamilyAssetRuntimeCatalog
 } = require("./services/webapp/assetManifestIntakeService");
@@ -2702,6 +2704,7 @@ async function buildAssetStatusRows() {
   const { manifestPath, manifest } = readAssetManifest();
   const sourceCatalog = summarizeAssetSourceCatalog({ manifestPath, manifest });
   const selectedBundles = summarizeSelectedDistrictBundles({ manifestPath, manifest });
+  const variationBundles = summarizeVariationDistrictBundles({ manifestPath, manifest });
   const models = manifest?.models && typeof manifest.models === "object" ? manifest.models : {};
   const rows = Object.entries(models).map(([assetKey, value]) => {
     const filePath = resolveManifestAssetPath(value?.path || "");
@@ -2726,6 +2729,10 @@ async function buildAssetStatusRows() {
     districtRows: districtBundles.rows,
     assetRows: rows
   });
+  const districtFamilyAssetVariations = buildDistrictFamilyAssetVariationCatalog({
+    variationRows: variationBundles.rows,
+    assetRows: rows
+  });
   const districtFamilyAssetFocus = buildDistrictFamilyAssetFocusCatalog({
     familyRows: districtFamilyAssets.rows
   });
@@ -2733,8 +2740,15 @@ async function buildAssetStatusRows() {
     publicUrl: WEBAPP_PUBLIC_URL,
     runtimeGuardBaseUrl: String(process.env.RUNTIME_GUARD_BASE_URL || "").trim()
   });
+  const districtFamilyAssetVariationFocus = buildDistrictFamilyAssetFocusCatalog({
+    familyRows: districtFamilyAssetVariations.rows
+  });
   const districtFamilyAssetRuntime = buildDistrictFamilyAssetRuntimeCatalog({
     focusRows: districtFamilyAssetFocus.rows,
+    webappDomainSummary
+  });
+  const districtFamilyAssetVariationRuntime = buildDistrictFamilyAssetRuntimeCatalog({
+    focusRows: districtFamilyAssetVariationFocus.rows,
     webappDomainSummary
   });
   return {
@@ -2747,15 +2761,24 @@ async function buildAssetStatusRows() {
     selected_bundle_catalog_path: String(manifest?.selected_bundle_catalog_path || ""),
     selected_bundle_summary: selectedBundles.summary,
     selected_bundle_rows: selectedBundles.rows,
+    variation_bundle_catalog_path: String(manifest?.variation_bundle_catalog_path || ""),
+    variation_bundle_summary: variationBundles.summary,
+    variation_bundle_rows: variationBundles.rows,
     webapp_domain_summary: webappDomainSummary,
     district_bundle_summary: districtBundles.summary,
     district_bundle_rows: districtBundles.rows,
     district_family_asset_summary: districtFamilyAssets.summary,
     district_family_asset_rows: districtFamilyAssets.rows,
+    district_family_asset_variation_summary: districtFamilyAssetVariations.summary,
+    district_family_asset_variation_rows: districtFamilyAssetVariations.rows,
     district_family_asset_focus_summary: districtFamilyAssetFocus.summary,
     district_family_asset_focus_rows: districtFamilyAssetFocus.rows,
+    district_family_asset_variation_focus_summary: districtFamilyAssetVariationFocus.summary,
+    district_family_asset_variation_focus_rows: districtFamilyAssetVariationFocus.rows,
     district_family_asset_runtime_summary: districtFamilyAssetRuntime.summary,
     district_family_asset_runtime_rows: districtFamilyAssetRuntime.rows,
+    district_family_asset_variation_runtime_summary: districtFamilyAssetVariationRuntime.summary,
+    district_family_asset_variation_runtime_rows: districtFamilyAssetVariationRuntime.rows,
     rows
   };
 }

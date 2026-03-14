@@ -1750,6 +1750,7 @@ function AdminBridgeCards(props: { lang: Lang }) {
               <BridgeChip id="adminAssetReadyChip" />
               <BridgeChip id="adminAssetSyncChip" />
               <BridgeChip id="adminAssetDistrictChip" />
+              <BridgeChip id="adminAssetVariationChip" />
               <BridgeChip id="adminAssetRiskChip" />
               <BridgeChip id="adminAssetHostChip" />
               <BridgeChip id="adminAssetRevisionChip" />

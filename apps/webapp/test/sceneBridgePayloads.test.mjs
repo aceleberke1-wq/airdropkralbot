@@ -1601,7 +1601,9 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
             }
           ],
           district_family_asset_summary: { row_count: 2, family_count: 2, ready_count: 1, partial_count: 1, intake_ready_count: 0 },
+          district_family_asset_variation_summary: { row_count: 2, family_count: 2, variant_count: 2, ready_count: 2, partial_count: 0, missing_count: 0 },
           district_family_asset_focus_summary: { row_count: 2, contract_ready_count: 1, ready_count: 1, partial_count: 1, missing_count: 0 },
+          district_family_asset_variation_focus_summary: { row_count: 2, contract_ready_count: 2, ready_count: 2, partial_count: 0, missing_count: 0 },
           district_family_asset_runtime_summary: {
             row_count: 2,
             contract_ready_count: 1,
@@ -1609,6 +1611,15 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
             guard_match_count: 2,
             ready_count: 1,
             partial_count: 1,
+            missing_count: 0
+          },
+          district_family_asset_variation_runtime_summary: {
+            row_count: 2,
+            contract_ready_count: 2,
+            domain_ready_count: 2,
+            guard_match_count: 2,
+            ready_count: 2,
+            partial_count: 0,
             missing_count: 0
           },
           district_family_asset_rows: [
@@ -1633,6 +1644,32 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
               provider_label: "Khronos glTF Sample Models"
             }
           ],
+          district_family_asset_variation_rows: [
+            {
+              district_key: "arena_prime",
+              family_key: "ladder",
+              asset_key: "arena_scout",
+              variant_key: "arena_ladder_scout",
+              variant_role: "support",
+              focus_key: "arena_prime:ladder:arena_ladder_scout",
+              state_key: "ready",
+              file_name: "arena-scout.glb",
+              candidate_key: "arena_khronos_buggy_scout",
+              provider_label: "Khronos glTF Sample Models"
+            },
+            {
+              district_key: "exchange_district",
+              family_key: "premium",
+              asset_key: "exchange_vial",
+              variant_key: "exchange_premium_vial",
+              variant_role: "ambient",
+              focus_key: "exchange_district:premium:exchange_premium_vial",
+              state_key: "ready",
+              file_name: "exchange-vial.glb",
+              candidate_key: "exchange_khronos_waterbottle_vial",
+              provider_label: "Khronos glTF Sample Models"
+            }
+          ],
           district_family_asset_focus_rows: [
             {
               district_key: "exchange_district",
@@ -1651,6 +1688,30 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
               state_key: "ready",
               file_name: "arena-trophy.glb",
               asset_contract_signature: "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man"
+            }
+          ],
+          district_family_asset_variation_focus_rows: [
+            {
+              district_key: "arena_prime",
+              family_key: "ladder",
+              asset_key: "arena_scout",
+              variant_key: "arena_ladder_scout",
+              variant_role: "support",
+              focus_key: "arena_prime:ladder:arena_ladder_scout",
+              state_key: "ready",
+              file_name: "arena-scout.glb",
+              asset_contract_signature: "arena_prime:ladder:arena_ladder_scout|ready|arena_khronos_buggy_scout"
+            },
+            {
+              district_key: "exchange_district",
+              family_key: "premium",
+              asset_key: "exchange_vial",
+              variant_key: "exchange_premium_vial",
+              variant_role: "ambient",
+              focus_key: "exchange_district:premium:exchange_premium_vial",
+              state_key: "ready",
+              file_name: "exchange-vial.glb",
+              asset_contract_signature: "exchange_district:premium:exchange_premium_vial|ready|exchange_khronos_waterbottle_vial"
             }
           ],
           district_family_asset_runtime_rows: [
@@ -1680,6 +1741,38 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
               runtime_contract_ready: true,
               runtime_contract_signature: "arena_prime:duel:arena_trophy|ready|ready|guard_match|arena_khronos_cesium_man",
               asset_contract_signature: "arena_prime:duel:arena_trophy|ready|arena_khronos_cesium_man"
+            }
+          ],
+          district_family_asset_variation_runtime_rows: [
+            {
+              district_key: "arena_prime",
+              family_key: "ladder",
+              asset_key: "arena_scout",
+              variant_key: "arena_ladder_scout",
+              variant_role: "support",
+              focus_key: "arena_prime:ladder:arena_ladder_scout",
+              state_key: "ready",
+              runtime_state_key: "ready",
+              file_name: "arena-scout.glb",
+              domain_state_key: "ready",
+              runtime_contract_ready: true,
+              runtime_contract_signature: "arena_prime:ladder:arena_ladder_scout|ready|ready|guard_match|arena_khronos_buggy_scout",
+              asset_contract_signature: "arena_prime:ladder:arena_ladder_scout|ready|arena_khronos_buggy_scout"
+            },
+            {
+              district_key: "exchange_district",
+              family_key: "premium",
+              asset_key: "exchange_vial",
+              variant_key: "exchange_premium_vial",
+              variant_role: "ambient",
+              focus_key: "exchange_district:premium:exchange_premium_vial",
+              state_key: "ready",
+              runtime_state_key: "ready",
+              file_name: "exchange-vial.glb",
+              domain_state_key: "ready",
+              runtime_contract_ready: true,
+              runtime_contract_signature: "exchange_district:premium:exchange_premium_vial|ready|ready|guard_match|exchange_khronos_waterbottle_vial",
+              asset_contract_signature: "exchange_district:premium:exchange_premium_vial|ready|exchange_khronos_waterbottle_vial"
             }
           ],
           rows: [
@@ -1950,11 +2043,11 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.equal(payloads.assetStatus.rows[1].title, "arena_prime:duel:arena_trophy");
   assert.equal(
     payloads.assetRuntime.signalLineText,
-    "Ready 75% | Integrity 75% | Bundles 1/2 | Family 1/2 | Focus 1/2 | Runtime 1/2 | Risk 1/2 | Micro 1/2 | Daily 1/2"
+    "Ready 75% | Integrity 75% | Bundles 1/2 | Family 1/2 | Focus 1/2 | Runtime 1/2 | Variation 2/2 | VRuntime 2/2 | Risk 1/2 | Micro 1/2 | Daily 1/2"
   );
   assert.equal(
     payloads.assetRuntime.selectionLineText,
-    "SELECT exchange_district:wallet:exchange_artifact:wallet:partial | arena_prime:duel:arena_trophy:duel:ready"
+    "SELECT exchange_district:wallet:exchange_artifact:wallet:partial | arena_prime:duel:arena_trophy:duel:ready | VAR arena_prime:ladder:arena_ladder_scout:ready | exchange_district:premium:exchange_premium_vial:ready"
   );
   assert.equal(
     payloads.assetRuntime.domainLineText,
@@ -1968,11 +2061,12 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
     payloads.assetRuntime.focusLineText,
     "FOCUS arena_prime:duel:arena_trophy | ready | HOST ready | arena_prime:duel:arena_trophy|ready|ready|guard_match|arena_khronos_cesium_man"
   );
-  assert.equal(payloads.assetRuntime.chips.length, 7);
+  assert.equal(payloads.assetRuntime.chips.length, 8);
   assert.equal(payloads.assetRuntime.chips[2].text, "DIST 1/2");
   assert.equal(payloads.assetRuntime.chips[3].text, "FOCUS 1/2");
-  assert.equal(payloads.assetRuntime.chips[4].text, "RISK 1/2");
-  assert.equal(payloads.assetRuntime.chips[5].text, "HOST READY");
+  assert.equal(payloads.assetRuntime.chips[4].text, "VAR 2/2");
+  assert.equal(payloads.assetRuntime.chips[5].text, "RISK 1/2");
+  assert.equal(payloads.assetRuntime.chips[6].text, "HOST READY");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");
   assert.equal(payloads.auditRuntime.chips.length, 4);
 });
