@@ -147,6 +147,15 @@ function renderRiskContextSuffix(row: Record<string, unknown>): string {
   if (row.asset_key) {
     parts.push(`asset ${String(row.asset_key)}`);
   }
+  if (row.asset_variant_key) {
+    parts.push(`asset-variant ${String(row.asset_variant_key)}`);
+  }
+  if (row.asset_variant_role) {
+    parts.push(`asset-role ${String(row.asset_variant_role)}`);
+  }
+  if (row.asset_bundle_kind) {
+    parts.push(`asset-bundle ${String(row.asset_bundle_kind)}`);
+  }
   if (row.asset_runtime_state_key || row.asset_state_key) {
     parts.push(`asset-state ${String(row.asset_runtime_state_key || row.asset_state_key)}`);
   }

@@ -52,7 +52,15 @@ function microflowMatchScore(assetFamilyKey, riskRow) {
 
 function buildAssetRuntimeRows(localManifest) {
   const manifest = asRecord(localManifest);
-  return asArray(manifest.district_family_asset_runtime_rows).map((row) => asRecord(row));
+  const primaryRows = asArray(manifest.district_family_asset_runtime_rows).map((row) => ({
+    asset_bundle_kind: "selected",
+    ...asRecord(row)
+  }));
+  const variationRows = asArray(manifest.district_family_asset_variation_runtime_rows).map((row) => ({
+    asset_bundle_kind: "variation",
+    ...asRecord(row)
+  }));
+  return primaryRows.concat(variationRows);
 }
 
 function scoreAssetState(value) {
@@ -172,7 +180,7 @@ function resolveCombinedStateKey(assetStateKey, healthBandKey, attentionBandKey,
  */
 export function buildAssetRiskFocusRows({ metrics, localManifest, scope = "family", daily = false, limit = 7 } = {}) {
   const manifest = asRecord(localManifest);
-  const assetRuntimeRows = asArray(manifest.district_family_asset_runtime_rows).map((row) => asRecord(row));
+  const assetRuntimeRows = buildAssetRuntimeRows(manifest);
   const normalizedScope = scope === "microflow" ? "microflow" : "family";
   const riskRows = buildRiskSourceRows(metrics, { daily, scope: normalizedScope });
   if (!assetRuntimeRows.length || !riskRows.length) {
@@ -182,6 +190,9 @@ export function buildAssetRiskFocusRows({ metrics, localManifest, scope = "famil
   return assetRuntimeRows
     .map((assetRow) => {
       const riskRow = pickBestRiskRow(assetRow, riskRows, { scope: normalizedScope });
+      if (!riskRow) {
+        return null;
+      }
       const riskContext = asRecord(riskRow?.risk_context);
       const actionContext = asRecord(riskRow?.action_context);
       const familyKey = toText(riskRow?.loop_family_key || riskContext.family_key || assetRow.family_key);
@@ -237,6 +248,10 @@ export function buildAssetRiskFocusRows({ metrics, localManifest, scope = "famil
         district_key: toText(assetRow.district_key),
         family_key: toText(assetRow.family_key),
         asset_key: toText(assetRow.asset_key),
+        asset_bundle_kind: toText(assetRow.asset_bundle_kind || "selected"),
+        asset_variant_key: toText(assetRow.variant_key),
+        asset_variant_role: toText(assetRow.variant_role),
+        asset_variant_tier: toText(assetRow.variant_tier),
         file_name: toText(assetRow.file_name || assetRow.asset_key),
         focus_key: toText(assetRow.focus_key),
         runtime_state_key: toText(assetRow.runtime_state_key || assetRow.state_key || "missing").toLowerCase(),
@@ -296,6 +311,7 @@ export function buildAssetRiskFocusRows({ metrics, localManifest, scope = "famil
         }
       };
     })
+    .filter(Boolean)
     .sort((left, right) => {
       const severityLeft = Math.max(
         scoreAssetState(left.combined_state_key || left.runtime_state_key),
@@ -408,6 +424,10 @@ export function decorateRiskRowsWithAssetRuntime({ rows, localManifest, scope = 
           : toText(row.loop_family_key || row.family_key || asRecord(row.risk_context).family_key),
       asset_key: toText(assetRow.asset_key),
       asset_family_key: toText(assetRow.family_key),
+      asset_bundle_kind: toText(assetRow.asset_bundle_kind || "selected"),
+      asset_variant_key: toText(assetRow.variant_key),
+      asset_variant_role: toText(assetRow.variant_role),
+      asset_variant_tier: toText(assetRow.variant_tier),
       asset_focus_key: toText(assetRow.focus_key),
       asset_state_key: toText(assetRow.state_key || assetRow.runtime_state_key),
       asset_runtime_state_key: toText(assetRow.runtime_state_key || assetRow.state_key),

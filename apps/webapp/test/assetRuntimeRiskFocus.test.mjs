@@ -23,6 +23,24 @@ function createLocalManifest() {
         asset_contract_signature: "exchange_district:wallet:exchange_artifact|partial|exchange_khronos_damaged_helmet",
         file_name: "exchange-artifact.glb"
       }
+    ],
+    district_family_asset_variation_runtime_rows: [
+      {
+        district_key: "exchange_district",
+        family_key: "premium",
+        asset_key: "exchange_vial",
+        variant_key: "exchange_premium_vial",
+        variant_role: "ambient",
+        variant_tier: "secondary",
+        focus_key: "exchange_district:premium:exchange_premium_vial",
+        runtime_state_key: "ready",
+        domain_state_key: "ready",
+        runtime_contract_ready: true,
+        runtime_contract_signature:
+          "exchange_district:premium:exchange_premium_vial|ready|ready|guard_match|exchange_khronos_waterbottle_vial",
+        asset_contract_signature: "exchange_district:premium:exchange_premium_vial|ready|exchange_khronos_waterbottle_vial",
+        file_name: "exchange-vial.glb"
+      }
     ]
   };
 }
@@ -129,12 +147,19 @@ test("buildAssetRiskFocusRows prefers exact microflow matches over broader famil
     scope: "microflow"
   });
 
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].scope_kind, "microflow");
-  assert.equal(rows[0].scope_key, "wallet");
-  assert.equal(rows[0].microflow_key, "wallet");
-  assert.equal(rows[0].flow_key, "wallet_link:wallet");
-  assert.match(rows[0].asset_risk_contract_signature, /microflow:wallet/i);
+  assert.equal(rows.length, 2);
+  const walletRow = rows.find((row) => row.asset_key === "exchange_artifact");
+  const premiumRow = rows.find((row) => row.asset_key === "exchange_vial");
+  assert.ok(walletRow);
+  assert.ok(premiumRow);
+  assert.equal(walletRow.scope_kind, "microflow");
+  assert.equal(walletRow.scope_key, "wallet");
+  assert.equal(walletRow.microflow_key, "wallet");
+  assert.equal(walletRow.flow_key, "wallet_link:wallet");
+  assert.match(walletRow.asset_risk_contract_signature, /microflow:wallet/i);
+  assert.equal(premiumRow.scope_key, "premium");
+  assert.equal(premiumRow.asset_bundle_kind, "variation");
+  assert.equal(premiumRow.asset_variant_key, "exchange_premium_vial");
 });
 
 test("buildAssetRiskFocusRows carries daily scope metadata into asset risk rows", () => {
@@ -180,6 +205,46 @@ test("buildAssetRiskFocusRows carries daily scope metadata into asset risk rows"
   const summary = summarizeAssetRiskFocusRows(rows);
   assert.equal(summary.row_count, 1);
   assert.equal(summary.alert_count, 1);
+});
+
+test("buildAssetRiskFocusRows includes variation runtime rows when secondary family risk matches", () => {
+  const rows = buildAssetRiskFocusRows({
+    metrics: {
+      scene_loop_district_family_attention_priority_7d: [
+        {
+          district_key: "exchange_district",
+          loop_family_key: "premium",
+          flow_key: "premium:wallet",
+          focus_key: "exchange_district:premium:wallet",
+          risk_key: "yellow:watch:stable",
+          latest_health_band: "yellow",
+          attention_band: "watch",
+          trend_direction: "stable",
+          priority_score: 900,
+          contract_ready: true,
+          risk_context: {
+            family_key: "premium",
+            microflow_key: "wallet",
+            flow_key: "premium:wallet",
+            focus_key: "exchange_district:premium:wallet",
+            risk_key: "yellow:watch:stable",
+            risk_focus_key: "exchange_district:premium:wallet|yellow:watch:stable",
+            risk_health_band_key: "yellow",
+            risk_attention_band_key: "watch",
+            risk_trend_direction_key: "stable",
+            contract_ready: true
+          }
+        }
+      ]
+    },
+    localManifest: createLocalManifest()
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].asset_bundle_kind, "variation");
+  assert.equal(rows[0].asset_variant_key, "exchange_premium_vial");
+  assert.equal(rows[0].asset_variant_role, "ambient");
+  assert.equal(rows[0].focus_key, "exchange_district:premium:exchange_premium_vial");
 });
 
 test("decorateRiskRowsWithAssetRuntime overlays family daily rows with asset runtime contract", () => {
@@ -242,4 +307,33 @@ test("decorateRiskRowsWithAssetRuntime overlays microflow daily rows with exact 
   assert.equal(rows[0].asset_scope_key, "wallet");
   assert.equal(rows[0].asset_family_key, "wallet");
   assert.equal(rows[0].asset_focus_key, "exchange_district:wallet:exchange_artifact");
+});
+
+test("decorateRiskRowsWithAssetRuntime overlays family rows with matching variation runtime contract", () => {
+  const rows = decorateRiskRowsWithAssetRuntime({
+    rows: [
+      {
+        district_key: "exchange_district",
+        loop_family_key: "premium",
+        focus_key: "exchange_district:premium:wallet",
+        priority_score: 900,
+        risk_key: "yellow:watch:stable",
+        risk_context: {
+          family_key: "premium",
+          microflow_key: "wallet",
+          flow_key: "premium:wallet",
+          focus_key: "exchange_district:premium:wallet",
+          risk_key: "yellow:watch:stable"
+        }
+      }
+    ],
+    localManifest: createLocalManifest(),
+    scope: "family"
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].asset_bundle_kind, "variation");
+  assert.equal(rows[0].asset_variant_key, "exchange_premium_vial");
+  assert.equal(rows[0].asset_variant_role, "ambient");
+  assert.equal(rows[0].asset_focus_key, "exchange_district:premium:exchange_premium_vial");
 });
