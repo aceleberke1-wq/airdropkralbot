@@ -737,6 +737,34 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
   );
   assert.equal(state.active_cluster_key, "hub_gate_north");
+  assert.equal(state.active_cluster_flow_key, "travel_flow");
+  assert.equal(state.active_cluster_microflow_key, "world_modal_lane_season_arc:travel");
+  assert.equal(state.active_cluster_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(state.active_cluster_risk_focus_key, "central_hub:travel:travel_flow|green:stable:flat");
+  assert.equal(state.active_cluster_entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(state.active_cluster_sequence_kind_key, "world_modal_kind_travel_gate");
+  assert.equal(
+    state.active_cluster_action_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(
+    state.active_cluster_risk_context_signature,
+    "travel_flow|central_hub:travel:travel_flow|green:stable:flat|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
+  );
+  assert.equal(state.active_cluster_contract_ready, true);
+  assert.equal(state.active_cluster_action_context?.contract_ready, true);
+  assert.equal(state.active_cluster_risk_context?.contract_ready, true);
+  assert.equal(state.active_cluster_primary_action_key, SHELL_ACTION_KEY.PLAYER_SEASON_HALL);
+  assert.equal(state.active_cluster_primary_flow_key, "travel_flow");
+  assert.equal(state.active_cluster_primary_microflow_key, "world_modal_lane_season_arc:travel");
+  assert.equal(state.active_cluster_primary_focus_key, "central_hub:travel:travel_flow");
+  assert.equal(
+    state.active_cluster_primary_risk_focus_key,
+    "central_hub:travel:travel_flow|green:stable:flat"
+  );
+  assert.equal(state.active_cluster_primary_entry_kind_key, "world_entry_kind_hub_portal");
+  assert.equal(state.active_cluster_primary_sequence_kind_key, "world_modal_kind_travel_gate");
+  assert.equal(state.active_cluster_primary_contract_ready, true);
   assert.equal(state.interaction_cluster_count, 3);
   assert.equal(state.active_cluster_slot_count, 2);
   assert.equal(state.actors.length, 3);
@@ -1540,6 +1568,14 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.active_hotspot_hint_key, "world_hotspot_hint_payout");
   assert.equal(state.active_hotspot_cluster_key, "exchange_vault_east");
   assert.equal(state.active_cluster_key, "exchange_vault_east");
+  assert.equal(state.active_cluster_flow_key, "payout_flow");
+  assert.equal(state.active_cluster_focus_key, "exchange_district:payout:payout_flow");
+  assert.equal(state.active_cluster_entry_kind_key, "world_entry_kind_payout_terminal");
+  assert.equal(state.active_cluster_sequence_kind_key, "world_modal_kind_payout_route");
+  assert.equal(state.active_cluster_contract_ready, true);
+  assert.equal(state.active_cluster_primary_action_key, SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST);
+  assert.equal(state.active_cluster_primary_flow_key, "payout_flow");
+  assert.equal(state.active_cluster_primary_contract_ready, true);
   assert.equal(state.interaction_surface.surface_kind_key, "world_surface_kind_vault_terminal");
   assert.equal(state.interaction_surface.hero_label_key, "world_sheet_metric_wallet_state");
   assert.equal(state.interaction_flow.flow_kind_key, "world_flow_kind_vault_loop");

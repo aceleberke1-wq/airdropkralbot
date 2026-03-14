@@ -2607,6 +2607,17 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       data-rail-layout={selectedMicroflow?.rail_layout_key || worldState.rail_profile.rail_layout_key}
       data-modal-layout={selectedMicroflow?.modal_layout_key || ""}
       data-console-layout={selectedMicroflow?.console_layout_key || ""}
+      data-active-cluster-key={worldState.active_cluster_key || ""}
+      data-active-cluster-flow={worldState.active_cluster_flow_key || ""}
+      data-active-cluster-focus={worldState.active_cluster_focus_key || ""}
+      data-active-cluster-risk-focus={worldState.active_cluster_risk_focus_key || ""}
+      data-active-cluster-entry-kind={worldState.active_cluster_entry_kind_key || ""}
+      data-active-cluster-sequence-kind={worldState.active_cluster_sequence_kind_key || ""}
+      data-active-cluster-contract-ready={
+        typeof worldState.active_cluster_contract_ready === "boolean"
+          ? String(worldState.active_cluster_contract_ready)
+          : ""
+      }
       style={
         {
           "--akr-scene-chrome-opacity": String(selectedMicroflow?.chrome_opacity_scalar || 1),

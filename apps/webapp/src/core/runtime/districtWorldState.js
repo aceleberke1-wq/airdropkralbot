@@ -7289,8 +7289,64 @@ export function buildDistrictWorldState(input = {}) {
     active_cluster_key: toText(enrichedActiveCluster?.cluster_key, ""),
     active_cluster_label_key: toText(enrichedActiveCluster?.label_key, ""),
     active_cluster_label: toText(enrichedActiveCluster?.label, ""),
+    active_cluster_family_key: toText(enrichedActiveCluster?.family_key, ""),
+    active_cluster_flow_key: toText(enrichedActiveCluster?.flow_key, ""),
+    active_cluster_microflow_key: toText(enrichedActiveCluster?.microflow_key, ""),
+    active_cluster_focus_key: toText(enrichedActiveCluster?.focus_key, ""),
+    active_cluster_risk_key: toText(enrichedActiveCluster?.risk_key, ""),
+    active_cluster_risk_focus_key: toText(enrichedActiveCluster?.risk_focus_key, ""),
+    active_cluster_risk_health_band_key: toText(enrichedActiveCluster?.risk_health_band_key, ""),
+    active_cluster_risk_attention_band_key: toText(enrichedActiveCluster?.risk_attention_band_key, ""),
+    active_cluster_risk_trend_direction_key: toText(enrichedActiveCluster?.risk_trend_direction_key, ""),
+    active_cluster_entry_kind_key: toText(enrichedActiveCluster?.entry_kind_key, ""),
+    active_cluster_sequence_kind_key: toText(enrichedActiveCluster?.sequence_kind_key, ""),
+    active_cluster_action_context_signature: toText(enrichedActiveCluster?.action_context_signature, ""),
+    active_cluster_risk_context_signature: toText(enrichedActiveCluster?.risk_context_signature, ""),
+    active_cluster_contract_ready:
+      typeof enrichedActiveCluster?.contract_ready === "boolean" ? enrichedActiveCluster.contract_ready : undefined,
+    active_cluster_contract_state_key: toText(enrichedActiveCluster?.contract_state_key, ""),
+    active_cluster_contract_missing_keys: asList(enrichedActiveCluster?.contract_missing_keys),
+    active_cluster_action_context: asRecord(enrichedActiveCluster?.action_context),
+    active_cluster_risk_context: asRecord(enrichedActiveCluster?.risk_context),
     active_cluster_primary_action_key: toText(enrichedActiveCluster?.primary_action_key, ""),
+    active_cluster_primary_action_label_key: toText(enrichedActiveCluster?.primary_action_label_key, ""),
     active_cluster_primary_hint_key: toText(enrichedActiveCluster?.primary_hint_label_key, ""),
+    active_cluster_primary_family_key: toText(enrichedActiveCluster?.primary_family_key, ""),
+    active_cluster_primary_flow_key: toText(enrichedActiveCluster?.primary_flow_key, ""),
+    active_cluster_primary_microflow_key: toText(enrichedActiveCluster?.primary_microflow_key, ""),
+    active_cluster_primary_focus_key: toText(enrichedActiveCluster?.primary_focus_key, ""),
+    active_cluster_primary_risk_key: toText(enrichedActiveCluster?.primary_risk_key, ""),
+    active_cluster_primary_risk_focus_key: toText(enrichedActiveCluster?.primary_risk_focus_key, ""),
+    active_cluster_primary_risk_health_band_key: toText(
+      enrichedActiveCluster?.primary_risk_health_band_key,
+      ""
+    ),
+    active_cluster_primary_risk_attention_band_key: toText(
+      enrichedActiveCluster?.primary_risk_attention_band_key,
+      ""
+    ),
+    active_cluster_primary_risk_trend_direction_key: toText(
+      enrichedActiveCluster?.primary_risk_trend_direction_key,
+      ""
+    ),
+    active_cluster_primary_entry_kind_key: toText(enrichedActiveCluster?.primary_entry_kind_key, ""),
+    active_cluster_primary_sequence_kind_key: toText(enrichedActiveCluster?.primary_sequence_kind_key, ""),
+    active_cluster_primary_action_context_signature: toText(
+      enrichedActiveCluster?.primary_action_context_signature,
+      ""
+    ),
+    active_cluster_primary_risk_context_signature: toText(
+      enrichedActiveCluster?.primary_risk_context_signature,
+      ""
+    ),
+    active_cluster_primary_contract_ready:
+      typeof enrichedActiveCluster?.primary_contract_ready === "boolean"
+        ? enrichedActiveCluster.primary_contract_ready
+        : undefined,
+    active_cluster_primary_contract_state_key: toText(enrichedActiveCluster?.primary_contract_state_key, ""),
+    active_cluster_primary_contract_missing_keys: asList(enrichedActiveCluster?.primary_contract_missing_keys),
+    active_cluster_primary_action_context: asRecord(enrichedActiveCluster?.primary_action_context),
+    active_cluster_primary_risk_context: asRecord(enrichedActiveCluster?.primary_risk_context),
     active_cluster_secondary_count: toNum(enrichedActiveCluster?.secondary_count, 0),
     active_cluster_actions: asList(enrichedActiveCluster?.action_items),
     active_cluster_slot_count: toNum(enrichedActiveCluster?.intent_slots?.length, 0),
