@@ -765,6 +765,73 @@ function applyResolvedActionRiskMeta(target, contextSource, fallback = {}, overr
   };
 }
 
+function attachPrimaryActionMeta(target, action, fallback = {}) {
+  const base = asRecord(target);
+  if (!Object.keys(base).length) {
+    return target;
+  }
+  const primaryAction = asRecord(action);
+  const fallbackRecord = asRecord(fallback);
+  const resolvedAction = toText(primaryAction.action_key, "")
+    ? primaryAction
+    : asRecord(asList(base.action_items)[0]);
+  const primaryMeta = buildInteractionContextMeta(resolvedAction, fallbackRecord);
+  const primaryActionContext = asRecord(primaryMeta.action_context);
+  const primaryRiskContext = asRecord(primaryMeta.risk_context);
+  return {
+    ...base,
+    primary_action_key: toText(resolvedAction.action_key, toText(base.primary_action_key, "")),
+    primary_action_label_key: toText(resolvedAction.label_key, toText(base.primary_action_label_key, "")),
+    primary_action_hint_label_key: toText(resolvedAction.hint_label_key, toText(base.primary_action_hint_label_key, "")),
+    primary_family_key: toText(primaryMeta.family_key, toText(base.primary_family_key, "")),
+    primary_flow_key: toText(primaryMeta.flow_key, toText(base.primary_flow_key, "")),
+    primary_microflow_key: toText(primaryMeta.microflow_key, toText(base.primary_microflow_key, "")),
+    primary_focus_key: toText(primaryMeta.focus_key, toText(base.primary_focus_key, "")),
+    primary_risk_key: toText(primaryMeta.risk_key, toText(base.primary_risk_key, "")),
+    primary_risk_focus_key: toText(primaryMeta.risk_focus_key, toText(base.primary_risk_focus_key, "")),
+    primary_risk_health_band_key: toText(
+      primaryMeta.risk_health_band_key,
+      toText(base.primary_risk_health_band_key, "")
+    ),
+    primary_risk_attention_band_key: toText(
+      primaryMeta.risk_attention_band_key,
+      toText(base.primary_risk_attention_band_key, "")
+    ),
+    primary_risk_trend_direction_key: toText(
+      primaryMeta.risk_trend_direction_key,
+      toText(base.primary_risk_trend_direction_key, "")
+    ),
+    primary_entry_kind_key: toText(primaryMeta.entry_kind_key, toText(base.primary_entry_kind_key, "")),
+    primary_sequence_kind_key: toText(
+      primaryMeta.sequence_kind_key,
+      toText(base.primary_sequence_kind_key, "")
+    ),
+    primary_action_context_signature: toText(
+      primaryMeta.action_context_signature,
+      toText(base.primary_action_context_signature, "")
+    ),
+    primary_risk_context_signature: toText(
+      primaryMeta.risk_context_signature,
+      toText(base.primary_risk_context_signature, "")
+    ),
+    primary_contract_ready:
+      typeof primaryMeta.contract_ready === "boolean"
+        ? primaryMeta.contract_ready
+        : typeof base.primary_contract_ready === "boolean"
+          ? base.primary_contract_ready
+          : undefined,
+    primary_contract_state_key: toText(
+      primaryMeta.contract_state_key,
+      toText(base.primary_contract_state_key, "")
+    ),
+    primary_contract_missing_keys: Array.isArray(primaryMeta.contract_missing_keys)
+      ? primaryMeta.contract_missing_keys
+      : asList(base.primary_contract_missing_keys),
+    primary_action_context: primaryActionContext,
+    primary_risk_context: primaryRiskContext
+  };
+}
+
 function resolveDistrictLabelKey(districtKey) {
   switch (districtKey) {
     case "arena_prime":
@@ -3744,6 +3811,7 @@ function buildProtocolPodMicroFlowCards(labelKey, statusKey, toneKey, sequenceRo
       action_key: toText(actionItem?.action_key, ""),
       action_label_key: toText(actionItem?.label_key, ""),
       hint_label_key: toText(actionItem?.hint_label_key, ""),
+      action_items: actionItem ? [actionItem] : [],
       rows: [row, secondaryRow, tertiaryRow].filter(Boolean).slice(0, 3),
       entry_kind_key: focusMeta.entry_kind_key,
       sequence_kind_key: focusMeta.sequence_kind_key,
@@ -6699,12 +6767,20 @@ function enrichDistrictInteractionModal(interactionModal, input) {
         asList(protocolPod.microflow_cards)[0] ||
         {}
     );
+    const modalCardActionItems =
+      asList(modalCard.action_items).length
+        ? modalCard.action_items
+        : asList(microflow.action_items).length
+          ? microflow.action_items
+          : asList(protocolPod.action_items).length
+            ? protocolPod.action_items
+            : protocolCard.action_items;
     const modalContextMeta = buildInteractionContextMeta(microflow, protocolPod);
     const modalActionContext = asRecord(modalContextMeta.action_context);
     return applyResolvedActionRiskMeta(card, modalContextMeta, modalActionContext, {
       protocol_card_key: toText(protocolCard.card_key, ""),
       protocol_pod_key: toText(protocolPod.pod_key, ""),
-      action_items: buildContextActionItems(modalCard.action_items, modalActionContext),
+      action_items: buildContextActionItems(modalCardActionItems, modalActionContext),
       action_key: toText(microflow.action_key, toText(protocolCard.action_key, "")),
       action_label_key: toText(microflow.action_label_key, toText(protocolCard.action_label_key, "")),
       hint_label_key: toText(microflow.hint_label_key, toText(modalActionContext.hint_label_key, "")),
@@ -7002,7 +7078,7 @@ export function buildDistrictWorldState(input = {}) {
   };
   const rootResolvedActionContext = asRecord(rootInteractionMeta.action_context) || buildActionContextShape(rootInteractionMeta);
   const rootRiskContext = asRecord(rootInteractionMeta.risk_context) || buildRiskContextShape(rootInteractionMeta);
-  const finalInteractionSheet = interactionSheet
+  const finalInteractionSheetBase = interactionSheet
     ? applyResolvedInteractionContext(
         interactionSheet,
         rootInteractionContext,
@@ -7010,7 +7086,7 @@ export function buildDistrictWorldState(input = {}) {
         rootRiskContext
       )
     : interactionSheet;
-  const finalInteractionSurface = enrichedInteractionSurface
+  const finalInteractionSurfaceBase = enrichedInteractionSurface
     ? applyResolvedInteractionContext(
         enrichedInteractionSurface,
         rootInteractionContext,
@@ -7028,7 +7104,7 @@ export function buildDistrictWorldState(input = {}) {
         }
       )
     : enrichedInteractionSurface;
-  const finalInteractionFlow = interactionFlow
+  const finalInteractionFlowBase = interactionFlow
     ? applyResolvedInteractionContext(
         interactionFlow,
         rootInteractionContext,
@@ -7043,7 +7119,7 @@ export function buildDistrictWorldState(input = {}) {
         }
       )
     : interactionFlow;
-  const finalInteractionEntry = interactionEntry
+  const finalInteractionEntryBase = interactionEntry
     ? applyResolvedInteractionContext(
         interactionEntry,
         rootInteractionContext,
@@ -7058,7 +7134,7 @@ export function buildDistrictWorldState(input = {}) {
         }
       )
     : interactionEntry;
-  const finalInteractionTerminal = enrichedInteractionTerminal
+  const finalInteractionTerminalBase = enrichedInteractionTerminal
     ? applyResolvedInteractionContext(
         enrichedInteractionTerminal,
         rootInteractionContext,
@@ -7072,7 +7148,7 @@ export function buildDistrictWorldState(input = {}) {
         }
       )
     : enrichedInteractionTerminal;
-  const finalInteractionModal = enrichedInteractionModal
+  const finalInteractionModalBase = enrichedInteractionModal
     ? applyResolvedInteractionContext(
         enrichedInteractionModal,
         rootInteractionContext,
@@ -7092,6 +7168,31 @@ export function buildDistrictWorldState(input = {}) {
         }
       )
     : enrichedInteractionModal;
+  const primaryRootAction = asRecord(asList(finalInteractionSurfaceBase?.action_items)[0]);
+  const primaryTerminalAction = asRecord(asList(finalInteractionTerminalBase?.action_items)[0]);
+  const primaryModalAction = asRecord(asList(finalInteractionModalBase?.action_items)[0]);
+  const finalInteractionSheet = attachPrimaryActionMeta(finalInteractionSheetBase, primaryRootAction, rootInteractionMeta);
+  const finalInteractionSurface = attachPrimaryActionMeta(
+    finalInteractionSurfaceBase,
+    primaryRootAction,
+    rootInteractionMeta
+  );
+  const finalInteractionFlow = attachPrimaryActionMeta(finalInteractionFlowBase, primaryRootAction, rootInteractionMeta);
+  const finalInteractionEntry = attachPrimaryActionMeta(
+    finalInteractionEntryBase,
+    primaryRootAction,
+    rootInteractionMeta
+  );
+  const finalInteractionTerminal = attachPrimaryActionMeta(
+    finalInteractionTerminalBase,
+    toText(primaryTerminalAction.action_key, "") ? primaryTerminalAction : primaryRootAction,
+    rootInteractionMeta
+  );
+  const finalInteractionModal = attachPrimaryActionMeta(
+    finalInteractionModalBase,
+    toText(primaryModalAction.action_key, "") ? primaryModalAction : primaryRootAction,
+    rootInteractionMeta
+  );
 
   return {
     world_key: `${workspace}:${tab}:${districtKey}`,
