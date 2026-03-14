@@ -1289,15 +1289,19 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
           selected_bundle_rows: [
             {
               district_key: "arena_prime",
+              family_key: "duel",
               asset_key: "arena_trophy",
               file_name: "arena-trophy.glb",
-              candidate_key: "arena_khronos_cesium_man"
+              candidate_key: "arena_khronos_cesium_man",
+              provider_label: "Khronos glTF Sample Models"
             },
             {
               district_key: "exchange_district",
+              family_key: "wallet",
               asset_key: "exchange_artifact",
               file_name: "exchange-artifact.glb",
-              candidate_key: "exchange_khronos_damaged_helmet"
+              candidate_key: "exchange_khronos_damaged_helmet",
+              provider_label: "Khronos glTF Sample Models"
             }
           ],
           district_bundle_summary: { district_count: 2, ready_count: 1, partial_count: 1, intake_ready_count: 0 },
@@ -1580,9 +1584,17 @@ test("buildAdminBridgePayloads produces runtime, asset and audit cards from admi
   assert.match(payloads.runtime.loopDispatchBlocks?.[0]?.summary || "", /WATCH|ALERT|FLOW/i);
   assert.equal(payloads.assetStatus.rows.length, 4);
   assert.equal(payloads.assetStatus.rows[0].title, "arena_prime");
-  assert.match(payloads.assetStatus.rows[0].meta, /bundle 3\/3 \| intake 2 \| mode direct_gltf/i);
+  assert.match(payloads.assetStatus.rows[0].meta, /bundle 3\/3 \| intake 2 \| mode direct_gltf \| duel:arena_trophy/i);
   assert.equal(payloads.assetStatus.rows[1].title, "exchange_district");
   assert.equal(payloads.assetRuntime.signalLineText, "Ready 75% | Integrity 75% | Bundles 1/2 | Selected 2");
+  assert.equal(
+    payloads.assetRuntime.selectionLineText,
+    "SELECT arena_prime:duel:arena_trophy | exchange_district:wallet:exchange_artifact"
+  );
+  assert.equal(
+    payloads.assetRuntime.focusLineText,
+    "FOCUS arena_prime | duel | arena_trophy | arena_khronos_cesium_man"
+  );
   assert.equal(payloads.assetRuntime.chips.length, 4);
   assert.equal(payloads.assetRuntime.chips[2].text, "DIST 1/2");
   assert.equal(payloads.auditRuntime.phaseChipText, "PHASE PARTIAL");

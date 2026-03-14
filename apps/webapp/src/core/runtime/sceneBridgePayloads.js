@@ -6684,15 +6684,24 @@ function buildAdminAssetStatusPayload(adminPanels) {
   const summary = asRecord(assets.summary);
   const localManifest = asRecord(assets.local_manifest);
   const selectedBundleSummary = asRecord(localManifest.selected_bundle_summary);
+  const selectedBundleRows = asArray(localManifest.selected_bundle_rows).map((row) => asRecord(row));
+  const selectedByDistrict = new Map(
+    selectedBundleRows
+      .map((row) => [toText(row.district_key), row])
+      .filter(([districtKey]) => Boolean(districtKey))
+  );
   const districtRows = asArray(localManifest.district_bundle_rows).slice(0, 5).map((row) => {
     const item = asRecord(row);
+    const selected = asRecord(selectedByDistrict.get(toText(item.district_key)));
     const stateKey = toText(item.state_key || "missing", "missing").toLowerCase();
     const readyCount = Math.round(toNum(item.bundle_ready_count));
     const assetCount = Math.round(toNum(item.bundle_asset_count));
     const candidateCount = Math.round(toNum(item.candidate_count));
+    const selectedFamily = toText(selected.family_key || "--", "--");
+    const selectedAsset = toText(selected.asset_key || "");
     return {
       title: toText(item.district_key || "district", "district"),
-      meta: `bundle ${readyCount}/${assetCount} | intake ${candidateCount} | mode ${toText(asArray(item.ingest_modes)[0] || "--")}`,
+      meta: `bundle ${readyCount}/${assetCount} | intake ${candidateCount} | mode ${toText(asArray(item.ingest_modes)[0] || "--")}${selectedAsset ? ` | ${selectedFamily}:${selectedAsset}` : ""}`,
       chip: stateKey.toUpperCase(),
       tone: stateKey === "ready" ? "ready" : "missing"
     };
@@ -6721,6 +6730,8 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
   const localManifest = asRecord(assets.local_manifest);
   const districtBundleSummary = asRecord(localManifest.district_bundle_summary);
   const selectedBundleSummary = asRecord(localManifest.selected_bundle_summary);
+  const selectedBundleRows = asArray(localManifest.selected_bundle_rows).map((row) => asRecord(row));
+  const districtBundleRows = asArray(localManifest.district_bundle_rows).map((row) => asRecord(row));
   const rows = asArray(localManifest.rows).map((row) => ({
     asset_key: toText(asRecord(row).asset_key || "asset"),
     exists_local: asRecord(row).exists !== false,
@@ -6734,11 +6745,23 @@ function buildAdminAssetRuntimePayload(mutators, adminPanels) {
       summary: asRecord(assets.summary)
     }
   });
+  const selectedSummaryText = selectedBundleRows
+    .slice(0, 3)
+    .map((row) => `${toText(row.district_key || "--")}:${toText(row.family_key || "--")}:${toText(row.asset_key || "--")}`)
+    .filter(Boolean)
+    .join(" | ");
+  const focusDistrict = districtBundleRows.find((row) => toText(row.state_key) === "ready") || districtBundleRows[0] || {};
+  const focusSelectedRow =
+    selectedBundleRows.find((row) => toText(row.district_key) === toText(focusDistrict.district_key)) || selectedBundleRows[0] || {};
   return {
     tone: mapRuntimeTone(metrics.tone || "balanced"),
     readyRatio: clamp(metrics.readyRatio),
     syncRatio: clamp(metrics.integrityRatio),
     signalLineText: `Ready ${Math.round(clamp(metrics.readyRatio) * 100)}% | Integrity ${Math.round(clamp(metrics.integrityRatio) * 100)}% | Bundles ${Math.round(toNum(districtBundleSummary.ready_count))}/${Math.max(1, Math.round(toNum(districtBundleSummary.district_count)))} | Selected ${Math.round(toNum(selectedBundleSummary.downloaded_count || selectedBundleSummary.selected_count))}`,
+    selectionLineText: selectedSummaryText ? `SELECT ${selectedSummaryText}` : "SELECT bundle telemetry bekleniyor",
+    focusLineText: toText(focusSelectedRow.asset_key)
+      ? `FOCUS ${toText(focusSelectedRow.district_key || "--")} | ${toText(focusSelectedRow.family_key || "--")} | ${toText(focusSelectedRow.asset_key || "--")} | ${toText(focusSelectedRow.candidate_key || "--")}`
+      : "FOCUS district asset bekleniyor",
     chips: [
       { id: "adminAssetReadyChip", text: `READY ${Math.round(clamp(metrics.readyRatio) * 100)}%`, tone: mapRuntimeTone(metrics.readyRatio < 0.7 ? "pressure" : "advantage"), level: clamp(metrics.readyRatio) },
       { id: "adminAssetSyncChip", text: `SYNC ${Math.round(clamp(metrics.integrityRatio) * 100)}%`, tone: mapRuntimeTone(metrics.integrityRatio < 0.7 ? "critical" : "advantage"), level: clamp(metrics.integrityRatio) },

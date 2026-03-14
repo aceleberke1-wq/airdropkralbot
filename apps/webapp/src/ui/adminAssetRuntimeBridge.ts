@@ -19,6 +19,8 @@ export type AdminAssetRuntimeBridgePayload = {
   readyRatio: number;
   syncRatio: number;
   signalLineText: string;
+  selectionLineText?: string;
+  focusLineText?: string;
   chips: LiveChipPayload[];
   meters: MeterPayload[];
 };
@@ -95,6 +97,8 @@ function applyMeters(meters: MeterPayload[]): void {
 function render(payload: AdminAssetRuntimeBridgePayload): boolean {
   const host = byId<HTMLElement>("adminAssetRuntimeStrip");
   const signalLine = byId<HTMLElement>("adminAssetSignalLine");
+  const selectionLine = byId<HTMLElement>("adminAssetSelectionLine");
+  const focusLine = byId<HTMLElement>("adminAssetFocusLine");
   if (!host || !signalLine) {
     return false;
   }
@@ -102,6 +106,12 @@ function render(payload: AdminAssetRuntimeBridgePayload): boolean {
   host.style.setProperty("--asset-ready", clamp(payload.readyRatio, 0, 1).toFixed(3));
   host.style.setProperty("--asset-sync", clamp(payload.syncRatio, 0, 1).toFixed(3));
   signalLine.textContent = String(payload.signalLineText || "Asset runtime telemetry bekleniyor.");
+  if (selectionLine) {
+    selectionLine.textContent = String(payload.selectionLineText || "SELECT bundle telemetry bekleniyor.");
+  }
+  if (focusLine) {
+    focusLine.textContent = String(payload.focusLineText || "FOCUS district asset bekleniyor.");
+  }
   (payload.chips || []).forEach(setLiveChip);
   applyMeters(payload.meters || []);
   return true;

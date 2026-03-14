@@ -1156,8 +1156,8 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           <div className="akrStack">
             {assetSelectedBundleRows.slice(0, 5).map((row, index) => (
               <p className="akrMutedLine" key={`selected_bundle_${String(row.asset_key || index)}`}>
-                {String(row.district_key || "-")} | {String(row.asset_key || "-")} | {String(row.file_name || "-")} |{" "}
-                {String(row.candidate_key || "-")}
+                {String(row.district_key || "-")} | {String(row.family_key || "--")} | {String(row.asset_key || "-")} |{" "}
+                {String(row.file_name || "-")} | {String(row.candidate_key || "-")} | {String(row.provider_label || row.provider_key || "--")}
               </p>
             ))}
           </div>

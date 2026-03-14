@@ -1719,6 +1719,12 @@ function AdminBridgeCards(props: { lang: Lang }) {
             <p id="adminAssetSignalLine" className="akrBridgeLine">
               -
             </p>
+            <p id="adminAssetSelectionLine" className="akrBridgeHint">
+              -
+            </p>
+            <p id="adminAssetFocusLine" className="akrBridgeHint">
+              -
+            </p>
             <MeterTrack id="adminAssetReadyMeter" />
             <MeterTrack id="adminAssetSyncMeter" />
             <div className="akrChipRow">
