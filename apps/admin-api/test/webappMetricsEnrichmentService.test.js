@@ -170,6 +170,149 @@ test("buildSceneLoopRiskContext preserves explicit nested context over derived f
   assert.equal(context.risk_context?.contract_ready, true);
 });
 
+test("daily microflow risk derived views prefer contract-ready representative context on same day", () => {
+  const readyRow = {
+    day: "2026-03-08",
+    district_key: "ops_citadel",
+    loop_family_key: "dispatch_gate",
+    loop_microflow_key: "dispatch",
+    flow_key: "dispatch_gate:dispatch",
+    focus_key: "ops_citadel:dispatch_gate:dispatch",
+    risk_key: "yellow:watch:stable",
+    risk_focus_key: "ops_citadel:dispatch_gate:dispatch|yellow:watch:stable",
+    entry_kind_key: "world_entry_kind_dispatch_console",
+    sequence_kind_key: "world_modal_kind_dispatch_sequence",
+    action_context_signature:
+      "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+    risk_context_signature:
+      "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch|yellow:watch:stable|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+    contract_ready: true,
+    contract_state_key: "ready",
+    contract_missing_keys: [],
+    context_lookup_required: false,
+    context_lookup_resolved: true,
+    action_context: {
+      district_key: "ops_citadel",
+      family_key: "dispatch_gate",
+      flow_key: "dispatch_gate:dispatch",
+      microflow_key: "dispatch",
+      focus_key: "ops_citadel:dispatch_gate:dispatch",
+      risk_key: "yellow:watch:stable",
+      risk_focus_key: "ops_citadel:dispatch_gate:dispatch|yellow:watch:stable",
+      risk_health_band_key: "yellow",
+      risk_attention_band_key: "watch",
+      risk_trend_direction_key: "stable",
+      entry_kind_key: "world_entry_kind_dispatch_console",
+      sequence_kind_key: "world_modal_kind_dispatch_sequence",
+      action_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      contract_ready: true,
+      contract_state_key: "ready",
+      contract_missing_keys: [],
+      context_lookup_required: false,
+      context_lookup_resolved: true
+    },
+    risk_context: {
+      district_key: "ops_citadel",
+      family_key: "dispatch_gate",
+      flow_key: "dispatch_gate:dispatch",
+      microflow_key: "dispatch",
+      focus_key: "ops_citadel:dispatch_gate:dispatch",
+      risk_key: "yellow:watch:stable",
+      risk_focus_key: "ops_citadel:dispatch_gate:dispatch|yellow:watch:stable",
+      risk_health_band_key: "yellow",
+      risk_attention_band_key: "watch",
+      risk_trend_direction_key: "stable",
+      entry_kind_key: "world_entry_kind_dispatch_console",
+      sequence_kind_key: "world_modal_kind_dispatch_sequence",
+      action_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      risk_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch|yellow:watch:stable|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      contract_ready: true,
+      contract_state_key: "ready",
+      contract_missing_keys: [],
+      context_lookup_required: false,
+      context_lookup_resolved: true
+    },
+    latest_health_band: "yellow",
+    attention_band: "watch",
+    trend_direction: "stable",
+    trend_delta: 1,
+    total_count: 8,
+    live_count: 5,
+    blocked_count: 1,
+    priority_score: 1200
+  };
+  const staleHigherPriorityRow = {
+    ...readyRow,
+    focus_key: "ops_citadel:dispatch_gate:dispatch_stale",
+    risk_focus_key: "ops_citadel:dispatch_gate:dispatch_stale|yellow:watch:stable",
+    action_context_signature:
+      "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch_stale|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+    risk_context_signature:
+      "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch_stale|yellow:watch:stable|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+    contract_ready: false,
+    contract_state_key: "missing",
+    contract_missing_keys: ["action_context_lookup"],
+    context_lookup_required: true,
+    context_lookup_resolved: false,
+    action_context: {
+      ...readyRow.action_context,
+      focus_key: "ops_citadel:dispatch_gate:dispatch_stale",
+      risk_focus_key: "ops_citadel:dispatch_gate:dispatch_stale|yellow:watch:stable",
+      action_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch_stale|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      contract_ready: false,
+      contract_state_key: "missing",
+      contract_missing_keys: ["action_context_lookup"],
+      context_lookup_required: true,
+      context_lookup_resolved: false
+    },
+    risk_context: {
+      ...readyRow.risk_context,
+      focus_key: "ops_citadel:dispatch_gate:dispatch_stale",
+      risk_focus_key: "ops_citadel:dispatch_gate:dispatch_stale|yellow:watch:stable",
+      action_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch_stale|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      risk_context_signature:
+        "dispatch_gate:dispatch|ops_citadel:dispatch_gate:dispatch_stale|yellow:watch:stable|world_entry_kind_dispatch_console|world_modal_kind_dispatch_sequence",
+      contract_ready: false,
+      contract_state_key: "missing",
+      contract_missing_keys: ["action_context_lookup"],
+      context_lookup_required: true,
+      context_lookup_resolved: false
+    },
+    priority_score: 4200
+  };
+
+  const riskBreakdownDaily = service.buildSceneLoopDistrictMicroflowRiskBreakdownDaily(
+    [staleHigherPriorityRow, readyRow],
+    10
+  );
+  const flowBreakdownDaily = service.buildSceneLoopDimensionBreakdownDaily(
+    [staleHigherPriorityRow, readyRow],
+    "flow_key",
+    10
+  );
+  const riskMatrix = service.buildSceneLoopDistrictMicroflowRiskMatrix([staleHigherPriorityRow, readyRow], 10);
+
+  assert.equal(riskBreakdownDaily[0].focus_key, "ops_citadel:dispatch_gate:dispatch");
+  assert.equal(riskBreakdownDaily[0].contract_ready, true);
+  assert.equal(riskBreakdownDaily[0].risk_context?.contract_ready, true);
+  assert.equal(riskBreakdownDaily[0].priority_score, 4200);
+
+  assert.equal(flowBreakdownDaily[0].focus_key, "ops_citadel:dispatch_gate:dispatch");
+  assert.equal(flowBreakdownDaily[0].contract_ready, true);
+  assert.equal(flowBreakdownDaily[0].action_context?.context_lookup_resolved, true);
+  assert.equal(flowBreakdownDaily[0].priority_score, 4200);
+
+  assert.equal(riskMatrix[0].focus_key, "ops_citadel:dispatch_gate:dispatch");
+  assert.equal(riskMatrix[0].contract_ready, true);
+  assert.equal(riskMatrix[0].risk_context_signature, readyRow.risk_context_signature);
+  assert.equal(riskMatrix[0].priority_score, 4200);
+});
+
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   const enriched = service.enrichWebappRevenueMetrics({
     ui_events_ingested_24h: 100,

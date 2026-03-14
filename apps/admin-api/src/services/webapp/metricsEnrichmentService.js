@@ -679,6 +679,35 @@ function toSceneLoopFamilyRowsFromMicroflow(rows) {
   }));
 }
 
+function shouldPromoteSceneLoopRepresentative(current, day, priorityScore, context) {
+  const currentRow = current && typeof current === "object" ? current : null;
+  if (!currentRow) {
+    return true;
+  }
+  const nextDay = String(day || "");
+  const currentDay = String(currentRow.latest_day || currentRow.day || "");
+  if (!currentDay) {
+    return true;
+  }
+  if (nextDay && nextDay.localeCompare(currentDay) > 0) {
+    return true;
+  }
+  if (nextDay && currentDay && nextDay.localeCompare(currentDay) < 0) {
+    return false;
+  }
+  const nextReady = context?.contract_ready === true;
+  const currentReady = currentRow.contract_ready === true;
+  if (nextReady !== currentReady) {
+    return nextReady;
+  }
+  const nextLookupResolved = context?.context_lookup_resolved === true;
+  const currentLookupResolved = currentRow.context_lookup_resolved === true;
+  if (nextLookupResolved !== currentLookupResolved) {
+    return nextLookupResolved;
+  }
+  return Math.max(0, Math.floor(toNum(priorityScore, 0))) > Math.max(0, Math.floor(toNum(currentRow.priority_score, 0)));
+}
+
 function mapSceneLoopFamilyRowToMicroflow(row) {
   const source = row && typeof row === "object" ? row : {};
   const actionContextSource = asRecord(source.action_context);
@@ -2028,8 +2057,9 @@ function buildSceneLoopDistrictMicroflowRiskMatrix(rows, limit = 18) {
     const current = grouped.get(compositeKey);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
     current.day_count = Math.max(0, Math.floor(toNum(current.day_count, 0)) + 1);
-    if (!current.latest_day || day.localeCompare(current.latest_day) > 0) {
+    if (shouldPromoteSceneLoopRepresentative(current, day, row?.priority_score, context)) {
       current.latest_day = day || null;
+      Object.assign(current, context);
       current.latest_health_band = String(row?.latest_health_band || row?.health_band || "no_data");
       current.attention_band = String(row?.attention_band || "no_data");
       current.trend_direction = String(row?.trend_direction || "no_data");
@@ -2204,11 +2234,7 @@ function buildSceneLoopDistrictMicroflowRiskBreakdown(rows, limit = 18) {
     }
     const current = counters.get(key);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
-    const latestDay = String(current.latest_day || "");
-    const shouldReplace =
-      !latestDay ||
-      (day && day.localeCompare(latestDay) > 0) ||
-      (day === latestDay && priorityScore > toNum(current.priority_score, 0));
+    const shouldReplace = shouldPromoteSceneLoopRepresentative(current, day, priorityScore, context);
     if (shouldReplace) {
       Object.assign(current, context);
       current.latest_day = day || null;
@@ -2243,7 +2269,7 @@ function buildSceneLoopDistrictMicroflowRiskBreakdownDaily(rows, limit = 24) {
     }
     const current = counters.get(compositeKey);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
-    if (priorityScore >= toNum(current.priority_score, 0)) {
+    if (shouldPromoteSceneLoopRepresentative(current, day, priorityScore, context)) {
       Object.assign(current, context);
     }
     current.priority_score = Math.max(toNum(current.priority_score, 0), priorityScore);
@@ -2277,11 +2303,7 @@ function buildSceneLoopDimensionBreakdown(rows, field, limit = 18) {
     }
     const current = counters.get(key);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
-    const latestDay = String(current.latest_day || "");
-    const shouldReplace =
-      !latestDay ||
-      (day && day.localeCompare(latestDay) > 0) ||
-      (day === latestDay && priorityScore > toNum(current.priority_score, 0));
+    const shouldReplace = shouldPromoteSceneLoopRepresentative(current, day, priorityScore, context);
     if (shouldReplace) {
       Object.assign(current, context);
       current.latest_day = day || null;
@@ -2316,7 +2338,7 @@ function buildSceneLoopDimensionBreakdownDaily(rows, field, limit = 24) {
     }
     const current = counters.get(compositeKey);
     current.item_count = Math.max(0, Math.floor(toNum(current.item_count, 0)) + 1);
-    if (priorityScore >= toNum(current.priority_score, 0)) {
+    if (shouldPromoteSceneLoopRepresentative(current, day, priorityScore, context)) {
       Object.assign(current, context);
     }
     current.priority_score = Math.max(toNum(current.priority_score, 0), priorityScore);
@@ -2363,7 +2385,7 @@ function buildSceneLoopDimensionRiskMatrix(rows, field, limit = 18) {
     if (day) {
       current.day_count = Math.max(0, Math.floor(toNum(current.day_count, 0)) + 1);
     }
-    if (!current.latest_day || day.localeCompare(current.latest_day) > 0) {
+    if (shouldPromoteSceneLoopRepresentative(current, day, row?.priority_score, context)) {
       Object.assign(current, context);
       current.latest_day = day || null;
       current.latest_health_band = String(context.latest_health_band || row?.health_band || "no_data");
