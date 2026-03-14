@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildAssetRiskFocusRows, summarizeAssetRiskFocusRows } from "../src/core/admin/assetRuntimeRiskFocus.js";
+import {
+  buildAssetRiskFocusRows,
+  decorateRiskRowsWithAssetRuntime,
+  summarizeAssetRiskFocusRows
+} from "../src/core/admin/assetRuntimeRiskFocus.js";
 
 function createLocalManifest() {
   return {
@@ -176,4 +180,66 @@ test("buildAssetRiskFocusRows carries daily scope metadata into asset risk rows"
   const summary = summarizeAssetRiskFocusRows(rows);
   assert.equal(summary.row_count, 1);
   assert.equal(summary.alert_count, 1);
+});
+
+test("decorateRiskRowsWithAssetRuntime overlays family daily rows with asset runtime contract", () => {
+  const rows = decorateRiskRowsWithAssetRuntime({
+    rows: [
+      {
+        day: "2026-03-14",
+        district_key: "exchange_district",
+        loop_family_key: "wallet_link",
+        focus_key: "exchange_district:wallet_link:wallet",
+        priority_score: 1800,
+        risk_key: "red:alert:no_data",
+        risk_context: {
+          family_key: "wallet_link",
+          microflow_key: "wallet",
+          flow_key: "wallet_link:wallet",
+          focus_key: "exchange_district:wallet_link:wallet",
+          risk_key: "red:alert:no_data"
+        }
+      }
+    ],
+    localManifest: createLocalManifest(),
+    scope: "family"
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].asset_focus_key, "exchange_district:wallet:exchange_artifact");
+  assert.equal(rows[0].asset_key, "exchange_artifact");
+  assert.equal(rows[0].asset_runtime_state_key, "partial");
+  assert.equal(rows[0].asset_runtime_contract_ready, false);
+  assert.match(rows[0].asset_runtime_contract_signature, /exchange_district:wallet:exchange_artifact/i);
+});
+
+test("decorateRiskRowsWithAssetRuntime overlays microflow daily rows with exact asset family match", () => {
+  const rows = decorateRiskRowsWithAssetRuntime({
+    rows: [
+      {
+        day: "2026-03-14",
+        district_key: "exchange_district",
+        loop_family_key: "wallet_link",
+        loop_microflow_key: "wallet",
+        focus_key: "exchange_district:wallet_link:wallet",
+        priority_score: 1800,
+        risk_key: "red:alert:no_data",
+        risk_context: {
+          family_key: "wallet_link",
+          microflow_key: "wallet",
+          flow_key: "wallet_link:wallet",
+          focus_key: "exchange_district:wallet_link:wallet",
+          risk_key: "red:alert:no_data"
+        }
+      }
+    ],
+    localManifest: createLocalManifest(),
+    scope: "microflow"
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].asset_scope_kind, "microflow");
+  assert.equal(rows[0].asset_scope_key, "wallet");
+  assert.equal(rows[0].asset_family_key, "wallet");
+  assert.equal(rows[0].asset_focus_key, "exchange_district:wallet:exchange_artifact");
 });

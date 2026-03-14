@@ -50,6 +50,11 @@ function microflowMatchScore(assetFamilyKey, riskRow) {
   return familyMatchScore(assetFamilyKey, familyKey);
 }
 
+function buildAssetRuntimeRows(localManifest) {
+  const manifest = asRecord(localManifest);
+  return asArray(manifest.district_family_asset_runtime_rows).map((row) => asRecord(row));
+}
+
 function scoreAssetState(value) {
   const key = toText(value, "missing").toLowerCase();
   if (key === "missing") return 5;
@@ -342,4 +347,76 @@ export function summarizeAssetRiskFocusRows(rows) {
     partial_count: normalizedRows.filter((row) => toText(row.combined_state_key) === "partial").length,
     missing_count: normalizedRows.filter((row) => toText(row.combined_state_key) === "missing").length
   };
+}
+
+function pickBestAssetRuntimeRow(riskRow, assetRuntimeRows, { scope = "family" } = {}) {
+  const row = asRecord(riskRow);
+  const riskContext = asRecord(row.risk_context);
+  const districtKey = toText(row.district_key || riskContext.district_key);
+  const familyKey = toText(row.loop_family_key || row.family_key || riskContext.family_key);
+  const microflowKey = toText(row.loop_microflow_key || row.microflow_key || riskContext.microflow_key);
+  let bestRow = null;
+  let bestScore = -1;
+  asArray(assetRuntimeRows).forEach((rawAssetRow) => {
+    const assetRow = asRecord(rawAssetRow);
+    if (districtKey && toText(assetRow.district_key) !== districtKey) {
+      return;
+    }
+    const matchTarget = scope === "microflow" ? microflowKey || familyKey : familyKey;
+    const matchScore = familyMatchScore(matchTarget, assetRow.family_key);
+    if (!matchScore) {
+      return;
+    }
+    const rowScore =
+      matchScore * 100000 +
+      scoreAssetState(assetRow.runtime_state_key || assetRow.state_key) * 1000 +
+      (assetRow.runtime_contract_ready === true ? 0 : 10);
+    if (rowScore > bestScore) {
+      bestRow = assetRow;
+      bestScore = rowScore;
+    }
+  });
+  return bestRow ? asRecord(bestRow) : null;
+}
+
+/**
+ * @param {{
+ *   rows?: Array<Record<string, unknown>> | null,
+ *   localManifest?: Record<string, unknown> | null,
+ *   scope?: "family" | "microflow"
+ * }} [options]
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function decorateRiskRowsWithAssetRuntime({ rows, localManifest, scope = "family" } = {}) {
+  const normalizedRows = asArray(rows).map((row) => asRecord(row));
+  const assetRuntimeRows = buildAssetRuntimeRows(localManifest);
+  const normalizedScope = scope === "microflow" ? "microflow" : "family";
+  if (!normalizedRows.length || !assetRuntimeRows.length) {
+    return normalizedRows;
+  }
+  return normalizedRows.map((row) => {
+    const assetRow = pickBestAssetRuntimeRow(row, assetRuntimeRows, { scope: normalizedScope });
+    if (!assetRow) {
+      return row;
+    }
+    return {
+      ...row,
+      asset_scope_kind: normalizedScope,
+      asset_scope_key:
+        normalizedScope === "microflow"
+          ? toText(row.loop_microflow_key || row.microflow_key || asRecord(row.risk_context).microflow_key)
+          : toText(row.loop_family_key || row.family_key || asRecord(row.risk_context).family_key),
+      asset_key: toText(assetRow.asset_key),
+      asset_family_key: toText(assetRow.family_key),
+      asset_focus_key: toText(assetRow.focus_key),
+      asset_state_key: toText(assetRow.state_key || assetRow.runtime_state_key),
+      asset_runtime_state_key: toText(assetRow.runtime_state_key || assetRow.state_key),
+      asset_contract_ready: assetRow.asset_contract_ready === true,
+      asset_runtime_contract_ready: assetRow.runtime_contract_ready === true,
+      asset_contract_signature: toText(assetRow.asset_contract_signature),
+      asset_runtime_contract_signature: toText(assetRow.runtime_contract_signature),
+      asset_domain_state_key: toText(assetRow.domain_state_key),
+      asset_file_name: toText(assetRow.file_name || assetRow.asset_key)
+    };
+  });
 }

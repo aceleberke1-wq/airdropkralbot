@@ -1,6 +1,10 @@
 import { t, type Lang } from "../../../i18n";
 import { SHELL_ACTION_KEY } from "../../../../core/navigation/shellActions.js";
-import { buildAssetRiskFocusRows, summarizeAssetRiskFocusRows } from "../../../../core/admin/assetRuntimeRiskFocus.js";
+import {
+  buildAssetRiskFocusRows,
+  decorateRiskRowsWithAssetRuntime,
+  summarizeAssetRiskFocusRows
+} from "../../../../core/admin/assetRuntimeRiskFocus.js";
 
 type RuntimeMetaCardProps = {
   lang: Lang;
@@ -87,6 +91,29 @@ function renderRiskContextSuffix(row: Record<string, unknown>): string {
   }
   if (riskContext.risk_trend_direction_key) {
     parts.push(`trend ${String(riskContext.risk_trend_direction_key)}`);
+  }
+  if (row.asset_focus_key) {
+    parts.push(`asset-focus ${String(row.asset_focus_key)}`);
+  }
+  if (row.asset_key) {
+    parts.push(`asset ${String(row.asset_key)}`);
+  }
+  if (row.asset_runtime_state_key || row.asset_state_key) {
+    parts.push(`asset-state ${String(row.asset_runtime_state_key || row.asset_state_key)}`);
+  }
+  if (typeof row.asset_contract_ready === "boolean") {
+    parts.push(`asset-contract ${row.asset_contract_ready === true ? "ready" : "missing"}`);
+  }
+  if (typeof row.asset_runtime_contract_ready === "boolean") {
+    parts.push(`asset-runtime ${row.asset_runtime_contract_ready === true ? "ready" : "missing"}`);
+  }
+  if (row.asset_domain_state_key) {
+    parts.push(`asset-host ${String(row.asset_domain_state_key)}`);
+  }
+  if (row.asset_runtime_contract_signature) {
+    parts.push(`asset-sig ${String(row.asset_runtime_contract_signature)}`);
+  } else if (row.asset_contract_signature) {
+    parts.push(`asset-sig ${String(row.asset_contract_signature)}`);
   }
   if (typeof riskContext.contract_ready === "boolean" || typeof row.contract_ready === "boolean") {
     parts.push(`contract ${riskContext.contract_ready === true || row.contract_ready === true ? "ready" : "missing"}`);
@@ -795,6 +822,36 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
   const sceneLoopDistrictMicroflowRiskFocusDaily = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_focus_daily_7d
   );
+  const sceneLoopDistrictFamilyAttentionPriorityWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictFamilyAttentionPriority,
+    localManifest: localAssetManifest,
+    scope: "family"
+  });
+  const sceneLoopDistrictFamilyAttentionPriorityDailyWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictFamilyAttentionPriorityDaily,
+    localManifest: localAssetManifest,
+    scope: "family"
+  });
+  const sceneLoopDistrictMicroflowRiskRowsWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictMicroflowRiskRows,
+    localManifest: localAssetManifest,
+    scope: "microflow"
+  });
+  const sceneLoopDistrictMicroflowRiskRowsDailyWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictMicroflowRiskRowsDaily,
+    localManifest: localAssetManifest,
+    scope: "microflow"
+  });
+  const sceneLoopDistrictMicroflowRiskPriorityWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictMicroflowRiskPriority,
+    localManifest: localAssetManifest,
+    scope: "microflow"
+  });
+  const sceneLoopDistrictMicroflowRiskPriorityDailyWithAssets = decorateRiskRowsWithAssetRuntime({
+    rows: sceneLoopDistrictMicroflowRiskPriorityDaily,
+    localManifest: localAssetManifest,
+    scope: "microflow"
+  });
   const sceneLoopDistrictMicroflowRiskFocusKeyBreakdown = asRows(
     props.metricsData?.scene_loop_district_microflow_risk_focus_key_breakdown_7d
   );
@@ -1620,11 +1677,11 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_priority_title")}
-          rows={sceneLoopDistrictFamilyAttentionPriority}
+          rows={sceneLoopDistrictFamilyAttentionPriorityWithAssets}
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_family_attention_priority_daily_title")}
-          rows={sceneLoopDistrictFamilyAttentionPriorityDaily}
+          rows={sceneLoopDistrictFamilyAttentionPriorityDailyWithAssets}
         />
         <BreakdownList title={t(props.lang, "admin_runtime_scene_loop_microflow_title")} rows={sceneLoopMicroflowBreakdown} />
         <SceneLoopDistrictFamilyMatrixList
@@ -1678,12 +1735,12 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_rows_title")}
-          rows={sceneLoopDistrictMicroflowRiskRows}
+          rows={sceneLoopDistrictMicroflowRiskRowsWithAssets}
           loopKeyField="loop_microflow_key"
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_rows_daily_title")}
-          rows={sceneLoopDistrictMicroflowRiskRowsDaily}
+          rows={sceneLoopDistrictMicroflowRiskRowsDailyWithAssets}
           loopKeyField="loop_microflow_key"
         />
         <SceneLoopDistrictFamilyPriorityList
@@ -1698,7 +1755,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_priority_title")}
-          rows={sceneLoopDistrictMicroflowRiskPriority}
+          rows={sceneLoopDistrictMicroflowRiskPriorityWithAssets}
           loopKeyField="loop_microflow_key"
         />
         <SceneLoopDistrictFamilyPriorityList
@@ -1708,7 +1765,7 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
         />
         <SceneLoopDistrictFamilyPriorityList
           title={t(props.lang, "admin_runtime_scene_loop_district_microflow_risk_priority_daily_title")}
-          rows={sceneLoopDistrictMicroflowRiskPriorityDaily}
+          rows={sceneLoopDistrictMicroflowRiskPriorityDailyWithAssets}
           loopKeyField="loop_microflow_key"
         />
         <SceneLoopDistrictFamilyPriorityList
