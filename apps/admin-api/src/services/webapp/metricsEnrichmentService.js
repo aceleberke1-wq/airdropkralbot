@@ -708,6 +708,20 @@ function shouldPromoteSceneLoopRepresentative(current, day, priorityScore, conte
   return Math.max(0, Math.floor(toNum(priorityScore, 0))) > Math.max(0, Math.floor(toNum(currentRow.priority_score, 0)));
 }
 
+function compareSceneLoopContractStrength(left, right) {
+  const leftReady = left?.contract_ready === true ? 1 : 0;
+  const rightReady = right?.contract_ready === true ? 1 : 0;
+  if (rightReady !== leftReady) {
+    return rightReady - leftReady;
+  }
+  const leftLookupResolved = left?.context_lookup_resolved === true ? 1 : 0;
+  const rightLookupResolved = right?.context_lookup_resolved === true ? 1 : 0;
+  if (rightLookupResolved !== leftLookupResolved) {
+    return rightLookupResolved - leftLookupResolved;
+  }
+  return 0;
+}
+
 function mapSceneLoopFamilyRowToMicroflow(row) {
   const source = row && typeof row === "object" ? row : {};
   const actionContextSource = asRecord(source.action_context);
@@ -1353,6 +1367,8 @@ function buildSceneLoopDistrictFamilyHealthAttentionTrendDailyMatrix(rows, limit
       if (Math.abs(healthGap) > 0.0001) return healthGap;
       const trendGap = toNum(right.trend_rank, 0) - toNum(left.trend_rank, 0);
       if (Math.abs(trendGap) > 0.0001) return trendGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.district_key || "")}:${String(left.loop_family_key || "")}`.localeCompare(
@@ -1863,6 +1879,8 @@ function buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix(rows, li
       if (Math.abs(healthGap) > 0.0001) return healthGap;
       const trendGap = toNum(right.trend_rank, 0) - toNum(left.trend_rank, 0);
       if (Math.abs(trendGap) > 0.0001) return trendGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}`.localeCompare(
@@ -2103,6 +2121,8 @@ function buildSceneLoopDistrictMicroflowRiskMatrixDaily(rows, limit = 24) {
       if (dayOrder !== 0) return dayOrder;
       const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
       if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}:${String(left.risk_key || "")}`.localeCompare(
@@ -2157,6 +2177,8 @@ function buildSceneLoopDistrictMicroflowRiskPriorityDaily(rows, limit = 24) {
       if (dayOrder !== 0) return dayOrder;
       const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
       if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.district_key || "")}:${String(left.loop_microflow_key || "")}:${String(left.risk_key || "")}`.localeCompare(
@@ -2209,6 +2231,8 @@ function buildSceneLoopDistrictMicroflowRiskFocusDaily(rows, limit = 18) {
       if (dayOrder !== 0) return dayOrder;
       const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
       if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return String(left.focus_key || "").localeCompare(String(right.focus_key || ""));
@@ -2439,6 +2463,8 @@ function buildSceneLoopDimensionRiskMatrixDaily(rows, field, limit = 24) {
       if (dayOrder !== 0) return dayOrder;
       const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
       if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
@@ -2497,6 +2523,8 @@ function buildSceneLoopDimensionPriorityDaily(rows, field, limit = 24) {
       if (dayOrder !== 0) return dayOrder;
       const priorityGap = toNum(right.priority_score, 0) - toNum(left.priority_score, 0);
       if (Math.abs(priorityGap) > 0.0001) return priorityGap;
+      const contractGap = compareSceneLoopContractStrength(left, right);
+      if (contractGap !== 0) return contractGap;
       const totalGap = toNum(right.total_count, 0) - toNum(left.total_count, 0);
       if (Math.abs(totalGap) > 0.0001) return totalGap;
       return `${String(left.district_key || "")}:${String(left[field] || left.bucket_key || "")}:${String(left.risk_key || "")}`.localeCompare(
@@ -3278,6 +3306,8 @@ module.exports = {
   buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix,
   buildSceneLoopDistrictMicroflowAttentionPriority,
   buildSceneLoopDistrictMicroflowAttentionPriorityDaily,
+  buildSceneLoopDistrictMicroflowRiskRowsDaily,
+  buildSceneLoopDistrictMicroflowRiskPriorityDaily,
   buildSceneLoopDistrictMicroflowRiskMatrix,
   buildSceneLoopDistrictMicroflowRiskMatrixDaily,
   buildSceneLoopDistrictMicroflowRiskBreakdown,

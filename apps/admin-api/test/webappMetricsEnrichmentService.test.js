@@ -313,6 +313,71 @@ test("daily microflow risk derived views prefer contract-ready representative co
   assert.equal(riskMatrix[0].priority_score, 4200);
 });
 
+test("daily microflow risk lists sort contract-ready rows ahead of equally ranked stale rows", () => {
+  const readyRow = {
+    day: "2026-03-09",
+    district_key: "mission_quarter",
+    loop_family_key: "claim_lane",
+    loop_microflow_key: "claim",
+    flow_key: "claim_lane:claim",
+    focus_key: "mission_quarter:claim_lane:claim",
+    risk_key: "yellow:watch:stable",
+    risk_focus_key: "mission_quarter:claim_lane:claim|yellow:watch:stable",
+    entry_kind_key: "world_entry_kind_claim_terminal",
+    sequence_kind_key: "world_modal_kind_contract_sequence",
+    action_context_signature:
+      "claim_lane:claim|mission_quarter:claim_lane:claim|world_entry_kind_claim_terminal|world_modal_kind_contract_sequence",
+    risk_context_signature:
+      "claim_lane:claim|mission_quarter:claim_lane:claim|yellow:watch:stable|world_entry_kind_claim_terminal|world_modal_kind_contract_sequence",
+    contract_ready: true,
+    contract_state_key: "ready",
+    contract_missing_keys: [],
+    context_lookup_required: false,
+    context_lookup_resolved: true,
+    latest_health_band: "yellow",
+    attention_band: "watch",
+    trend_direction: "stable",
+    trend_delta: 0,
+    total_count: 6,
+    live_count: 4,
+    blocked_count: 1
+  };
+  const staleRow = {
+    ...readyRow,
+    focus_key: "mission_quarter:claim_lane:claim_stale",
+    risk_focus_key: "mission_quarter:claim_lane:claim_stale|yellow:watch:stable",
+    action_context_signature:
+      "claim_lane:claim|mission_quarter:claim_lane:claim_stale|world_entry_kind_claim_terminal|world_modal_kind_contract_sequence",
+    risk_context_signature:
+      "claim_lane:claim|mission_quarter:claim_lane:claim_stale|yellow:watch:stable|world_entry_kind_claim_terminal|world_modal_kind_contract_sequence",
+    contract_ready: false,
+    contract_state_key: "missing",
+    contract_missing_keys: ["action_context_lookup"],
+    context_lookup_required: true,
+    context_lookup_resolved: false
+  };
+
+  const riskPriorityDaily = service.buildSceneLoopDistrictMicroflowRiskPriorityDaily([staleRow, readyRow], 10);
+  const dimensionPriorityDaily = service.buildSceneLoopDimensionPriorityDaily(
+    service.buildSceneLoopDistrictMicroflowRiskRowsDaily([staleRow, readyRow], 10),
+    "flow_key",
+    10
+  );
+  const trendDailyMatrix = service.buildSceneLoopDistrictMicroflowHealthAttentionTrendDailyMatrix(
+    [staleRow, readyRow],
+    10
+  );
+
+  assert.equal(riskPriorityDaily[0].focus_key, "mission_quarter:claim_lane:claim");
+  assert.equal(riskPriorityDaily[0].contract_ready, true);
+
+  assert.equal(dimensionPriorityDaily[0].focus_key, "mission_quarter:claim_lane:claim");
+  assert.equal(dimensionPriorityDaily[0].contract_ready, true);
+
+  assert.equal(trendDailyMatrix[0].focus_key, "mission_quarter:claim_lane:claim");
+  assert.equal(trendDailyMatrix[0].contract_ready, true);
+});
+
 test("enrichWebappRevenueMetrics computes quality and funnel rates", () => {
   const enriched = service.enrichWebappRevenueMetrics({
     ui_events_ingested_24h: 100,
