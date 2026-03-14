@@ -767,6 +767,27 @@ function compareSceneLoopContractStrength(left, right) {
   return 0;
 }
 
+function compareSceneLoopRowsByDayAndContract(left, right, direction = "desc") {
+  const leftDay = String(left?.day || left?.latest_day || "");
+  const rightDay = String(right?.day || right?.latest_day || "");
+  const dayGap =
+    direction === "asc" ? leftDay.localeCompare(rightDay) : rightDay.localeCompare(leftDay);
+  if (dayGap !== 0) {
+    return dayGap;
+  }
+  const contractGap = compareSceneLoopContractStrength(left, right);
+  if (contractGap !== 0) {
+    return contractGap;
+  }
+  const totalGap = toNum(right?.total_count, 0) - toNum(left?.total_count, 0);
+  if (Math.abs(totalGap) > 0.0001) {
+    return totalGap;
+  }
+  return `${String(left?.district_key || "")}:${String(left?.loop_family_key || "")}:${String(left?.loop_microflow_key || "")}`.localeCompare(
+    `${String(right?.district_key || "")}:${String(right?.loop_family_key || "")}:${String(right?.loop_microflow_key || "")}`
+  );
+}
+
 function mapSceneLoopFamilyRowToMicroflow(row) {
   const source = row && typeof row === "object" ? row : {};
   const actionContextSource = asRecord(source.action_context);
@@ -988,14 +1009,15 @@ function buildSceneLoopDistrictFamilyMatrix(rows, limit = 12) {
   return Array.from(grouped.entries())
     .map(([compositeKey, familyRows]) => {
       const [district_key, loop_family_key] = compositeKey.split(":");
-      const sortedRows = [...familyRows].sort((left, right) => String(right.day || "").localeCompare(String(left.day || "")));
+      const sortedRows = [...familyRows].sort((left, right) => compareSceneLoopRowsByDayAndContract(left, right, "desc"));
+      const earliestRows = [...familyRows].sort((left, right) => compareSceneLoopRowsByDayAndContract(left, right, "asc"));
       const totalCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.total_count, 0))), 0);
       const liveCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.live_count, 0))), 0);
       const blockedCount = sortedRows.reduce((sum, row) => sum + Math.max(0, Math.floor(toNum(row.blocked_count, 0))), 0);
       const liveShare = toRate(liveCount, totalCount);
       const blockedShare = toRate(blockedCount, totalCount);
       const latestRow = sortedRows[0] || null;
-      const earliestRow = sortedRows[sortedRows.length - 1] || null;
+      const earliestRow = earliestRows[0] || null;
       const greenDays = sortedRows.filter((row) => String(row?.health_band || "") === "green").length;
       const yellowDays = sortedRows.filter((row) => String(row?.health_band || "") === "yellow").length;
       const redDays = sortedRows.filter((row) => String(row?.health_band || "") === "red").length;

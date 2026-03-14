@@ -603,6 +603,54 @@ test("aggregate family loop views preserve explicit risk context and prefer cont
   assert.equal(familyPriority[0].risk_context?.contract_ready, true);
 });
 
+test("family matrix prefers contract-ready latest row on same day", () => {
+  const staleRow = {
+    day: "2026-03-12",
+    district_key: "exchange_district",
+    loop_family_key: "wallet_link",
+    loop_microflow_key: "wallet",
+    flow_key: "wallet_link:wallet",
+    focus_key: "exchange_district:wallet_link:wallet_stale",
+    risk_key: "red:alert:stable",
+    risk_focus_key: "exchange_district:wallet_link:wallet_stale|red:alert:stable",
+    entry_kind_key: "world_entry_kind_wallet_terminal",
+    sequence_kind_key: "world_modal_kind_wallet_terminal",
+    action_context_signature:
+      "wallet_link:wallet|exchange_district:wallet_link:wallet_stale|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal",
+    risk_context_signature:
+      "wallet_link:wallet|exchange_district:wallet_link:wallet_stale|red:alert:stable|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal",
+    contract_ready: false,
+    contract_state_key: "missing",
+    contract_missing_keys: ["action_context_lookup"],
+    context_lookup_required: true,
+    context_lookup_resolved: false,
+    health_band: "red",
+    total_count: 7,
+    live_count: 3,
+    blocked_count: 2
+  };
+  const readyRow = {
+    ...staleRow,
+    focus_key: "exchange_district:wallet_link:wallet",
+    risk_focus_key: "exchange_district:wallet_link:wallet|red:alert:stable",
+    action_context_signature:
+      "wallet_link:wallet|exchange_district:wallet_link:wallet|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal",
+    risk_context_signature:
+      "wallet_link:wallet|exchange_district:wallet_link:wallet|red:alert:stable|world_entry_kind_wallet_terminal|world_modal_kind_wallet_terminal",
+    contract_ready: true,
+    contract_state_key: "ready",
+    contract_missing_keys: [],
+    context_lookup_required: false,
+    context_lookup_resolved: true
+  };
+
+  const familyMatrix = service.buildSceneLoopDistrictFamilyMatrix([staleRow, readyRow], 10);
+
+  assert.equal(familyMatrix[0].focus_key, "exchange_district:wallet_link:wallet");
+  assert.equal(familyMatrix[0].contract_ready, true);
+  assert.equal(familyMatrix[0].risk_context_signature, readyRow.risk_context_signature);
+});
+
 test("family breakdown buckets preserve representative risk context", () => {
   const readyRow = {
     day: "2026-03-13",
