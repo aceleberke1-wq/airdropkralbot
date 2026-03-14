@@ -72,6 +72,7 @@ const {
 } = require("./services/webapp/reactV1Service");
 const { resolveDynamicAutoPolicyDecision } = require("./services/webapp/dynamicAutoPolicyService");
 const { enrichWebappRevenueMetrics } = require("./services/webapp/metricsEnrichmentService");
+const { summarizeAssetSourceCatalog } = require("./services/webapp/assetManifestIntakeService");
 const { createChatTrustNotificationService } = require("./services/chatTrustNotificationService");
 
 const envPath = path.join(process.cwd(), ".env");
@@ -2691,6 +2692,7 @@ function resolveManifestAssetPath(assetWebPath = "") {
 
 function buildAssetStatusRows() {
   const { manifestPath, manifest } = readAssetManifest();
+  const sourceCatalog = summarizeAssetSourceCatalog({ manifestPath, manifest });
   const models = manifest?.models && typeof manifest.models === "object" ? manifest.models : {};
   const rows = Object.entries(models).map(([assetKey, value]) => {
     const filePath = resolveManifestAssetPath(value?.path || "");
@@ -2709,6 +2711,9 @@ function buildAssetStatusRows() {
     manifest_path: manifestPath,
     manifest_version: Number(manifest?.version || 0),
     manifest_notes: String(manifest?.notes || ""),
+    source_catalog_path: String(manifest?.source_catalog_path || ""),
+    source_catalog_summary: sourceCatalog.summary,
+    source_catalog_candidates: sourceCatalog.candidates,
     rows
   };
 }
@@ -2778,6 +2783,10 @@ async function persistAssetManifestState(db, summary, updatedBy = 0) {
         manifest_path: String(summary?.manifest_path || ""),
         manifest_version: Number(summary?.manifest_version || 0),
         manifest_notes: String(summary?.manifest_notes || ""),
+        source_catalog_summary:
+          summary?.source_catalog_summary && typeof summary.source_catalog_summary === "object"
+            ? summary.source_catalog_summary
+            : {},
         total_assets: Array.isArray(summary?.rows) ? summary.rows.length : 0,
         ready_assets: Array.isArray(summary?.rows) ? summary.rows.filter((row) => row.exists).length : 0
       }),
@@ -11571,7 +11580,10 @@ fastify.get("/webapp/api/admin/assets/status", async (request, reply) => {
         summary: {
           total_assets: local.rows.length,
           ready_assets: local.rows.filter((row) => row.exists).length,
-          missing_assets: local.rows.filter((row) => !row.exists).length
+          missing_assets: local.rows.filter((row) => !row.exists).length,
+          intake_candidates: Number(local.source_catalog_summary?.candidate_count || 0),
+          intake_districts: Number(local.source_catalog_summary?.district_count || 0),
+          intake_providers: Number(local.source_catalog_summary?.provider_count || 0)
         }
       }
     });
@@ -11632,7 +11644,10 @@ fastify.post(
           summary: {
             total_assets: local.rows.length,
             ready_assets: local.rows.filter((row) => row.exists).length,
-            missing_assets: local.rows.filter((row) => !row.exists).length
+            missing_assets: local.rows.filter((row) => !row.exists).length,
+            intake_candidates: Number(local.source_catalog_summary?.candidate_count || 0),
+            intake_districts: Number(local.source_catalog_summary?.district_count || 0),
+            intake_providers: Number(local.source_catalog_summary?.provider_count || 0)
           }
         }
       });

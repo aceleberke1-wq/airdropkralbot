@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "models": {
     "arena_core": {
       "path": "/webapp/assets/arena-core.glb",
@@ -38,10 +38,18 @@
       ]
     }
   },
+  "district_bundles": {
+    "central_hub": ["ambient_fx", "reward_crate"],
+    "arena_prime": ["arena_core", "enemy_rig", "ambient_fx"],
+    "mission_quarter": ["reward_crate", "ambient_fx"],
+    "exchange_district": ["reward_crate", "ambient_fx"],
+    "ops_citadel": ["enemy_rig", "ambient_fx"]
+  },
+  "source_catalog_path": "/webapp/assets/district-intake.json",
   "source": {
     "provider": "KhronosGroup glTF-Sample-Models",
     "url": "https://github.com/KhronosGroup/glTF-Sample-Models",
     "license": "See upstream model licenses in source repository"
   },
-  "notes": "Missing assets automatically fall back to procedural visuals."
+  "notes": "Missing assets automatically fall back to procedural visuals. District-specific intake candidates live in district-intake.json."
 }

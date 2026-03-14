@@ -593,6 +593,19 @@ function QueryStrategyAdjustmentList(props: { title: string; rows: Array<Record<
 }
 
 export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
+  const assetsStatus = asRecord(props.assetsStatusData);
+  const localAssetManifest = asRecord(assetsStatus?.local_manifest);
+  const assetSourceCatalogSummary = asRecord(localAssetManifest?.source_catalog_summary);
+  const assetSourceCatalogCandidates = asRows(localAssetManifest?.source_catalog_candidates);
+  const assetSourceCatalogProviders = Array.isArray(assetSourceCatalogSummary?.providers)
+    ? (assetSourceCatalogSummary.providers as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const assetSourceCatalogDistricts = Array.isArray(assetSourceCatalogSummary?.districts)
+    ? (assetSourceCatalogSummary.districts as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const assetSourceCatalogIngestModes = Array.isArray(assetSourceCatalogSummary?.ingest_modes)
+    ? (assetSourceCatalogSummary.ingest_modes as unknown[]).map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
   const qualityScore = readNum(props.metricsData, "ui_event_quality_score_24h");
   const intent = readNum(props.metricsData, "funnel_intent_24h");
   const submit = readNum(props.metricsData, "funnel_tx_submit_24h");
@@ -1050,6 +1063,40 @@ export function RuntimeMetaCard(props: RuntimeMetaCardProps) {
           {props.assetsReloading ? t(props.lang, "admin_runtime_assets_reloading") : t(props.lang, "admin_runtime_assets_reload")}
         </button>
       </div>
+      {assetSourceCatalogCandidates.length ? (
+        <section className="akrMiniPanel">
+          <h3>{t(props.lang, "admin_runtime_asset_source_catalog_title")}</h3>
+          <div className="akrChipRow">
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_source_catalog_candidates")}: {Math.floor(Number(assetSourceCatalogSummary?.candidate_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_source_catalog_districts")}: {Math.floor(Number(assetSourceCatalogSummary?.district_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_source_catalog_providers")}: {Math.floor(Number(assetSourceCatalogSummary?.provider_count || 0))}
+            </span>
+            <span className="akrChip">
+              {t(props.lang, "admin_runtime_asset_source_catalog_verified")}: {formatStamp(assetSourceCatalogSummary?.verified_at)}
+            </span>
+          </div>
+          {assetSourceCatalogProviders.length ? (
+            <p className="akrMutedLine">
+              {t(props.lang, "admin_runtime_asset_source_catalog_provider_list")}: {assetSourceCatalogProviders.join(", ")}
+            </p>
+          ) : null}
+          {assetSourceCatalogDistricts.length ? (
+            <p className="akrMutedLine">
+              {t(props.lang, "admin_runtime_asset_source_catalog_district_list")}: {assetSourceCatalogDistricts.join(", ")}
+            </p>
+          ) : null}
+          {assetSourceCatalogIngestModes.length ? (
+            <p className="akrMutedLine">
+              {t(props.lang, "admin_runtime_asset_source_catalog_ingest_list")}: {assetSourceCatalogIngestModes.join(", ")}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       <h3>{t(props.lang, "admin_runtime_kpi_title")}</h3>
       <div className="akrActionRow">
         <button className="akrBtn akrBtnGhost" onClick={props.onRefreshOpsKpi}>
