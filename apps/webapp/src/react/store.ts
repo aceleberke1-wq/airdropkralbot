@@ -1,5 +1,6 @@
 import type { BootstrapV2Data, ExperimentAssignment, LaunchContext, TabKey, WebAppAuth, WorkspaceKey } from "./types";
 import { type Lang } from "./i18n";
+import { useCallback, useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "./redux/hooks";
 import {
   adminActions,
@@ -83,23 +84,8 @@ export function useReactShellStore(): ReactShellState {
   const navigationContext = useAppSelector(selectNavigationLaunchContext);
   const navigationRequestKey = useAppSelector(selectNavigationRequestKey);
 
-  return {
-    auth,
-    data,
-    experiment,
-    tab: ui.tab,
-    workspace: ui.workspace,
-    lang: ui.lang,
-    advanced: ui.advanced,
-    onboardingVisible: ui.onboardingVisible,
-    loading: ui.loading,
-    error: ui.error,
-    adminRuntime,
-    pvpRuntime,
-    scene,
-    navigationContext,
-    navigationRequestKey,
-    setBootstrap: (nextData) => {
+  const setBootstrap = useCallback(
+    (nextData: BootstrapV2Data) => {
       const capabilityProfile = collectCapabilityProfile({
         qualityMode: String(nextData?.ui_prefs?.quality_mode || "auto"),
         reducedMotion: Boolean(nextData?.ui_prefs?.reduced_motion),
@@ -128,7 +114,11 @@ export function useReactShellStore(): ReactShellState {
         })
       );
     },
-    patchData: (patch) => {
+    [dispatch, ui.tab, ui.workspace, ui.lang, ui.onboardingVisible]
+  );
+
+  const patchData = useCallback(
+    (patch: Partial<BootstrapV2Data>) => {
       dispatch(playerActions.patchData(patch));
       if (Object.prototype.hasOwnProperty.call(patch || {}, "launch_context")) {
         dispatch(navigationActions.hydrateLaunchContext((patch || {}).launch_context || null));
@@ -154,40 +144,112 @@ export function useReactShellStore(): ReactShellState {
         );
       }
     },
-    setAuth: (nextAuth) => {
-      dispatch(sessionActions.setAuth(nextAuth));
-    },
-    setTab: (nextTab) => {
-      dispatch(uiActions.setTab(nextTab));
-    },
-    setWorkspace: (nextWorkspace) => {
-      dispatch(uiActions.setWorkspace(nextWorkspace));
-    },
-    setLang: (nextLang) => {
-      dispatch(uiActions.setLang(nextLang));
-    },
-    toggleAdvanced: () => {
-      dispatch(uiActions.toggleAdvanced());
-    },
-    hideOnboarding: () => {
-      dispatch(uiActions.hideOnboarding());
-    },
-    setLoading: (next) => {
-      dispatch(uiActions.setLoading(next));
-    },
-    setError: (message) => {
-      dispatch(uiActions.setError(message));
-    },
-    setAdminRuntime: (summary, queue = []) => {
+    [dispatch, scene.qualityMode, scene.reducedMotion, scene.largeText, scene.hudDensity]
+  );
+
+  const setAuth = useCallback((nextAuth: WebAppAuth) => {
+    dispatch(sessionActions.setAuth(nextAuth));
+  }, [dispatch]);
+
+  const setTab = useCallback((nextTab: TabKey) => {
+    dispatch(uiActions.setTab(nextTab));
+  }, [dispatch]);
+
+  const setWorkspace = useCallback((nextWorkspace: WorkspaceKey) => {
+    dispatch(uiActions.setWorkspace(nextWorkspace));
+  }, [dispatch]);
+
+  const setLang = useCallback((nextLang: Lang) => {
+    dispatch(uiActions.setLang(nextLang));
+  }, [dispatch]);
+
+  const toggleAdvanced = useCallback(() => {
+    dispatch(uiActions.toggleAdvanced());
+  }, [dispatch]);
+
+  const hideOnboarding = useCallback(() => {
+    dispatch(uiActions.hideOnboarding());
+  }, [dispatch]);
+
+  const setLoading = useCallback((next: boolean) => {
+    dispatch(uiActions.setLoading(next));
+  }, [dispatch]);
+
+  const setError = useCallback((message: string) => {
+    dispatch(uiActions.setError(message));
+  }, [dispatch]);
+
+  const setAdminRuntime = useCallback((summary: Record<string, unknown> | null, queue: Array<Record<string, unknown>> = []) => {
       dispatch(
         adminActions.setAdminRuntime({
           summary: summary || null,
           queue: Array.isArray(queue) ? queue : []
         })
       );
-    },
-    setPvpRuntime: (session) => {
-      dispatch(pvpActions.setPvpRuntime(session || null));
-    }
-  };
+    }, [dispatch]);
+
+  const setPvpRuntime = useCallback((session: Record<string, unknown> | null) => {
+    dispatch(pvpActions.setPvpRuntime(session || null));
+  }, [dispatch]);
+
+  return useMemo(
+    () => ({
+      auth,
+      data,
+      experiment,
+      tab: ui.tab,
+      workspace: ui.workspace,
+      lang: ui.lang,
+      advanced: ui.advanced,
+      onboardingVisible: ui.onboardingVisible,
+      loading: ui.loading,
+      error: ui.error,
+      adminRuntime,
+      pvpRuntime,
+      scene,
+      navigationContext,
+      navigationRequestKey,
+      setBootstrap,
+      patchData,
+      setAuth,
+      setTab,
+      setWorkspace,
+      setLang,
+      toggleAdvanced,
+      hideOnboarding,
+      setLoading,
+      setError,
+      setAdminRuntime,
+      setPvpRuntime
+    }),
+    [
+      auth,
+      data,
+      experiment,
+      ui.tab,
+      ui.workspace,
+      ui.lang,
+      ui.advanced,
+      ui.onboardingVisible,
+      ui.loading,
+      ui.error,
+      adminRuntime,
+      pvpRuntime,
+      scene,
+      navigationContext,
+      navigationRequestKey,
+      setBootstrap,
+      patchData,
+      setAuth,
+      setTab,
+      setWorkspace,
+      setLang,
+      toggleAdvanced,
+      hideOnboarding,
+      setLoading,
+      setError,
+      setAdminRuntime,
+      setPvpRuntime
+    ]
+  );
 }
