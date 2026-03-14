@@ -196,6 +196,9 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_surface.action_items[0].focus_key, "central_hub:travel:travel_flow");
   assert.equal(state.interaction_surface.action_items[0].contract_ready, true);
   assert.deepEqual(state.interaction_surface.action_items[0].contract_missing_keys, []);
+  assert.equal(state.interaction_surface.action_items[0].runtime_summary_state_key, "ready");
+  assert.equal(state.interaction_surface.action_items[0].runtime_summary_contract_ready, true);
+  assert.equal(state.interaction_surface.action_items[0].runtime_summary_guard_matches_host, true);
   assert.equal(state.interaction_surface.action_items[0].action_context?.contract_ready, true);
   assert.deepEqual(state.interaction_surface.action_items[0].action_context?.contract_missing_keys, []);
   assert.equal(state.interaction_surface.action_items[0].risk_context?.contract_ready, true);
@@ -296,6 +299,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     "central_hub:travel:travel_flow|green:stable:flat"
   );
   assert.equal(state.interaction_terminal.action_items[0].contract_ready, true);
+  assert.equal(state.interaction_terminal.action_items[0].runtime_summary_state_key, "ready");
+  assert.equal(state.interaction_terminal.action_items[0].runtime_summary_contract_ready, true);
   assert.equal(
     state.interaction_terminal.action_items[0].action_context?.action_context_signature,
     "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
@@ -350,6 +355,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
     "central_hub:travel:travel_flow|green:stable:flat"
   );
   assert.equal(state.interaction_modal.action_items[0].contract_ready, true);
+  assert.equal(state.interaction_modal.action_items[0].runtime_summary_state_key, "ready");
+  assert.equal(state.interaction_modal.action_items[0].runtime_summary_contract_ready, true);
   assert.equal(
     state.interaction_modal.action_items[0].action_context?.action_context_signature,
     "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
@@ -434,6 +441,8 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   assert.equal(state.interaction_modal.modal_cards[0].action_items[0].entry_kind_key, "world_entry_kind_hub_portal");
   assert.equal(state.interaction_modal.modal_cards[0].action_items[0].sequence_kind_key, "world_modal_kind_travel_gate");
   assert.equal(state.interaction_modal.modal_cards[0].action_items[0].contract_ready, true);
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].runtime_summary_state_key, "ready");
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].runtime_summary_contract_ready, true);
   assert.equal(
     state.interaction_modal.modal_cards[0].action_items[0].action_context?.action_context_signature,
     "travel_flow|central_hub:travel:travel_flow|world_entry_kind_hub_portal|world_modal_kind_travel_gate"
@@ -691,6 +700,14 @@ test("buildDistrictWorldState maps player home into central hub beacons", () => 
   );
   assert.equal(
     state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].contract_ready,
+    true
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].runtime_summary_state_key,
+    "ready"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[0].flow_pods[0].microflow_cards[0].action_items[0].runtime_summary_contract_ready,
     true
   );
   assert.equal(
@@ -1693,6 +1710,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   );
   assert.equal(state.interaction_surface.action_contract_ready_count, 1);
   assert.equal(state.interaction_surface.action_contract_state_key, "partial");
+  assert.equal(state.interaction_surface.action_items[0].runtime_summary_state_key, "partial");
+  assert.equal(state.interaction_surface.action_items[0].runtime_summary_contract_ready, false);
   assert.equal(state.interaction_flow.action_contract_ready_count, 1);
   assert.equal(state.interaction_flow.action_contract_state_key, "partial");
   assert.equal(state.interaction_entry.action_contract_ready_count, 1);
@@ -1704,6 +1723,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_modal.runtime_summary_state_key, "partial");
   assert.equal(state.interaction_modal.runtime_summary_contract_ready, false);
   assert.equal(state.interaction_modal.runtime_summary_guard_matches_host, false);
+  assert.equal(state.interaction_modal.action_items[0].runtime_summary_state_key, "partial");
+  assert.equal(state.interaction_modal.action_items[0].runtime_summary_contract_ready, false);
   assert.equal(state.interaction_surface.surface_kind_key, "world_surface_kind_vault_terminal");
   assert.equal(state.interaction_surface.hero_label_key, "world_sheet_metric_wallet_state");
   assert.equal(state.interaction_flow.flow_kind_key, "world_flow_kind_vault_loop");
@@ -1718,6 +1739,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_modal.modal_cards[0].label_key, "world_modal_lane_wallet_link");
   assert.equal(state.interaction_modal.modal_cards[0].runtime_summary_state_key, "partial");
   assert.equal(state.interaction_modal.modal_cards[0].runtime_summary_contract_ready, false);
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].runtime_summary_state_key, "partial");
+  assert.equal(state.interaction_modal.modal_cards[0].action_items[0].runtime_summary_contract_ready, false);
   assert.equal(state.interaction_modal.modal_cards[1].label_key, "world_modal_lane_payout_lane");
   assert.equal(state.interaction_modal.protocol_cards[0].label_key, "world_modal_protocol_wallet_auth");
   assert.equal(state.interaction_modal.protocol_cards[0].runtime_summary_state_key, "partial");
@@ -1735,6 +1758,8 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].entry_kind_key, "world_entry_kind_wallet_terminal");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].runtime_summary_state_key, "partial");
   assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].runtime_summary_contract_ready, false);
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_items[0].runtime_summary_state_key, "partial");
+  assert.equal(state.interaction_modal.protocol_cards[0].flow_pods[0].action_items[0].runtime_summary_contract_ready, false);
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].sequence_kind_key, "world_modal_kind_payout_route");
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].tempo_label_key, "world_sequence_tempo_route");
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].label_key, "world_modal_kind_payout_route");
@@ -1742,6 +1767,14 @@ test("buildDistrictWorldState marks active node from navigation context shell ac
   assert.equal(state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].runtime_summary_state_key, "partial");
   assert.equal(
     state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].runtime_summary_contract_ready,
+    false
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].action_items[0].runtime_summary_state_key,
+    "partial"
+  );
+  assert.equal(
+    state.interaction_modal.protocol_cards[1].flow_pods[0].microflow_cards[0].action_items[0].runtime_summary_contract_ready,
     false
   );
   assert.equal(state.interaction_modal.protocol_cards[2].action_items[1].action_key, SHELL_ACTION_KEY.PLAYER_PAYOUT_REQUEST);

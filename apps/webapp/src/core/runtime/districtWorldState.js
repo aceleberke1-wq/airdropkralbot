@@ -6721,7 +6721,10 @@ function enrichDistrictInteractionModal(interactionModal, input) {
           context_lookup_resolved: true
         }
       );
-      return attachPrimaryActionMeta(enrichedItem, enrichedItem, actionContext);
+      return attachRuntimeContractSummary(
+        attachPrimaryActionMeta(enrichedItem, enrichedItem, actionContext),
+        webappDomainSummary
+      );
     });
   const enrichedProtocolCards = modal.protocol_cards.map((card) => {
     const protocolCard = asRecord(card);
@@ -7027,7 +7030,7 @@ function buildInteractionActionContextLookup(interactionModal) {
   return lookup;
 }
 
-function enrichInteractionActionItems(items, actionContextLookup) {
+function enrichInteractionActionItems(items, actionContextLookup, runtimeSummary) {
   return asList(items).map((item) => {
     const record = asRecord(item);
     const actionKey = toText(record.action_key, "");
@@ -7098,7 +7101,10 @@ function enrichInteractionActionItems(items, actionContextLookup) {
           ? enriched.contract_missing_keys
           : []
     };
-    return attachPrimaryActionMeta(enrichedActionItem, enrichedActionItem, resolvedMeta || record);
+    return attachRuntimeContractSummary(
+      attachPrimaryActionMeta(enrichedActionItem, enrichedActionItem, resolvedMeta || record),
+      runtimeSummary
+    );
   });
 }
 
@@ -7169,11 +7175,11 @@ export function buildDistrictWorldState(input = {}) {
     input
   );
   const actionContextLookup = buildInteractionActionContextLookup(interactionModal);
-  const enrichedNodes = enrichInteractionActionItems(nodes, actionContextLookup).map((node) => ({
+  const enrichedNodes = enrichInteractionActionItems(nodes, actionContextLookup, webappDomainSummary).map((node) => ({
     ...node,
     is_active: node.key === activeNodeKey
   }));
-  const enrichedHotspots = enrichInteractionActionItems(hotspots, actionContextLookup).map((hotspot) => ({
+  const enrichedHotspots = enrichInteractionActionItems(hotspots, actionContextLookup, webappDomainSummary).map((hotspot) => ({
     ...hotspot,
     is_active: hotspot.key === activeHotspotKey
   }));
@@ -7183,27 +7189,39 @@ export function buildDistrictWorldState(input = {}) {
     activeHotspotKey
   ).map((cluster) => ({
     ...cluster,
-    action_items: enrichInteractionActionItems(cluster.action_items, actionContextLookup),
-    intent_slots: enrichInteractionActionItems(cluster.intent_slots, actionContextLookup)
+    action_items: enrichInteractionActionItems(cluster.action_items, actionContextLookup, webappDomainSummary),
+    intent_slots: enrichInteractionActionItems(cluster.intent_slots, actionContextLookup, webappDomainSummary)
   }));
   const enrichedActiveHotspot = enrichedHotspots.find((hotspot) => hotspot.key === activeHotspotKey) || null;
   const enrichedActiveCluster = enrichedInteractionClusters.find((cluster) => cluster.is_active) || null;
   const enrichedInteractionSurface = interactionSurface
     ? {
         ...interactionSurface,
-        action_items: enrichInteractionActionItems(interactionSurface.action_items, actionContextLookup)
+        action_items: enrichInteractionActionItems(
+          interactionSurface.action_items,
+          actionContextLookup,
+          webappDomainSummary
+        )
       }
     : interactionSurface;
   const enrichedInteractionTerminal = interactionTerminal
     ? {
         ...interactionTerminal,
-        action_items: enrichInteractionActionItems(interactionTerminal.action_items, actionContextLookup)
+        action_items: enrichInteractionActionItems(
+          interactionTerminal.action_items,
+          actionContextLookup,
+          webappDomainSummary
+        )
       }
     : interactionTerminal;
   const enrichedInteractionModal = interactionModal
     ? {
         ...interactionModal,
-        action_items: enrichInteractionActionItems(interactionModal.action_items, actionContextLookup)
+        action_items: enrichInteractionActionItems(
+          interactionModal.action_items,
+          actionContextLookup,
+          webappDomainSummary
+        )
       }
     : interactionModal;
   const activeClusterActionSummary = buildSceneContractCollectionMeta(enrichedActiveCluster?.action_items);

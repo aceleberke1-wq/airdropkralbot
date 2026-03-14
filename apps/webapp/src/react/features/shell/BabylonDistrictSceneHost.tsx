@@ -3148,6 +3148,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                   <span>{t(props.lang, action.hint_label_key as never)}</span>
                   {renderSceneActionContextMeta(action)}
                   {renderPrimaryActionSummary(action, { compact: true })}
+                  {renderSceneRuntimeSummary(action, { compact: true })}
                   {renderSceneActionContextChips(action)}
                 </button>
               );
@@ -3391,6 +3392,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                   <strong>{action.label_key ? t(props.lang, action.label_key as never) : action.label}</strong>
                   {renderSceneActionContextMeta(action)}
                   {renderPrimaryActionSummary(action, { compact: true })}
+                  {renderSceneRuntimeSummary(action, { compact: true })}
                   {renderSceneActionContextChips(action)}
                 </button>
               );
@@ -3561,6 +3563,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     <span>{t(props.lang, action.hint_label_key as never)}</span>
                     {renderSceneActionContextMeta(action)}
                     {renderPrimaryActionSummary(action, { compact: true })}
+                    {renderSceneRuntimeSummary(action, { compact: true })}
                     {renderSceneActionContextChips(action)}
                   </button>
                 );
@@ -4278,6 +4281,8 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                                     : t(props.lang, selectedMicroflow.label_key as never)}
                                 </strong>
                                 {renderSceneActionContextMeta(selectedMicroflow)}
+                                {renderPrimaryActionSummary(selectedMicroflow, { compact: true })}
+                                {renderSceneRuntimeSummary(selectedMicroflow, { compact: true })}
                                 {renderSceneActionContextChips(selectedMicroflow)}
                               </button>
                             </div>
@@ -4354,6 +4359,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                               {renderSceneActionContextMeta(action)}
                               {renderSceneActionContextChips(action)}
                               {renderPrimaryActionSummary(action, { compact: true })}
+                              {renderSceneRuntimeSummary(action, { compact: true })}
                             </button>
                           );
                         })}
@@ -4406,6 +4412,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                           {renderSceneActionContextMeta(action)}
                           {renderSceneActionContextChips(action)}
                           {renderPrimaryActionSummary(action, { compact: true })}
+                          {renderSceneRuntimeSummary(action, { compact: true })}
                         </button>
                       );
                     })}
@@ -4487,6 +4494,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
                     <span>{t(props.lang, action.hint_label_key as never)}</span>
                     {renderSceneActionContextMeta(action)}
                     {renderPrimaryActionSummary(action, { compact: true })}
+                    {renderSceneRuntimeSummary(action, { compact: true })}
                     {renderSceneActionContextChips(action)}
                   </button>
                 );
