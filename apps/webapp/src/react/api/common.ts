@@ -38,8 +38,11 @@ export async function readJson<T>(res: Response): Promise<T> {
   return (await res.json().catch(() => ({}))) as T;
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(path, { cache: "no-store" });
+export async function getJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    cache: "no-store",
+    ...init
+  });
   return readJson<T>(res);
 }
 

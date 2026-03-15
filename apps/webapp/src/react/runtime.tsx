@@ -8,6 +8,7 @@ import { appStore } from "./redux/store";
 import * as navigationContract from "../core/shared/navigationContract.js";
 
 const { decodeStartAppPayload, resolveLaunchTarget } = navigationContract;
+const BOOTSTRAP_FETCH_TIMEOUT_MS = 15000;
 
 type FatalBoundaryProps = {
   children: React.ReactNode;
@@ -174,6 +175,41 @@ function mountFatal(message: string): void {
   }
 }
 
+function mountPending(message: string): void {
+  const rootNode = ensureRootNode();
+  rootNode.innerHTML = `
+    <section style="min-height:100vh;display:grid;place-items:center;background:#070b14;color:#e7edf7;font-family:'Space Grotesk',sans-serif;padding:24px;">
+      <div style="max-width:640px;border:1px solid rgba(132,180,255,.2);background:rgba(8,16,30,.52);padding:20px;border-radius:14px;">
+        <h1 style="margin:0 0 8px;font-size:24px;">Booting Arena</h1>
+        <p style="margin:0;opacity:.9;line-height:1.5;">${message}</p>
+      </div>
+    </section>
+  `;
+}
+
+async function fetchBootstrapWithTimeout(auth: Parameters<typeof fetchBootstrapV2>[0], language: NonNullable<Parameters<typeof fetchBootstrapV2>[1]>) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort("bootstrap_timeout"), BOOTSTRAP_FETCH_TIMEOUT_MS);
+  try {
+    return await fetchBootstrapV2(auth, language, { signal: controller.signal });
+  } catch (err) {
+    const isAbort =
+      Boolean(err) &&
+      typeof err === "object" &&
+      (String((err as { name?: string }).name || "") === "AbortError" ||
+        String((err as { message?: string }).message || "").toLowerCase().includes("abort"));
+    if (isAbort) {
+      return {
+        success: false,
+        error: "bootstrap_timeout"
+      };
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export async function mountReactWebAppV1(): Promise<void> {
   document.body.classList.add("akrReactModeBody");
   window.addEventListener("error", (event) => {
@@ -191,9 +227,19 @@ export async function mountReactWebAppV1(): Promise<void> {
     return;
   }
   const language = normalizeLang(new URLSearchParams(window.location.search).get("lang") || "tr");
-  const payload = await fetchBootstrapV2(auth, language).catch(() => null);
+  mountPending("Connecting to live runtime...");
+  const payload = await fetchBootstrapWithTimeout(auth, language).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err || "bootstrap_failed");
+    mountFatal(`Bootstrap failed before response: ${message}`);
+    return null;
+  });
   if (!payload?.success || !payload?.data) {
-    mountFatal(`Bootstrap failed: ${String(payload?.error || "bootstrap_failed")}`);
+    const errorCode = String(payload?.error || "bootstrap_failed");
+    if (errorCode === "bootstrap_timeout") {
+      mountFatal("Bootstrap timed out while waiting for live runtime. Please retry.");
+      return;
+    }
+    mountFatal(`Bootstrap failed: ${errorCode}`);
     return;
   }
   const launchContext = resolveLaunchContext(window.location.search);

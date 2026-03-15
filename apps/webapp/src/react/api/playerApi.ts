@@ -8,13 +8,19 @@ type PlayerActionMutation = {
   action_request_id?: string;
 };
 
-export async function fetchBootstrapV2(auth: WebAppAuth, language: Lang = "tr"): Promise<BootstrapV2Payload> {
+export async function fetchBootstrapV2(
+  auth: WebAppAuth,
+  language: Lang = "tr",
+  options: { signal?: AbortSignal } = {}
+): Promise<BootstrapV2Payload> {
   const query = withAuthQuery(auth, {
     lang: normalizeLang(language),
     scope: "player",
     include_admin: "1"
   });
-  return getJson<BootstrapV2Payload>(`/webapp/api/v2/bootstrap?${query}`);
+  return getJson<BootstrapV2Payload>(`/webapp/api/v2/bootstrap?${query}`, {
+    signal: options.signal
+  });
 }
 
 export async function postAcceptActionV2(

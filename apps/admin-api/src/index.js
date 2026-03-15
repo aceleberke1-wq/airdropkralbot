@@ -68,6 +68,7 @@ const { createCriticalAdminPolicyService } = require("./services/policy/critical
 const {
   DEFAULT_EXPERIMENT_KEY,
   DEFAULT_VARIANT_CONTROL,
+  buildExperimentAssignment,
   resolveExperimentAssignment
 } = require("./services/webapp/reactV1Service");
 const { resolveDynamicAutoPolicyDecision } = require("./services/webapp/dynamicAutoPolicyService");
@@ -119,6 +120,7 @@ const WEBAPP_HMAC_SECRET = process.env.WEBAPP_HMAC_SECRET || "";
 const BOT_TOKEN = String(process.env.BOT_TOKEN || "").trim();
 const BOT_USERNAME = String(process.env.BOT_USERNAME || "airdropkral_2026_bot").trim();
 const WEBAPP_AUTH_TTL_SEC = Number(process.env.WEBAPP_AUTH_TTL_SEC || 900);
+const WEBAPP_BOOTSTRAP_TIMEOUT_MS = Math.max(3000, Number(process.env.WEBAPP_BOOTSTRAP_TIMEOUT_MS || 12000));
 const TOKEN_TX_VERIFY = process.env.TOKEN_TX_VERIFY === "1";
 const TOKEN_TX_VERIFY_STRICT = process.env.TOKEN_TX_VERIFY_STRICT === "1";
 const HC_TO_BTC_RATE = Number(process.env.HC_TO_BTC_RATE || 0.00001);
@@ -1012,6 +1014,217 @@ function buildWebappAnalyticsConfig(sessionRef = "") {
     flush_interval_ms: WEBAPP_ANALYTICS_FLUSH_INTERVAL_MS,
     max_batch_size: WEBAPP_ANALYTICS_MAX_BATCH_SIZE,
     sample_rate: WEBAPP_ANALYTICS_SAMPLE_RATE
+  };
+}
+
+async function buildFallbackWebAppBootstrapPayload(options = {}) {
+  const authUid = Math.max(0, Number(options.authUid || 0));
+  const bootstrapScope = String(options.bootstrapScope || "player") === "full" ? "full" : "player";
+  const includeAdminRequested = Boolean(options.includeAdminRequested);
+  const reason = String(options.reason || "bootstrap_degraded").trim() || "bootstrap_degraded";
+  const featureFlags = { ...FLAG_DEFAULTS };
+  const isAdmin = isAdminTelegramId(authUid);
+  const reactV1Enabled = isFeatureEnabled(featureFlags, "WEBAPP_REACT_V1_ENABLED");
+  const i18nEnabled = isFeatureEnabled(featureFlags, "I18N_V1_ENABLED") || isFeatureEnabled(featureFlags, "I18N_V2_ENABLED");
+  const uxV4Enabled = isFeatureEnabled(featureFlags, "UX_V4_ENABLED");
+  const uxV5Enabled = isFeatureEnabled(featureFlags, "UX_V5_ENABLED");
+  const playerModeDefault = isFeatureEnabled(featureFlags, "WEBAPP_PLAYER_MODE_DEFAULT");
+  const requestedLanguage = String(options.lang || "tr").toLowerCase().startsWith("en") ? "en" : "tr";
+  const language = i18nEnabled ? requestedLanguage : "tr";
+  const defaultUiPrefs = {
+    ui_mode: "hardcore",
+    quality_mode: "auto",
+    reduced_motion: false,
+    large_text: false,
+    sound_enabled: true,
+    prefs_json: {}
+  };
+  const sceneProfile = buildDefaultSceneProfile({
+    sceneKey: "nexus_arena",
+    uiPrefs: defaultUiPrefs,
+    perfProfile: null
+  });
+  const webappVersionState = await resolveWebAppVersion(null);
+  const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
+  const walletCapabilities = getWalletCapabilities(featureFlags);
+  const telemetrySessionRef = buildWebappTelemetrySessionRef(authUid);
+  const experimentAssignment = buildExperimentAssignment({
+    uid: authUid,
+    experimentKey: WEBAPP_REACT_V1_EXPERIMENT_KEY,
+    enabled: reactV1Enabled,
+    treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT
+  });
+  const assetMode = summarizeAssetMode({
+    sceneMode: sceneProfile.scene_mode,
+    manifestSummary: {
+      available: false,
+      total_assets: 0,
+      ready_assets: 0,
+      missing_assets: 0,
+      integrity_ok_assets: 0,
+      integrity_ratio: 0
+    }
+  });
+
+  return {
+    success: true,
+    session: issueWebAppSession(authUid),
+    webapp_version: webappVersionState.version,
+    webapp_launch_url: webappLaunchUrl,
+    data: {
+      api_version: "v1",
+      bootstrap_scope: bootstrapScope,
+      admin_included: Boolean(isAdmin && includeAdminRequested),
+      bootstrap_degraded: true,
+      bootstrap_reason: reason,
+      profile: {
+        user_id: authUid,
+        telegram_id: authUid,
+        public_name: authUid > 0 ? `Pilot #${authUid}` : "Pilot",
+        kingdom_tier: "bronze",
+        reputation_score: 0,
+        prestige_level: 0,
+        season_rank: 0,
+        current_streak: 0,
+        best_streak: 0
+      },
+      balances: { SC: 0, HC: 0, RC: 0 },
+      daily: {
+        tasks_done: 0,
+        sc_earned: 0,
+        hc_earned: 0,
+        rc_earned: 0,
+        daily_cap: 120
+      },
+      season: {
+        season_id: 1,
+        days_left: 0,
+        points: 0
+      },
+      nexus: null,
+      contract: null,
+      war: null,
+      risk_score: 0,
+      missions: {
+        total: 0,
+        ready: 0,
+        open: 0,
+        list: []
+      },
+      offers: [],
+      attempts: {
+        active: null,
+        revealable: null
+      },
+      events: [],
+      token: {},
+      payout_lock: {
+        global_gate_open: false,
+        unlock_tier: "T0",
+        unlock_progress: 0,
+        next_tier_target: "score >= 0.25",
+        today_drip_btc_remaining: 0,
+        today_drip_cap_btc: 0,
+        requestable_btc: 0,
+        entitled_btc: 0,
+        can_request: false
+      },
+      director: null,
+      pvp_content: computePvpProgressionState({}, {}, { season_id: 1 }),
+      command_catalog: buildCommandCatalog({
+        lang: language,
+        primaryOnly: true
+      }),
+      wallet_capabilities: {
+        ...walletCapabilities,
+        tables_available: false,
+        kyc_tables_available: false
+      },
+      wallet_session: {
+        active: false,
+        chain: "",
+        address: "",
+        address_masked: "",
+        linked_at: null,
+        expires_at: null,
+        session_ref: "",
+        kyc_status: "unknown"
+      },
+      kyc_status: {
+        status: "unknown",
+        tier: "none",
+        blocked: false,
+        approved: false
+      },
+      monetization: {
+        enabled: isFeatureEnabled(featureFlags, "MONETIZATION_CORE_V1_ENABLED"),
+        tables_available: false,
+        pass_catalog: [],
+        cosmetic_catalog: getCosmeticCatalog(language),
+        active_passes: [],
+        pass_history: [],
+        cosmetics: { owned_count: 0, recent: [] },
+        spend_summary: { SC: 0, HC: 0, RC: 0 },
+        player_effects: {
+          premium_active: false,
+          sc_boost_multiplier: 0,
+          season_bonus_multiplier: 0
+        },
+        updated_at: new Date().toISOString()
+      },
+      feature_flags: featureFlags,
+      feature_flag_runtime: {
+        source_mode: "env_locked",
+        source_json: {},
+        env_forced: true
+      },
+      ui_shell: buildWebappUiShell({ isAdmin }),
+      experiment: {
+        key: String(experimentAssignment.key || WEBAPP_REACT_V1_EXPERIMENT_KEY),
+        variant:
+          String(experimentAssignment.variant || DEFAULT_VARIANT_CONTROL).toLowerCase() === "treatment"
+            ? "treatment"
+            : DEFAULT_VARIANT_CONTROL,
+        assigned_at: String(experimentAssignment.assigned_at || new Date().toISOString()),
+        cohort_bucket: Math.max(0, Math.min(99, Number(experimentAssignment.cohort_bucket || 0)))
+      },
+      analytics: buildWebappAnalyticsConfig(telemetrySessionRef),
+      runtime_flags_effective: pickCriticalRuntimeFlags(featureFlags),
+      webapp_version: webappVersionState.version,
+      webapp_launch_url: webappLaunchUrl,
+      webapp_version_source: webappVersionState.source,
+      asset_mode: assetMode,
+      transport: "poll",
+      scene_profile: sceneProfile,
+      scene_mode: sceneProfile.scene_mode,
+      perf_profile: null,
+      ui_prefs: defaultUiPrefs,
+      ux: {
+        default_mode: (uxV5Enabled || uxV4Enabled) && playerModeDefault ? "player" : "legacy",
+        language,
+        advanced_enabled: !((uxV5Enabled || uxV4Enabled) && playerModeDefault),
+        version: uxV5Enabled ? "v5" : uxV4Enabled ? "v4" : "legacy"
+      },
+      admin: {
+        is_admin: isAdmin,
+        telegram_id: authUid,
+        configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+        summary: null
+      },
+      arena: {
+        rating: 1000,
+        games_played: 0,
+        wins: 0,
+        losses: 0,
+        last_result: "",
+        rank: 0,
+        ticket_cost_rc: 0,
+        cooldown_sec: 0,
+        ready: false,
+        recent_runs: [],
+        leaderboard: []
+      }
+    }
   };
 }
 
@@ -6112,356 +6325,413 @@ fastify.get("/webapp/api/bootstrap", async (request, reply) => {
   const bootstrapScope = scopeRaw === "full" ? "full" : "player";
   const includeAdminRequested = String(request.query.include_admin || "0") === "1" || bootstrapScope === "full";
   const includeHeavyPayload = bootstrapScope === "full";
+  const buildLivePayload = async () => {
+    const client = await pool.connect();
+    try {
+      const profile = await getProfileByTelegram(client, auth.uid);
+      if (!profile) {
+        return { success: false, error: "user_not_started", __reply_code: 404 };
+      }
 
-  const client = await pool.connect();
-  try {
-    const profile = await getProfileByTelegram(client, auth.uid);
-    if (!profile) {
-      reply.code(404).send({ success: false, error: "user_not_started" });
-      return;
-    }
+      const balancesRes = await client.query(
+        `SELECT currency, balance
+         FROM currency_balances
+         WHERE user_id = $1;`,
+        [profile.user_id]
+      );
+      const balances = normalizeBalances(balancesRes.rows);
 
-    const balancesRes = await client.query(
-      `SELECT currency, balance
-       FROM currency_balances
-       WHERE user_id = $1;`,
-      [profile.user_id]
-    );
-    const balances = normalizeBalances(balancesRes.rows);
+      const dailyRes = await client.query(
+        `SELECT tasks_done, sc_earned, hc_earned, rc_earned
+         FROM daily_counters
+         WHERE user_id = $1
+           AND day_date = CURRENT_DATE
+         LIMIT 1;`,
+        [profile.user_id]
+      );
+      const dailyRow = dailyRes.rows[0] || {};
 
-    const dailyRes = await client.query(
-      `SELECT tasks_done, sc_earned, hc_earned, rc_earned
-       FROM daily_counters
-       WHERE user_id = $1
-         AND day_date = CURRENT_DATE
-       LIMIT 1;`,
-      [profile.user_id]
-    );
-    const dailyRow = dailyRes.rows[0] || {};
+      const runtimeConfig = await configService.getEconomyConfig(client);
 
-    const runtimeConfig = await configService.getEconomyConfig(client);
-
-    const season = seasonStore.getSeasonInfo(runtimeConfig);
-    const anomaly = nexusEventEngine.publicAnomalyView(
-      nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
-        seasonId: season.seasonId
-      })
-    );
-    const contract = resolveLiveContract(runtimeConfig, season, anomaly);
-    const arenaConfig = arenaEngine.getArenaConfig(runtimeConfig);
-    const [
-      seasonStat,
-      war,
-      missions,
-      riskState,
-      live,
-      arenaReady,
-      token,
-      uiPrefs,
-      perfProfile,
-      sceneProfile,
-      featureFlags,
-      webappVersionState,
-      activeManifest
-    ] = await Promise.all([
-      seasonStore.getSeasonStat(client, {
-        userId: profile.user_id,
-        seasonId: season.seasonId
-      }),
-      globalStore.getWarStatus(client, season.seasonId),
-      missionStore.getMissionBoard(client, profile.user_id),
-      riskStore.getRiskState(client, profile.user_id),
-      readOffersAttemptsEvents(client, profile.user_id),
-      arenaStore.hasArenaTables(client),
-      buildTokenSummary(client, profile, runtimeConfig, balances),
-      webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
-        if (err.code === "42P01") return null;
-        throw err;
-      }),
-      webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
-        if (err.code === "42P01") return null;
-        throw err;
-      }),
-      readSceneProfile(client, profile.user_id, "nexus_arena").catch((err) => {
-        if (err.code === "42P01") return null;
-        throw err;
-      }),
-      loadFeatureFlags(client, { withMeta: true }),
-      resolveWebAppVersion(client),
-      readActiveAssetManifest(client, {
-        includeEntries: includeHeavyPayload,
-        entryLimit: includeHeavyPayload ? 256 : 32
-      }).catch((err) => {
-        if (err.code === "42P01") {
-          return { available: false, active_revision: null, entries: [] };
-        }
-        throw err;
-      })
-    ]);
-    const payoutLockState = await buildPayoutLockState(client, profile, runtimeConfig, balances, token);
-    let arenaState = null;
-    let arenaRank = null;
-    let arenaRuns = [];
-    let arenaLeaders = [];
-    let director = null;
-    if (arenaReady) {
-      [arenaState, arenaRank, arenaRuns, arenaLeaders, director] = await Promise.all([
-        arenaStore.getArenaState(client, profile.user_id, arenaConfig.baseRating),
-        arenaStore.getRank(client, profile.user_id),
-        includeHeavyPayload ? arenaStore.getRecentRuns(client, profile.user_id, 5) : Promise.resolve([]),
-        includeHeavyPayload ? arenaStore.getLeaderboard(client, season.seasonId, 5) : Promise.resolve([]),
-        includeHeavyPayload
-          ? arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
-          : Promise.resolve(null)
-      ]);
-    }
-    const walletCapabilities = getWalletCapabilities(featureFlags.flags || {});
-    const defaultWalletSessionState = {
-      active: false,
-      chain: "",
-      address: "",
-      linked_at: null,
-      expires_at: null,
-      session_ref: "",
-      kyc_status: "unknown"
-    };
-    let walletTablesAvailable = false;
-    let kycTablesAvailable = false;
-    let walletSessionState = defaultWalletSessionState;
-    let kycProfile = null;
-    if (walletCapabilities.enabled && includeHeavyPayload) {
-      [walletTablesAvailable, kycTablesAvailable] = await Promise.all([
-        hasWalletAuthTables(client).catch(() => false),
-        hasKycTables(client).catch(() => false)
-      ]);
-      [walletSessionState, kycProfile] = await Promise.all([
-        walletTablesAvailable
-          ? readWalletSessionState(client, profile.user_id).catch(() => defaultWalletSessionState)
-          : Promise.resolve(defaultWalletSessionState),
-        kycTablesAvailable ? readKycProfile(client, profile.user_id).catch(() => null) : Promise.resolve(null)
-      ]);
-    }
-    const kycState = normalizeKycState(kycProfile);
-    let monetizationSummary = {
-      enabled: isFeatureEnabled(featureFlags.flags || {}, "MONETIZATION_CORE_V1_ENABLED"),
-      tables_available: false,
-      pass_catalog: [],
-      cosmetic_catalog: getCosmeticCatalog(request.query.lang || "tr"),
-      active_passes: [],
-      pass_history: [],
-      cosmetics: { owned_count: 0, recent: [] },
-      spend_summary: { SC: 0, HC: 0, RC: 0 },
-      player_effects: {
-        premium_active: false,
-        sc_boost_multiplier: 0,
-        season_bonus_multiplier: 0
-      },
-      updated_at: new Date().toISOString()
-    };
-    if (includeHeavyPayload) {
-      monetizationSummary = await buildMonetizationSummary(client, {
-        featureFlags: featureFlags.flags || {},
-        userId: profile.user_id,
-        lang: request.query.lang || "tr"
-      }).catch((err) => {
-        if (err.code === "42P01") {
-          return monetizationSummary;
-        }
-        throw err;
-      });
-    }
-    let manifestSummary = summarizeActiveAssetManifest(activeManifest);
-    if (Number(manifestSummary.total_assets || 0) <= 0) {
-      const localAssetStatus = await buildAssetStatusRows();
-      const localReady = localAssetStatus.rows.filter((row) => row.exists).length;
-      const localTotal = localAssetStatus.rows.length;
-      manifestSummary = {
-        ...manifestSummary,
-        available: Boolean(manifestSummary.available || localTotal > 0),
-        total_assets: localTotal,
-        ready_assets: localReady,
-        missing_assets: Math.max(0, localTotal - localReady),
-        integrity_ok_assets: Math.max(Number(manifestSummary.integrity_ok_assets || 0), localReady),
-        integrity_ratio: localTotal > 0 ? Number((localReady / localTotal).toFixed(4)) : Number(manifestSummary.integrity_ratio || 0)
-      };
-    }
-    const isAdmin = isAdminTelegramId(auth.uid);
-    let adminSummary = null;
-    if (isAdmin && includeAdminRequested) {
-      adminSummary = await buildAdminSummary(client, runtimeConfig);
-      const botRuntime = await readBotRuntimeState(client, { stateKey: botRuntimeStore.DEFAULT_STATE_KEY, limit: 15 });
-      adminSummary.bot_runtime = {
-        state_key: botRuntime.state_key || botRuntimeStore.DEFAULT_STATE_KEY,
-        health: projectBotRuntimeHealth(botRuntime),
-        state: botRuntime.state || null,
-        events: botRuntime.events || []
-      };
-    }
-    const reactV1Enabled = isFeatureEnabled(featureFlags.flags, "WEBAPP_REACT_V1_ENABLED");
-    const experimentAssignment = await resolveExperimentAssignment(client, {
-      uid: Number(auth.uid || 0),
-      experimentKey: WEBAPP_REACT_V1_EXPERIMENT_KEY,
-      enabled: reactV1Enabled,
-      treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT,
-      forceTreatment: reactV1Enabled && WEBAPP_REACT_V1_TREATMENT_PCT >= 100
-    });
-    const telemetrySessionRef = buildWebappTelemetrySessionRef(profile.user_id || auth.uid);
-    const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
-    const effectiveSceneMode = String(
-      (sceneProfile && sceneProfile.scene_mode) ||
-        (uiPrefs?.ui_mode === "minimal" ? "minimal" : uiPrefs?.ui_mode === "standard" ? "lite" : "pro")
-    ).toLowerCase();
-    const assetMode = summarizeAssetMode({
-      sceneMode: effectiveSceneMode,
-      manifestSummary
-    });
-    const uxV4Enabled = isFeatureEnabled(featureFlags.flags, "UX_V4_ENABLED");
-    const uxV5Enabled = isFeatureEnabled(featureFlags.flags, "UX_V5_ENABLED");
-    const i18nEnabled = isFeatureEnabled(featureFlags.flags, "I18N_V1_ENABLED") || isFeatureEnabled(featureFlags.flags, "I18N_V2_ENABLED");
-    const playerModeDefault = isFeatureEnabled(featureFlags.flags, "WEBAPP_PLAYER_MODE_DEFAULT");
-    const pollPrimary = isFeatureEnabled(featureFlags.flags, "PVP_POLL_PRIMARY");
-    const requestedLanguage = String(request.query.lang || "tr").toLowerCase().startsWith("en") ? "en" : "tr";
-    const language = i18nEnabled ? requestedLanguage : "tr";
-    const transport = Boolean(!pollPrimary && PVP_WS_ENABLED && featureFlags.flags?.PVP_WS_ENABLED) ? "ws" : "poll";
-
-    const missionReady = missions.filter((m) => m.completed && !m.claimed).length;
-    const missionOpen = missions.filter((m) => !m.claimed).length;
-
-    reply.send({
-      success: true,
-      session: issueWebAppSession(auth.uid),
-      webapp_version: webappVersionState.version,
-      webapp_launch_url: webappLaunchUrl,
-      data: {
-        api_version: "v1",
-        bootstrap_scope: bootstrapScope,
-        admin_included: Boolean(isAdmin && includeAdminRequested),
-        profile,
-        balances,
-        daily: buildDailyView(runtimeConfig, profile, dailyRow),
-        season: {
-          season_id: season.seasonId,
-          days_left: season.daysLeft,
-          points: Number(seasonStat?.season_points || 0)
-        },
-        nexus: anomaly,
-        contract,
+      const season = seasonStore.getSeasonInfo(runtimeConfig);
+      const anomaly = nexusEventEngine.publicAnomalyView(
+        nexusEventEngine.resolveDailyAnomaly(runtimeConfig, {
+          seasonId: season.seasonId
+        })
+      );
+      const contract = resolveLiveContract(runtimeConfig, season, anomaly);
+      const arenaConfig = arenaEngine.getArenaConfig(runtimeConfig);
+      const [
+        seasonStat,
         war,
-        risk_score: Number(riskState.riskScore || 0),
-        missions: {
-          total: missions.length,
-          ready: missionReady,
-          open: missionOpen,
-          list: missions
-        },
-        offers: live.offers,
-        attempts: live.attempts,
-        events: live.events,
+        missions,
+        riskState,
+        live,
+        arenaReady,
         token,
-        payout_lock: {
-          global_gate_open: Boolean(payoutLockState.release?.global_gate_open),
-          unlock_tier: String(payoutLockState.release?.unlock_tier || "T0"),
-          unlock_progress: Number(payoutLockState.release?.unlock_progress || 0),
-          next_tier_target: String(payoutLockState.release?.next_tier_target || "score >= 0.25"),
-          today_drip_btc_remaining: Number(payoutLockState.release?.today_drip_btc_remaining || 0),
-          today_drip_cap_btc: Number(payoutLockState.release?.today_drip_cap_btc || 0),
-          requestable_btc: Number(payoutLockState.requestable_btc || 0),
-          entitled_btc: Number(payoutLockState.entitled_btc || 0),
-          can_request: Boolean(payoutLockState.can_request)
-        },
-        director,
-        pvp_content:
-          director?.pvp_content ||
-          computePvpProgressionState(
-            {},
-            runtimeConfig?.events?.pvp_content || {},
-            {
-              season_id: season.seasonId
-            }
-          ),
-        command_catalog: buildCommandCatalog({
-          lang: language,
-          primaryOnly: true
+        uiPrefs,
+        perfProfile,
+        sceneProfile,
+        featureFlags,
+        webappVersionState,
+        activeManifest
+      ] = await Promise.all([
+        seasonStore.getSeasonStat(client, {
+          userId: profile.user_id,
+          seasonId: season.seasonId
         }),
-        wallet_capabilities: {
-          ...walletCapabilities,
-          tables_available: walletTablesAvailable,
-          kyc_tables_available: kycTablesAvailable
+        globalStore.getWarStatus(client, season.seasonId),
+        missionStore.getMissionBoard(client, profile.user_id),
+        riskStore.getRiskState(client, profile.user_id),
+        readOffersAttemptsEvents(client, profile.user_id),
+        arenaStore.hasArenaTables(client),
+        buildTokenSummary(client, profile, runtimeConfig, balances),
+        webappStore.getUserUiPrefs(client, profile.user_id).catch((err) => {
+          if (err.code === "42P01") return null;
+          throw err;
+        }),
+        webappStore.getLatestPerfProfile(client, profile.user_id).catch((err) => {
+          if (err.code === "42P01") return null;
+          throw err;
+        }),
+        readSceneProfile(client, profile.user_id, "nexus_arena").catch((err) => {
+          if (err.code === "42P01") return null;
+          throw err;
+        }),
+        loadFeatureFlags(client, { withMeta: true }),
+        resolveWebAppVersion(client),
+        readActiveAssetManifest(client, {
+          includeEntries: includeHeavyPayload,
+          entryLimit: includeHeavyPayload ? 256 : 32
+        }).catch((err) => {
+          if (err.code === "42P01") {
+            return { available: false, active_revision: null, entries: [] };
+          }
+          throw err;
+        })
+      ]);
+      const payoutLockState = await buildPayoutLockState(client, profile, runtimeConfig, balances, token);
+      let arenaState = null;
+      let arenaRank = null;
+      let arenaRuns = [];
+      let arenaLeaders = [];
+      let director = null;
+      if (arenaReady) {
+        [arenaState, arenaRank, arenaRuns, arenaLeaders, director] = await Promise.all([
+          arenaStore.getArenaState(client, profile.user_id, arenaConfig.baseRating),
+          arenaStore.getRank(client, profile.user_id),
+          includeHeavyPayload ? arenaStore.getRecentRuns(client, profile.user_id, 5) : Promise.resolve([]),
+          includeHeavyPayload ? arenaStore.getLeaderboard(client, season.seasonId, 5) : Promise.resolve([]),
+          includeHeavyPayload
+            ? arenaService.buildDirectorView(client, { profile, config: runtimeConfig }).catch(() => null)
+            : Promise.resolve(null)
+        ]);
+      }
+      const walletCapabilities = getWalletCapabilities(featureFlags.flags || {});
+      const defaultWalletSessionState = {
+        active: false,
+        chain: "",
+        address: "",
+        linked_at: null,
+        expires_at: null,
+        session_ref: "",
+        kyc_status: "unknown"
+      };
+      let walletTablesAvailable = false;
+      let kycTablesAvailable = false;
+      let walletSessionState = defaultWalletSessionState;
+      let kycProfile = null;
+      if (walletCapabilities.enabled && includeHeavyPayload) {
+        [walletTablesAvailable, kycTablesAvailable] = await Promise.all([
+          hasWalletAuthTables(client).catch(() => false),
+          hasKycTables(client).catch(() => false)
+        ]);
+        [walletSessionState, kycProfile] = await Promise.all([
+          walletTablesAvailable
+            ? readWalletSessionState(client, profile.user_id).catch(() => defaultWalletSessionState)
+            : Promise.resolve(defaultWalletSessionState),
+          kycTablesAvailable ? readKycProfile(client, profile.user_id).catch(() => null) : Promise.resolve(null)
+        ]);
+      }
+      const kycState = normalizeKycState(kycProfile);
+      let monetizationSummary = {
+        enabled: isFeatureEnabled(featureFlags.flags || {}, "MONETIZATION_CORE_V1_ENABLED"),
+        tables_available: false,
+        pass_catalog: [],
+        cosmetic_catalog: getCosmeticCatalog(request.query.lang || "tr"),
+        active_passes: [],
+        pass_history: [],
+        cosmetics: { owned_count: 0, recent: [] },
+        spend_summary: { SC: 0, HC: 0, RC: 0 },
+        player_effects: {
+          premium_active: false,
+          sc_boost_multiplier: 0,
+          season_bonus_multiplier: 0
         },
-        wallet_session: {
-          ...walletSessionState,
-          address_masked: walletSessionState.active ? maskWalletLinkAddress(walletSessionState.address) : ""
-        },
-        kyc_status: {
-          status: kycState.status,
-          tier: kycState.tier,
-          blocked: kycState.blocked,
-          approved: kycState.approved
-        },
-        monetization: monetizationSummary,
-        feature_flags: featureFlags.flags,
-        feature_flag_runtime: {
-          source_mode: featureFlags.source_mode,
-          source_json: featureFlags.source_json || {},
-          env_forced: Boolean(featureFlags.env_forced)
-        },
-        ui_shell: buildWebappUiShell({ isAdmin }),
-        experiment: {
-          key: String(experimentAssignment.key || WEBAPP_REACT_V1_EXPERIMENT_KEY),
-          variant:
-            String(experimentAssignment.variant || DEFAULT_VARIANT_CONTROL).toLowerCase() === "treatment"
-              ? "treatment"
-              : DEFAULT_VARIANT_CONTROL,
-          assigned_at: String(experimentAssignment.assigned_at || new Date().toISOString()),
-          cohort_bucket: Math.max(0, Math.min(99, Number(experimentAssignment.cohort_bucket || 0)))
-        },
-        analytics: buildWebappAnalyticsConfig(telemetrySessionRef),
-        runtime_flags_effective: pickCriticalRuntimeFlags(featureFlags.flags),
+        updated_at: new Date().toISOString()
+      };
+      if (includeHeavyPayload) {
+        monetizationSummary = await buildMonetizationSummary(client, {
+          featureFlags: featureFlags.flags || {},
+          userId: profile.user_id,
+          lang: request.query.lang || "tr"
+        }).catch((err) => {
+          if (err.code === "42P01") {
+            return monetizationSummary;
+          }
+          throw err;
+        });
+      }
+      let manifestSummary = summarizeActiveAssetManifest(activeManifest);
+      if (Number(manifestSummary.total_assets || 0) <= 0) {
+        const localAssetStatus = await buildAssetStatusRows();
+        const localReady = localAssetStatus.rows.filter((row) => row.exists).length;
+        const localTotal = localAssetStatus.rows.length;
+        manifestSummary = {
+          ...manifestSummary,
+          available: Boolean(manifestSummary.available || localTotal > 0),
+          total_assets: localTotal,
+          ready_assets: localReady,
+          missing_assets: Math.max(0, localTotal - localReady),
+          integrity_ok_assets: Math.max(Number(manifestSummary.integrity_ok_assets || 0), localReady),
+          integrity_ratio: localTotal > 0 ? Number((localReady / localTotal).toFixed(4)) : Number(manifestSummary.integrity_ratio || 0)
+        };
+      }
+      const isAdmin = isAdminTelegramId(auth.uid);
+      let adminSummary = null;
+      if (isAdmin && includeAdminRequested) {
+        adminSummary = await buildAdminSummary(client, runtimeConfig);
+        const botRuntime = await readBotRuntimeState(client, { stateKey: botRuntimeStore.DEFAULT_STATE_KEY, limit: 15 });
+        adminSummary.bot_runtime = {
+          state_key: botRuntime.state_key || botRuntimeStore.DEFAULT_STATE_KEY,
+          health: projectBotRuntimeHealth(botRuntime),
+          state: botRuntime.state || null,
+          events: botRuntime.events || []
+        };
+      }
+      const reactV1Enabled = isFeatureEnabled(featureFlags.flags, "WEBAPP_REACT_V1_ENABLED");
+      const experimentAssignment = await resolveExperimentAssignment(client, {
+        uid: Number(auth.uid || 0),
+        experimentKey: WEBAPP_REACT_V1_EXPERIMENT_KEY,
+        enabled: reactV1Enabled,
+        treatmentPercent: WEBAPP_REACT_V1_TREATMENT_PCT,
+        forceTreatment: reactV1Enabled && WEBAPP_REACT_V1_TREATMENT_PCT >= 100
+      });
+      const telemetrySessionRef = buildWebappTelemetrySessionRef(profile.user_id || auth.uid);
+      const webappLaunchUrl = buildVersionedWebAppUrl(WEBAPP_PUBLIC_URL, webappVersionState.version);
+      const effectiveSceneMode = String(
+        (sceneProfile && sceneProfile.scene_mode) ||
+          (uiPrefs?.ui_mode === "minimal" ? "minimal" : uiPrefs?.ui_mode === "standard" ? "lite" : "pro")
+      ).toLowerCase();
+      const assetMode = summarizeAssetMode({
+        sceneMode: effectiveSceneMode,
+        manifestSummary
+      });
+      const uxV4Enabled = isFeatureEnabled(featureFlags.flags, "UX_V4_ENABLED");
+      const uxV5Enabled = isFeatureEnabled(featureFlags.flags, "UX_V5_ENABLED");
+      const i18nEnabled = isFeatureEnabled(featureFlags.flags, "I18N_V1_ENABLED") || isFeatureEnabled(featureFlags.flags, "I18N_V2_ENABLED");
+      const playerModeDefault = isFeatureEnabled(featureFlags.flags, "WEBAPP_PLAYER_MODE_DEFAULT");
+      const pollPrimary = isFeatureEnabled(featureFlags.flags, "PVP_POLL_PRIMARY");
+      const requestedLanguage = String(request.query.lang || "tr").toLowerCase().startsWith("en") ? "en" : "tr";
+      const language = i18nEnabled ? requestedLanguage : "tr";
+      const transport = Boolean(!pollPrimary && PVP_WS_ENABLED && featureFlags.flags?.PVP_WS_ENABLED) ? "ws" : "poll";
+
+      const missionReady = missions.filter((m) => m.completed && !m.claimed).length;
+      const missionOpen = missions.filter((m) => !m.claimed).length;
+
+      return {
+        success: true,
+        session: issueWebAppSession(auth.uid),
         webapp_version: webappVersionState.version,
         webapp_launch_url: webappLaunchUrl,
-        webapp_version_source: webappVersionState.source,
-        asset_mode: assetMode,
-        transport,
-        scene_profile: sceneProfile || buildDefaultSceneProfile({ userId: profile.user_id, sceneKey: "nexus_arena" }),
-        scene_mode: effectiveSceneMode,
-        perf_profile: perfProfile,
-        ui_prefs:
-          uiPrefs || {
-            ui_mode: "hardcore",
-            quality_mode: "auto",
-            reduced_motion: false,
-            large_text: false,
-            sound_enabled: true
+        data: {
+          api_version: "v1",
+          bootstrap_scope: bootstrapScope,
+          admin_included: Boolean(isAdmin && includeAdminRequested),
+          profile,
+          balances,
+          daily: buildDailyView(runtimeConfig, profile, dailyRow),
+          season: {
+            season_id: season.seasonId,
+            days_left: season.daysLeft,
+            points: Number(seasonStat?.season_points || 0)
           },
-        ux: {
-          default_mode: (uxV5Enabled || uxV4Enabled) && playerModeDefault ? "player" : "legacy",
-          language,
-          advanced_enabled: !((uxV5Enabled || uxV4Enabled) && playerModeDefault),
-          version: uxV5Enabled ? "v5" : uxV4Enabled ? "v4" : "legacy"
-        },
-        admin: {
-          is_admin: isAdmin,
-          telegram_id: Number(auth.uid || 0),
-          configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
-          summary: adminSummary
-        },
-        arena: {
-          rating: Number(arenaState?.rating || arenaConfig.baseRating),
-          games_played: Number(arenaState?.games_played || 0),
-          wins: Number(arenaState?.wins || 0),
-          losses: Number(arenaState?.losses || 0),
-          last_result: arenaState?.last_result || "",
-          rank: Number(arenaRank?.rank || 0),
-          ticket_cost_rc: arenaConfig.ticketCostRc,
-          cooldown_sec: arenaConfig.cooldownSec,
-          ready: arenaReady,
-          recent_runs: arenaRuns,
-          leaderboard: arenaLeaders
+          nexus: anomaly,
+          contract,
+          war,
+          risk_score: Number(riskState.riskScore || 0),
+          missions: {
+            total: missions.length,
+            ready: missionReady,
+            open: missionOpen,
+            list: missions
+          },
+          offers: live.offers,
+          attempts: live.attempts,
+          events: live.events,
+          token,
+          payout_lock: {
+            global_gate_open: Boolean(payoutLockState.release?.global_gate_open),
+            unlock_tier: String(payoutLockState.release?.unlock_tier || "T0"),
+            unlock_progress: Number(payoutLockState.release?.unlock_progress || 0),
+            next_tier_target: String(payoutLockState.release?.next_tier_target || "score >= 0.25"),
+            today_drip_btc_remaining: Number(payoutLockState.release?.today_drip_btc_remaining || 0),
+            today_drip_cap_btc: Number(payoutLockState.release?.today_drip_cap_btc || 0),
+            requestable_btc: Number(payoutLockState.requestable_btc || 0),
+            entitled_btc: Number(payoutLockState.entitled_btc || 0),
+            can_request: Boolean(payoutLockState.can_request)
+          },
+          director,
+          pvp_content:
+            director?.pvp_content ||
+            computePvpProgressionState(
+              {},
+              runtimeConfig?.events?.pvp_content || {},
+              {
+                season_id: season.seasonId
+              }
+            ),
+          command_catalog: buildCommandCatalog({
+            lang: language,
+            primaryOnly: true
+          }),
+          wallet_capabilities: {
+            ...walletCapabilities,
+            tables_available: walletTablesAvailable,
+            kyc_tables_available: kycTablesAvailable
+          },
+          wallet_session: {
+            ...walletSessionState,
+            address_masked: walletSessionState.active ? maskWalletLinkAddress(walletSessionState.address) : ""
+          },
+          kyc_status: {
+            status: kycState.status,
+            tier: kycState.tier,
+            blocked: kycState.blocked,
+            approved: kycState.approved
+          },
+          monetization: monetizationSummary,
+          feature_flags: featureFlags.flags,
+          feature_flag_runtime: {
+            source_mode: featureFlags.source_mode,
+            source_json: featureFlags.source_json || {},
+            env_forced: Boolean(featureFlags.env_forced)
+          },
+          ui_shell: buildWebappUiShell({ isAdmin }),
+          experiment: {
+            key: String(experimentAssignment.key || WEBAPP_REACT_V1_EXPERIMENT_KEY),
+            variant:
+              String(experimentAssignment.variant || DEFAULT_VARIANT_CONTROL).toLowerCase() === "treatment"
+                ? "treatment"
+                : DEFAULT_VARIANT_CONTROL,
+            assigned_at: String(experimentAssignment.assigned_at || new Date().toISOString()),
+            cohort_bucket: Math.max(0, Math.min(99, Number(experimentAssignment.cohort_bucket || 0)))
+          },
+          analytics: buildWebappAnalyticsConfig(telemetrySessionRef),
+          runtime_flags_effective: pickCriticalRuntimeFlags(featureFlags.flags),
+          webapp_version: webappVersionState.version,
+          webapp_launch_url: webappLaunchUrl,
+          webapp_version_source: webappVersionState.source,
+          asset_mode: assetMode,
+          transport,
+          scene_profile: sceneProfile || buildDefaultSceneProfile({ userId: profile.user_id, sceneKey: "nexus_arena" }),
+          scene_mode: effectiveSceneMode,
+          perf_profile: perfProfile,
+          ui_prefs:
+            uiPrefs || {
+              ui_mode: "hardcore",
+              quality_mode: "auto",
+              reduced_motion: false,
+              large_text: false,
+              sound_enabled: true
+            },
+          ux: {
+            default_mode: (uxV5Enabled || uxV4Enabled) && playerModeDefault ? "player" : "legacy",
+            language,
+            advanced_enabled: !((uxV5Enabled || uxV4Enabled) && playerModeDefault),
+            version: uxV5Enabled ? "v5" : uxV4Enabled ? "v4" : "legacy"
+          },
+          admin: {
+            is_admin: isAdmin,
+            telegram_id: Number(auth.uid || 0),
+            configured_admin_id: Number(ADMIN_TELEGRAM_ID || 0),
+            summary: adminSummary
+          },
+          arena: {
+            rating: Number(arenaState?.rating || arenaConfig.baseRating),
+            games_played: Number(arenaState?.games_played || 0),
+            wins: Number(arenaState?.wins || 0),
+            losses: Number(arenaState?.losses || 0),
+            last_result: arenaState?.last_result || "",
+            rank: Number(arenaRank?.rank || 0),
+            ticket_cost_rc: arenaConfig.ticketCostRc,
+            cooldown_sec: arenaConfig.cooldownSec,
+            ready: arenaReady,
+            recent_runs: arenaRuns,
+            leaderboard: arenaLeaders
+          }
         }
-      }
-    });
-  } finally {
-    client.release();
+      };
+    } finally {
+      client.release();
+    }
+  };
+
+  try {
+    const payload = await Promise.race([
+      buildLivePayload(),
+      new Promise((resolve) => {
+        setTimeout(() => resolve({ __bootstrap_timeout: true }), WEBAPP_BOOTSTRAP_TIMEOUT_MS);
+      })
+    ]);
+    if (payload && payload.__bootstrap_timeout) {
+      fastify.log.warn(
+        {
+          uid: Number(auth.uid || 0),
+          scope: bootstrapScope,
+          include_admin: includeAdminRequested,
+          timeout_ms: WEBAPP_BOOTSTRAP_TIMEOUT_MS
+        },
+        "Webapp bootstrap timed out; returning degraded fallback payload"
+      );
+      reply.send(
+        await buildFallbackWebAppBootstrapPayload({
+          authUid: auth.uid,
+          lang: request.query.lang,
+          bootstrapScope,
+          includeAdminRequested,
+          reason: "bootstrap_timeout"
+        })
+      );
+      return;
+    }
+    if (payload && payload.success === false && payload.__reply_code) {
+      reply.code(payload.__reply_code).send({
+        success: false,
+        error: payload.error || "bootstrap_failed"
+      });
+      return;
+    }
+    reply.send(payload);
+  } catch (err) {
+    fastify.log.error(
+      {
+        err: String(err?.message || err),
+        uid: Number(auth.uid || 0),
+        scope: bootstrapScope,
+        include_admin: includeAdminRequested
+      },
+      "Webapp bootstrap failed; returning degraded fallback payload"
+    );
+    reply.send(
+      await buildFallbackWebAppBootstrapPayload({
+        authUid: auth.uid,
+        lang: request.query.lang,
+        bootstrapScope,
+        includeAdminRequested,
+        reason: String(err?.code || err?.message || "bootstrap_error")
+      })
+    );
   }
 });
 
