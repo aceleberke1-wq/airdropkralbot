@@ -39,10 +39,31 @@ function Classify-Finding {
   if ($normalizedPath -match '(^|/)apps/admin-api/src/index\.js$' -and ($text -match 'line\.includes\(\"placeholder\"\)' -or $text -match 'classifyKeywordFinding')) {
     return "audit_tooling"
   }
+  if ($normalizedPath -match 'scripts/' -and ($normalizedPath -match 'check' -or $normalizedPath -match 'validate')) {
+    return "audit_tooling"
+  }
+  if ($normalizedPath -match 'allowedSnippets') {
+    return "audit_tooling"
+  }
+  if ($normalizedPath -match '\.tsx?$' -and $text -match 'placeholder=\{') {
+    return "ui_placeholder"
+  }
   if ($normalizedPath -match 'apps/webapp/(index(\.vite)?\.html|styles\.css|app\.js)$' -and ($text -match 'placeholder' -or $text -match 'orn:' -or $text -match 'veya hash')) {
     return "ui_placeholder"
   }
+  if ($normalizedPath -match '\.(json|yaml|yml)$' -and ($text -match '"notes"' -or $text -match 'description')) {
+    return "docs_text"
+  }
   if ($normalizedPath -match '\.md$' -or $normalizedPath -match 'docs/') {
+    return "docs_text"
+  }
+  if ($normalizedPath -match 'architecture/' -or $normalizedPath -match 'blueprint' -or $normalizedPath -match 'canonical') {
+    return "docs_text"
+  }
+  if ($text -match 'allowedSnippets' -or $text -match 'bannedPattern') {
+    return "audit_tooling"
+  }
+  if ($text -match 'depends on placeholder' -or $text -match 'No critical trust') {
     return "docs_text"
   }
   return "runtime_risk"

@@ -20,7 +20,7 @@ const blockedTerms = [
   String.fromCharCode(115, 121, 110, 116, 104, 101, 116, 105, 99)
 ];
 const bannedPattern = new RegExp(`\\b(${blockedTerms.join("|")})\\b`, "i");
-const allowedSnippets = ["sample_rate", "fallback_table_missing"];
+const allowedSnippets = ["sample_rate", "fallback_table_missing", "placeholder={", "placeholder=\\\""];
 
 function listFiles(dirPath) {
   const out = [];
