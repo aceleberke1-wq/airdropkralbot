@@ -11,8 +11,8 @@ test("buildAlertSurfaceKeyboard resolves alert launch surface labels", () => {
     "en"
   );
 
-  assert.equal(keyboard?.reply_markup?.inline_keyboard?.[0]?.[0]?.text, "Payout Screen");
-  assert.equal(keyboard?.reply_markup?.inline_keyboard?.[0]?.[1]?.text, "Support");
+  assert.equal(keyboard?.reply_markup?.inline_keyboard?.[0]?.[0]?.text, "💎 Payout Screen");
+  assert.equal(keyboard?.reply_markup?.inline_keyboard?.[0]?.[1]?.text, "🆘 Support");
 });
 
 test("mergeInlineKeyboards deduplicates identical launch buttons", () => {
@@ -29,6 +29,6 @@ test("mergeInlineKeyboards deduplicates identical launch buttons", () => {
   const rows = merged?.reply_markup?.inline_keyboard || [];
   const texts = rows.flat().map((button) => button.text);
 
-  assert.equal(texts.filter((text) => text === "Status Hub").length, 1);
-  assert.equal(texts.includes("Mission Quarter"), true);
+  assert.equal(texts.filter((text) => text === "📊 Status Hub").length, 1);
+  assert.equal(texts.includes("🎯 Mission Quarter"), true);
 });

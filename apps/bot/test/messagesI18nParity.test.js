@@ -43,7 +43,7 @@ test("buildPlayKeyboard uses English labels for en locale", () => {
   const rows = keyboard?.reply_markup?.inline_keyboard || [];
   const labels = rows.flat().map((button) => button.text);
 
-  assert.deepEqual(labels, ["Open Arena 3D", "Open in Browser", "Back to Bot Panel"]);
+  assert.deepEqual(labels, ["\ud83c\udfae Open Arena 3D", "\ud83c\udf10 Open in Browser", "\u21a9\ufe0f Back to Bot Panel"]);
 });
 
 test("help index rendering stays within budget and includes navigation hints", () => {

@@ -7,7 +7,7 @@ function progressBar(value, max, size = 10) {
   const safeMax = Math.max(1, Number(max || 1));
   const ratio = Math.max(0, Math.min(1, Number(value || 0) / safeMax));
   const filled = Math.round(ratio * size);
-  return `(${"#".repeat(filled)}${"-".repeat(size - filled)})`;
+  return `${'▰'.repeat(filled)}${'▱'.repeat(size - filled)}`;
 }
 
 function pct(value) {
@@ -46,50 +46,40 @@ function formatStart(profile, balances, season, anomaly, contract, options = {})
   const rc = balances?.RC || 0;
   const seasonLine = season
     ? lang === "en"
-      ? `\nSeason: *S${season.seasonId}* - ${season.daysLeft} days`
-      : `\nSezon: *S${season.seasonId}* - ${season.daysLeft} gun`
+      ? `\n📅 Season: *S${season.seasonId}* — ${season.daysLeft} days`
+      : `\n📅 Sezon: *S${season.seasonId}* — ${season.daysLeft} gün`
     : "";
   const anomalyLine = anomaly
     ? lang === "en"
-      ? `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% pressure, ${anomaly.preferred_mode})`
-      : `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% basinc, ${anomaly.preferred_mode})`
+      ? `\n🌀 Nexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% pressure)`
+      : `\n🌀 Nexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.pressure_pct}% basınç)`
     : "";
   const contractLine = contract
     ? lang === "en"
-      ? `\nContract: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
-      : `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
+      ? `\n📜 Contract: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
+      : `\n📜 Kontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]`
     : "";
   if (lang === "en") {
     return (
-      `*AirdropKralBot // Launcher*\n` +
-      `Player: *${publicName}* | Tier *${profile.kingdom_tier}*\n` +
-      `Streak: *${profile.current_streak} days* | Balance: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}${anomalyLine}${contractLine}\n\n` +
-      `*Why here?* Progress via Task -> Finish -> Reveal; season, rank and token panels build on it.\n\n` +
-      `*Quick Routes*\n` +
-      `- Economy: /wallet -> /vault -> /token\n` +
-      `- Progress: /tasks -> /finish balanced -> /reveal\n` +
-      `- Combat: /pvp balanced -> /arena_rank\n\n` +
-      `*First 2 steps*\n` +
-      `1) *Open Arena 3D* (main panel)\n` +
-      `2) *Onboard* (3-step quick setup)\n\n` +
-      `HUD: ${progressBar(profile.current_streak, 14, 14)}\n` +
-      `Shortcuts: /play | /onboard | /tasks | /wallet`
+      `🏰 *AirdropKral Arena*\n\n` +
+      `👤 *${publicName}* │ ⚔️ Tier *${profile.kingdom_tier}*\n` +
+      `🔥 Streak: *${profile.current_streak} days*\n\n` +
+      `💰 *${sc}* SC │ 💎 *${hc}* HC │ 🔮 *${rc}* RC${seasonLine}${anomalyLine}${contractLine}\n\n` +
+      `${progressBar(profile.current_streak, 14, 14)} Streak ${profile.current_streak}/14\n\n` +
+      `🎮 /play — Open Arena 3D\n` +
+      `📋 /tasks — Task Pool\n` +
+      `💰 /wallet — Economy HUD`
     );
   }
   return (
-    `*AirdropKralBot // Launcher*\n` +
-    `Kral: *${publicName}* | Tier *${profile.kingdom_tier}*\n` +
-    `Streak: *${profile.current_streak} gun* | Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*${seasonLine}${anomalyLine}${contractLine}\n\n` +
-    `*Neden burada?* Gorev -> Finish -> Reveal dongusu ile ilerlersin; sezon, rank ve token paneli ustune kurulur.\n\n` +
-    `*Hizli Rotalar*\n` +
-    `- Ekonomi: /wallet -> /vault -> /token\n` +
-    `- Ilerleme: /tasks -> /finish dengeli -> /reveal\n` +
-    `- Savas: /pvp dengeli -> /arena_rank\n\n` +
-    `*Ilk 2 adim*\n` +
-    `1) *Arena 3D Ac* (ana panel)\n` +
-    `2) *Onboard* (3 adim hizli kurulum)\n\n` +
-    `HUD: ${progressBar(profile.current_streak, 14, 14)}\n` +
-    `Kisayol: /play | /onboard | /tasks | /wallet`
+    `🏰 *AirdropKral Arena*\n\n` +
+    `👤 *${publicName}* │ ⚔️ Tier *${profile.kingdom_tier}*\n` +
+    `🔥 Streak: *${profile.current_streak} gün*\n\n` +
+    `💰 *${sc}* SC │ 💎 *${hc}* HC │ 🔮 *${rc}* RC${seasonLine}${anomalyLine}${contractLine}\n\n` +
+    `${progressBar(profile.current_streak, 14, 14)} Streak ${profile.current_streak}/14\n\n` +
+    `🎮 /play — Arena 3D Aç\n` +
+    `📋 /tasks — Görev Havuzu\n` +
+    `💰 /wallet — Ekonomi HUD`
   );
 }
 
@@ -259,82 +249,83 @@ function formatProfile(profile, balances) {
   const hc = balances?.HC || 0;
   const rc = balances?.RC || 0;
   return (
-    `*Profil Kartin*\n` +
-    `Kral: *${publicName}*\n` +
-    `Kingdom: *Tier ${profile.kingdom_tier}*\n` +
-    `Itibar: *${profile.reputation_score}*\n` +
-    `Prestij: *${profile.prestige_level}*\n` +
-    `Sezon Sirasi: *#${profile.season_rank}*\n` +
-    `Bakiye: *${sc} SC / ${hc} HC / ${rc} RC*\n\n` +
-    `Ilerleme: ${progress}`
+    `👤 *Profil Kartın*\n\n` +
+    `🏰 Kral: *${publicName}*\n` +
+    `⚔️ Kingdom: *Tier ${profile.kingdom_tier}*\n` +
+    `⭐ İtibar: *${profile.reputation_score}*\n` +
+    `🏅 Prestij: *${profile.prestige_level}*\n` +
+    `🏆 Sezon Sırası: *#${profile.season_rank}*\n\n` +
+    `💰 *${sc}* SC │ 💎 *${hc}* HC │ 🔮 *${rc}* RC\n\n` +
+    `📊 İlerleme: ${progress}`
   );
 }
 
 function formatTasks(offers, taskMap, options = {}) {
   const anomaly = options.anomaly || null;
   const contract = options.contract || null;
+  const numEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
+  const familyEmoji = { CORE: '⚔️', DEFENSE: '🛡', RECON: '🔍', STEALTH: '🥷', RAID: '💥' };
   const lines = offers.map((offer, index) => {
     const task = taskMap.get(offer.task_type);
     const title = task ? task.title : offer.task_type;
     const family = task?.family ? task.family.toUpperCase() : "CORE";
+    const fEmoji = familyEmoji[family] || '⚔️';
     const duration = task ? `${task.durationMinutes} dk` : "-";
     const reward = task ? task.rewardPreview : "-";
     const expires = Math.max(0, Math.ceil((new Date(offer.expires_at).getTime() - Date.now()) / 60000));
     const urgency = progressBar(Math.max(0, 60 - expires), 60, 8);
-    return `${index + 1}) *${title}* [${family}] - ${duration} - ${reward}\n   Sure: ${expires} dk | ${urgency}`;
+    return `${numEmojis[index] || `${index + 1})`} ${fEmoji} *${title}* \`${family}\`\n   ⏱ ${duration} │ 💰 ${reward}\n   ⏳ ${expires} dk ${urgency}`;
   });
   const anomalyLine = anomaly
-    ? `Nexus: ${escapeMarkdown(anomaly.title)} | Risk shift ${Number(anomaly.risk_shift_pct || 0)}% | Oneri ${anomaly.preferred_mode}\n`
+    ? `🌀 Nexus: ${escapeMarkdown(anomaly.title)} │ Risk ${Number(anomaly.risk_shift_pct || 0)}% │ Öneri ${anomaly.preferred_mode}\n`
     : "";
   const contractLine = contract
-    ? `Kontrat: ${escapeMarkdown(contract.title)} | Hedef mod ${escapeMarkdown(contract.required_mode)} | Aile ${escapeMarkdown(
-        (contract.focus_families || []).join(", ") || "any"
-      )}\n`
+    ? `📜 Kontrat: ${escapeMarkdown(contract.title)} │ Mod ${escapeMarkdown(contract.required_mode)}\n`
     : "";
   return (
-    `*Gorev Paneli*\n${anomalyLine}${contractLine}${lines.join("\n")}\n\n` +
-    `Takim secimi kritik: Temkinli / Dengeli / Saldirgan.\n` +
-    `Panel Yenileme: 1 RC (yeni lineup).`
+    `📋 *Görev Paneli*\n\n${anomalyLine}${contractLine}${lines.join("\n\n")}\n\n` +
+    `🎯 Mod seçimi kritik: 🟢 Temkinli │ 🟡 Dengeli │ 🔴 Saldırgan\n` +
+    `🔄 Panel Yenileme: 1 RC`
   );
 }
 
 function formatTaskStarted(task, currentStreak) {
   return (
-    `*Gorev Basladi*\n` +
-    `Gorev: *${task.title}*\n` +
-    `Arketip: *${(task.family || "core").toUpperCase()}*\n` +
-    `Sure: ${task.durationMinutes} dk\n` +
-    `Odul Araligi: ${task.rewardPreview}\n` +
-    `Streak Carpanin: x${(1 + Math.min(0.2, (currentStreak || 0) * 0.02)).toFixed(2)}\n\n` +
-    `Mod sec:\n` +
-    `Temkinli = daha guvenli\n` +
-    `Dengeli = standart\n` +
-    `Saldirgan = yuksek risk, yuksek tavan`
+    `🚀 *Görev Başladı!*\n\n` +
+    `📌 Görev: *${task.title}*\n` +
+    `🏷 Arketip: *${(task.family || "core").toUpperCase()}*\n` +
+    `⏱ Süre: ${task.durationMinutes} dk\n` +
+    `💰 Ödül: ${task.rewardPreview}\n` +
+    `🔥 Streak Çarpanı: x${(1 + Math.min(0.2, (currentStreak || 0) * 0.02)).toFixed(2)}\n\n` +
+    `🎯 *Mod Seç:*\n` +
+    `🟢 Temkinli — daha güvenli\n` +
+    `🟡 Dengeli — standart\n` +
+    `🔴 Saldırgan — yüksek risk, yüksek tavan`
   );
 }
 
 function formatTaskComplete(result, probabilities, details) {
-  const label = result === "success" ? "Basarili" : result === "near_miss" ? "Neredeyse" : "Basarisiz";
+  const resultEmoji = result === "success" ? "✅" : result === "near_miss" ? "⚡" : "❌";
+  const label = result === "success" ? "Başarılı" : result === "near_miss" ? "Neredeyse" : "Başarısız";
   const hint =
     result === "success"
-      ? "Ritmi koru. Drop olasiligi acik."
+      ? "🎯 Ritmi koru. Drop olasılığı açık."
       : result === "near_miss"
-        ? "Cok yakindi. Pity ilerledi."
-        : "Bu tur kacti. Sonraki deneme daha kritik.";
+        ? "💫 Çok yakındı! Pity ilerledi."
+        : "💀 Bu tur kaçtı. Sonraki deneme daha kritik.";
   const modeLabel = details?.modeLabel || "Dengeli";
   const combo = Number(details?.combo || 0);
-  const anomalyLabel = details?.anomaly?.title ? `\nNexus: ${details.anomaly.title} (${details.anomaly.preferred_mode})` : "";
+  const anomalyLabel = details?.anomaly?.title ? `\n🌀 Nexus: ${details.anomaly.title}` : "";
   const contract = details?.contract || null;
   const contractLabel = contract?.title
-    ? `\nKontrat: ${escapeMarkdown(contract.title)} (${contract?.match?.matched ? "HIT" : "MISS"})`
+    ? `\n📜 Kontrat: ${escapeMarkdown(contract.title)} (${contract?.match?.matched ? "✅ HIT" : "❌ MISS"})`
     : "";
-  const comboLine = combo > 1 ? `\nMomentum: x${(1 + Math.min(0.25, combo * 0.05)).toFixed(2)} (Combo ${combo})` : "";
+  const comboLine = combo > 1 ? `\n🔗 Momentum: x${(1 + Math.min(0.25, combo * 0.05)).toFixed(2)} (Combo ${combo})` : "";
   const successPct = Math.round((probabilities?.pSuccess || 0) * 100);
   return (
-    `*Gorev Tamamlandi*\n` +
-    `Sonuc: *${label}*\n` +
-    `Mod: *${modeLabel}*\n` +
-    `Model Basari Olasiligi: *%${successPct}*${comboLine}${anomalyLabel}${contractLabel}\n` +
+    `${resultEmoji} *Görev Tamamlandı*\n\n` +
+    `Sonuç: *${label}*\n` +
+    `Mod: *${modeLabel}* │ Başarı: *%${successPct}*${comboLine}${anomalyLabel}${contractLabel}\n\n` +
     `${hint}`
   );
 }
@@ -342,23 +333,25 @@ function formatTaskComplete(result, probabilities, details) {
 function formatLootReveal(lootTier, rewardLine, pityAfter, pityCap, balances, seasonPoints = 0, meta) {
   const sc = balances?.SC || 0;
   const hc = balances?.HC || 0;
-  const seasonLine = seasonPoints > 0 ? `\nSezon +${seasonPoints} puan` : "";
-  const pityLine = `Pity: ${pityAfter} / ${pityCap} (${pct(pityAfter / Math.max(1, pityCap))})`;
-  const boostLine = meta?.boost ? `\nBoost Etkisi: +${Math.round(meta.boost * 100)}% SC` : "";
-  const hiddenLine = meta?.hidden ? `\nGizli Bonus Acildi` : "";
-  const modeLine = meta?.modeLabel ? `\nMod: ${meta.modeLabel}` : "";
-  const comboLine = Number(meta?.combo || 0) > 1 ? `\nCombo: ${meta.combo}` : "";
-  const warLine = Number(meta?.warDelta || 0) > 0 ? `\nWar +${Math.floor(meta.warDelta)} | Havuz ${Math.floor(Number(meta?.warPool || 0))}` : "";
-  const anomalyLine = meta?.anomalyTitle ? `\nNexus: ${anomalyEscape(meta.anomalyTitle)} (${meta.anomalyMode || "balanced"})` : "";
+  const tierEmoji = { common: '📦', uncommon: '🎁', rare: '💜', epic: '🌟', legendary: '👑' };
+  const tEmoji = tierEmoji[String(lootTier).toLowerCase()] || '🎁';
+  const seasonLine = seasonPoints > 0 ? `\n📅 Sezon +${seasonPoints} puan` : "";
+  const pityLine = `🎰 Pity: ${pityAfter}/${pityCap} (${pct(pityAfter / Math.max(1, pityCap))})`;
+  const boostLine = meta?.boost ? `\n⚡ Boost: +${Math.round(meta.boost * 100)}% SC` : "";
+  const hiddenLine = meta?.hidden ? `\n🎊 Gizli Bonus Açıldı!` : "";
+  const modeLine = meta?.modeLabel ? `\n🎯 Mod: ${meta.modeLabel}` : "";
+  const comboLine = Number(meta?.combo || 0) > 1 ? `\n🔗 Combo: ${meta.combo}` : "";
+  const warLine = Number(meta?.warDelta || 0) > 0 ? `\n⚔️ War +${Math.floor(meta.warDelta)} │ Havuz ${Math.floor(Number(meta?.warPool || 0))}` : "";
+  const anomalyLine = meta?.anomalyTitle ? `\n🌀 Nexus: ${anomalyEscape(meta.anomalyTitle)}` : "";
   const contractLine = meta?.contractTitle
-    ? `\nKontrat: ${escapeMarkdown(meta.contractTitle)} (${meta.contractMatch ? "HIT" : "MISS"})`
+    ? `\n📜 Kontrat: ${escapeMarkdown(meta.contractTitle)} (${meta.contractMatch ? "✅" : "❌"})`
     : "";
   return (
-    `*Loot Reveal*\n` +
+    `${tEmoji} *Loot Reveal!*\n\n` +
     `Seviye: *${lootTier}*\n` +
-    `Kazanc: *${rewardLine}*\n\n` +
+    `Kazanç: *${rewardLine}*\n\n` +
     `${pityLine}\n` +
-    `Toplam: ${sc} SC / ${hc} HC${seasonLine}${modeLine}${comboLine}${boostLine}${hiddenLine}${warLine}${anomalyLine}${contractLine}`
+    `💰 Toplam: *${sc}* SC │ 💎 *${hc}* HC${seasonLine}${modeLine}${comboLine}${boostLine}${hiddenLine}${warLine}${anomalyLine}${contractLine}`
   );
 }
 
@@ -368,11 +361,12 @@ function anomalyEscape(value) {
 
 function formatStreak(profile) {
   return (
-    `*Streak Durumu*\n` +
-    `Mevcut: *${profile.current_streak} gun*\n` +
-    `En Iyi: *${profile.best_streak} gun*\n` +
-    `Grace: *6 saat*\n\n` +
-    `Bir gorev tamamla ve zinciri canli tut.`
+    `🔥 *Streak Durumu*\n\n` +
+    `📊 Mevcut: *${profile.current_streak} gün*\n` +
+    `🏆 En İyi: *${profile.best_streak} gün*\n` +
+    `⏰ Grace: *6 saat*\n\n` +
+    `${progressBar(profile.current_streak, 14, 14)}\n\n` +
+    `💡 Bir görev tamamla ve zinciri canlı tut!`
   );
 }
 
@@ -389,20 +383,18 @@ function formatWallet(profile, balances, daily, anomaly, contract) {
   const earnedSc = Number(daily?.scEarned || 0);
   const capBar = progressBar(tasksDone, dailyCap || 1, 12);
   const productivity = dailyCap > 0 ? Math.min(1, tasksDone / dailyCap) : 0;
-  const anomalyLine = anomaly ? `\nNexus: *${escapeMarkdown(anomaly.title)}* (${anomaly.preferred_mode})` : "";
-  const contractLine = contract ? `\nKontrat: *${escapeMarkdown(contract.title)}* [${escapeMarkdown(contract.required_mode)}]` : "";
+  const anomalyLine = anomaly ? `\n🌀 Nexus: *${escapeMarkdown(anomaly.title)}*` : "";
+  const contractLine = contract ? `\n📜 Kontrat: *${escapeMarkdown(contract.title)}*` : "";
   return (
-    `*Cuzdan // Ekonomi HUD*\n` +
-    `SC: *${sc}*\n` +
-    `HC: *${hc}*\n` +
-    `RC: *${rc}*\n\n` +
-    `Bugun Gorev: *${tasksDone}/${dailyCap}*\n` +
-    `Bugun SC: *${earnedSc}*\n` +
-    `Verim: *${pct(productivity)}*\n` +
-    `${capBar}` +
-    (extraCurrencies ? `\n\n${extraCurrencies}` : "") +
-    `\n\n` +
-    `Streak: *${profile.current_streak} gun* | Kingdom: *Tier ${profile.kingdom_tier}*${anomalyLine}${contractLine}`
+    `💰 *Cüzdan // Ekonomi HUD*\n\n` +
+    `🪙 SC: *${sc}*\n` +
+    `💎 HC: *${hc}*\n` +
+    `🔮 RC: *${rc}*\n` +
+    (extraCurrencies ? `\n${extraCurrencies}\n` : "") +
+    `\n📊 Bugün: *${tasksDone}/${dailyCap}* görev │ 💰 *${earnedSc}* SC\n` +
+    `📈 Verim: *${pct(productivity)}*\n` +
+    `${capBar}\n\n` +
+    `🔥 Streak: *${profile.current_streak} gün* │ ⚔️ Kingdom: *Tier ${profile.kingdom_tier}*${anomalyLine}${contractLine}`
   );
 }
 
@@ -571,16 +563,16 @@ function formatDaily(profile, daily, board, balances, anomaly, contract) {
 
 function formatSeason(season, stat, rank) {
   const points = Number(stat?.season_points || 0);
-  const currentRank = rank > 0 ? `#${rank}` : "Yerlesmedi";
+  const currentRank = rank > 0 ? `#${rank}` : "Yerleşmedi";
   const start = season.seasonStart.toISOString().slice(0, 10);
   const end = season.seasonEnd.toISOString().slice(0, 10);
   return (
-    `*Sezon Durumu*\n` +
-    `Sezon: *S${season.seasonId}*\n` +
-    `Aralik: ${start} - ${end}\n` +
-    `Kalan: *${season.daysLeft} gun*\n\n` +
-    `Puanin: *${points}*\n` +
-    `Siralaman: *${currentRank}*`
+    `📅 *Sezon Durumu*\n\n` +
+    `🏟 Sezon: *S${season.seasonId}*\n` +
+    `📆 Aralık: ${start} — ${end}\n` +
+    `⏳ Kalan: *${season.daysLeft} gün*\n\n` +
+    `⭐ Puanın: *${points}*\n` +
+    `🏆 Sıralaman: *${currentRank}*`
   );
 }
 
@@ -635,22 +627,24 @@ function formatPurchaseResult(result) {
 
 function formatMissions(board) {
   if (!board || board.length === 0) {
-    return "*Gunluk Gorevler*\nSu an gorev yok.";
+    return "🎯 *Günlük Görevler*\n\nŞu an görev yok.";
   }
+  const statusEmoji = { ALINDI: '✅', HAZIR: '🎁', DEVAM: '🔄' };
   const lines = board.map((mission, idx) => {
     const bar = progressBar(mission.progress, mission.target, 10);
     const status = mission.claimed ? "ALINDI" : mission.completed ? "HAZIR" : "DEVAM";
+    const sEmoji = statusEmoji[status] || '🔄';
     const rewardParts = [];
-    if (mission.reward.sc > 0) rewardParts.push(`${mission.reward.sc}SC`);
-    if (mission.reward.hc > 0) rewardParts.push(`${mission.reward.hc}HC`);
-    if (mission.reward.rc > 0) rewardParts.push(`${mission.reward.rc}RC`);
+    if (mission.reward.sc > 0) rewardParts.push(`${mission.reward.sc} SC`);
+    if (mission.reward.hc > 0) rewardParts.push(`${mission.reward.hc} HC`);
+    if (mission.reward.rc > 0) rewardParts.push(`${mission.reward.rc} RC`);
     return (
-      `${idx + 1}) *${escapeMarkdown(mission.title)}* [${status}]\n` +
+      `${sEmoji} *${escapeMarkdown(mission.title)}*\n` +
       `   ${escapeMarkdown(mission.description)}\n` +
-      `   ${mission.progress}/${mission.target} ${bar} | Odul: ${rewardParts.join("+")}`
+      `   ${mission.progress}/${mission.target} ${bar} │ 💰 ${rewardParts.join(" + ")}`
     );
   });
-  return `*Gunluk Gorevler*\n${lines.join("\n")}\n\nTamamlananlar icin odulu al.`;
+  return `🎯 *Günlük Görevler*\n\n${lines.join("\n\n")}\n\n💡 Tamamlananlar için ödülü al!`;
 }
 
 function formatMissionClaim(result) {
@@ -676,13 +670,13 @@ function formatMissionClaim(result) {
 }
 
 function formatWar(status, season) {
-  const nextLine = status.next ? `${Math.max(0, status.next - status.value)} puan sonra ${status.tier} uzeri` : "Maksimum tier";
+  const nextLine = status.next ? `${Math.max(0, status.next - status.value)} puan sonra ${status.tier} üzeri` : "🏆 Maksimum tier";
   return (
-    `*War Room*\n` +
-    `Sezon: *S${season.seasonId}*\n` +
-    `Topluluk Havuzu: *${Math.floor(status.value)}*\n` +
-    `Tier: *${status.tier}*\n` +
-    `${nextLine}\n` +
+    `⚔️ *War Room*\n\n` +
+    `📅 Sezon: *S${season.seasonId}*\n` +
+    `🏰 Topluluk Havuzu: *${Math.floor(status.value)}*\n` +
+    `🎖 Tier: *${status.tier}*\n` +
+    `${nextLine}\n\n` +
     `${progressBar(status.value, status.next || Math.max(1, status.value), 14)}`
   );
 }
@@ -822,14 +816,13 @@ function formatArenaStatus(state) {
     : "Veri yok";
 
   return (
-    `*Arena Protocol*\n` +
-    `Rating: *${Math.floor(Number(state.rating || 0))}* (#${state.rank || "-"})\n` +
-    `Oyun: *${state.gamesPlayed || 0}* | Win: *${state.wins || 0}* | Loss: *${state.losses || 0}*\n` +
-    `Sonuc: *${state.lastResult || "yok"}*\n` +
-    `Ticket: *${state.ticketCost || 1} RC*\n` +
-    `Cooldown: *${state.cooldownSec || 0}s*\n\n` +
-    `Top 5:\n${leaders}\n\n` +
-    `Son Raidler:\n${lastRuns}`
+    `⚔️ *Arena Protocol*\n\n` +
+    `🏅 Rating: *${Math.floor(Number(state.rating || 0))}* (#${state.rank || "-"})\n` +
+    `🎮 Oyun: *${state.gamesPlayed || 0}* │ ✅ Win: *${state.wins || 0}* │ ❌ Loss: *${state.losses || 0}*\n` +
+    `📊 Son: *${state.lastResult || "yok"}* │ 🎫 Ticket: *${state.ticketCost || 1} RC*\n` +
+    `⏱ Cooldown: *${state.cooldownSec || 0}s*\n\n` +
+    `🏆 *Top 5:*\n${leaders}\n\n` +
+    `📜 *Son Raidler:*\n${lastRuns}`
   );
 }
 
@@ -845,14 +838,14 @@ function formatArenaRaidResult(result) {
   const anomalyLine = result.anomaly?.title
     ? `\nNexus: *${escapeMarkdown(result.anomaly.title)}* (${escapeMarkdown(result.anomaly.preferred_mode || "balanced")})`
     : "";
+  const outcomeEmoji = result.run?.outcome === 'win' ? '🏆' : result.run?.outcome === 'near' ? '⚡' : '💀';
   return (
-    `*Arena Raid Sonucu*\n` +
-    `Mod: *${modeLabel}*\n` +
-    `Durum: *${outcome}*\n` +
-    `Odul: *${result.reward?.sc || 0} SC + ${result.reward?.hc || 0} HC + ${result.reward?.rc || 0} RC*\n` +
-    `Rating: *${result.rating_after || 0}* (${sign}${result.run?.rating_delta || 0})\n` +
-    `Arena Rank: *#${result.rank || "-"}*${anomalyLine}\n` +
-    `Sezon +${result.season_points || 0} | War +${result.war_delta || 0}`
+    `${outcomeEmoji} *Arena Raid Sonucu*\n\n` +
+    `🎯 Mod: *${modeLabel}* │ Durum: *${outcome}*\n` +
+    `💰 Ödül: *${result.reward?.sc || 0} SC + ${result.reward?.hc || 0} HC + ${result.reward?.rc || 0} RC*\n` +
+    `🏅 Rating: *${result.rating_after || 0}* (${sign}${result.run?.rating_delta || 0})\n` +
+    `🏆 Arena Rank: *#${result.rank || "-"}*${anomalyLine}\n\n` +
+    `📅 Sezon +${result.season_points || 0} │ ⚔️ War +${result.war_delta || 0}`
   );
 }
 
