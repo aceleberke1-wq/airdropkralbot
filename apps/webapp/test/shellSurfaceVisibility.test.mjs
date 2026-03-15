@@ -36,6 +36,20 @@ test("compact player shell drops runtime strip once runtime is stable", () => {
   assert.equal(result.sceneChromeMode, "backdrop");
 });
 
+test("idle runtime does not surface scene runtime strip", () => {
+  const result = resolveShellSurfaceVisibility({
+    workspace: "admin",
+    advanced: false,
+    hudDensity: "normal",
+    deviceClass: "desktop",
+    sceneRuntimePhase: "idle",
+    sceneRuntimeError: "",
+    hasLaunchSummary: false
+  });
+
+  assert.equal(result.showSceneRuntimeStrip, false);
+});
+
 test("admin shell defaults to backdrop mode when advanced tools are off", () => {
   const result = resolveShellSurfaceVisibility({
     workspace: "admin",

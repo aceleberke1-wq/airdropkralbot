@@ -18,7 +18,8 @@ export function resolveShellSurfaceVisibility(options = {}) {
   });
   const adminAdvanced = workspace === "admin" && advanced;
   const showOperatorSurfaces = adminAdvanced;
-  const showSceneRuntimeStrip = (sceneRuntimePhase && sceneRuntimePhase !== "ready") || Boolean(sceneRuntimeError);
+  const showSceneRuntimeStrip =
+    sceneRuntimePhase === "preparing" || sceneRuntimePhase === "error" || Boolean(sceneRuntimeError);
   const sceneChromeMode = adminAdvanced ? "full" : "backdrop";
 
   return {
