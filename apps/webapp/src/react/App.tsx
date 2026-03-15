@@ -891,6 +891,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     monetizationPassPurchase,
     monetizationCosmeticPurchase
   });
+  const hidePlayerShellForOnboarding = onboardingVisible && workspace === "player";
 
   return (
     <div className={rootClassName}>
@@ -916,20 +917,22 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           onLoopStateChange={handleDistrictLoopStateChange}
         />
       </Suspense>
-      <TopBar
-        lang={lang}
-        advanced={advanced}
-        reducedMotion={reducedMotion}
-        largeText={largeText}
-        workspace={workspace}
-        onRefresh={onRefresh}
-        onToggleAdvanced={onToggleAdvanced}
-        onToggleReducedMotion={onToggleReducedMotion}
-        onToggleLargeText={onToggleLargeText}
-        onToggleLanguage={onToggleLanguage}
-        onToggleWorkspace={onToggleWorkspace}
-      />
-      {shellSurfaceVisibility.showMetaStrip ? (
+      {!hidePlayerShellForOnboarding ? (
+        <TopBar
+          lang={lang}
+          advanced={advanced}
+          reducedMotion={reducedMotion}
+          largeText={largeText}
+          workspace={workspace}
+          onRefresh={onRefresh}
+          onToggleAdvanced={onToggleAdvanced}
+          onToggleReducedMotion={onToggleReducedMotion}
+          onToggleLargeText={onToggleLargeText}
+          onToggleLanguage={onToggleLanguage}
+          onToggleWorkspace={onToggleWorkspace}
+        />
+      ) : null}
+      {!hidePlayerShellForOnboarding && shellSurfaceVisibility.showMetaStrip ? (
         <MetaStrip
           lang={lang}
           variant={data?.experiment?.variant || ""}
@@ -941,7 +944,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           sceneProfile={String(capabilityProfile?.scene_profile || "-")}
         />
       ) : null}
-      {shellSurfaceVisibility.showSceneRuntimeStrip ? (
+      {!hidePlayerShellForOnboarding && shellSurfaceVisibility.showSceneRuntimeStrip ? (
         <SceneRuntimeStrip
           lang={lang}
           phase={sceneRuntime.phase}
@@ -954,7 +957,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           error={sceneRuntime.error}
         />
       ) : null}
-      {shellSurfaceVisibility.showLaunchHandoffStrip && launchSummary ? (
+      {!hidePlayerShellForOnboarding && shellSurfaceVisibility.showLaunchHandoffStrip && launchSummary ? (
         <LaunchHandoffStrip
           lang={lang}
           routeLabel={launchSummary.routeLabel}
@@ -962,11 +965,11 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           focusLabel={launchSummary.focusLabel}
         />
       ) : null}
-      {shellSurfaceVisibility.showSceneBridgeDock ? (
+      {!hidePlayerShellForOnboarding && shellSurfaceVisibility.showSceneBridgeDock ? (
         <SceneBridgeDock lang={lang} workspace={workspace} tab={tab} advanced={advanced} />
       ) : null}
       <Suspense fallback={<WorkspaceLoadingFallback />}>
-        {workspace === "player" && (
+        {workspace === "player" && !hidePlayerShellForOnboarding && (
           <PlayerWorkspace
             lang={lang}
             tab={tab}

@@ -2865,7 +2865,8 @@ body {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(3, 10, 20, 0.72);
+  background: rgba(3, 10, 20, 0.94);
+  backdrop-filter: blur(16px);
 }
 
 .akrOnboardingCard {
