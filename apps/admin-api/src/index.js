@@ -84,6 +84,7 @@ const {
   buildDistrictFamilyAssetRuntimeCatalog
 } = require("./services/webapp/assetManifestIntakeService");
 const { summarizeWebappDomainRuntime } = require("./services/webapp/webappDomainRuntimeService");
+const { buildCanonicalVersionedWebappPath } = require("./services/webapp/webappRequestVersionService");
 const { createChatTrustNotificationService } = require("./services/chatTrustNotificationService");
 
 const envPath = path.join(process.cwd(), ".env");
@@ -6220,13 +6221,28 @@ fastify.get("/health", async () => dependencyHealth());
 fastify.get("/webapp", async (request, reply) => {
   let client = null;
   try {
+    const currentVersionState = await resolveWebAppVersion(null);
+    const requestedVersion = sanitizeWebAppVersion(request.query?.v || "");
+    const currentVersion = sanitizeWebAppVersion(currentVersionState?.version || "");
+    if (!requestedVersion || (currentVersion && requestedVersion !== currentVersion)) {
+      reply
+        .code(302)
+        .header("Cache-Control", "no-store, no-cache, must-revalidate")
+        .header("Pragma", "no-cache")
+        .redirect(buildCanonicalVersionedWebappPath(request.raw.url || "/webapp", currentVersion));
+      return;
+    }
     const variant = resolveFastWebAppVariant() || (client = await pool.connect(), await resolveWebAppVariant(client));
     const indexPath = variant.indexPath || path.join(variant.rootDir, "index.html");
     if (!fs.existsSync(indexPath)) {
       reply.code(404).type("text/plain").send("webapp_not_found");
       return;
     }
-    reply.type("text/html; charset=utf-8").send(fs.readFileSync(indexPath, "utf8"));
+    reply
+      .header("Cache-Control", "no-store, no-cache, must-revalidate")
+      .header("Pragma", "no-cache")
+      .type("text/html; charset=utf-8")
+      .send(fs.readFileSync(indexPath, "utf8"));
   } finally {
     if (client) {
       client.release();
