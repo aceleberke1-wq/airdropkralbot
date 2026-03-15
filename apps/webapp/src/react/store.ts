@@ -86,16 +86,39 @@ export function useReactShellStore(): ReactShellState {
 
   const setBootstrap = useCallback(
     (nextData: BootstrapV2Data) => {
+      const rawLaunchContext =
+        nextData?.launch_context && typeof nextData.launch_context === "object" ? nextData.launch_context : null;
+      const effectiveLaunchContext = rawLaunchContext || navigationContext || null;
+      const rawUiPrefs =
+        nextData?.ui_prefs && typeof nextData.ui_prefs === "object" ? (nextData.ui_prefs as Record<string, unknown>) : {};
+      const rawPrefsJson =
+        rawUiPrefs.prefs_json && typeof rawUiPrefs.prefs_json === "object"
+          ? (rawUiPrefs.prefs_json as Record<string, unknown>)
+          : {};
+      const normalizedData = {
+        ...nextData,
+        launch_context: effectiveLaunchContext,
+        ui_prefs: {
+          ...rawUiPrefs,
+          prefs_json: {
+            ...rawPrefsJson,
+            ...(effectiveLaunchContext?.tab ? { last_tab: effectiveLaunchContext.tab } : {}),
+            ...(effectiveLaunchContext?.workspace
+              ? { workspace: effectiveLaunchContext.workspace === "admin" ? "admin" : "player" }
+              : {})
+          }
+        }
+      } as BootstrapV2Data;
       const capabilityProfile = collectCapabilityProfile({
-        qualityMode: String(nextData?.ui_prefs?.quality_mode || "auto"),
-        reducedMotion: Boolean(nextData?.ui_prefs?.reduced_motion),
-        largeText: Boolean(nextData?.ui_prefs?.large_text)
+        qualityMode: String(normalizedData?.ui_prefs?.quality_mode || "auto"),
+        reducedMotion: Boolean(normalizedData?.ui_prefs?.reduced_motion),
+        largeText: Boolean(normalizedData?.ui_prefs?.large_text)
       });
-      dispatch(playerActions.setBootstrap(nextData));
-      dispatch(navigationActions.hydrateLaunchContext(nextData?.launch_context || null));
+      dispatch(playerActions.setBootstrap(normalizedData));
+      dispatch(navigationActions.hydrateLaunchContext(effectiveLaunchContext));
       dispatch(
         uiActions.applyBootstrapUi(
-          deriveUiFromBootstrap(nextData, {
+          deriveUiFromBootstrap(normalizedData, {
             tab: ui.tab,
             workspace: ui.workspace,
             lang: ui.lang,
@@ -115,7 +138,7 @@ export function useReactShellStore(): ReactShellState {
         })
       );
     },
-    [dispatch, ui.tab, ui.workspace, ui.lang, ui.advanced, ui.onboardingVisible]
+    [dispatch, navigationContext, ui.tab, ui.workspace, ui.lang, ui.advanced, ui.onboardingVisible]
   );
 
   const patchData = useCallback(

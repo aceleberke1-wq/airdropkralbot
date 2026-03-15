@@ -2771,6 +2771,132 @@ body {
   flex-wrap: wrap;
 }
 
+.akrGameHub,
+.akrArenaPanel {
+  display: grid;
+  gap: 18px;
+}
+
+.akrGameHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid rgba(120, 181, 225, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(0, 214, 255, 0.12), transparent 36%),
+    linear-gradient(155deg, rgba(7, 18, 38, 0.96), rgba(8, 24, 48, 0.9));
+}
+
+.akrGameHeroCopy {
+  display: grid;
+  gap: 8px;
+}
+
+.akrGameHeroCopy h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.akrGameHeroCopy p {
+  margin: 0;
+  color: var(--akr-muted);
+  line-height: 1.6;
+}
+
+.akrGameHeroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-content: flex-start;
+  justify-content: flex-start;
+}
+
+.akrGameActionGrid,
+.akrGameFocusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.akrActionFeatureCard {
+  text-align: left;
+  border: 1px solid rgba(120, 181, 225, 0.18);
+  border-radius: 16px;
+  padding: 16px;
+  background:
+    linear-gradient(160deg, rgba(7, 21, 42, 0.9), rgba(8, 26, 48, 0.84));
+  color: var(--akr-ink);
+  display: grid;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.akrActionFeatureCard h3,
+.akrActionFeatureCard p {
+  margin: 0;
+}
+
+.akrActionFeatureCard p:not(.akrKicker) {
+  color: var(--akr-muted);
+  line-height: 1.55;
+}
+
+.akrActionFeatureCard.isPrimary {
+  border-color: rgba(47, 255, 181, 0.34);
+  box-shadow: 0 0 0 1px rgba(47, 255, 181, 0.08), 0 18px 30px rgba(4, 14, 28, 0.24);
+}
+
+.akrActionFeatureCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(120, 181, 225, 0.36);
+  box-shadow: 0 16px 28px rgba(5, 15, 28, 0.24);
+}
+
+.akrStatRail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.akrMetricCard {
+  border: 1px solid rgba(120, 181, 225, 0.14);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(7, 21, 42, 0.52);
+  display: grid;
+  gap: 8px;
+}
+
+.akrMetricCard span {
+  color: var(--akr-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.akrMetricCard strong {
+  font-size: 1.05rem;
+}
+
+.akrMiniPanelBody {
+  margin: 6px 0 0;
+}
+
+.akrHomeFooterActions {
+  align-items: center;
+}
+
+.akrArenaHero {
+  border-color: rgba(255, 178, 94, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(255, 178, 94, 0.14), transparent 32%),
+    linear-gradient(160deg, rgba(10, 18, 36, 0.96), rgba(17, 25, 48, 0.88));
+}
+
 .akrInputRow {
   margin-top: 10px;
   display: grid;
@@ -3812,6 +3938,13 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .akrGameHero,
+  .akrGameActionGrid,
+  .akrGameFocusGrid,
+  .akrStatRail {
+    grid-template-columns: 1fr;
+  }
+
   .akrSplit {
     grid-template-columns: 1fr;
   }
@@ -3833,6 +3966,16 @@ body {
 @media (max-width: 640px) {
   .akrReactRoot {
     padding: 14px 10px 24px;
+  }
+
+  .akrGameHero {
+    padding: 14px;
+  }
+
+  .akrActionFeatureCard,
+  .akrMetricCard,
+  .akrMiniPanel {
+    padding: 12px;
   }
 
   .akrSceneWorldRail {

@@ -5,6 +5,7 @@ type TopBarProps = {
   advanced: boolean;
   showAdvancedToggle?: boolean;
   showWorkspaceToggle?: boolean;
+  showAccessibilityControls?: boolean;
   reducedMotion: boolean;
   largeText: boolean;
   workspace: "player" | "admin";
@@ -38,26 +39,30 @@ export function TopBar(props: TopBarProps) {
             {props.advanced ? t(props.lang, "advanced_on") : t(props.lang, "advanced_off")}
           </button>
         ) : null}
-        <button
-          className="akrBtn akrBtnGhost"
-          onClick={() => {
-            props.onToggleReducedMotion(!props.reducedMotion);
-          }}
-          data-akr-panel-key="language"
-          data-akr-focus-key="accessibility"
-        >
-          {props.reducedMotion ? t(props.lang, "reduced_motion_on") : t(props.lang, "reduced_motion_off")}
-        </button>
-        <button
-          className="akrBtn akrBtnGhost"
-          onClick={() => {
-            props.onToggleLargeText(!props.largeText);
-          }}
-          data-akr-panel-key="language"
-          data-akr-focus-key="accessibility"
-        >
-          {props.largeText ? t(props.lang, "large_text_on") : t(props.lang, "large_text_off")}
-        </button>
+        {props.showAccessibilityControls ? (
+          <>
+            <button
+              className="akrBtn akrBtnGhost"
+              onClick={() => {
+                props.onToggleReducedMotion(!props.reducedMotion);
+              }}
+              data-akr-panel-key="language"
+              data-akr-focus-key="accessibility"
+            >
+              {props.reducedMotion ? t(props.lang, "reduced_motion_on") : t(props.lang, "reduced_motion_off")}
+            </button>
+            <button
+              className="akrBtn akrBtnGhost"
+              onClick={() => {
+                props.onToggleLargeText(!props.largeText);
+              }}
+              data-akr-panel-key="language"
+              data-akr-focus-key="accessibility"
+            >
+              {props.largeText ? t(props.lang, "large_text_on") : t(props.lang, "large_text_off")}
+            </button>
+          </>
+        ) : null}
         <button
           className="akrBtn akrBtnGhost"
           onClick={() => {

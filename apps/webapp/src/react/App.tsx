@@ -237,6 +237,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   });
 
   const isAdmin = Boolean(data?.admin?.is_admin);
+  const effectiveWorkspace: "player" | "admin" =
+    isAdmin && String(navigationContext?.workspace || "").trim().toLowerCase() === "admin" ? "admin" : "player";
   const tabs = useMemo<TabKey[]>(
     () => (Array.isArray(data?.ui_shell?.tabs) && data?.ui_shell?.tabs.length ? data.ui_shell.tabs : ["home", "pvp", "tasks", "vault"]),
     [data?.ui_shell?.tabs]
@@ -258,7 +260,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const monetizationOverviewQuery = useMonetizationOverviewV2Query({ auth: activeAuth }, { skip: !hasActiveAuth });
   const walletSessionQuery = useWalletSessionV2Query({ auth: activeAuth }, { skip: !hasActiveAuth });
   const payoutStatusQuery = usePayoutStatusV2Query({ auth: activeAuth }, { skip: !hasActiveAuth });
-  const adminQueryEnabled = hasActiveAuth && workspace === "admin" && isAdmin;
+  const adminQueryEnabled = hasActiveAuth && effectiveWorkspace === "admin" && isAdmin;
   const adminBootstrapQuery = useAdminBootstrapV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
   const adminQueueQuery = useAdminUnifiedQueueV2Query({ auth: activeAuth, limit: 80 }, { skip: !adminQueryEnabled });
   const adminMetricsQuery = useAdminMetricsV2Query({ auth: activeAuth }, { skip: !adminQueryEnabled });
@@ -327,7 +329,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     activeAuth,
     lang,
     tab,
-    workspace,
+    workspace: effectiveWorkspace,
     data: (data as Record<string, any> | null | undefined) || null,
     launchContext: navigationContext,
     scene: {
@@ -341,7 +343,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
 
   const { refreshBootstrap } = useBootstrapRefreshController({
     hasActiveAuth,
-    workspace,
+    workspace: effectiveWorkspace,
     bootstrapQuery,
     setLoading,
     setError,
@@ -460,7 +462,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     propsBootstrap: props.bootstrap,
     activeAuth,
     hasActiveAuth,
-    workspace,
+    workspace: effectiveWorkspace,
     tab,
     adminQueryEnabled,
     bootstrapQueryData: bootstrapQuery.data,
@@ -524,7 +526,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const deviceClass = String(capabilityProfile?.device_class || "");
   const { launchSummary } = useLaunchFocusController({
     launchContext: navigationContext,
-    workspace,
+    workspace: effectiveWorkspace,
     tab,
     reducedMotion,
     requestKey: navigationRequestKey,
@@ -538,7 +540,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     onToggleLanguage,
     onToggleWorkspace
   } = useShellTopBarController({
-    workspace,
+    workspace: effectiveWorkspace,
     uiPrefs: (data?.ui_prefs as Record<string, unknown> | undefined) || null,
     patchData,
     trackUiEvent,
@@ -555,7 +557,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     syncPrefs
   });
   const { sceneRuntime } = useSceneRuntimeLoader({
-    workspace,
+    workspace: effectiveWorkspace,
     tab,
     trackUiEvent,
     scene: {
@@ -564,8 +566,8 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     }
   });
   const shellSurfaceVisibility = resolveShellSurfaceVisibility({
-    workspace,
-    advanced: isAdmin && workspace === "admin" ? advanced : false,
+    workspace: effectiveWorkspace,
+    advanced: isAdmin && effectiveWorkspace === "admin" ? advanced : false,
     hudDensity,
     deviceClass,
     sceneRuntimePhase: sceneRuntime.phase,
@@ -797,7 +799,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const bridgeDockEnabled = adminAdvanced;
   useSceneBridgeFeed({
     enabled: bridgeDockEnabled,
-    workspace,
+    workspace: effectiveWorkspace,
     tab,
     scene: (scene as Record<string, unknown>) || {},
     sceneRuntime: (sceneRuntime as Record<string, unknown>) || {},
@@ -819,7 +821,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     [pvpRuntime.session]
   );
   usePvpAutoRefresh({
-    enabled: hasActiveAuth && workspace === "player" && tab === "pvp",
+    enabled: hasActiveAuth && effectiveWorkspace === "player" && tab === "pvp",
     sessionRef: String(pvpSessionMachine.session_ref || ""),
     refreshIntervalMs: Number(pvpSessionMachine.refresh_interval_ms || 9000),
     shouldRefreshNow: Boolean(pvpSessionMachine.should_refresh_now),
@@ -892,7 +894,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     monetizationPassPurchase,
     monetizationCosmeticPurchase
   });
-  const hidePlayerShellForOnboarding = onboardingVisible && workspace === "player";
+  const hidePlayerShellForOnboarding = onboardingVisible && effectiveWorkspace === "player";
 
   return (
     <div className={rootClassName}>
@@ -900,7 +902,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
       <Suspense fallback={null}>
         <BabylonDistrictSceneHost
           lang={lang}
-          workspace={workspace}
+          workspace={effectiveWorkspace}
           tab={tab}
           sceneChromeMode={shellSurfaceVisibility.sceneChromeMode as "full" | "backdrop"}
           navigationContext={(navigationContext as Record<string, unknown> | null) || null}
@@ -922,11 +924,12 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         <TopBar
           lang={lang}
           advanced={adminAdvanced}
-          showAdvancedToggle={Boolean(isAdmin && workspace === "admin")}
-          showWorkspaceToggle={Boolean(isAdmin)}
+          showAdvancedToggle={Boolean(isAdmin && effectiveWorkspace === "admin")}
+          showWorkspaceToggle={false}
+          showAccessibilityControls={false}
           reducedMotion={reducedMotion}
           largeText={largeText}
-          workspace={workspace}
+          workspace={effectiveWorkspace}
           onRefresh={onRefresh}
           onToggleAdvanced={onToggleAdvanced}
           onToggleReducedMotion={onToggleReducedMotion}
@@ -969,10 +972,10 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
         />
       ) : null}
       {!hidePlayerShellForOnboarding && shellSurfaceVisibility.showSceneBridgeDock ? (
-        <SceneBridgeDock lang={lang} workspace={workspace} tab={tab} advanced={adminAdvanced} />
+        <SceneBridgeDock lang={lang} workspace={effectiveWorkspace} tab={tab} advanced={adminAdvanced} />
       ) : null}
       <Suspense fallback={<WorkspaceLoadingFallback />}>
-        {workspace === "player" && !hidePlayerShellForOnboarding && (
+        {effectiveWorkspace === "player" && !hidePlayerShellForOnboarding && (
           <PlayerWorkspace
             lang={lang}
             tab={tab}
@@ -1054,7 +1057,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           />
         )}
 
-        {workspace === "admin" && (
+        {effectiveWorkspace === "admin" && (
           <AdminWorkspace
             lang={lang}
             isAdmin={isAdmin}

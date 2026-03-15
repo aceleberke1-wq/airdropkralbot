@@ -74,3 +74,35 @@ test("deriveUiFromBootstrap honors explicit admin launch workspace", () => {
   assert.equal(result.workspace, "admin");
   assert.equal(result.advanced, true);
 });
+
+test("deriveUiFromBootstrap falls back to player when launch is not explicitly admin", () => {
+  const result = deriveBootstrapUiState(
+    {
+      ui_shell: {
+        default_tab: "home",
+        tabs: ["home", "pvp", "tasks", "vault"]
+      },
+      ui_prefs: {
+        prefs_json: {
+          workspace: "admin",
+          advanced_view: true,
+          last_tab: "pvp"
+        }
+      },
+      ux: {
+        language: "tr",
+        advanced_enabled: true
+      }
+    },
+    {
+      tab: "home",
+      workspace: "admin",
+      lang: "tr",
+      advanced: true,
+      onboardingVisible: true
+    }
+  );
+
+  assert.equal(result.workspace, "player");
+  assert.equal(result.tab, "pvp");
+});

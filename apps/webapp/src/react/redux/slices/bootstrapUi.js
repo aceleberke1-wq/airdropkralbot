@@ -5,13 +5,6 @@ function sanitizeTab(value, fallback) {
   return ["home", "pvp", "tasks", "vault"].includes(key) ? key : fallback;
 }
 
-function sanitizeWorkspace(value, fallback) {
-  const key = String(value || "")
-    .trim()
-    .toLowerCase();
-  return key === "admin" || key === "player" ? key : fallback;
-}
-
 export function deriveBootstrapUiState(data, current) {
   const shell = data?.ui_shell || null;
   const shellTabs =
@@ -30,7 +23,7 @@ export function deriveBootstrapUiState(data, current) {
   const onboardingCompleted = Boolean(prefsJson.onboarding_completed);
   const launchedWorkspace =
     launchContext?.workspace === "admin" || launchContext?.workspace === "player" ? launchContext.workspace : null;
-  const nextWorkspace = launchedWorkspace || sanitizeWorkspace(current.workspace || prefsJson.workspace || "player", "player");
+  const nextWorkspace = launchedWorkspace || "player";
   const nextAdvanced = nextWorkspace === "admin" ? Boolean(current.advanced || advancedPref) : Boolean(current.advanced);
 
   return {
