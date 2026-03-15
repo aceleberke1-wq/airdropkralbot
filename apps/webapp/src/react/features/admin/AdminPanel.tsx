@@ -142,6 +142,7 @@ function AdminCardFallback(props: { lang: Lang; title: string }) {
 }
 
 export function AdminPanel(props: AdminPanelProps) {
+  const showCompactOpsOnly = props.isAdmin && !props.advanced;
   const surfaceActions = buildAdminSurfaceActionsView({
     adminSummary: props.adminRuntime.summary,
     adminPanels: props.adminPanels
@@ -176,14 +177,6 @@ export function AdminPanel(props: AdminPanelProps) {
                 {t(props.lang, "admin_nav_queue")}
               </button>
             ) : null}
-            {props.panelVisibility.dynamicPolicy ? (
-              <button
-                className="akrBtn akrBtnGhost"
-                onClick={() => runSurfaceAction("admin_header", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin")}
-              >
-                {t(props.lang, "admin_nav_policy")}
-              </button>
-            ) : null}
             {props.panelVisibility.liveOps ? (
               <button
                 className="akrBtn akrBtnGhost"
@@ -192,7 +185,15 @@ export function AdminPanel(props: AdminPanelProps) {
                 {t(props.lang, "admin_nav_live_ops")}
               </button>
             ) : null}
-            {props.panelVisibility.runtimeFlags ? (
+            {props.advanced && props.panelVisibility.dynamicPolicy ? (
+              <button
+                className="akrBtn akrBtnGhost"
+                onClick={() => runSurfaceAction("admin_header", "policy", SHELL_ACTION_KEY.ADMIN_POLICY_PANEL, "panel_admin")}
+              >
+                {t(props.lang, "admin_nav_policy")}
+              </button>
+            ) : null}
+            {props.advanced && props.panelVisibility.runtimeFlags ? (
               <button
                 className="akrBtn akrBtnGhost"
                 onClick={() => runSurfaceAction("admin_header", "flags", SHELL_ACTION_KEY.ADMIN_RUNTIME_FLAGS, "panel_admin")}
@@ -200,7 +201,7 @@ export function AdminPanel(props: AdminPanelProps) {
                 {t(props.lang, "admin_nav_flags")}
               </button>
             ) : null}
-            {props.panelVisibility.runtimeBot ? (
+            {props.advanced && props.panelVisibility.runtimeBot ? (
               <button
                 className="akrBtn akrBtnGhost"
                 onClick={() => runSurfaceAction("admin_header", "bot", SHELL_ACTION_KEY.ADMIN_RUNTIME_BOT, "panel_admin")}
@@ -208,7 +209,7 @@ export function AdminPanel(props: AdminPanelProps) {
                 {t(props.lang, "admin_nav_bot")}
               </button>
             ) : null}
-            {props.panelVisibility.runtimeMeta ? (
+            {props.advanced && props.panelVisibility.runtimeMeta ? (
               <button
                 className="akrBtn akrBtnGhost"
                 onClick={() => runSurfaceAction("admin_header", "runtime", SHELL_ACTION_KEY.ADMIN_RUNTIME_META, "panel_admin")}
@@ -235,32 +236,14 @@ export function AdminPanel(props: AdminPanelProps) {
                 onSurfaceAction={runSurfaceAction}
               />
             </Suspense>
-          ) : (
+          ) : props.advanced ? (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_queue_title")} />
-          )}
-          {props.panelVisibility.dynamicPolicy ? (
-            <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />}>
-              <DynamicPolicyCard
-                lang={props.lang}
-                dynamicPolicyData={props.dynamicPolicyData}
-                dynamicPolicyTokenSymbol={props.dynamicPolicyTokenSymbol}
-                dynamicPolicyDraft={props.dynamicPolicyDraft}
-                dynamicPolicyError={props.dynamicPolicyError}
-                dynamicPolicySaving={props.dynamicPolicySaving}
-                onDynamicPolicyTokenSymbolChange={props.onDynamicPolicyTokenSymbolChange}
-                onDynamicPolicyDraftChange={props.onDynamicPolicyDraftChange}
-                onRefreshDynamicPolicy={props.onRefreshDynamicPolicy}
-                onSaveDynamicPolicy={props.onSaveDynamicPolicy}
-                onSurfaceAction={runSurfaceAction}
-              />
-            </Suspense>
-          ) : (
-            <DisabledPanel lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />
-          )}
+          ) : null}
           {props.panelVisibility.liveOps ? (
             <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_live_ops_title")} />}>
               <LiveOpsCampaignCard
                 lang={props.lang}
+                advanced={props.advanced}
                 liveOpsCampaignData={props.liveOpsCampaignData}
                 liveOpsCampaignDispatchData={props.liveOpsCampaignDispatchData}
                 liveOpsCampaignDraft={props.liveOpsCampaignDraft}
@@ -281,10 +264,29 @@ export function AdminPanel(props: AdminPanelProps) {
                 onSurfaceAction={runSurfaceAction}
               />
             </Suspense>
-          ) : (
+          ) : props.advanced ? (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_live_ops_title")} />
-          )}
-          {props.panelVisibility.runtimeFlags ? (
+          ) : null}
+          {props.advanced && props.panelVisibility.dynamicPolicy ? (
+            <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />}>
+              <DynamicPolicyCard
+                lang={props.lang}
+                dynamicPolicyData={props.dynamicPolicyData}
+                dynamicPolicyTokenSymbol={props.dynamicPolicyTokenSymbol}
+                dynamicPolicyDraft={props.dynamicPolicyDraft}
+                dynamicPolicyError={props.dynamicPolicyError}
+                dynamicPolicySaving={props.dynamicPolicySaving}
+                onDynamicPolicyTokenSymbolChange={props.onDynamicPolicyTokenSymbolChange}
+                onDynamicPolicyDraftChange={props.onDynamicPolicyDraftChange}
+                onRefreshDynamicPolicy={props.onRefreshDynamicPolicy}
+                onSaveDynamicPolicy={props.onSaveDynamicPolicy}
+                onSurfaceAction={runSurfaceAction}
+              />
+            </Suspense>
+          ) : props.advanced ? (
+            <DisabledPanel lang={props.lang} title={t(props.lang, "admin_dynamic_policy_title")} />
+          ) : null}
+          {props.advanced && props.panelVisibility.runtimeFlags ? (
             <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_runtime_flags_title")} />}>
               <RuntimeFlagsCard
                 lang={props.lang}
@@ -298,10 +300,10 @@ export function AdminPanel(props: AdminPanelProps) {
                 onSurfaceAction={runSurfaceAction}
               />
             </Suspense>
-          ) : (
+          ) : props.advanced ? (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_flags_title")} />
-          )}
-          {props.panelVisibility.runtimeBot ? (
+          ) : null}
+          {props.advanced && props.panelVisibility.runtimeBot ? (
             <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_runtime_bot_title")} />}>
               <RuntimeBotCard
                 lang={props.lang}
@@ -315,10 +317,10 @@ export function AdminPanel(props: AdminPanelProps) {
                 onSurfaceAction={runSurfaceAction}
               />
             </Suspense>
-          ) : (
+          ) : props.advanced ? (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_bot_title")} />
-          )}
-          {props.panelVisibility.runtimeMeta ? (
+          ) : null}
+          {props.advanced && props.panelVisibility.runtimeMeta ? (
             <Suspense fallback={<AdminCardFallback lang={props.lang} title={t(props.lang, "admin_runtime_meta_title")} />}>
               <RuntimeMetaCard
                 lang={props.lang}
@@ -339,13 +341,13 @@ export function AdminPanel(props: AdminPanelProps) {
                 onSurfaceAction={runSurfaceAction}
               />
             </Suspense>
-          ) : (
+          ) : props.advanced ? (
             <DisabledPanel lang={props.lang} title={t(props.lang, "admin_runtime_meta_title")} />
-          )}
+          ) : null}
         </>
       )}
 
-      {props.isAdmin && (
+      {props.isAdmin && props.advanced && !showCompactOpsOnly && (
         <section className="akrCard akrCardWide">
           <h3>{t(props.lang, "admin_panel_dump_title")}</h3>
           <pre className="akrJsonBlock">{JSON.stringify(props.adminPanels || {}, null, 2)}</pre>

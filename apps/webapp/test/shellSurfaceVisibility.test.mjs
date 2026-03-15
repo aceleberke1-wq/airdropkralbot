@@ -69,7 +69,7 @@ test("admin shell defaults to backdrop mode when advanced tools are off", () => 
   assert.equal(result.showSceneRuntimeStrip, false);
 });
 
-test("admin shell only shows operator telemetry surfaces in explicit advanced mode", () => {
+test("admin shell keeps advanced mode inside panels without re-opening shell telemetry surfaces", () => {
   const result = resolveShellSurfaceVisibility({
     workspace: "admin",
     advanced: true,
@@ -80,9 +80,9 @@ test("admin shell only shows operator telemetry surfaces in explicit advanced mo
     hasLaunchSummary: true
   });
 
-  assert.equal(result.sceneChromeMode, "full");
-  assert.equal(result.showMetaStrip, true);
-  assert.equal(result.showLaunchHandoffStrip, true);
-  assert.equal(result.showSceneBridgeDock, true);
+  assert.equal(result.sceneChromeMode, "backdrop");
+  assert.equal(result.showMetaStrip, false);
+  assert.equal(result.showLaunchHandoffStrip, false);
+  assert.equal(result.showSceneBridgeDock, false);
   assert.equal(result.showSceneRuntimeStrip, false);
 });
