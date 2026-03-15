@@ -19,9 +19,11 @@ export function resolveShellSurfaceVisibility(options = {}) {
   const showOperatorSurfaces = workspace === "admin" || (advanced && !compactPlayerShell);
   const showSceneRuntimeStrip =
     workspace === "admin" || advanced || (sceneRuntimePhase && sceneRuntimePhase !== "ready") || Boolean(sceneRuntimeError);
+  const sceneChromeMode = workspace === "admin" ? "full" : compactPlayerShell ? "backdrop" : "full";
 
   return {
     compactPlayerShell,
+    sceneChromeMode,
     showMetaStrip: showOperatorSurfaces,
     showLaunchHandoffStrip: hasLaunchSummary && showOperatorSurfaces,
     showSceneBridgeDock: showOperatorSurfaces,

@@ -10,6 +10,7 @@ type BabylonDistrictSceneHostProps = {
   lang: Lang;
   workspace: "player" | "admin";
   tab: "home" | "pvp" | "tasks" | "vault";
+  sceneChromeMode?: "full" | "backdrop";
   navigationContext: Record<string, unknown> | null;
   scene: Record<string, unknown>;
   sceneRuntime: Record<string, unknown>;
@@ -1139,7 +1140,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
             orbit_scale: slot.orbit_scale,
             size_scalar: slot.size_scalar
           }))
-        })),
+      })),
         nodes: worldState.nodes.map((node) => ({
           key: node.key,
           action_key: node.action_key,
@@ -1151,6 +1152,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
       }),
     [worldState]
   );
+  const backdropOnly = props.sceneChromeMode === "backdrop";
   const focusedCluster = useMemo(() => {
     const focusClusterKey = hoveredClusterKeyState || worldState.active_cluster_key;
     if (!focusClusterKey) {
@@ -3126,6 +3128,7 @@ export function BabylonDistrictSceneHost(props: BabylonDistrictSceneHostProps) {
   return (
     <div
       className="akrSceneWorldLayer"
+      data-chrome-mode={backdropOnly ? "backdrop" : "full"}
       data-status={status}
       data-district={worldState.district_key}
       data-personality={selectedMicroflow?.personality_key || ""}

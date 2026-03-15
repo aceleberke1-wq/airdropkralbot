@@ -56,6 +56,13 @@ body {
   gap: 8px;
 }
 
+.akrReactRoot.isBackdropScene .akrGlass,
+.akrReactRoot.isBackdropScene .akrCard,
+.akrReactRoot.isBackdropScene .akrTab,
+.akrReactRoot.isBackdropScene .akrBtn {
+  background: linear-gradient(160deg, rgba(6, 18, 36, 0.98), rgba(10, 29, 54, 0.95));
+}
+
 .akrReactRoot.isQualityLow .akrGlass,
 .akrReactRoot.isQualityLow .akrCard {
   backdrop-filter: none;
@@ -106,6 +113,25 @@ body {
   --akr-scene-modal-width-scale: 1;
   --akr-scene-surface-gap-scale: 1;
   --akr-scene-surface-stack-scale: 1;
+}
+
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] {
+  opacity: 0.42;
+}
+
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneWorldCanvas {
+  pointer-events: none;
+  filter: saturate(0.78) contrast(0.88) blur(1.5px);
+}
+
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneWorldHud,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneWorldRail,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneWorldSheet,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneEntrySurface,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneTerminalConsole,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneInteractionModal,
+.akrSceneWorldLayer[data-chrome-mode="backdrop"] .akrSceneEntryFlow {
+  display: none !important;
 }
 
 .akrSceneWorldCanvas {

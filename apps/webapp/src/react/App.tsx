@@ -522,9 +522,6 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
   const hudDensity = String(scene.hudDensity || "normal");
   const capabilityProfile = (scene.capabilityProfile as Record<string, unknown> | null) || null;
   const deviceClass = String(capabilityProfile?.device_class || "");
-  const rootClassName = `akrReactRoot${reducedMotion ? " isReducedMotion" : ""}${largeText ? " isLargeText" : ""}${
-    hudDensity === "compact" ? " isCompactHud" : ""
-  }${effectiveQuality === "low" ? " isQualityLow" : effectiveQuality === "high" ? " isQualityHigh" : " isQualityMedium"}`;
   const { launchSummary } = useLaunchFocusController({
     launchContext: navigationContext,
     workspace,
@@ -575,6 +572,11 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
     sceneRuntimeError: sceneRuntime.error,
     hasLaunchSummary: Boolean(launchSummary)
   });
+  const rootClassName = `akrReactRoot${reducedMotion ? " isReducedMotion" : ""}${largeText ? " isLargeText" : ""}${
+    hudDensity === "compact" ? " isCompactHud" : ""
+  }${effectiveQuality === "low" ? " isQualityLow" : effectiveQuality === "high" ? " isQualityHigh" : " isQualityMedium"}${
+    shellSurfaceVisibility.sceneChromeMode === "backdrop" ? " isBackdropScene" : ""
+  }`;
   const handleDistrictNodeAction = useCallback(
     (payload: {
       actionKey: string;
@@ -898,6 +900,7 @@ export function ReactWebAppV1(props: ReactWebAppV1Props) {
           lang={lang}
           workspace={workspace}
           tab={tab}
+          sceneChromeMode={shellSurfaceVisibility.sceneChromeMode as "full" | "backdrop"}
           navigationContext={(navigationContext as Record<string, unknown> | null) || null}
           scene={(scene as Record<string, unknown>) || {}}
           sceneRuntime={(sceneRuntime as Record<string, unknown>) || {}}

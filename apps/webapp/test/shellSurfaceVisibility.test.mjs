@@ -15,6 +15,7 @@ test("compact player shell hides operator telemetry surfaces after runtime is re
   });
 
   assert.equal(result.compactPlayerShell, true);
+  assert.equal(result.sceneChromeMode, "backdrop");
   assert.equal(result.showMetaStrip, false);
   assert.equal(result.showLaunchHandoffStrip, false);
   assert.equal(result.showSceneBridgeDock, false);
@@ -33,6 +34,7 @@ test("compact player shell drops runtime strip once runtime is stable", () => {
   });
 
   assert.equal(result.showSceneRuntimeStrip, false);
+  assert.equal(result.sceneChromeMode, "backdrop");
 });
 
 test("admin shell keeps operator surfaces visible on compact devices", () => {
@@ -47,6 +49,7 @@ test("admin shell keeps operator surfaces visible on compact devices", () => {
   });
 
   assert.equal(result.compactPlayerShell, false);
+  assert.equal(result.sceneChromeMode, "full");
   assert.equal(result.showMetaStrip, true);
   assert.equal(result.showLaunchHandoffStrip, true);
   assert.equal(result.showSceneBridgeDock, true);
