@@ -4865,6 +4865,13 @@ async function sendLauncherMenu(ctx, pool) {
   }
   const snapshot = await getSnapshot(pool, ctx);
   const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
+  try {
+    const bannerPath = path.resolve(__dirname, "../assets/welcome_banner.png");
+    const { Input } = require("telegraf");
+    await ctx.replyWithPhoto(Input.fromLocalFile(bannerPath));
+  } catch (_bannerErr) {
+    /* banner send is best-effort; text message below is guaranteed */
+  }
   await ctx.replyWithMarkdown(
     messages.formatStart(snapshot.profile, snapshot.balances, snapshot.season, snapshot.anomaly, snapshot.contract, { lang }),
     buildStartKeyboard(lang)
