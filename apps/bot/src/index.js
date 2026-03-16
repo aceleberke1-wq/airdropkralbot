@@ -5888,6 +5888,52 @@ async function start() {
       handler: async (ctx) => handleBuyOffer(ctx, pool)
     },
     {
+      pattern: /SHOP_BUY:([a-z_]+)/,
+      policy: { actionKey: "shop_buy", cooldownMs: 3000 },
+      handler: async (ctx) => {
+        const offerType = String(ctx.match?.[1] || "").trim();
+        if (!offerType) return;
+        const snapshot = await getSnapshot(pool, ctx);
+        const lang = resolvePreferredLanguage(snapshot.profile, ctx, "tr");
+        /* Look up first active offer matching this type */
+        const result = await withTransaction(pool, async (db) => {
+          const offer = await shopStore.getFirstActiveOfferByType(db, offerType).catch(() => null);
+          if (!offer) {
+            return { success: false, reason: "offer_not_found" };
+          }
+          const profile = await ensureProfileTx(db, ctx);
+          const price = Number(offer.price || 0);
+          const currency = String(offer.currency || "").toUpperCase();
+          const debit = await economyStore.debitCurrency(db, {
+            userId: profile.user_id,
+            currency,
+            amount: price,
+            reason: `shop_purchase_${offer.id}`,
+            refEventId: deterministicUuid(`purchase:${profile.user_id}:${offer.id}`),
+            meta: { offerId: offer.id, offerType: offer.offer_type }
+          });
+          if (!debit.applied) {
+            return { success: false, reason: debit.reason || "insufficient_balance" };
+          }
+          await shopStore.createPurchase(db, { userId: profile.user_id, offerId: offer.id, status: "paid" });
+          let effect = null;
+          const benefit = offer.benefit_json || {};
+          if (benefit.effect_key && benefit.duration_hours) {
+            effect = await shopStore.addOrExtendEffect(db, {
+              userId: profile.user_id,
+              effectKey: benefit.effect_key,
+              level: 1,
+              durationHours: Number(benefit.duration_hours),
+              meta: benefit
+            });
+          }
+          return { success: true, offer, effect, balanceAfter: debit.balance };
+        });
+        await ctx.answerCbQuery();
+        await ctx.replyWithMarkdown(messages.formatPurchaseResult(result));
+      }
+    },
+    {
       pattern: /CLAIM_MISSION:([a-z0-9_]+)/,
       policy: { actionKey: "claim_mission" },
       handler: async (ctx) => handleClaimMission(ctx, pool)
